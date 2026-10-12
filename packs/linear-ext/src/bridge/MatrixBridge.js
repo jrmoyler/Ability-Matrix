@@ -284,9 +284,16 @@ export function installMatrixBridge(app, packId) {
   if (params.get('hud') === '0') {
     document.documentElement.classList.add('matrix-embedded');
     const style = document.createElement('style');
-    style.textContent = '.matrix-embedded .hud__help { display: none !important; }';
+    // Embedded in the matrix, which has its own controls: keep the scene clear.
+    // The pack's own ability bar, title, stats and help panels are hidden;
+    // toasts and the paused badge stay, and the contact card folds to its portrait.
+    style.textContent = [
+      '.matrix-embedded .hud__abilities,',
+      '.matrix-embedded .hud__panel { display: none !important; }'
+    ].join('');
     document.head.appendChild(style);
     // Embedded: start with the VFX editor folded away; the matrix's button toggles it.
+    app.hud?.contact?.setCollapsed?.(true, { silent: true });
     if (app.editor && app.editor._hidden === false) app.editor.toggle();
     else if (app.editor && app.editor._hidden === undefined) app.editor.toggle?.();
   }
