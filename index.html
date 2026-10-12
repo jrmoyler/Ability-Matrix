@@ -127,7 +127,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     </div>
     <div class="controls" id="moves"></div>
     <div class="preset" id="preset">
-      <p class="note">The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.</p>
+      <p class="note" id="presetHelp">The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.</p>
       <textarea id="presetText" readonly></textarea>
       <div class="controls">
         <button class="btn" id="copyPreset">Copy preset</button>
@@ -158,7 +158,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective'];
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'atlas'];
 const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -209,6 +209,9 @@ function markTried(a) { tried.add(a.uid); store.set('tried', [...tried]); docume
 /* ---------- selection ---------- */
 function select(a, { cast = false } = {}) {
   current = a;
+  $('presetHelp').innerHTML = a.pack === 'atlas'
+    ? 'Settings for the next cast. In your Three.js game, import <code>createPresetRuntime</code> from <code>presets/runtime.js</code> and call <code>runtime.cast(preset.id, { ...preset.settings, origin, target })</code>.'
+    : "The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.";
   document.documentElement.style.setProperty('--a', a.accent || 'var(--accent)');
   $('nowSigil').innerHTML = svg(a);
   $('nowName').textContent = a.label;
@@ -230,7 +233,7 @@ function select(a, { cast = false } = {}) {
   const live = a.status === 'live';
   ['castBtn', 'autoBtn', 'presetBtn'].forEach((id) => ($(id).disabled = !live));
   $('armBtn').disabled = !(live && a.kind === 'ability');
-  $('dummyBtn').disabled = !['linear-extended', 'handcast', 'casting', 'collective'].includes(a.pack);
+  $('dummyBtn').disabled = !['linear-extended', 'handcast', 'casting', 'collective', 'atlas'].includes(a.pack);
   $('castBtn').textContent = a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
   renderMoves(a.pack);
   if (!live) { toast('Archived in the source repo \u2014 not wired into its live app'); return; }
@@ -342,12 +345,12 @@ function render() {
   const list = $('list');
   if (filters.view === 'table') {
     list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
-      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${a.pack === 'collective' ? ' <span class="tag-new">new</span>' : ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
+      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${['collective', 'atlas'].includes(a.pack) ? ' <span class="tag-new">new</span>' : ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
     }</tbody></table></div>`;
   } else {
     list.innerHTML = PACK_ORDER.filter((p) => items.some((a) => a.pack === p)).map((p) => {
       const pk = packs[p];
-      const link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : `<a>12 new \u00b7 Collective AI</a>`;
+      const link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : `<a>${pk.count} new \u00b7 ${p === 'atlas' ? 'Ability Atlas' : 'Collective AI'}</a>`;
       return `<div class="pack-head"><span>${pk.title}</span>${link}</div><div class="cards">${
         items.filter((a) => a.pack === p).map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}</span></button>`).join('')
       }</div>`;
@@ -377,7 +380,7 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
   const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
-  chips($('packChips'), PACK_ORDER.filter((p) => packs[p]).map((p) => [p, p === 'collective' ? 'collective (new)' : p]), filters.pack);
+  chips($('packChips'), PACK_ORDER.filter((p) => packs[p]).map((p) => [p, ['collective', 'atlas'].includes(p) ? `${p} (new)` : p]), filters.pack);
   if (filters.view === 'table') $('viewTable').click(); else render();
   updateTally();
   const hash = location.hash.slice(1);
