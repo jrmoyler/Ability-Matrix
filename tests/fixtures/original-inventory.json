@@ -1,0 +1,38 @@
+{
+  "baseCommit": "cd56390fbc7f22ddae71e42b0bb2611d2072fce2",
+  "legacyCatalogSha256": "e79506cf614dea54efcc5ccd68c7c28cb9b39bff0f7853378c0e9c27a952283b",
+  "legacyLibrarySha256": "23b5dd76628a633002001c1c87e5778543f092e2dfb4238aa832af2d4c741738",
+  "packs": {
+    "linear": {
+      "count": 114,
+      "sha256": "d60cedc73b192be9250b002b1cc4b8b3367c52ddebe9565ec62dac3ea79a43bf"
+    },
+    "linear-ext": {
+      "count": 127,
+      "sha256": "82f66c6addba02cbf18367570422c06a72a6c9920db443e2a2bba1fb74bb7009"
+    },
+    "linear-extended": {
+      "count": 153,
+      "sha256": "c0c8bc0d41b3e85e78f4c8695a550fd2cb17378dbb37e723646323782832da40"
+    },
+    "handcast": {
+      "count": 165,
+      "sha256": "e3df11eeec976fefc67a96017dfab19b6d7b3467771ab7b47f12d678491fe38e"
+    },
+    "casting": {
+      "count": 182,
+      "sha256": "c5f5e5e0659481ad8df92d0c23d88c826dd595ca08a209cb6c5807806c5d4891"
+    },
+    "collective": {
+      "count": 190,
+      "sha256": "c644844f54d4c578d851e0e1e31c1c20fbe1cf5489ef18431f520f6ea32395ab"
+    }
+  },
+  "atlasSource": {
+    "catalog.js": "63121ca40780e5a929bcd61b79d0777b36bad4cd7ccf55baaea659f6b7abfa68",
+    "kit.js": "112fea74e07eec867e87339b8ddb1c8880aa84eb4d4ddef4eff4f04d66bdd680",
+    "core.js": "74378331804fdf2d4c5f588a8d0f4045bc7ca38515eccc049fef231d54d5343c",
+    "support.js": "9539094e074abddf07270b6d3307e0f5101868adbe96c450336fb332bf2f92ab",
+    "runtime.js": "dd527d61a26d86c85901b04e92a344091926c1d130d7193bdd3c368f902ed94e"
+  }
+}

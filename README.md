@@ -2,10 +2,10 @@
 
 Every ability and move from five MIT-licensed Three.js ability sandboxes by
 [achrefelouafi](https://github.com/achrefelouafi), pulled in **unchanged**, plus
-**12 new Collective Originals** built on the same engine — and one page that lets
+**12 new Collective Originals** built on the same engine and **10 portable Ability Atlas effects** — and one page that lets
 you test every one of them and copy its settings out as a preset for your own games.
 
-**56 castable** (44 original + 12 new) · **34 moves** · **7 archived abilities** catalogued · **6 packs**
+**66 castable** (44 original + 12 Collective + 10 Atlas) · **34 moves** · **7 archived abilities** catalogued · **7 packs**
 
 ## What's here
 
@@ -13,6 +13,9 @@ you test every one of them and copy its settings out as a preset for your own ga
 index.html            the matrix — test page for everything (open via a local server)
 packs/<pack>/         each source repo, verbatim, as its own Vite app
 packs/collective/     the 12 new abilities, on a fork of the linear-extended engine
+packs/atlas/          a small host for the 10 asset-free Ability Atlas effects
+presets/runtime.js    the reusable Atlas runtime (imports only Three.js)
+presets/new/          the Atlas factories, metadata, helpers and licence
 bridge/MatrixBridge.js  the one file added to each pack (drives it by URL/postMessage)
 presets/catalog.json  every ability, buff, summon, move and archived ability
 presets/<pack>/<id>.json  one preset per ability (its full default settings block)
@@ -36,7 +39,13 @@ npx serve site               # or: cd site && python3 -m http.server
 ```
 
 Or work on one pack the way its author does: `cd packs/collective && npm i && npm run dev`.
-Inside any pack: `G` VFX editor (1,000+ live sliders), `P` pause, `C` clear, `T` reset targets.
+Inside the original six packs: `G` VFX editor (1,000+ live sliders), `P` pause, `C` clear, `T` reset targets.
+
+For Atlas only: `npm ci && npm run dev:atlas` (Node.js 22.12+), or `npm run build:atlas`.
+Its small editor tunes radius, power, duration, seed and color. `npm test` checks the
+Atlas runtime, matrix bridge and additive catalog integration. The existing six
+packs and their controls are unchanged. See [Atlas integration and comparison](docs/atlas-integration.md)
+and the [portable runtime API](docs/new-presets.md).
 
 ## Using an ability as a preset in a new game
 
@@ -176,3 +185,6 @@ old freehand path-drawing input and are not reachable from the source apps eithe
 Source packs: MIT © 2026 mohamedachrefelouafi (see each `packs/<pack>/LICENSE`).
 `packs/collective` is a derivative of LinearAbiltyCastingExtendedThreeJS under the same MIT licence;
 the 12 new abilities in `src/abilities/collective/` are © 2026 Collective AI Inc., MIT.
+
+The portable Atlas modules under `presets/new/` and `presets/runtime.js` retain
+their [MIT licence](presets/new/LICENSE), © 2026 Ability Atlas contributors.

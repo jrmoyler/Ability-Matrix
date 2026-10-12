@@ -8,7 +8,7 @@ OUT="$ROOT/site"
 rm -rf "$OUT" && mkdir -p "$OUT/packs"
 cp "$ROOT/index.html" "$OUT/"
 cp -r "$ROOT/presets" "$OUT/presets"
-for p in linear linear-ext linear-extended handcast casting collective; do
+for p in linear linear-ext linear-extended handcast casting collective atlas; do
   mkdir -p "$OUT/packs/$p"
   (cd "$ROOT/packs/$p/dist" && find . -type f ! -name '*.map' ! -path './mediapipe/*' | tar cf - -T -) | (cd "$OUT/packs/$p" && tar xf -)
 done

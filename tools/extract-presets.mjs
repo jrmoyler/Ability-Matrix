@@ -3,6 +3,7 @@
 import { writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { NEW_PRESETS } from '../presets/new/catalog.js';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PACKS = {
@@ -80,6 +81,21 @@ catalog.abilities.push(
   { uid: 'casting/move/handcam', pack: 'casting', id: 'handcam', kind: 'move', label: 'Hand-tracking cast', hint: 'M — MediaPipe webcam mode: open palm aims, fist casts, J swaps hands', cast: 'move', status: 'live', action: 'toggleCamera' },
   { uid: 'casting/move/castle', pack: 'casting', id: 'castle', kind: 'move', label: 'Duel Hall burn', hint: '` — burn the gothic hall away around the platform, or raise it again', cast: 'move', status: 'live', action: 'toggleCastle' }
 );
+// The portable Atlas effects have their own small host, not a fork of an old pack.
+// Append after move extraction: this pack has no character-animation moves.
+catalog.packs.push({ pack: 'atlas', repo: 'ability-atlas (new)', title: 'Ability Atlas', castAnimations: [], castShapes: ['point'], count: NEW_PRESETS.length });
+mkdirSync(path.join(root, 'presets', 'atlas'), { recursive: true });
+for (const [slot, preset] of NEW_PRESETS.entries()) {
+  const settings = { ...preset.defaults, color: preset.color };
+  const entry = {
+    uid: `atlas/${preset.id}`, pack: 'atlas', id: preset.id, slot, kind: 'ability',
+    label: preset.name, hint: preset.description, key: '', accent: preset.color,
+    cast: 'point', castAnim: null, cooldown: null, range: 16, minRange: 0,
+    zoneRadius: preset.defaults.radius, controls: countLeaves(settings), status: 'live'
+  };
+  catalog.abilities.push(entry);
+  writeFileSync(path.join(root, 'presets', 'atlas', `${preset.id}.json`), JSON.stringify({ format: 'collective-ability-preset@1', ...entry, settings }, null, 2));
+}
 const library = { format: 'collective-ability-library@1', generated: catalog.generated, presets: {} };
 for (const a of catalog.abilities) {
   if (a.status !== 'live' || a.kind === 'move') continue;
