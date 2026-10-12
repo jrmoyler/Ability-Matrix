@@ -184,7 +184,7 @@ function loadPack(pack, query = '') {
   if (livePack === pack && !query) return false;
   livePack = pack; ready = false; pending = [];
   $('loading').hidden = false;
-  frame.src = `packs/${pack}/index.html?hud=0${query}`;
+  frame.src = `packs/${pack}/index.html?hud=0&bin=wasm${query}`;
   return true;
 }
 window.addEventListener('message', (e) => {

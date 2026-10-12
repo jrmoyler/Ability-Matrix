@@ -20,6 +20,27 @@ import * as config from '../config/settings.js';
 const { settings, ELEMENTS, ELEMENT_META, DEFAULT_SETTINGS, applySettings } = config;
 const castShapeOf = config.castShapeOf ?? ((id) => ELEMENT_META[id]?.cast ?? 'line');
 
+/**
+ * Hosted builds (the published matrix) can only serve web media types, so the
+ * staging script renames binary assets to `<file>.<suffix>` and the matrix
+ * passes `?bin=<suffix>`. Every three.js loader goes through `fetch`, so one
+ * rewrite here covers them all. Without the parameter nothing changes.
+ */
+const BIN_SUFFIX = new URLSearchParams(location.search).get('bin');
+if (BIN_SUFFIX && /^[a-z0-9]+$/.test(BIN_SUFFIX)) {
+  const nativeFetch = window.fetch.bind(window);
+  const BINARY = /\.(fbx|glb|hdr|task)(?=$|[?#])/i;
+  window.fetch = (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (BINARY.test(url)) {
+      const moved = url.replace(BINARY, (ext) => `${ext}.${BIN_SUFFIX}`);
+      // three's FileLoader hands fetch a Request; carry its headers/credentials over.
+      input = input instanceof Request ? new Request(moved, input) : moved;
+    }
+    return nativeFetch(input, init);
+  };
+}
+
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
