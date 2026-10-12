@@ -84,7 +84,7 @@ test('settings validation is strict, bounded, atomic, and rejects wrong IDs/unkn
 test('actual generated Atlas preset files import and round-trip without metadata drift', async () => {
   const { controller: api } = fixture();
   for (const { id } of NEW_PRESETS) {
-    const document = JSON.parse(await readFile(new URL(`../presets/atlas/${id}.json`, import.meta.url), 'utf8'));
+    const document = JSON.parse(await readFile(new URL(`../presets/atlas-prototype/${id}.json`, import.meta.url), 'utf8'));
     assert.equal(api.applyPreset(id, document), true, id);
     const exported = api.preset(id);
     assert.deepEqual(exported.settings, document.settings);

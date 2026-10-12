@@ -12,20 +12,28 @@ const PACKS = {
   'linear-extended': { repo: 'achrefelouafi/LinearAbiltyCastingExtendedThreeJS', title: 'Linear Ability Casting Extended' },
   handcast: { repo: 'achrefelouafi/HandCastAbilityThreeJS', title: 'Hand Cast Ability' },
   casting: { repo: 'achrefelouafi/AbilityCastingThreeJS', title: 'Ability Casting (Elemental Sandbox)' },
-  collective: { repo: 'collective-ai (new)', title: 'Collective Originals' }
+  collective: { repo: 'collective-ai (new)', title: 'Collective Originals', native: true },
+  'matrix-new': { repo: 'collective-ai (new)', title: 'Matrix New', native: true },
+  atlas: { repo: 'collective-ai (new)', title: 'Ability Atlas', native: true }
 };
+// Every ability now runs in the one sandbox (packs/sandbox). Source packs keep
+// their own settings.js (vendored verbatim into the sandbox); the native groups
+// are read from the sandbox's settings, split by config/sandbox.js.
+const sandboxCfg = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/settings.js')).href);
+const { NATIVE_GROUPS } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/sandbox.js')).href);
 const EXTRAS = { boost: 'BOOST_META', magic: 'MAGIC_META', fire: 'FIRE_META' };
 const SHARED = ['global', 'aim', 'zone', 'character', 'dummies', 'camera', 'environment', 'post'];
 
 const catalog = { format: 'collective-ability-catalog@1', generated: new Date().toISOString(), packs: [], abilities: [] };
 for (const [pack, info] of Object.entries(PACKS)) {
   const file = path.join(root, 'packs', pack, 'src/config/settings.js');
-  if (!existsSync(file)) continue;
-  const cfg = await import(pathToFileURL(file).href);
+  if (!info.native && !existsSync(file)) continue;
+  const cfg = info.native ? sandboxCfg : await import(pathToFileURL(file).href);
+  const ids = info.native ? NATIVE_GROUPS.find((g) => g.pack === pack).ids : cfg.ELEMENTS;
   const shape = cfg.castShapeOf ?? ((id) => cfg.ELEMENT_META[id]?.cast ?? 'line');
   mkdirSync(path.join(root, 'presets', pack), { recursive: true });
   const entries = [];
-  cfg.ELEMENTS.forEach((id, slot) => {
+  ids.forEach((id, slot) => {
     const meta = cfg.ELEMENT_META[id] ?? {};
     const block = cfg.DEFAULT_SETTINGS[id];
     const entry = {
@@ -70,21 +78,20 @@ for (const [pack, id, label, hint] of archived) catalog.abilities.push({ uid: `$
 
 // Moves: the character clips and the non-cast moves each pack ships.
 const MOVE_LABEL = { cast1: 'Cast gesture I', cast2: 'Cast gesture II', cast3: 'Cast gesture III' };
-for (const pk of catalog.packs) {
-  catalog.abilities.push({ uid: `${pk.pack}/move/idle`, pack: pk.pack, id: 'idle', kind: 'move', label: 'Idle', hint: 'Idle.fbx — the rig and its idle loop', cast: 'move', status: 'live' });
-  for (const a of pk.castAnimations) catalog.abilities.push({ uid: `${pk.pack}/move/${a}`, pack: pk.pack, id: a, kind: 'move', label: MOVE_LABEL[a] ?? a, hint: `${a}.fbx — Mixamo cast clip, thrown with the cast lunge`, cast: 'move', status: 'live', move: a });
-  catalog.abilities.push({ uid: `${pk.pack}/move/lunge`, pack: pk.pack, id: 'lunge', kind: 'move', label: 'Cast lunge', hint: 'Procedural body lunge thrown into every cast', cast: 'move', status: 'live', move: 'lunge' });
-}
+// One sandbox, one caster: the character's moves are listed once.
+catalog.packs.push({ pack: 'moves', repo: '', title: 'Character & moves', castAnimations: ['cast1', 'cast2', 'cast3'], castShapes: [], count: 0 });
+catalog.abilities.push({ uid: 'moves/idle', pack: 'moves', id: 'idle', kind: 'move', label: 'Idle', hint: 'Idle.fbx — the rig and its idle loop, shared by every pack', cast: 'move', status: 'live' });
+for (const a of ['cast1', 'cast2', 'cast3']) catalog.abilities.push({ uid: `moves/${a}`, pack: 'moves', id: a, kind: 'move', label: MOVE_LABEL[a], hint: `${a}.fbx — Mixamo cast clip, thrown with the cast lunge`, cast: 'move', status: 'live', move: a });
 catalog.abilities.push(
-  { uid: 'handcast/move/drive', pack: 'handcast', id: 'drive', kind: 'move', label: 'Summon drive', hint: 'With the Drone or Monowheel out: WASD steers, Space holds fire, the same slot recalls', cast: 'move', status: 'live' },
-  { uid: 'handcast/move/handcam', pack: 'handcast', id: 'handcam', kind: 'move', label: 'Hand-tracking cast', hint: 'M — MediaPipe webcam mode: open palm aims, fist casts, J swaps hands', cast: 'move', status: 'live', action: 'toggleCamera' },
-  { uid: 'casting/move/handcam', pack: 'casting', id: 'handcam', kind: 'move', label: 'Hand-tracking cast', hint: 'M — MediaPipe webcam mode: open palm aims, fist casts, J swaps hands', cast: 'move', status: 'live', action: 'toggleCamera' },
-  { uid: 'casting/move/castle', pack: 'casting', id: 'castle', kind: 'move', label: 'Duel Hall burn', hint: '` — burn the gothic hall away around the platform, or raise it again', cast: 'move', status: 'live', action: 'toggleCastle' }
+  { uid: 'moves/lunge', pack: 'moves', id: 'lunge', kind: 'move', label: 'Cast lunge', hint: 'Procedural body lunge thrown into every cast', cast: 'move', status: 'live', move: 'lunge' },
+  { uid: 'moves/drive', pack: 'moves', id: 'drive', kind: 'move', label: 'Summon drive', hint: 'With the Sentinel Drone or Monowheel Bot out: WASD steers, Space or hold click fires, the same slot recalls', cast: 'move', status: 'live' },
+  { uid: 'moves/handcam', pack: 'moves', id: 'handcam', kind: 'move', label: 'Hand-tracking cast', hint: 'Hand Cast and Ability Casting packs only (M): MediaPipe webcam, open palm aims, fist casts. Needs a camera, so it is not in the hosted sandbox', cast: 'move', status: 'pack-only' },
+  { uid: 'moves/castle', pack: 'moves', id: 'castle', kind: 'move', label: 'Duel Hall burn', hint: 'Ability Casting pack only (`): burn the gothic hall away around the platform', cast: 'move', status: 'pack-only' }
 );
-// The portable Atlas effects have their own small host, not a fork of an old pack.
-// Append after move extraction: this pack has no character-animation moves.
-catalog.packs.push({ pack: 'atlas', repo: 'ability-atlas (new)', title: 'Ability Atlas', castAnimations: [], castShapes: ['point'], count: NEW_PRESETS.length });
-mkdirSync(path.join(root, 'presets', 'atlas'), { recursive: true });
+// The Ability Atlas *prototype* (packs/atlas, presets/runtime.js) keeps its own
+// presets. Its ten effects were rebuilt on the sandbox engine (the `atlas`
+// group above); the prototype stays for anyone using its portable runtime.
+mkdirSync(path.join(root, 'presets', 'atlas-prototype'), { recursive: true });
 for (const [slot, preset] of NEW_PRESETS.entries()) {
   const settings = { ...preset.defaults, color: preset.color };
   const entry = {
@@ -93,8 +100,7 @@ for (const [slot, preset] of NEW_PRESETS.entries()) {
     cast: 'point', castAnim: null, cooldown: null, range: 16, minRange: 0,
     zoneRadius: preset.defaults.radius, controls: countLeaves(settings), status: 'live'
   };
-  catalog.abilities.push(entry);
-  writeFileSync(path.join(root, 'presets', 'atlas', `${preset.id}.json`), JSON.stringify({ format: 'collective-ability-preset@1', ...entry, settings }, null, 2));
+  writeFileSync(path.join(root, 'presets', 'atlas-prototype', `${preset.id}.json`), JSON.stringify({ format: 'collective-ability-preset@1', ...entry, settings }, null, 2));
 }
 const library = { format: 'collective-ability-library@1', generated: catalog.generated, presets: {} };
 for (const a of catalog.abilities) {
@@ -109,7 +115,7 @@ console.log('total live', catalog.abilities.filter((a) => a.status === 'live').l
 // HUD sigils, so the matrix cards draw the same mark the pack's own slot does.
 const withGlyphs = JSON.parse((await import('node:fs')).readFileSync(path.join(root, 'presets', 'catalog.json'), 'utf8'));
 for (const pk of withGlyphs.packs) {
-  const file = path.join(root, 'packs', pk.pack, 'src/ui/glyphs.js');
+  const file = PACKS[pk.pack]?.native ? path.join(root, 'packs/sandbox/src/ui/glyphs.js') : path.join(root, 'packs', pk.pack, 'src/ui/glyphs.js');
   if (!existsSync(file)) continue;
   const mod = await import(pathToFileURL(file).href);
   const sigils = mod.ELEMENT_SIGILS ?? {};

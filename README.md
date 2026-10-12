@@ -1,32 +1,58 @@
 # Collective Ability Matrix
 
-75 castable abilities across 7 packs, plus moves and archived effects. One page to test every ability and copy its settings as a preset for your own Three.js games.
+**78 castable abilities** (73 abilities, 3 buffs, 2 summons) from 8 groups, plus 8 character moves and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
 
-**75 castable** · **34 moves** · **7 archived abilities** · **7 packs**
+Open the matrix, pick any ability, cast it, tune it, and copy its settings as a preset for your own Three.js games.
 
-## Packs
+## One sandbox
 
-| Pack | Location | Count | Focus |
-|------|----------|-------|-------|
-| Linear | `packs/linear` | 6 | Line and zone skillshots (ice, lightning, meteor, beam, snare, crown) |
-| Linear Ext | `packs/linear-ext` | 7 + 3 buffs | Extended targeting (gate, ring, scribe) plus self-buffs |
-| Linear Extended | `packs/linear-extended` | 10 | High-density zone and line effects (ward, acid, growth, serpent, venom, monolith, ink, void, cascade, rend) |
-| Hand Cast | `packs/handcast` | 9 | Hand-aimed line, far, and summon abilities |
-| Casting | `packs/casting` | 9 | Targeted and area cinematic spells with ragdoll interaction |
-| Collective | `packs/collective` | 24 | Collective originals (12) + matrix additions (12) on the extended engine |
-| Atlas | `packs/atlas` | 10 | Asset-free portable effects (runtime only, no models or textures) |
+`packs/sandbox` is the single page that runs everything. The matrix (`index.html`) embeds it and acts as its picker.
+
+| Group | Runs on | Count | Notes |
+|-------|---------|-------|-------|
+| Collective | sandbox engine (native) | 12 | Collective originals |
+| Matrix New | sandbox engine (native) | 12 | New: shaders, rigs and dummy reactions at Collective quality |
+| Ability Atlas | sandbox engine (native) | 10 | New: the ten Atlas mechanics, rebuilt on the full engine with the character and dummies |
+| Linear | vendored `linear` engine | 6 | |
+| Linear Ext | vendored `linear-ext` engine | 7 + 3 buffs | Gate, ring and scribe aims; Electric, Magic and Fire boosts on the character |
+| Linear Extended | vendored `linear-extended` engine | 10 | Includes the Cyber Serpent model |
+| Hand Cast | vendored `handcast` engine | 9 | Includes the drone, monowheel and phoenix rigs; the two summons are drivable |
+| Ability Casting | vendored `casting` engine | 9 | The shark, wolf, dragon, gyroscope, amethyst, tome and reliquary rigs, with ragdolls |
+
+### How the source packs run inside it
+
+The five source repos each ship their own copy of the particle, decal, burst, aim and pooling systems, and those copies drifted apart. Their abilities are written against their own copies. So the sandbox does **not** port them; it runs each one verbatim:
+
+- **Vendored code.** `packs/sandbox/src/vendor/<pack>/` is a byte-for-byte copy of `packs/<pack>/src`; the test suite checks this.
+- **Own systems.** Each pack keeps its own AbilityManager, ParticleEngine, DecalSystem, BurstSystem, AimController, settings and editor folders. They are hosted by `src/sandbox/createRuntime.js`.
+- **Shared scene.** All packs share the scene, camera, lighting, environment, character, camera shake, screen flash and target dummies. The host frame uniforms (clock, depth and light direction) are copied into each pack every frame.
+- **Loaded on demand.** A pack's engine loads lazily the first time one of its abilities is picked.
+
+Every ability is addressed by uid: `<pack>/<id>`, for example `casting/dragon` or `atlas/stillpoint`.
+
+### Pack-only features
+
+Two features stay in their original packs and are not in the hosted sandbox:
+
+- **Hand-tracking cast** (Hand Cast and Ability Casting, `M`). It needs a webcam.
+- **Duel Hall burn** (Ability Casting, `` ` ``). It needs that pack's gothic hall scene.
 
 ## What's here
 
 ```
-index.html            the matrix — test page for everything
-packs/<pack>/         each pack as its own Vite app
-presets/catalog.json  every ability, buff, summon, move and archived ability
-presets/<pack>/<id>.json  one preset per ability (full default settings block)
-presets/library.json  every preset in one file
-presets/runtime.js    Atlas runtime (imports only Three.js)
-bridge/MatrixBridge.js  drives packs by URL or postMessage
-tools/                build-all.sh · stage-site.sh · extract-presets.mjs
+index.html                 the matrix: picker + the embedded sandbox
+packs/sandbox/             the one sandbox (Vite app)
+  src/config/{collective,matrix-new,atlas}/   native ability settings
+  src/abilities/{collective,matrix-new,atlas}/ native ability code
+  src/vendor/<pack>/       the five source packs, verbatim
+  src/vendor/runtimes/     how each pack is hosted (models, summons, buffs)
+packs/<pack>/              each source pack and the collective, still runnable on its own
+packs/atlas/               the asset-free Atlas prototype (presets/runtime.js)
+presets/catalog.json       every ability, buff, summon, move and archived effect
+presets/<group>/<id>.json  one preset per ability (full default settings block)
+presets/library.json       every preset in one file
+tools/                     build-all.sh · stage-site.sh · extract-presets.mjs
+tests/                     npm test
 ```
 
 ## Run it
@@ -37,34 +63,48 @@ sh tools/stage-site.sh
 npx serve site
 ```
 
-Or work on one pack: `cd packs/collective && npm i && npm run dev`.
+To work on the sandbox alone: `cd packs/sandbox && npm i && npm run dev`.
 
-Inside any pack: `G` VFX editor, `P` pause, `C` clear, `T` reset targets.
+Sandbox keys:
 
-Atlas only: `npm ci && npm run dev:atlas`.
+| Key | Action |
+|-----|--------|
+| `[` / `]` | Previous / next ability, across every pack |
+| `Q E R F V X B Z N K Y U` | The twelve Collective originals |
+| `G` | VFX editor |
+| `P` | Pause |
+| `C` | Clear |
+| `T` | Reset targets |
+| `H` | Help |
+
+While a summon is out: `WASD` / arrows steer, `Space` or hold-click fires, and the same ability recalls it.
 
 ## Using an ability as a preset
 
 Each preset is the ability's complete settings block:
 
 ```json
-{ "format": "collective-ability-preset@1", "pack": "collective", "id": "tempest",
-  "cast": "zone", "castAnim": "cast3", "settings": { "range": 16, "zoneRadius": 3.2 } }
+{ "format": "collective-ability-preset@1", "uid": "matrix-new/starfall", "pack": "matrix-new", "id": "starfall",
+  "cast": "zone", "castAnim": "cast3", "settings": { "range": 20, "zoneRadius": 5.5 } }
 ```
 
-1. Copy the pack that owns the ability (`packs/<pack>/src`) or the ability file plus the systems it imports.
+1. Copy the engine that owns the ability: `packs/sandbox/src` for the native groups, or `packs/<pack>/src` for a source pack.
 2. Load the preset and merge it: `applySettings({ [preset.id]: preset.settings })`.
 3. Cast it: `abilityManager.cast(origin, direction, distance, preset.id)`.
 
 ## Bridge API
 
-URL: `?ability=<id>` arm · `&cast=1` cast on load · `&auto=<s>` recast loop · `&hud=0`  
-JS: `window.matrix.list() | arm(id) | cast(id) | auto(id, s) | clear() | action(name) | preset(id) | applyPreset(id, json)`  
-postMessage: `{ matrix: 'cast', id }`
+The sandbox exposes the same API by URL, JavaScript and postMessage.
+
+- **URL:** `?ability=<uid>` selects it, `&cast=1` casts it on load, `&auto=<s>` recasts on a loop, and `&hud=0` runs it embedded.
+- **JS:** `window.matrix.list()`, `select(uid)`, `arm(uid)`, `cast(uid)`, `auto(uid, s)`, `clear()`, `runAction(pack, action)`, `move(name)`, `preset(uid)`, `applyPreset(uid, json)`, `resetPreset(uid)`.
+- **postMessage:** `{ matrix: 'cast', uid: 'casting/dragon' }`.
 
 ## Abilities
 
-### Linear — `packs/linear`
+The keys listed for the source packs are the ones those packs use when run on their own. In the sandbox, pick them from the matrix or step to them with `[` / `]`.
+
+### Linear — vendored from `packs/linear`
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
@@ -75,7 +115,7 @@ postMessage: `{ matrix: 'cast', id }`
 | V | Voltaic Snare | zone | 0–20 | 4.4 |
 | X | Glacial Crown | zone | 0–18 | 4.6 |
 
-### Linear Ext — `packs/linear-ext`
+### Linear Ext — vendored from `packs/linear-ext`
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
@@ -90,7 +130,7 @@ postMessage: `{ matrix: 'cast', id }`
 | M | Magic Boost | self | | |
 | K | Fire Boost | self | | |
 
-### Linear Extended — `packs/linear-extended`
+### Linear Extended — vendored from `packs/linear-extended`
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
@@ -105,7 +145,7 @@ postMessage: `{ matrix: 'cast', id }`
 | N | Baleful Cascade Mark | zone | 0–24 | 4 |
 | K | Celestial Rend | zone | 0–24 | 5 |
 
-### Hand Cast — `packs/handcast`
+### Hand Cast — vendored from `packs/handcast`
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
@@ -119,7 +159,7 @@ postMessage: `{ matrix: 'cast', id }`
 | V | Monowheel Bot | summon | 0–7 | |
 | Y | Sentinel Drone | summon | 0–7 | |
 
-### Casting — `packs/casting`
+### Ability Casting — vendored from `packs/casting`
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
@@ -133,67 +173,69 @@ postMessage: `{ matrix: 'cast', id }`
 | Y | Starbreaker Lance | zone | 0–22 | 1.2 |
 | B | Astral Fang | zone | 0–20 | 1.1 |
 
-### Collective — `packs/collective`
-
-**Originals**
+### Collective — native
 
 | Key | Ability | Aim | Range (m) | Circle (m) |
 |-----|---------|-----|-----------|------------|
 | Q | Tempest Spiral | zone | 2–16 | 3.2 |
-| E | Dune Scourge | line | 3–18 | |
+| E | Dune Scourge | line | 3–18 |  |
 | R | Sunfall Prism | zone | 2–16 | 3.2 |
-| F | Chain Arc | line | 3–18 | |
+| F | Chain Arc | line | 3–18 |  |
 | V | Graviton Collapse | zone | 2–16 | 3.2 |
-| X | Blink Step | line | 3–18 | |
-| B | Resonance Pulse | line | 3–18 | |
+| X | Blink Step | line | 3–18 |  |
+| B | Resonance Pulse | line | 3–18 |  |
 | Z | Crimson Rite | zone | 2–16 | 3.2 |
 | N | Meteor Swarm | zone | 2–16 | 3.6 |
 | K | Aegis Bulwark | zone | 0–16 | 3.2 |
 | Y | Spore Bloom | zone | 2–16 | 3.4 |
 | U | Chrono Fracture | zone | 2–16 | 3.2 |
 
-**Matrix additions**
+### Matrix New — native
 
-| ID | Ability | Aim |
-|----|---------|-----|
-| gale | Gale Sever | line |
-| emberveil | Emberveil Lattice | zone |
-| umbra | Umbra Grasp | zone |
-| geode | Geode Eruption | zone |
-| aetherblade | Aetherblade Cascade | line |
-| mirage | Mirage Construct | summon |
-| bloodroot | Bloodroot Thorns | zone |
-| ionstorm | Ion Storm Pillar | zone |
-| obsidianwall | Obsidian Wall | line |
-| starfall | Starfall Rite | zone |
-| voidstep | Voidstep Rift | line |
-| crystallineheart | Crystalline Heart | zone |
+Built new for the matrix, at the same quality as the Collective: hand-written GLSL, procedural rigs, a cast animation, decals, lights, shake, and each one reacts with the dummies in its own way.
 
-### Atlas — `packs/atlas`
+| uid | Ability | Aim | Range (m) | Circle (m) |
+|-----|---------|-----|-----------|------------|
+| `matrix-new/gale` | Gale Sever | line | 1–22 |  |
+| `matrix-new/emberveil` | Emberveil Lattice | zone | 0–16 | 5.5 |
+| `matrix-new/umbra` | Umbra Grasp | zone | 2–14 | 2.2 |
+| `matrix-new/geode` | Geode Eruption | zone | 0–16 | 4.5 |
+| `matrix-new/aetherblade` | Aetherblade Cascade | line | 2–20 |  |
+| `matrix-new/mirage` | Mirage Construct | zone | 0–12 | 3 |
+| `matrix-new/bloodroot` | Bloodroot Thorns | zone | 0–16 | 6 |
+| `matrix-new/ionstorm` | Ion Storm Pillar | zone | 0–18 | 5 |
+| `matrix-new/obsidianwall` | Obsidian Wall | line | 2–18 |  |
+| `matrix-new/starfall` | Starfall Rite | zone | 0–20 | 5.5 |
+| `matrix-new/voidstep` | Voidstep Rift | line | 3–16 |  |
+| `matrix-new/crystallineheart` | Crystalline Heart | zone | 0–14 | 5 |
 
-| ID | Ability |
-|----|---------|
-| chain-relay | Chain Relay |
-| temporal-rewind | Temporal Rewind |
-| blink-corridor | Blink Corridor |
-| restorative-sanctuary | Restorative Sanctuary |
-| magnetic-minefield | Magnetic Minefield |
-| mirror-decoys | Mirror Decoys |
-| ricochet-chakram | Ricochet Chakram |
-| kinetic-parry | Kinetic Parry |
-| stasis-bubble | Stasis Bubble |
-| prismatic-splitshot | Prismatic Splitshot |
+### Ability Atlas — native
+
+These are the ten Atlas mechanics (chain relay, rewind, blink corridor, sanctuary, minefield, decoys, ricochet, parry, stasis and splitshot). They are rebuilt on the sandbox engine with the character's cast animations, the shared dummies and full VFX.
+
+The original asset-free versions stay in `packs/atlas` and `presets/runtime.js`, with presets in `presets/atlas-prototype/`.
+
+| uid | Ability | Aim | Range (m) | Circle (m) |
+|-----|---------|-----|-----------|------------|
+| `atlas/relay` | Arc Relay | line | 3–18 |  |
+| `atlas/recall` | Chrono Recall | line | 3–18 |  |
+| `atlas/parallax` | Parallax Blink | line | 4–18 |  |
+| `atlas/sanctuary` | Dawn Sanctuary | zone | 0–16 | 3.2 |
+| `atlas/polarity` | Polarity Garden | zone | 2–16 | 3.2 |
+| `atlas/echoes` | Hall of Echoes | zone | 0–16 | 3.2 |
+| `atlas/chakram` | Vector Chakram | line | 3–18 |  |
+| `atlas/reversal` | Aegis Reversal | zone | 0–16 | 3.2 |
+| `atlas/stillpoint` | Stillpoint | zone | 2–16 | 3.2 |
+| `atlas/refractor` | Prism Refractor | line | 3–18 |  |
 
 ## Moves
 
-- Cast gesture I (cast1.fbx)
-- Cast gesture II (cast2.fbx)
-- Cast gesture III (cast3.fbx)
+- Idle (Idle.fbx), shared by every pack
+- Cast gesture I, II and III (cast1–3.fbx), each thrown with the cast lunge
 - Cast lunge
-- Duel Hall burn
-- Hand-tracking cast
-- Idle
-- Summon drive
+- Summon drive (Sentinel Drone and Monowheel Bot)
+- Hand-tracking cast: pack-only
+- Duel Hall burn: pack-only
 
 ## Archived
 

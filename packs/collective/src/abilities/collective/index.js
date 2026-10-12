@@ -22,6 +22,3 @@ export const COLLECTIVE_ABILITIES = [TempestSpiral, DuneScourge, SunfallPrism, C
   Ability: m[Object.keys(m).find((k) => k.endsWith('Ability'))],
   buildEditor: m.buildEditor
 }));
-
-// Matrix New abilities (additional, not replacing the original 12)
-export { MATRIX_NEW_ABILITIES } from '../matrix-new/index.js';

@@ -158,7 +158,8 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'atlas'];
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'moves'];
+const NEW_PACKS = ['collective', 'matrix-new', 'atlas'];
 const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -180,12 +181,12 @@ function send(msg) {
   if (!ready) { pending.push(msg); return; }
   frame.contentWindow.postMessage(msg, '*');
 }
-function loadPack(pack, query = '') {
-  if (livePack === pack && !query) return false;
-  livePack = pack; ready = false; pending = [];
+/** One sandbox hosts every ability; it boots once and is never reloaded. */
+function boot(query = '') {
+  if (livePack) return;
+  livePack = 'sandbox'; ready = false;
   $('loading').hidden = false;
-  frame.src = `packs/${pack}/index.html?hud=0&bin=wasm${query}`;
-  return true;
+  frame.src = `packs/sandbox/index.html?hud=0&bin=wasm${query}`;
 }
 window.addEventListener('message', (e) => {
   const d = e.data; if (!d || typeof d.matrix !== 'string') return;
@@ -198,7 +199,7 @@ window.addEventListener('message', (e) => {
     $('presetText').value = JSON.stringify(d.preset, null, 2);
   } else if (d.matrix === 'applied') {
     toast(d.ok ? 'Preset applied \u2014 cast to see it' : 'That JSON has no settings for this ability');
-    if (d.ok) send({ matrix: 'getPreset', id: current.id });
+    if (d.ok) send({ matrix: 'getPreset', uid: current.uid });
   } else if (d.matrix === 'error') {
     toast(d.message);
   }
@@ -209,9 +210,7 @@ function markTried(a) { tried.add(a.uid); store.set('tried', [...tried]); docume
 /* ---------- selection ---------- */
 function select(a, { cast = false } = {}) {
   current = a;
-  $('presetHelp').innerHTML = a.pack === 'atlas'
-    ? 'Settings for the next cast. In your Three.js game, import <code>createPresetRuntime</code> from <code>presets/runtime.js</code> and call <code>runtime.cast(preset.id, { ...preset.settings, origin, target })</code>.'
-    : "The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.";
+  $('presetHelp').innerHTML = "The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with its engine's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.";
   document.documentElement.style.setProperty('--a', a.accent || 'var(--accent)');
   $('nowSigil').innerHTML = svg(a);
   $('nowName').textContent = a.label;
@@ -233,53 +232,52 @@ function select(a, { cast = false } = {}) {
   const live = a.status === 'live';
   ['castBtn', 'autoBtn', 'presetBtn'].forEach((id) => ($(id).disabled = !live));
   $('armBtn').disabled = !(live && a.kind === 'ability');
-  $('dummyBtn').disabled = !['linear-extended', 'handcast', 'casting', 'collective', 'atlas'].includes(a.pack);
   $('castBtn').textContent = a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
   renderMoves(a.pack);
-  if (!live) { toast('Archived in the source repo \u2014 not wired into its live app'); return; }
+  if (a.status === 'archived') { toast('Archived in the source repo \u2014 not wired into its live app'); return; }
+  if (a.status === 'pack-only') { toast(a.hint); return; }
 
-  const query = a.kind === 'ability' || a.kind === 'summon' ? `&ability=${encodeURIComponent(a.id)}${cast ? '&cast=1' : ''}` : '';
-  const reloaded = loadPack(a.pack, livePack === a.pack ? '' : query);
-  if (!reloaded) {
-    if (a.kind === 'ability') send(cast ? { matrix: 'cast', id: a.id } : { matrix: 'arm', id: a.id });
+  const first = !livePack;
+  boot(first && (a.kind === 'ability' || a.kind === 'summon') ? `&ability=${encodeURIComponent(a.uid)}${cast ? '&cast=1' : ''}` : '');
+  if (!first || (a.kind !== 'ability' && a.kind !== 'summon')) {
+    if (a.kind === 'ability' || a.kind === 'summon') send(cast ? { matrix: 'cast', uid: a.uid } : { matrix: 'select', uid: a.uid });
     else if (cast) castCurrent();
-  } else if (cast && a.kind !== 'ability' && a.kind !== 'summon') castCurrent();
-  if (autoOn && a.kind === 'ability') send({ matrix: 'auto', id: a.id, seconds: 5 });
-  if ($('preset').classList.contains('open')) send({ matrix: 'getPreset', id: a.id });
+  }
+  if (autoOn && a.kind === 'ability') send({ matrix: 'auto', uid: a.uid, seconds: 5 });
+  if ($('preset').classList.contains('open') && a.kind !== 'move') send({ matrix: 'getPreset', uid: a.uid });
   try { history.replaceState(null, '', '#' + a.uid.replace(/[^A-Za-z0-9._~-]/g, '_')); } catch {}
 }
 
 function castCurrent() {
   const a = current; if (!a) return;
-  if (a.kind === 'buff') { send({ matrix: 'action', action: a.action || a.id }); markTried(a); }
+  if (a.kind === 'buff') { send({ matrix: 'runAction', packId: a.pack, action: a.action || a.id }); markTried(a); }
   else if (a.kind === 'move') {
     if (a.move) send({ matrix: 'move', name: a.move });
     else if (a.action) send({ matrix: 'action', action: a.action });
     else toast(a.hint);
     markTried(a);
-  } else send({ matrix: 'cast', id: a.id });
+  } else send({ matrix: 'cast', uid: a.uid });
 }
 
+/** The shared caster's moves, plus the buffs when a Linear Ext ability is up. */
 function renderMoves(pack) {
-  const pk = packs[pack];
-  const moves = catalog.abilities.filter((x) => x.pack === pack && (x.kind === 'move' || x.kind === 'buff') && (x.move || x.action || x.kind === 'buff'));
+  const moves = catalog.abilities.filter((x) => (x.pack === 'moves' && x.move) || (x.kind === 'buff' && x.pack === pack));
   $('moves').innerHTML = `<span class="row-label">Moves</span>` + moves.map((m) => `<button class="btn" data-move="${m.uid}">${m.label}</button>`).join('');
   $('moves').querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', () => {
     const m = catalog.abilities.find((x) => x.uid === b.dataset.move);
-    loadPack(m.pack);
-    if (m.kind === 'buff') send({ matrix: 'action', action: m.action || m.id });
-    else if (m.move) send({ matrix: 'move', name: m.move });
-    else send({ matrix: 'action', action: m.action });
+    boot();
+    if (m.kind === 'buff') send({ matrix: 'runAction', packId: m.pack, action: m.action || m.id });
+    else send({ matrix: 'move', name: m.move });
     markTried(m);
   }));
 }
 
 /* ---------- controls ---------- */
 $('castBtn').onclick = () => castCurrent();
-$('armBtn').onclick = () => { send({ matrix: 'arm', id: current.id }); toast('Armed \u2014 aim inside the frame and click'); };
+$('armBtn').onclick = () => { send({ matrix: 'arm', uid: current.uid }); toast('Armed \u2014 aim inside the frame and click'); };
 $('autoBtn').onclick = () => {
   autoOn = !autoOn; $('autoBtn').classList.toggle('on', autoOn);
-  if (autoOn && current?.kind === 'ability') send({ matrix: 'auto', id: current.id, seconds: 5 });
+  if (autoOn && current?.kind === 'ability') send({ matrix: 'auto', uid: current.uid, seconds: 5 });
   else send({ matrix: 'stop' });
 };
 $('clearBtn').onclick = () => send({ matrix: 'clear' });
@@ -289,7 +287,7 @@ $('editorBtn').onclick = () => send({ matrix: 'action', action: 'toggleEditor' }
 $('presetBtn').onclick = () => {
   const open = $('preset').classList.toggle('open');
   $('presetBtn').classList.toggle('on', open);
-  if (open) { $('presetText').readOnly = false; send({ matrix: 'getPreset', id: current.kind === 'buff' ? current.id : current.id }); }
+  if (open) { $('presetText').readOnly = false; send({ matrix: 'getPreset', uid: current.uid }); }
 };
 $('copyPreset').onclick = async () => {
   const text = $('presetText').value;
@@ -297,25 +295,27 @@ $('copyPreset').onclick = async () => {
   catch { $('presetText').select(); toast('Selected \u2014 copy with your keyboard'); }
 };
 $('applyPreset').onclick = () => {
-  try { send({ matrix: 'applyPreset', id: current.id, preset: JSON.parse($('presetText').value) }); }
+  try { send({ matrix: 'applyPreset', uid: current.uid, preset: JSON.parse($('presetText').value) }); }
   catch { toast('That is not valid JSON \u2014 check the last edit'); }
 };
-$('resetPreset').onclick = () => send({ matrix: 'resetPreset', id: current.id });
+$('resetPreset').onclick = () => send({ matrix: 'resetPreset', uid: current.uid });
 
 $('gauntletBtn').onclick = () => {
   if (gauntlet) { clearTimeout(gauntlet.t); gauntlet = null; $('gauntletBtn').classList.remove('on'); $('gauntletBtn').textContent = 'Run gauntlet'; return; }
   const queue = visible().filter((a) => castable(a) && a.kind === 'ability');
   if (!queue.length) return toast('No castable abilities in this filter');
-  gauntlet = { queue, i: 0 };
+  gauntlet = { queue, i: 0, seen: new Set() };
   $('gauntletBtn').classList.add('on');
   const step = () => {
     if (!gauntlet) return;
     if (gauntlet.i >= gauntlet.queue.length) { $('gauntletBtn').click(); toast('Gauntlet complete'); return; }
     const a = gauntlet.queue[gauntlet.i++];
     $('gauntletBtn').textContent = `Stop gauntlet ${gauntlet.i}/${gauntlet.queue.length}`;
-    const swap = livePack !== a.pack;
+    // The first ability of an engine loads that engine, so give it longer.
+    const fresh = !gauntlet.seen.has(a.pack);
+    gauntlet.seen.add(a.pack);
     select(a, { cast: true });
-    gauntlet.t = setTimeout(step, swap ? 14000 : 7000);
+    gauntlet.t = setTimeout(step, fresh ? 12000 : 7000);
   };
   step();
 };
@@ -345,12 +345,12 @@ function render() {
   const list = $('list');
   if (filters.view === 'table') {
     list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
-      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${['collective', 'atlas'].includes(a.pack) ? ' <span class="tag-new">new</span>' : ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
+      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${NEW_PACKS.includes(a.pack) ? ' <span class="tag-new">new</span>' : ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
     }</tbody></table></div>`;
   } else {
     list.innerHTML = PACK_ORDER.filter((p) => items.some((a) => a.pack === p)).map((p) => {
       const pk = packs[p];
-      const link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : `<a>${pk.count} new \u00b7 ${p === 'atlas' ? 'Ability Atlas' : 'Collective AI'}</a>`;
+      const link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : (p === 'moves' ? `<a>one shared caster</a>` : `<a>${pk.count} new \u00b7 Collective AI</a>`);
       return `<div class="pack-head"><span>${pk.title}</span>${link}</div><div class="cards">${
         items.filter((a) => a.pack === p).map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}</span></button>`).join('')
       }</div>`;
@@ -380,7 +380,7 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
   const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
-  chips($('packChips'), PACK_ORDER.filter((p) => packs[p]).map((p) => [p, ['collective', 'atlas'].includes(p) ? `${p} (new)` : p]), filters.pack);
+  chips($('packChips'), PACK_ORDER.filter((p) => packs[p] && p !== 'moves').map((p) => [p, NEW_PACKS.includes(p) ? `${p} (new)` : p]), filters.pack);
   if (filters.view === 'table') $('viewTable').click(); else render();
   updateTally();
   const hash = location.hash.slice(1);
