@@ -15,9 +15,9 @@
  * windows), so the code is always one tap away.
  */
 
-const SITE_URL = 'https://chirostudio.xyz';
-const X_URL = 'https://x.com/chirovisuals';
-const REPO_URL = 'https://github.com/achrefelouafi/AbilityCastingThreeJS';
+const SITE_URL = 'https://collectiveai.info';
+const X_URL = 'https://x.com/jrmoyler';
+const REPO_URL = 'https://github.com/jrmoyler/Ability-Matrix';
 
 /** GitHub's mark (Octicons mark-github, 24 box). */
 const ICON_GITHUB = `
@@ -80,13 +80,13 @@ export const CONTACT_MARKUP = `
       <div class="contact__head">
         <div class="contact__portrait">
           <span class="contact__frame">
-            <img src="./contact/p.jpg" alt="Portrait of Chiro" decoding="async" draggable="false" />
+            <img src="./contact/p.jpg" alt="Portrait of Hataalii" decoding="async" draggable="false" />
           </span>
         </div>
         <div class="contact__who">
           <span class="contact__status"><i></i>Available for work</span>
-          <span class="contact__name">Chiro</span>
-          <span class="contact__role">Creative dev &mdash; 3D, motion, games</span>
+          <span class="contact__name">Hataalii</span>
+          <span class="contact__role">Creative technologist &mdash; 3D, AI, games</span>
         </div>
       </div>
 
@@ -98,8 +98,8 @@ export const CONTACT_MARKUP = `
 
       <div class="contact__links">
         ${link(REPO_URL, 'contact__link--code', ICON_GITHUB, 'Get the source code', 'Open source &middot; MIT &middot; GitHub')}
-        ${link(X_URL, 'contact__link--x', ICON_X, '@chirovisuals', 'Work in motion, daily')}
-        ${link(SITE_URL, 'contact__link--site', ICON_SITE, 'chirostudio.xyz', 'Portfolio &amp; contact')}
+        ${link(X_URL, 'contact__link--x', ICON_X, '@jrmoyler', 'Follow the work on X')}
+        ${link(SITE_URL, 'contact__link--site', ICON_SITE, 'collectiveai.info', 'Collective AI Inc.')}
       </div>
     </div>
 
@@ -110,7 +110,7 @@ export const CONTACT_MARKUP = `
   </div>
 `;
 
-const STORE_KEY = 'chiro.contact.collapsed';
+const STORE_KEY = 'hataalii.contact.collapsed';
 
 /**
  * Where the card has room to stand open.

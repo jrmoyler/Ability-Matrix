@@ -12,8 +12,8 @@
  * colour — the only part of the HUD that changes colour with the sandbox.
  */
 
-const SITE_URL = 'https://chirostudio.xyz';
-const X_URL = 'https://x.com/chirovisuals';
+const SITE_URL = 'https://collectiveai.info';
+const X_URL = 'https://x.com/jrmoyler';
 
 /** X, from the official mark, in a 24 box so it sits on the pixel grid at 13px. */
 const ICON_X = `
@@ -62,13 +62,13 @@ export const CONTACT_MARKUP = `
       <div class="contact__head">
         <div class="contact__portrait">
           <span class="contact__frame">
-            <img src="./contact/p.jpg" alt="Portrait of Chiro" decoding="async" draggable="false" />
+            <img src="./contact/p.jpg" alt="Portrait of Hataalii" decoding="async" draggable="false" />
           </span>
         </div>
         <div class="contact__who">
           <span class="contact__status"><i></i>Available for work</span>
-          <span class="contact__name">Chiro</span>
-          <span class="contact__role">Creative dev &mdash; 3D, motion, games</span>
+          <span class="contact__name">Hataalii</span>
+          <span class="contact__role">Creative technologist &mdash; 3D, AI, games</span>
         </div>
       </div>
 
@@ -77,14 +77,14 @@ export const CONTACT_MARKUP = `
       </p>
 
       <div class="contact__links">
-        ${link(X_URL, 'contact__link--x', ICON_X, '@chirovisuals', 'Work in motion, daily')}
-        ${link(SITE_URL, 'contact__link--site', ICON_SITE, 'chirostudio.xyz', 'Portfolio &amp; contact')}
+        ${link(X_URL, 'contact__link--x', ICON_X, '@jrmoyler', 'Follow the work on X')}
+        ${link(SITE_URL, 'contact__link--site', ICON_SITE, 'collectiveai.info', 'Collective AI Inc.')}
       </div>
     </div>
   </div>
 `;
 
-const STORE_KEY = 'chiro.contact.collapsed';
+const STORE_KEY = 'hataalii.contact.collapsed';
 
 /**
  * Where the card has room to stand open.
