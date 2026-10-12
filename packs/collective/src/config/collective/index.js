@@ -17,3 +17,6 @@ const BLOCKS = [tempest, dune, prism, chain, graviton, blink, sonic, crimson, sw
 export const COLLECTIVE_IDS = BLOCKS.map((b) => b.id);
 export const COLLECTIVE_META = Object.fromEntries(BLOCKS.map((b) => [b.id, b.meta]));
 export const COLLECTIVE_SETTINGS = Object.fromEntries(BLOCKS.map((b) => [b.id, b.settings]));
+
+// Matrix New settings blocks
+export { MATRIX_NEW_IDS, MATRIX_NEW_META, MATRIX_NEW_SETTINGS } from '../matrix-new/index.js';

@@ -188,3 +188,24 @@ the 12 new abilities in `src/abilities/collective/` are © 2026 Collective AI In
 
 The portable Atlas modules under `presets/new/` and `presets/runtime.js` retain
 their [MIT licence](presets/new/LICENSE), © 2026 Ability Atlas contributors.
+
+## Matrix New Abilities (added in this PR)
+
+The following 12 abilities were added from the Ability Matrix expansion. They live in `packs/collective/src/abilities/matrix-new/` and are exported alongside the original Collective Originals. They are not yet bound to the main 12-slot HUD (to avoid changing existing keybinds); they can be registered by extending `COLLECTIVE_ABILITIES` or driven via the matrix bridge.
+
+| ID | Name | Type |
+|----|------|------|
+| gale | Gale Sever | line |
+| emberveil | Emberveil Lattice | far |
+| umbra | Umbra Grasp | targeted |
+| geode | Geode Eruption | far |
+| aetherblade | Aetherblade Cascade | line |
+| mirage | Mirage Construct | summon |
+| bloodroot | Bloodroot Thorns | far |
+| ionstorm | Ion Storm Pillar | far |
+| obsidianwall | Obsidian Wall | line |
+| starfall | Starfall Rite | far |
+| voidstep | Voidstep Rift | line |
+| crystallineheart | Crystalline Heart | far |
+
+Each exports `ID`, the Ability class, and `buildEditor`. Settings blocks are in `packs/collective/src/config/matrix-new/`.
