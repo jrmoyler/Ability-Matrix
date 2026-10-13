@@ -46,6 +46,7 @@ export default {
     minSpacing: 1.6, // closest two may sit — a short cast stamps fewer
     stampTime: 0.2, // seconds each one takes to punch in
     stampOvershoot: 0.35, // how far past full size it punches before settling
+    stampRing: 1.55, // × radius the small ring flash runs out to as it lands
     holdTime: 0.4, // seconds the full chain charges before the first detonation
     chainInterval: 0.15, // seconds between one detonation and the next
     chainOrder: 0, // 0 = from the far end back toward the caster, 1 = outward from the caster
@@ -54,12 +55,12 @@ export default {
     /* ================================================================ */
     /* 1 · THE SIGIL — the SDF rune circle on the floor                  */
     /* ================================================================ */
-    glyphRadius: 1.3, // metres, outer ring
+    glyphRadius: 1.1, // metres, outer ring
     lineWidth: 0.022, // metres, the white-hot strokes
-    haloWidth: 0.09, // metres, the coloured glow round them
-    lineGlow: 3.2, // brightness of the strokes (bloom > 1)
-    haloGlow: 0.9, // brightness of the glow
-    fillGlow: 0.18, // faint wash inside the circle
+    haloWidth: 0.06, // metres, the coloured glow round them
+    lineGlow: 2.0, // brightness of the strokes (bloom > 1)
+    haloGlow: 0.4, // brightness of the glow
+    fillGlow: 0.25, // faint wash inside the circle
     runeCount: 18, // runes round the band
     runeBand: 0.17, // band width, × radius
     tickCount: 72, // radial ticks on the tick ring
@@ -166,9 +167,11 @@ export default {
     colorStreakB: '#c4b6ff',
     colorStreakC: '#7c8cff',
     colorStreakD: '#3a1aa8',
-    /* --- the ring flash each glyph punches in with --- */
-    ringSize: 3.4, // × glyph radius
-    ringLifetime: 0.35,
+    /* --- halo rings climbing each pillar --- */
+    ringCount: 3, // per eruption
+    ringSize: 3.2, // × pillar radius
+    ringRise: 6, // m/s they climb
+    ringLifetime: 0.45,
     ringGlow: 2.2,
     colorRingA: '#ffffff',
     colorRingB: '#9aa6ff',

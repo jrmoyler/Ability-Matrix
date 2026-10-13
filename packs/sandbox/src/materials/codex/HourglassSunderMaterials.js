@@ -372,7 +372,7 @@ const BRASS_FRAGMENT = /* glsl */ `
     float rr = length(vLocal.xz);
     float rings = smoothstep(0.75, 1.0, abs(sin(rr * uEngraveScale * 6.2831 + vLocal.y * uEngraveScale * 2.0)));
     float ham = snoise(vLocal * 9.0);
-    N = normalize(N + vec3(ham, snoise(vLocal * 9.0 + 7.0), snoise(vLocal * 9.0 + 13.0)) * 0.08);
+    N = normalize(N + vec3(ham, snoise(vLocal * 9.0 + 7.0), snoise(vLocal * 9.0 + 13.0)) * 0.03);
 
     float patina = smoothstep(0.2, 0.8, snoise01(vLocal * 3.0 + uSeed) ) * uPatina;
     vec3 base = mix(uBrass, uBrassDark, patina);

@@ -207,7 +207,7 @@ const GAS_FRAGMENT = /* glsl */ `
     col = mix(col, uColorHot, clamp(heat, 0.0, 1.0) * 0.75);
     col *= 0.6 + 0.8 * fil;
     // Compression brightens it; a blown-out wisp cools and dims.
-    float bright = uGlow * (1.0 + heat * 2.5) * (1.0 - vState.y * 0.55);
+    float bright = uGlow * (1.0 + heat * 1.5) * (1.0 - vState.y * 0.55);
 
     float alpha = density * uFade;
     vec2 screenUV = gl_FragCoord.xy / uResolution;

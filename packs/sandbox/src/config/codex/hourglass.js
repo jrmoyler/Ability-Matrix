@@ -102,11 +102,11 @@ export default {
     colorCrack: '#fff2c8',
 
     /* --- brass frame --- */
-    colorBrass: '#c8913a',
+    colorBrass: '#a8742a',
     colorBrassDark: '#4a2c10',
     colorGhost: '#ffcf80',
     brassMetal: 0.85,
-    brassEnv: 1.3,
+    brassEnv: 0.8,
     brassSpecular: 2.4,
     brassGloss: 70,
     brassEngrave: 0.5,

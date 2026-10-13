@@ -62,9 +62,9 @@ export default {
     puffBlastSize: 1.7, // size once blown out, × size
     gasNoiseScale: 1.3, // churn features across a puff
     gasFlowSpeed: 0.35, // how fast it churns
-    gasFilaments: 0.45, // 0..1 filament share of the gas
-    gasDensity: 0.85,
-    gasGlow: 1.25, // brightness (bloom > 1)
+    gasFilaments: 0.3, // 0..1 filament share of the gas
+    gasDensity: 0.7,
+    gasGlow: 0.7, // brightness (bloom > 1)
     gasSoftFade: 1.2, // soft intersection, metres
     colorA: '#8a4dff', // violet gas
     colorGasB: '#2fd6c8', // teal gas

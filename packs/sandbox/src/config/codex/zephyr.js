@@ -39,7 +39,7 @@ export default {
     /* ================================================================ */
 
     /* --- flight (metres unless noted) --- */
-    discRadius: 0.62, // radius of each shuriken, tip to centre
+    discRadius: 0.78, // radius of each shuriken, tip to centre
     flightHeight: 1.0, // height the braid is centred on — waist height cuts a body
     launchHeight: 1.35, // height they leave the hand at
     launchDrop: 1.2, // metres over which they settle from the hand to the braid
@@ -66,8 +66,8 @@ export default {
     /* --- shading --- */
     edgeWidth: 0.05, // width of the bright cutting edge, × the disc
     edgeGlow: 4.2, // brightness of the cutting edge (bloom > 1)
-    bodyOpacity: 0.28, // the translucent blade body
-    blurAmount: 0.35, // the faint full disc of the spin blur
+    bodyOpacity: 0.4, // the translucent blade body
+    blurAmount: 0.5, // the faint full disc of the spin blur
     swirlLines: 6, // wind lines streaming round each disc
     swirlGlow: 0.9,
     fringe: 1.2, // chromatic fringe trailing the edges
@@ -97,9 +97,9 @@ export default {
     scuffWidth: 0.022, // width of the scratched line, metres
     scuffArc: 0.65, // 0..1 how much of each loop is drawn (lower = open spirals)
     scuffDust: 0.3, // half-width of the dust band the disc swept, metres
-    scuffOpacity: 0.55,
+    scuffOpacity: 0.42,
     scuffDustOpacity: 0.18,
-    scuffGlow: 1.6, // how bright the fresh mark glows behind the disc
+    scuffGlow: 1.1, // how bright the fresh mark glows behind the disc
     scuffGlowLength: 2.2, // metres it cools over behind each disc
     scuffErode: 0.7, // how raggedly it fades
     colorScuff: '#e9f2ea',

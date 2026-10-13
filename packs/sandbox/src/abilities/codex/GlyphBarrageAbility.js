@@ -73,8 +73,10 @@ const _up = new Vector3(0, 1, 0);
  *   5. **the shockwave** — drawn by the sigil shader itself out across the
  *      floor, plus the engine's SHOCKWAVE decal and a STORM burst.
  *   6. **particles** — CHIP rune shards thrown out of each eruption, STREAKs
- *      racing up the column, SOFT motes rising off charged glyphs, a RING
- *      flash as each glyph punches in.
+ *      racing up the column, SOFT motes rising off charged glyphs, RING
+ *      halos climbing each pillar. (The ring flash a glyph punches in with is
+ *      drawn flat on the floor by the sigil shader — a billboard ring is cut
+ *      in half by the floor and reads as a hoop.)
  *   7. **the ley line** — the thread binding the chain on the floor.
  *   8. **the bodies** — `handlesOwnHits`. A body standing on a glyph is marked
  *      (`dummy.corrode` with a violet look) and brightens as the chain charges;
@@ -478,8 +480,10 @@ export class GlyphBarrageAbility extends Ability {
         s.shockR = R * lerp(0.5, c.shockReach, Easing.outCubic(saturate(k)));
         s.shockA = k < 1 ? 1 - smoothstep(0.35, 1, k) : 0;
       } else {
-        s.shockR = 0;
-        s.shockA = 0;
+        // The small ring flash it punches in with: the same ring, short and tight.
+        const k = sa / Math.max(0.05, c.stampTime * 1.5);
+        s.shockR = R * lerp(0.95, c.stampRing, Easing.outCubic(saturate(k)));
+        s.shockA = k < 1 ? (1 - Easing.inQuad(saturate(k))) * 0.8 : 0;
       }
       s.rotA = this._rotA;
       s.rotB = this._rotB;
@@ -633,16 +637,6 @@ export class GlyphBarrageAbility extends Ability {
     });
 
     const time = frame.uTime.value;
-    this._resetEmit(time);
-    _pos.set(rec.x, 0.12, rec.z);
-    _emit.position = _pos;
-    _emit.size = R * c.ringSize;
-    _emit.sizeVariance = 0;
-    _emit.life = c.ringLifetime;
-    _emit.lifeVariance = 0;
-    _emit.speed = 0;
-    this.rings.emit(1, _emit);
-
     // A puff of motes knocked up off the floor as it lands.
     this._resetEmit(time);
     _pos.set(rec.x, 0.15, rec.z);
@@ -775,15 +769,21 @@ export class GlyphBarrageAbility extends Ability {
       this.streaks.emit(1, _emit);
     }
 
-    /* the ring flash, bigger */
+    /* halo rings climbing the column */
     this._resetEmit(time);
-    _pos.set(rec.x, 0.2, rec.z);
-    _emit.position = _pos;
-    _emit.size = R * c.ringSize * 1.6;
-    _emit.sizeVariance = 0;
-    _emit.life = c.ringLifetime * 1.4;
-    _emit.lifeVariance = 0;
-    this.rings.emit(1, _emit);
+    _emit.direction = _up;
+    _emit.speed = c.ringRise;
+    _emit.speedVariance = 0.3;
+    _emit.size = c.pillarRadius * c.ringSize;
+    _emit.sizeVariance = 0.2;
+    _emit.life = c.ringLifetime;
+    _emit.lifeVariance = 0.2;
+    const halos = Math.max(0, Math.round(c.ringCount));
+    for (let n = 0; n < halos; n++) {
+      _pos.set(rec.x, c.pillarHeight * (0.12 + 0.5 * (n / Math.max(1, halos))), rec.z);
+      _emit.position = _pos;
+      this.rings.emit(1, _emit);
+    }
 
     /* whoever is standing on it goes up the pillar */
     this._capture(rec, i);
@@ -1043,6 +1043,7 @@ export function buildEditor(gui, c, Editor) {
   R(chain, c, 'minSpacing', 0.2, 8, 0.05, 'closest spacing (m)');
   R(chain, c, 'stampTime', 0.02, 1, 0.01, 'punches in over (s)');
   R(chain, c, 'stampOvershoot', 0, 2, 0.01, 'lands oversized');
+  R(chain, c, 'stampRing', 1, 3, 0.01, 'ring flash reach (× radius)');
   R(chain, c, 'holdTime', 0, 3, 0.01, 'charges for (s)');
   R(chain, c, 'chainInterval', 0, 1, 0.005, 'between detonations (s)');
   R(chain, c, 'chainOrder', 0, 1, 1, 'order (0 far→near, 1 near→far)');
@@ -1142,8 +1143,10 @@ export function buildEditor(gui, c, Editor) {
   R(streaks, c, 'streakStretch', 0, 1, 0.005, 'stretch');
   R(streaks, c, 'streakGlow', 0, 8, 0.05, 'glow');
   Editor.gradient(streaks, c, 'colorStreak', 'streak gradient');
-  const rings = parts.addFolder('Ring flash');
-  R(rings, c, 'ringSize', 0.2, 8, 0.05, 'size (× radius)');
+  const rings = parts.addFolder('Pillar halos');
+  R(rings, c, 'ringCount', 0, 8, 1, 'per eruption');
+  R(rings, c, 'ringSize', 0.2, 12, 0.05, 'size (× pillar radius)');
+  R(rings, c, 'ringRise', 0, 20, 0.1, 'climb (m/s)');
   R(rings, c, 'ringLifetime', 0.05, 2, 0.01, 'lifetime');
   R(rings, c, 'ringGlow', 0, 8, 0.05, 'glow');
   Editor.gradient(rings, c, 'colorRing', 'ring gradient');
