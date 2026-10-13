@@ -436,6 +436,8 @@ const POOL_FRAGMENT = /* glsl */ `
     // An oily thin-film sheen riding the flow.
     float film = h0 * uSheenScale + dot(N.xz, vec2(3.0, 2.0)) + uFlow * 0.2;
     vec3 irid = 0.5 + 0.5 * cos(6.2831 * (film + vec3(0.0, 0.33, 0.67)));
+    // Kept close to the bile's own hue: an oily slick, not a rainbow.
+    irid = mix(uColorGlow, irid, 0.35);
     float fres = pow(1.0 - max(dot(vec3(0.0, 1.0, 0.0), V), 0.0), 2.0);
     col += irid * uSheen * (0.35 + 0.65 * fres) * depthK * uShaderIntensity;
     col += vec3(spec);

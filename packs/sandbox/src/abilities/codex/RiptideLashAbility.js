@@ -673,7 +673,7 @@ export class RiptideLashAbility extends Ability {
     this.ctx.decals.spawn(DecalType.RIPPLE, _floor, {
       radius: c.crashRadius * 1.5,
       life: c.rippleLife * 1.6,
-      intensity: 1,
+      intensity: Math.min(1, c.rippleIntensity * 2),
       colorA: getColor(c.colorRippleA),
       colorB: getColor(c.colorRippleB)
     });
@@ -859,7 +859,7 @@ export class RiptideLashAbility extends Ability {
       this.ctx.decals.spawn(DecalType.RIPPLE, _floor, {
         radius: c.rippleRadius,
         life: c.rippleLife,
-        intensity: 0.9,
+        intensity: c.rippleIntensity,
         colorA: getColor(c.colorRippleA),
         colorB: getColor(c.colorRippleB)
       });
@@ -1181,6 +1181,7 @@ export function buildEditor(gui, c, Editor) {
   R(soak, c, 'rippleSpacing', 0.3, 10, 0.05, 'ripple decal every (m)');
   R(soak, c, 'rippleRadius', 0.1, 6, 0.05, 'ripple decal radius');
   R(soak, c, 'rippleLife', 0.1, 6, 0.05, 'ripple decal life');
+  R(soak, c, 'rippleIntensity', 0, 2, 0.01, 'ripple decal strength');
   soak.addColor(c, 'colorWet').name('wet floor');
   soak.addColor(c, 'colorPuddle').name('puddle');
   soak.addColor(c, 'colorSheen').name('glint');

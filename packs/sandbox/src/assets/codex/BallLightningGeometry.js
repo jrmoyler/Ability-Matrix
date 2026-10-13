@@ -15,7 +15,7 @@ import { BufferAttribute, BufferGeometry, DynamicDrawUsage, PlaneGeometry, Spher
  *     camera. Fixed size: nothing is allocated after construction.
  */
 
-export const BOLT_SLOTS = 32;
+export const BOLT_SLOTS = 40;
 export const BOLT_POINTS = 18;
 
 export function createOrbGeometry() {
@@ -36,7 +36,8 @@ const _t = new Vector3();
 
 /**
  * Per vertex: `position` (the polyline point), `aTangent` (its direction),
- * `aCoord` = (side ±1, along 0..1, width scale, brightness), `aBolt` (slot).
+ * `aCoord` = (side ±1, along 0..1, width scale, brightness),
+ * `aState` = (grow 0..1 — how far out the strike has raced, seed), `aBolt` (slot).
  */
 export class BoltRibbons {
   constructor(slots = BOLT_SLOTS, points = BOLT_POINTS) {
@@ -47,6 +48,7 @@ export class BoltRibbons {
     this.tangent = new Float32Array(verts * 3);
     this.coord = new Float32Array(verts * 4);
     this.bolt = new Float32Array(verts);
+    this.state = new Float32Array(verts * 2);
     const index = new Uint16Array(slots * (points - 1) * 6);
 
     let k = 0;
@@ -76,9 +78,11 @@ export class BoltRibbons {
     this.attrPosition = new BufferAttribute(this.position, 3).setUsage(DynamicDrawUsage);
     this.attrTangent = new BufferAttribute(this.tangent, 3).setUsage(DynamicDrawUsage);
     this.attrCoord = new BufferAttribute(this.coord, 4).setUsage(DynamicDrawUsage);
+    this.attrState = new BufferAttribute(this.state, 2).setUsage(DynamicDrawUsage);
     geometry.setAttribute('position', this.attrPosition);
     geometry.setAttribute('aTangent', this.attrTangent);
     geometry.setAttribute('aCoord', this.attrCoord);
+    geometry.setAttribute('aState', this.attrState);
     geometry.setAttribute('aBolt', new BufferAttribute(this.bolt, 1));
     geometry.setIndex(new BufferAttribute(index, 1));
     geometry.boundingSphere = new Sphere(new Vector3(), 1e4);
@@ -93,8 +97,10 @@ export class BoltRibbons {
    * @param {number} width width scale (the shader multiplies the glow width)
    * @param {number} bright 0 hides the slot's vertices
    * @param {number} taper how much the width thins toward the tip, 0..1
+   * @param {number} grow 0..1 how far along it the strike has raced
+   * @param {number} seed per-strike dice for the shader
    */
-  writeBolt(slot, pts, width, bright, taper) {
+  writeBolt(slot, pts, width, bright, taper, grow, seed) {
     const n = this.points;
     for (let p = 0; p < n; p++) {
       const a = Math.max(0, p - 1);
@@ -114,6 +120,8 @@ export class BoltRibbons {
         this.tangent[v * 3 + 2] = _t.z;
         this.coord[v * 4 + 2] = w;
         this.coord[v * 4 + 3] = bright;
+        this.state[v * 2] = grow;
+        this.state[v * 2 + 1] = seed;
       }
     }
   }
@@ -130,6 +138,7 @@ export class BoltRibbons {
     this.attrPosition.needsUpdate = true;
     this.attrTangent.needsUpdate = true;
     this.attrCoord.needsUpdate = true;
+    this.attrState.needsUpdate = true;
   }
 
   dispose() {

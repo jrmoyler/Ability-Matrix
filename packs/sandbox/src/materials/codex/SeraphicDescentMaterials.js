@@ -1147,7 +1147,7 @@ export function createWarpMaterial() {
     const c = settings.seraph;
     const g = settings.global;
     const u = material.uniforms;
-    u.uSize.value = c.warpSize * 0.5;
+    u.uSize.value = c.warpSize; // the quad is unit-sized, so this is metres across
     u.uStrength.value = c.warpStrength * g.distortion * s.strength;
     u.uShimmer.value = c.warpShimmer;
     u.uRing.value = s.ring;

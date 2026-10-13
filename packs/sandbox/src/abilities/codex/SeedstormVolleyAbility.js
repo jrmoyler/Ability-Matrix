@@ -580,7 +580,7 @@ export class SeedstormVolleyAbility extends Ability {
 
   /** Everything, on the cast's own clock: phases are only containers here. */
   _step(dt) {
-    this._clock += dt * settings.global.animationSpeed;
+    this._clock += dt;
     this._flicker = Math.max(0, this._flicker - this._flicker * 5 * dt);
     this._syncGeometry();
 

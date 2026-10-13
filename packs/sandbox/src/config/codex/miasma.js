@@ -68,8 +68,8 @@ export default {
     globMurk: 0.65, // 0..1 dark bile swirled through it
     globSwirlScale: 1.6, // swirl bands across it
     globFlowSpeed: 1.4, // how fast they turn
-    globInnerGlow: 1.6, // the glow from inside, where it is thick (bloom > 1)
-    globRimGlow: 1.4, // the toxic rim
+    globInnerGlow: 1.0, // the glow from inside, where it is thick (bloom > 1)
+    globRimGlow: 1.0, // the toxic rim
     globRimPower: 2.4, // how tight the rim is
     globSpecular: 1.1, // the wet highlight
     globGloss: 70, // how tight it is
@@ -119,7 +119,7 @@ export default {
     poolBubbleDensity: 0.55, // 0..1 share of cells with a bubble in them
     poolBubbleSpeed: 0.9, // bubble cycles per second
     poolPopGlow: 2.6, // the ring flash as one pops
-    poolSheen: 0.32, // oily thin-film sheen
+    poolSheen: 0.22, // oily thin-film sheen
     poolSheenScale: 1.6, // sheen bands
     poolSpecular: 0.9, // wet highlight
     poolDepthFalloff: 0.9, // metres from the edge to full depth

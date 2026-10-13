@@ -53,7 +53,7 @@ export default {
     nozzleRadius: 0.1, // radius at the hand
     jetRadius: 0.32, // radius once it has spread
     spreadLength: 4, // metres it spreads over
-    headBulge: 0.9, // the churning head is this much fatter, × the radius
+    headBulge: 0.6, // the churning head is this much fatter, × the radius
     headLength: 0.9, // metres the bulge reaches back from the head
     tailTaper: 0.6, // metres the tail rounds off over
     headTaper: 0.45, // metres the head rounds off over
@@ -67,27 +67,27 @@ export default {
     /* --- shading --- */
     opacity: 0.55, // the jet's body seen face-on (it is more opaque at the rim)
     fresnelPower: 2.2,
-    fresnelGlow: 1.4, // emissive rim
+    fresnelGlow: 0.8, // emissive rim
     gloss: 60, // sun highlight sharpness
-    specular: 2.2, // sun highlight strength
-    envReflect: 0.9, // how much of the sky the water mirrors
+    specular: 1.6, // sun highlight strength
+    envReflect: 0.6, // how much of the sky the water mirrors
     streakScale: 2.4, // flow streaks per metre
-    streakGlow: 1.6, // brightness of the streaks
+    streakGlow: 1.0, // brightness of the streaks
     foamScale: 2.2, // foam features per metre
-    foamThreshold: 0.62, // higher = less foam
-    foamAmount: 0.9, // foam strength
-    headFoam: 0.7, // extra foam at the churning head
+    foamThreshold: 0.8, // higher = less foam
+    foamAmount: 0.75, // foam strength
+    headFoam: 0.45, // extra foam at the churning head
     softFade: 0.35, // soft intersection with geometry, metres
     colorDeep: '#0a4f8c',
-    colorShallow: '#38d4ff',
+    colorShallow: '#1fb8ff',
     colorGlow: '#5fe6ff',
     colorSpec: '#ffffff',
     colorFoam: '#eefbff',
 
     /* --- pressure core (additive, inside the body) --- */
     coreScale: 0.5, // radius of the core, × the jet
-    coreGlow: 2.6,
-    colorCore: '#c9f6ff',
+    coreGlow: 1.5,
+    colorCore: '#7fe4ff',
 
     /* ================================================================ */
     /* 2 · REFRACTION                                                    */
@@ -100,12 +100,12 @@ export default {
     /* ================================================================ */
     /* 3 · SPRAY + DROPLETS                                              */
     /* ================================================================ */
-    mistRate: 140, // mist puffs/second shed along the jet
+    mistRate: 90, // mist puffs/second shed along the jet
     mistSize: 0.38,
     mistSpeed: 1.4, // m/s outward off the surface
     mistLift: 0.5, // m/s upward
     mistLifetime: 1.0,
-    mistOpacity: 0.32,
+    mistOpacity: 0.2,
     mistDrag: 2.0,
     mistTurbulence: 0.7,
     colorMistA: '#e9fbff',
@@ -152,20 +152,21 @@ export default {
     drainStart: 0.15, // 0..1 through the linger when the floor begins to dry
     drainErode: 0.6, // 0..1 how raggedly it dries
     rippleSpacing: 2.2, // a RIPPLE decal on the floor every this many metres
-    rippleRadius: 1.4,
+    rippleRadius: 1.1,
     rippleLife: 1.2,
+    rippleIntensity: 0.35, // strength of those decals
     colorWet: '#03111d',
     colorPuddle: '#0b3554',
     colorSheen: '#bfefff',
-    colorRippleA: '#4fd6ff',
-    colorRippleB: '#e8fbff',
+    colorRippleA: '#1a6f9c',
+    colorRippleB: '#7fd8ff',
 
     /* ================================================================ */
     /* 5 · THE BREAKING WAVE                                             */
     /* ================================================================ */
     waveTime: 1.25, // seconds from the jet folding up to the wave gone
     waveWidth: 5.2, // metres across the line
-    waveHeight: 2.6, // arc length of the curl's profile, metres (≈ its height)
+    waveHeight: 3.4, // arc length of the curl's profile, metres (≈ its height)
     waveBack: 0.45, // the base sits this much of the profile behind the end
     waveSlope: 1.05, // radians the back face rises at
     curlStart: 0.2, // radians the lip has curled when the wave stands up
@@ -178,7 +179,7 @@ export default {
     riseEnd: 0.42, // 0..1 through the wave it has stood up fully
     crashAt: 0.7, // 0..1 through the wave the lip hits the floor
     crashSurge: 1.6, // metres it surges on as it collapses
-    waveOpacity: 0.72,
+    waveOpacity: 0.8,
     waveFresnel: 1.6,
     waveTranslucency: 1.4, // sunlight through the thin top of the wave
     waveFoamStart: 0.62, // 0..1 up the profile the crest foam begins

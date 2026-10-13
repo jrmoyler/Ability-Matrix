@@ -71,19 +71,19 @@ export default {
     /* --- shading --- */
     gloss: 110, // specular exponent — blood is a mirror when it is fresh
     specular: 1.7, // sun highlight strength
-    envReflect: 1.0, // how much sky the surface reflects
-    fresnel: 1.4, // reflection at grazing angles
+    envReflect: 0.5, // how much sky the surface reflects
+    fresnel: 1.1, // reflection at grazing angles
     ripple: 0.35, // fine surface ripple bent into the normal
     rippleScale: 5, // ripple features per metre
     sss: 1.3, // light glowing through the thin curling lip
     troughDark: 0.8, // how much darker the trough and back slope are than the crest
-    froth: 0.9, // the pink froth along the crest
+    froth: 0.6, // the pink froth along the crest
     frothScale: 7, // bubble cells per metre
-    frothWidth: 0.09, // width of the froth band, fraction of the profile
+    frothWidth: 0.05, // width of the froth band, fraction of the profile
     edgeSoft: 0.22, // softness of the wave's two ends
     softFade: 0.3, // soft intersection with the floor, metres
     opacity: 1, // overall opacity of the wave
-    colorBlood: '#8e0a16', // the body of the wave
+    colorBlood: '#7a0712', // the body of the wave
     colorDeep: '#2a0207', // the trough
     colorLip: '#ff2e4d', // light through the lip
     colorFroth: '#ff9fb2', // crest froth
@@ -109,7 +109,7 @@ export default {
     splatterScale: 2.6, // bead cells per metre
     smearGloss: 140, // specular exponent of the wet smear
     smearSpecular: 1.3,
-    smearEnv: 0.8, // sky in the wet smear
+    smearEnv: 0.55, // sky in the wet smear
     smearBump: 1.0, // how much the streaks and meniscus bend the light
     dryDelay: 0.5, // seconds after the wave passes before the smear starts to dry
     dryTime: 2.2, // seconds it takes to dry to a matte crust
@@ -212,8 +212,8 @@ export default {
     catchImpulse: 2.5, // m/s the crest knocks a body forward when it takes it
     catchLift: 4.0, // m/s up
     catchSpin: 0.6, // tumble
-    carryHeight: 0.6, // × wave height a carried body rides at
-    carryAhead: 0.25, // metres ahead of the crest it rides
+    carryHeight: 0.75, // × wave height a carried body rides at
+    carryAhead: 0.95, // metres ahead of the crest it rides
     carryMatch: 1.0, // × wave speed it is carried at
     carryPull: 5, // how hard it is pulled onto its riding spot (1/s)
     carryGrab: 7, // how quickly the current takes hold (1/s)

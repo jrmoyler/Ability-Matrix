@@ -66,7 +66,7 @@ const BLOOD_SHADE_GLSL = /* glsl */ `
     vec3 env = texture2D(envMap, equirectUv(reflect(-V, N))).rgb;
     return base * wrap * (1.0 - fres * 0.4)
          + specColor * (hi + sheen)
-         + env * envAmt * fres * fresAmt;
+         + env * mix(vec3(1.0), specColor * 0.6 + base * 2.0, 0.45) * envAmt * fres * fresAmt;
   }
 `;
 
@@ -600,6 +600,12 @@ const SMEAR_FRAGMENT = /* glsl */ `
     return vec2(sqrt(f2) - sqrt(f1), id);
   }
 
+  /** Drag streaks along the line, as a height field (metres-ish). */
+  float streakH(float x, float along) {
+    return snoise(vec3(x * uStreakScale, along * 0.3, uSeed)) * 0.6
+         + snoise(vec3(x * uStreakScale * 2.3, along * 0.6, uSeed + 2.0)) * 0.3;
+  }
+
   void main() {
     float x = vFlat.x;
     float along = vFlat.y;
@@ -651,20 +657,17 @@ const SMEAR_FRAGMENT = /* glsl */ `
     float tide = uDrain <= 0.0 ? 0.0 : (1.0 - smoothstep(0.0, 0.12, soak - thr)) * uDrainEdge;
 
     /* --- the wet surface: streaks dragged along the line, a meniscus at the edge --- */
-    float streak = snoise(vec3(x * uStreakScale, along * 0.3, uSeed)) * 0.6
-                 + snoise(vec3(x * uStreakScale * 2.3, along * 0.6, uSeed + 2.0)) * 0.3;
+    // The normal by finite differences in floor space — stable at any distance,
+    // where screen derivatives of a 9-per-metre streak field alias into glitter.
+    float streak = streakH(x, along);
+    float e = 0.05;
+    float gx = (streakH(x + e, along) - streak) / e;
+    float gz = (streakH(x, along + e) - streak) / e;
     float men = smoothstep(-0.3, 0.0, d);
-    float h = streak * uStreaks * 0.012 + men * 0.03;
-    // The gradient by screen derivatives: cheap, and it follows every slider.
-    vec2 fx = dFdx(vFlat);
-    vec2 fy = dFdy(vFlat);
-    float hx = dFdx(h);
-    float hy = dFdy(h);
-    float det = fx.x * fy.y - fx.y * fy.x;
-    vec2 grad = abs(det) > 1e-9 ? vec2(hx * fy.y - hy * fx.y, hy * fx.x - hx * fy.x) / det : vec2(0.0);
     float wet = 1.0 - dry;
-    // grad is d(h)/d(across, along); the strip frame is side/dir on the floor.
-    vec3 N = normalize(vec3(0.0, 1.0, 0.0) - (grad.x * vec3(1.0, 0.0, 0.0) + grad.y * vec3(0.0, 0.0, 1.0)) * uBump * wet * 6.0);
+    // A meniscus bulges at the edge: the normal tips outward across it.
+    float edgeTilt = men * (1.0 - men) * 4.0 * sign(x) * 0.35;
+    vec3 N = normalize(vec3(-(gx * uStreaks * 0.02 + edgeTilt) * uBump * wet, 1.0, -gz * uStreaks * 0.02 * uBump * wet));
 
     vec3 V = normalize(cameraPosition - vWorld);
     vec3 L = normalize(uLightDir);

@@ -99,8 +99,8 @@ export default {
     colorHotB: '#ff7a1e', // orange
     colorHotC: '#8a1606', // deep red
     colorCold: '#040303', // what it cools to
-    undersideGlow: 4.2, // how hot the freshly extruded foot of a column is
-    undersideHeight: 0.55, // metres the glow reaches up a column
+    undersideGlow: 2.6, // how hot the freshly extruded foot of a column is
+    undersideHeight: 0.4, // metres the glow reaches up a column
     emberSpeckle: 0.7, // hot pinholes in the rock
     glowPulse: 0.22, // throb of the heat
     punchGlow: 2.2, // the flash a column gives as it breaks the surface
@@ -161,10 +161,10 @@ export default {
     /* --- dust (SMOKE) --- */
     dustCount: 2, // per column as it rises
     sinkDust: 2, // per column as it sinks
-    dustSize: 0.9,
+    dustSize: 0.6,
     dustSpeed: 1.5,
     dustLifetime: 1.7,
-    dustOpacity: 0.55,
+    dustOpacity: 0.4,
     colorDustA: '#6a5a50',
     colorDustB: '#4a3e38',
     colorDustC: '#3a302c',
