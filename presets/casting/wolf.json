@@ -5,6 +5,7 @@
   "id": "wolf",
   "slot": 8,
   "kind": "ability",
+  "element": "cosmic",
   "label": "Astral Fang",
   "hint": "Astral Fang — a wolf of starlight leaps out of a rift, takes the target and carries it into another",
   "key": "B",

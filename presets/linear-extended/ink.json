@@ -5,6 +5,7 @@
   "id": "ink",
   "slot": 6,
   "kind": "ability",
+  "element": "water",
   "label": "Sumi Tide",
   "hint": "Ink-paint Water Zone",
   "key": "B",

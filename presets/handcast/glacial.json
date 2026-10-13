@@ -5,6 +5,7 @@
   "id": "glacial",
   "slot": 2,
   "kind": "ability",
+  "element": "frost",
   "label": "Glacial Shard Storm",
   "hint": "Glacial Shard Storm — a crystal of ice with a wake of frost",
   "key": "R",

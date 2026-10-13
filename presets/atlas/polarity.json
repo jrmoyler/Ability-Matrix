@@ -5,6 +5,7 @@
   "id": "polarity",
   "slot": 4,
   "kind": "ability",
+  "element": "tech",
   "label": "Polarity Garden",
   "hint": "Trap — red and blue capsule mines arc out, tether into a magnetic lattice, then detonate in an alternating cascade",
   "key": "",

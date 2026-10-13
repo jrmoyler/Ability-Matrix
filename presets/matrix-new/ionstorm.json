@@ -5,6 +5,7 @@
   "id": "ionstorm",
   "slot": 7,
   "kind": "ability",
+  "element": "storm",
   "label": "Ion Storm Pillar",
   "hint": "Plasma — a column of ionised light slams down; its bolts strike the floor around it",
   "key": "Z",

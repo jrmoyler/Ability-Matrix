@@ -5,6 +5,7 @@
   "id": "firePortal",
   "slot": 6,
   "kind": "ability",
+  "element": "fire",
   "label": "Fire Portal",
   "hint": "Fire Portal",
   "key": "Z",

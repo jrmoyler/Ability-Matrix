@@ -126,6 +126,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
       <button class="btn" id="presetBtn">Preset JSON</button>
     </div>
     <div class="controls" id="moves"></div>
+    <p class="note">Click inside the stage, then <b>W A S D</b> to walk, <b>Shift</b> to run and <b>Space</b> to dash. Casting works on the move.</p>
     <div class="preset" id="preset">
       <p class="note" id="presetHelp">The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.</p>
       <textarea id="presetText" readonly></textarea>
@@ -139,7 +140,8 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
 
   <section class="book" aria-label="Spellbook">
     <div class="filters">
-      <input class="search" id="q" type="search" placeholder="Search &mdash; frost, summon, chain, cast3&hellip;" aria-label="Search abilities">
+      <input class="search" id="q" type="search" placeholder="Search &mdash; fire, frost, summon, chain, cast3&hellip;" aria-label="Search abilities">
+      <div class="chips" id="elementChips" aria-label="Elements"></div>
       <div class="chips" id="kindChips"></div>
       <div class="chips" id="castChips"></div>
       <div class="chips" id="packChips"></div>
@@ -147,6 +149,8 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     <div class="viewbar">
       <span class="count" id="count"></span>
       <div class="chips">
+        <button class="chip" id="groupElement" aria-pressed="true">By element</button>
+        <button class="chip" id="groupPack" aria-pressed="false">By pack</button>
         <button class="chip" id="viewCards" aria-pressed="true">Cards</button>
         <button class="chip" id="viewTable" aria-pressed="false">Matrix</button>
       </div>
@@ -158,8 +162,8 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'moves'];
-const NEW_PACKS = ['collective', 'matrix-new', 'atlas'];
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'moves'];
+const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex'];
 const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -169,7 +173,9 @@ const store = {
 let catalog = null, packs = {}, current = null, livePack = null, ready = false, pending = [];
 let autoOn = false, gauntlet = null, paused = false;
 const tried = new Set(store.get('tried', []));
-const filters = { q: '', kind: new Set(['ability', 'summon', 'buff']), cast: new Set(), pack: new Set(), view: store.get('view', 'cards') };
+const filters = { q: '', kind: new Set(['ability', 'summon', 'buff']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
+let ELEMENTS = [], elements = {};
+const groupOf = (a) => filters.group === 'element' ? (a.element || (a.pack === 'moves' ? 'moves' : 'other')) : a.pack;
 
 function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800); }
 const svg = (a) => a.glyph ? a.glyph.replace(/class="glyph-svg"/, '') : '<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5"><circle cx="50" cy="50" r="26"/></svg>';
@@ -216,7 +222,9 @@ function select(a, { cast = false } = {}) {
   $('nowName').textContent = a.label;
   $('nowHint').textContent = a.hint || '';
   const pk = packs[a.pack];
-  const f = [`<span>pack <b>${pk.title}</b></span>`];
+  const f = [];
+  if (a.element && elements[a.element]) f.push(`<span>element <b>${elements[a.element].label}</b></span>`);
+  f.push(`<span>pack <b>${pk.title}</b></span>`);
   if (a.key) f.push(`<span>key <b>${a.key}</b></span>`);
   if (a.cast) f.push(`<span>aim <b>${a.cast}</b></span>`);
   if (a.castAnim) f.push(`<span>gesture <b>${a.castAnim}</b></span>`);
@@ -327,7 +335,8 @@ function visible() {
     filters.kind.has(a.kind) &&
     (!filters.cast.size || filters.cast.has(a.cast)) &&
     (!filters.pack.size || filters.pack.has(a.pack)) &&
-    (!q || [a.label, a.hint, a.id, a.pack, a.cast, a.castAnim, a.key].join(' ').toLowerCase().includes(q))
+    (!filters.element.size || filters.element.has(a.element)) &&
+    (!q || [a.label, a.hint, a.id, a.pack, a.cast, a.castAnim, a.key, a.element, elements[a.element]?.label].join(' ').toLowerCase().includes(q))
   );
 }
 function chips(el, entries, set, single = false) {
@@ -344,15 +353,26 @@ function render() {
   $('count').textContent = `${items.length} shown`;
   const list = $('list');
   if (filters.view === 'table') {
-    list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
-      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${NEW_PACKS.includes(a.pack) ? ' <span class="tag-new">new</span>' : ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
+    list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Element</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
+      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</td><td>${elements[a.element]?.label ?? ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
     }</tbody></table></div>`;
   } else {
-    list.innerHTML = PACK_ORDER.filter((p) => items.some((a) => a.pack === p)).map((p) => {
-      const pk = packs[p];
-      const link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : (p === 'moves' ? `<a>one shared caster</a>` : `<a>${pk.count} new \u00b7 Collective AI</a>`);
-      return `<div class="pack-head"><span>${pk.title}</span>${link}</div><div class="cards">${
-        items.filter((a) => a.pack === p).map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}</span></button>`).join('')
+    // Grouped by element (what it is) or by pack (where it came from).
+    const order = filters.group === 'element' ? [...ELEMENTS.map((e) => e.id), 'other', 'moves'] : PACK_ORDER;
+    list.innerHTML = order.filter((g) => items.some((a) => groupOf(a) === g)).map((g) => {
+      const members = items.filter((a) => groupOf(a) === g);
+      let title, link;
+      if (filters.group === 'element') {
+        const el = elements[g];
+        title = el ? `<span style="color:${el.accent}">${el.label}</span>` : (g === 'moves' ? 'Character &amp; moves' : 'Other');
+        link = `<a>${members.length} ${g === 'moves' ? 'moves' : members.length === 1 ? 'ability' : 'abilities'}</a>`;
+      } else {
+        const pk = packs[g];
+        title = pk.title;
+        link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : (g === 'moves' ? `<a>one shared caster</a>` : `<a>${pk.count} new \u00b7 Collective AI</a>`);
+      }
+      return `<div class="pack-head"><span>${title}</span>${link}</div><div class="cards">${
+        members.map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}${filters.group === 'element' ? ` \u00b7 ${a.pack}` : ''}</span></button>`).join('')
       }</div>`;
     }).join('') || '<p class="note">Nothing matches \u2014 clear a filter.</p>';
   }
@@ -367,20 +387,34 @@ function updateTally() {
   const done = cast.filter((a) => tried.has(a.uid)).length;
   const moves = catalog.abilities.filter((a) => a.kind === 'move').length;
   const arch = catalog.abilities.filter((a) => a.kind === 'archived').length;
-  $('tally').textContent = `${cast.length} castable \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 ${catalog.packs.length} packs \u00b7 you've tried ${done}/${cast.length}`;
+  $('tally').textContent = `${cast.length} castable \u00b7 ${ELEMENTS.length} elements \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 you've tried ${done}/${cast.length}`;
 }
 $('q').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
 $('viewCards').onclick = () => { filters.view = 'cards'; store.set('view', 'cards'); $('viewCards').setAttribute('aria-pressed', true); $('viewTable').setAttribute('aria-pressed', false); render(); };
 $('viewTable').onclick = () => { filters.view = 'table'; store.set('view', 'table'); $('viewCards').setAttribute('aria-pressed', false); $('viewTable').setAttribute('aria-pressed', true); render(); };
+function setGroup(g) { filters.group = g; store.set('group', g); $('groupElement').setAttribute('aria-pressed', g === 'element'); $('groupPack').setAttribute('aria-pressed', g === 'pack'); sortCatalog(); render(); }
+$('groupElement').onclick = () => setGroup('element');
+$('groupPack').onclick = () => setGroup('pack');
+/** Element order (then pack order) for the element view; pack order for the pack view. */
+function sortCatalog() {
+  const rank = (a) => { const i = ELEMENTS.findIndex((e) => e.id === a.element); return i < 0 ? ELEMENTS.length + (a.pack === 'moves' ? 2 : 1) : i; };
+  catalog.abilities.sort((a, b) => filters.group === 'element'
+    ? rank(a) - rank(b) || PACK_ORDER.indexOf(a.pack) - PACK_ORDER.indexOf(b.pack)
+    : PACK_ORDER.indexOf(a.pack) - PACK_ORDER.indexOf(b.pack));
+}
 
 fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   catalog = c;
   for (const p of c.packs) packs[p.pack] = p;
-  catalog.abilities.sort((a, b) => PACK_ORDER.indexOf(a.pack) - PACK_ORDER.indexOf(b.pack));
+  ELEMENTS = c.elements || [];
+  for (const e of ELEMENTS) elements[e.id] = e;
+  sortCatalog();
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
+  chips($('elementChips'), ELEMENTS.map((e) => [e.id, e.label]), filters.element);
   const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
   chips($('packChips'), PACK_ORDER.filter((p) => packs[p] && p !== 'moves').map((p) => [p, NEW_PACKS.includes(p) ? `${p} (new)` : p]), filters.pack);
+  $('groupElement').setAttribute('aria-pressed', filters.group === 'element'); $('groupPack').setAttribute('aria-pressed', filters.group === 'pack');
   if (filters.view === 'table') $('viewTable').click(); else render();
   updateTally();
   const hash = location.hash.slice(1);

@@ -5,6 +5,7 @@
   "id": "gyro",
   "slot": 3,
   "kind": "ability",
+  "element": "storm",
   "label": "Stormheart Gyroscope",
   "hint": "Stormheart Gyroscope — a gyroscope condenses over the circle and strikes everyone in it with lightning",
   "key": "O",

@@ -5,6 +5,7 @@
   "id": "earth",
   "slot": 3,
   "kind": "ability",
+  "element": "earth",
   "label": "Earthen Spire",
   "hint": "Earthen Spire",
   "key": "F",

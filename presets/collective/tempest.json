@@ -5,6 +5,7 @@
   "id": "tempest",
   "slot": 0,
   "kind": "ability",
+  "element": "wind",
   "label": "Tempest Spiral",
   "hint": "Wind — a tornado that lifts what it catches, then throws it",
   "key": "Q",

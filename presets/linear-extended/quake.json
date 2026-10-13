@@ -5,6 +5,7 @@
   "id": "quake",
   "slot": 5,
   "kind": "ability",
+  "element": "earth",
   "label": "Monolith Rift",
   "hint": "Brutalist Earth Blast",
   "key": "X",

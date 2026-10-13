@@ -5,6 +5,7 @@
   "id": "refractor",
   "slot": 9,
   "kind": "ability",
+  "element": "tech",
   "label": "Prism Refractor",
   "hint": "Projectile — a charged lance strikes a prism at the end of the line, which refracts it into three timed beams that seek the nearest bodies",
   "key": "",

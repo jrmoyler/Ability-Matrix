@@ -14,17 +14,20 @@ const PACKS = {
   casting: { repo: 'achrefelouafi/AbilityCastingThreeJS', title: 'Ability Casting (Elemental Sandbox)' },
   collective: { repo: 'collective-ai (new)', title: 'Collective Originals', native: true },
   'matrix-new': { repo: 'collective-ai (new)', title: 'Matrix New', native: true },
-  atlas: { repo: 'collective-ai (new)', title: 'Ability Atlas', native: true }
+  atlas: { repo: 'collective-ai (new)', title: 'Ability Atlas', native: true },
+  codex: { repo: 'collective-ai (new)', title: 'Elemental Codex', native: true }
 };
 // Every ability now runs in the one sandbox (packs/sandbox). Source packs keep
 // their own settings.js (vendored verbatim into the sandbox); the native groups
 // are read from the sandbox's settings, split by config/sandbox.js.
 const sandboxCfg = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/settings.js')).href);
 const { NATIVE_GROUPS } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/sandbox.js')).href);
+// What each ability *is* (fire, frost, tech…), independent of the pack it came from.
+const { ELEMENT_GROUPS, ELEMENT_OF } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/elements.js')).href);
 const EXTRAS = { boost: 'BOOST_META', magic: 'MAGIC_META', fire: 'FIRE_META' };
-const SHARED = ['global', 'aim', 'zone', 'character', 'dummies', 'camera', 'environment', 'post'];
+const SHARED = ['global', 'aim', 'zone', 'character', 'move', 'dummies', 'camera', 'environment', 'post'];
 
-const catalog = { format: 'collective-ability-catalog@1', generated: new Date().toISOString(), packs: [], abilities: [] };
+const catalog = { format: 'collective-ability-catalog@1', generated: new Date().toISOString(), elements: [], packs: [], abilities: [] };
 for (const [pack, info] of Object.entries(PACKS)) {
   const file = path.join(root, 'packs', pack, 'src/config/settings.js');
   if (!info.native && !existsSync(file)) continue;
@@ -37,7 +40,7 @@ for (const [pack, info] of Object.entries(PACKS)) {
     const meta = cfg.ELEMENT_META[id] ?? {};
     const block = cfg.DEFAULT_SETTINGS[id];
     const entry = {
-      uid: `${pack}/${id}`, pack, id, slot, kind: shape(id) === 'summon' ? 'summon' : 'ability',
+      uid: `${pack}/${id}`, pack, id, slot, kind: shape(id) === 'summon' ? 'summon' : 'ability', element: ELEMENT_OF[`${pack}/${id}`] ?? null,
       label: meta.label ?? id, hint: meta.hint ?? '', key: meta.key ?? '', accent: meta.accent ?? '#fff',
       cast: shape(id), castAnim: block?.castAnim ?? null, cooldown: block?.cooldown ?? null,
       range: block?.range ?? null, minRange: block?.minRange ?? null, zoneRadius: block?.zoneRadius ?? null,
@@ -50,7 +53,7 @@ for (const [pack, info] of Object.entries(PACKS)) {
     if (!cfg[metaName] || !cfg.DEFAULT_SETTINGS[action]) continue;
     const meta = cfg[metaName];
     const block = cfg.DEFAULT_SETTINGS[action];
-    const entry = { uid: `${pack}/${action}`, pack, id: action, slot: null, kind: 'buff', action, label: meta.label ?? action,
+    const entry = { uid: `${pack}/${action}`, pack, id: action, slot: null, kind: 'buff', element: ELEMENT_OF[`${pack}/${action}`] ?? null, action, label: meta.label ?? action,
       hint: meta.hint ?? 'Self buff — press again to let go', key: meta.key ?? '', accent: meta.accent ?? '#fff', cast: 'self',
       castAnim: block?.castAnim ?? null, cooldown: block?.cooldown ?? null, duration: block?.duration ?? null, controls: countLeaves(block), status: 'live' };
     entries.push(entry);
@@ -65,6 +68,7 @@ for (const [pack, info] of Object.entries(PACKS)) {
 function countLeaves(o) { if (!o || typeof o !== 'object') return 1; return Object.values(o).reduce((n, v) => n + countLeaves(v), 0); }
 
 // Archived abilities: present in the repos, not reachable from the live app.
+const ARCHIVED_ELEMENT = { fire: 'fire', water: 'water', earth: 'earth', wind: 'wind', airScooter: 'wind' };
 const archived = [
   ['linear', 'fire', 'Fire (path cast)', 'Raymarched black-body flame volume + embers/smoke, cast along a freehand path'],
   ['linear', 'water', 'Water (path cast)', 'Raymarched water surface + spray/foam + splash crown, cast along a freehand path'],
@@ -74,7 +78,7 @@ const archived = [
   ['linear-ext', 'water', 'Water (path cast)', 'Same archived water path cast as the Linear pack'],
   ['linear-ext', 'airScooter', 'Air Scooter (walk mode)', 'Same archived walk-mode air ball']
 ];
-for (const [pack, id, label, hint] of archived) catalog.abilities.push({ uid: `${pack}/archive/${id}`, pack, id, kind: 'archived', label, hint, cast: 'path', status: 'archived', file: `packs/${pack}/src/archive/` });
+for (const [pack, id, label, hint] of archived) catalog.abilities.push({ uid: `${pack}/archive/${id}`, pack, id, kind: 'archived', element: ARCHIVED_ELEMENT[id] ?? null, label, hint, cast: 'path', status: 'archived', file: `packs/${pack}/src/archive/` });
 
 // Moves: the character clips and the non-cast moves each pack ships.
 const MOVE_LABEL = { cast1: 'Cast gesture I', cast2: 'Cast gesture II', cast3: 'Cast gesture III' };
@@ -84,6 +88,9 @@ catalog.abilities.push({ uid: 'moves/idle', pack: 'moves', id: 'idle', kind: 'mo
 for (const a of ['cast1', 'cast2', 'cast3']) catalog.abilities.push({ uid: `moves/${a}`, pack: 'moves', id: a, kind: 'move', label: MOVE_LABEL[a], hint: `${a}.fbx — Mixamo cast clip, thrown with the cast lunge`, cast: 'move', status: 'live', move: a });
 catalog.abilities.push(
   { uid: 'moves/lunge', pack: 'moves', id: 'lunge', kind: 'move', label: 'Cast lunge', hint: 'Procedural body lunge thrown into every cast', cast: 'move', status: 'live', move: 'lunge' },
+  { uid: 'moves/walk', pack: 'moves', id: 'walk', kind: 'move', label: 'Walk', hint: 'W A S D (or the arrows) walk the caster, relative to the camera, on a procedural gait. Cast on the move: armed, it strafes facing the aim', cast: 'move', status: 'live' },
+  { uid: 'moves/run', pack: 'moves', id: 'run', kind: 'move', label: 'Run', hint: 'Hold Shift while moving: a longer, faster stride with footfall dust', cast: 'move', status: 'live' },
+  { uid: 'moves/dash', pack: 'moves', id: 'dash', kind: 'move', label: 'Dash', hint: 'Space: a quick dash the way you are moving (or facing), with a dust ring and a streak trail', cast: 'move', status: 'live', move: 'dash' },
   { uid: 'moves/drive', pack: 'moves', id: 'drive', kind: 'move', label: 'Summon drive', hint: 'With the Sentinel Drone or Monowheel Bot out: WASD steers, Space or hold click fires, the same slot recalls', cast: 'move', status: 'live' },
   { uid: 'moves/handcam', pack: 'moves', id: 'handcam', kind: 'move', label: 'Hand-tracking cast', hint: 'Hand Cast and Ability Casting packs only (M): MediaPipe webcam, open palm aims, fist casts. Needs a camera, so it is not in the hosted sandbox', cast: 'move', status: 'pack-only' },
   { uid: 'moves/castle', pack: 'moves', id: 'castle', kind: 'move', label: 'Duel Hall burn', hint: 'Ability Casting pack only (`): burn the gothic hall away around the platform', cast: 'move', status: 'pack-only' }
@@ -108,6 +115,7 @@ for (const a of catalog.abilities) {
   const file = path.join(root, 'presets', a.pack, `${a.id}.json`);
   if (existsSync(file)) library.presets[a.uid] = JSON.parse((await import('node:fs')).readFileSync(file, 'utf8'));
 }
+catalog.elements = ELEMENT_GROUPS.map((e) => ({ ...e, count: catalog.abilities.filter((a) => a.element === e.id && a.status === 'live' && a.kind !== 'move').length }));
 writeFileSync(path.join(root, 'presets', 'library.json'), JSON.stringify(library));
 writeFileSync(path.join(root, 'presets', 'catalog.json'), JSON.stringify(catalog, null, 2));
 console.log('total live', catalog.abilities.filter((a) => a.status === 'live').length, 'archived', archived.length);

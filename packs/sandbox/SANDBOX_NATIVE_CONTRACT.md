@@ -3,7 +3,7 @@
 The `sandbox` pack is the one unified ability sandbox. Its engine is a copy of the `collective` pack's engine, itself a fork of the `linear-extended` engine (achrefelouafi's
 LinearAbiltyCastingExtendedThreeJS, MIT). Every engine system — particles, decals,
 bursts, lights, shake, flash, distortion layer, dummies + ragdolls, VFX editor,
-aim indicator — is the original code, untouched. Two sets of native abilities plug into it: Matrix New (`<set>` = `matrix-new`) and Ability Atlas (`<set>` = `atlas`). Twelve finished abilities built to this exact contract already live in the same pack — `src/abilities/collective/*Ability.js` with materials in `src/materials/collective/` — read at least two of them as worked examples of the bar (e.g. TempestSpiralAbility and CrimsonRiteAbility). Do not copy their designs.
+aim indicator — is the original code, untouched. Three sets of native abilities plug into it: Matrix New (`<set>` = `matrix-new`), Ability Atlas (`<set>` = `atlas`) and Elemental Codex (`<set>` = `codex`, whose `meta.element` must match `src/config/elements.js`). Twelve finished abilities built to this exact contract already live in the same pack — `src/abilities/collective/*Ability.js` with materials in `src/materials/collective/` — read at least two of them as worked examples of the bar (e.g. TempestSpiralAbility and CrimsonRiteAbility). Do not copy their designs.
 The bar is **the quality of the originals**: hand-written GLSL, fully procedural (no
 textures, no new model files), every number a live editor slider, pooled and
 allocation-free per frame.

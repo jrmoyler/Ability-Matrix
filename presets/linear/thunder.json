@@ -5,6 +5,7 @@
   "id": "thunder",
   "slot": 1,
   "kind": "ability",
+  "element": "storm",
   "label": "Storm Lance",
   "hint": "Storm Lance",
   "key": "E",

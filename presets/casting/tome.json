@@ -5,6 +5,7 @@
   "id": "tome",
   "slot": 5,
   "kind": "ability",
+  "element": "cosmic",
   "label": "Astral Tome",
   "hint": "Astral Tome — a tome flies to the circle, opens an orrery over it, and its planets fall on everyone inside",
   "key": ";",

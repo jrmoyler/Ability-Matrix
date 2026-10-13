@@ -5,6 +5,7 @@
   "id": "umbra",
   "slot": 2,
   "kind": "ability",
+  "element": "shadow",
   "label": "Umbra Grasp",
   "hint": "Shadow — a pool of living dark; a hand rises out of it, closes, and drags its target under",
   "key": "R",

@@ -5,6 +5,7 @@
   "id": "reliquary",
   "slot": 6,
   "kind": "ability",
+  "element": "nature",
   "label": "Wildroot Reliquary",
   "hint": "Wildroot Reliquary — roots arch over the target, hang it in a ring of runestones and drag it into the earth",
   "key": "'",

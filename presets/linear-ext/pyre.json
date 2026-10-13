@@ -5,6 +5,7 @@
   "id": "pyre",
   "slot": 0,
   "kind": "ability",
+  "element": "fire",
   "label": "Pyre Crown",
   "hint": "Pyre Crown",
   "key": "Q",

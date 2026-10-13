@@ -5,6 +5,7 @@
   "id": "prism",
   "slot": 2,
   "kind": "ability",
+  "element": "light",
   "label": "Sunfall Prism",
   "hint": "Light — a falling prism splits the sun into a sweeping spectrum",
   "key": "R",

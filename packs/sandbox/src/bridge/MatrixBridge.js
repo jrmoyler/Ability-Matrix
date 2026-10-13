@@ -188,8 +188,12 @@ export function installMatrixBridge(app, packId = 'sandbox') {
     action: (name, slot) => app.input.emit('action', name, slot),
     /** A pack's own non-slot action, e.g. runAction('linear-ext', 'boost'). */
     runAction: (pack, action) => app.runAction(pack, action),
-    /** Character moves: 'cast1' | 'cast2' | 'cast3' (each with the lunge), or 'lunge'. */
+    /** Character moves: 'cast1' | 'cast2' | 'cast3' (each with the lunge), 'lunge' or 'dash'. */
     move: (name) => {
+      if (name === 'dash') {
+        app.locomotion.requestDash();
+        return true;
+      }
       if (name !== 'lunge') app.character.playCast(name);
       app.character.castLunge();
       return true;

@@ -5,6 +5,7 @@
   "id": "boost",
   "slot": null,
   "kind": "buff",
+  "element": "storm",
   "action": "boost",
   "label": "Electric Boost",
   "hint": "Electric Boost",

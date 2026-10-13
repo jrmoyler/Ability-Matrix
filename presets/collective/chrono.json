@@ -5,6 +5,7 @@
   "id": "chrono",
   "slot": 11,
   "kind": "ability",
+  "element": "time",
   "label": "Chrono Fracture",
   "hint": "Time — a clockwork sphere that freezes, then shatters time",
   "key": "U",

@@ -5,6 +5,7 @@
   "id": "magic",
   "slot": null,
   "kind": "buff",
+  "element": "arcane",
   "action": "magic",
   "label": "Magic Boost",
   "hint": "Magic Boost",

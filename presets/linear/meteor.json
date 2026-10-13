@@ -5,6 +5,7 @@
   "id": "meteor",
   "slot": 2,
   "kind": "ability",
+  "element": "fire",
   "label": "Cinder Fall",
   "hint": "Cinder Fall",
   "key": "R",

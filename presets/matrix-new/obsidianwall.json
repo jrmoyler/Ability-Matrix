@@ -5,6 +5,7 @@
   "id": "obsidianwall",
   "slot": 8,
   "kind": "ability",
+  "element": "earth",
   "label": "Obsidian Wall",
   "hint": "Earth — a black-glass wall erupts down the line, stands, then fans out as spinning shards",
   "key": "N",

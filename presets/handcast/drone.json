@@ -5,6 +5,7 @@
   "id": "drone",
   "slot": 8,
   "kind": "summon",
+  "element": "tech",
   "label": "Sentinel Drone",
   "hint": "Sentinel Drone — toggle to deploy",
   "key": "Y",

@@ -5,6 +5,7 @@
   "id": "chakram",
   "slot": 6,
   "kind": "ability",
+  "element": "tech",
   "label": "Vector Chakram",
   "hint": "Projectile — a toothed disc ricochets through three banks, cutting what it hits, then curves home to the hand",
   "key": "",

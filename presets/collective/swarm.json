@@ -5,6 +5,7 @@
   "id": "swarm",
   "slot": 8,
   "kind": "ability",
+  "element": "fire",
   "label": "Meteor Swarm",
   "hint": "Fire — a marked circle, then a rain of meteors onto every mark",
   "key": "N",

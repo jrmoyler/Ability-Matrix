@@ -5,6 +5,7 @@
   "id": "graviton",
   "slot": 4,
   "kind": "ability",
+  "element": "cosmic",
   "label": "Graviton Collapse",
   "hint": "Gravity — a well that bends the floor, drags everything in, then crushes it",
   "key": "V",

@@ -5,6 +5,7 @@
   "id": "lance",
   "slot": 7,
   "kind": "ability",
+  "element": "light",
   "label": "Starbreaker Lance",
   "hint": "Starbreaker Lance — a beam from your hands into one target, blasting it away and burning it to light",
   "key": "Y",

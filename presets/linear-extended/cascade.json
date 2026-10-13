@@ -5,6 +5,7 @@
   "id": "cascade",
   "slot": 8,
   "kind": "ability",
+  "element": "arcane",
   "label": "Baleful Cascade",
   "hint": "Baleful Cascade Mark",
   "key": "N",

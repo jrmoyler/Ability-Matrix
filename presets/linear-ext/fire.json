@@ -5,6 +5,7 @@
   "id": "fire",
   "slot": null,
   "kind": "buff",
+  "element": "fire",
   "action": "fire",
   "label": "Fire Boost",
   "hint": "Fire Boost",

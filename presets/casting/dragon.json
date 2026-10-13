@@ -5,6 +5,7 @@
   "id": "dragon",
   "slot": 2,
   "kind": "ability",
+  "element": "fire",
   "label": "Dragonfire Circle",
   "hint": "Dragonfire Circle — a dragon draws a ring of fire, and the fire takes everything inside it",
   "key": "I",

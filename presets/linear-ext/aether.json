@@ -5,6 +5,7 @@
   "id": "aether",
   "slot": 5,
   "kind": "ability",
+  "element": "water",
   "label": "Tidewrought Ring",
   "hint": "Tidewrought Ring",
   "key": "X",

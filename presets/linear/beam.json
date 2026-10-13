@@ -5,6 +5,7 @@
   "id": "beam",
   "slot": 3,
   "kind": "ability",
+  "element": "light",
   "label": "Nova Beam",
   "hint": "Nova Beam",
   "key": "F",

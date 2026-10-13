@@ -5,6 +5,7 @@
   "id": "echoes",
   "slot": 5,
   "kind": "ability",
+  "element": "arcane",
   "label": "Hall of Echoes",
   "hint": "Illusion — three holograms of you print in orbit, swap places through the centre, then shatter into killing mirror",
   "key": "",

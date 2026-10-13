@@ -5,6 +5,7 @@
   "id": "bloodroot",
   "slot": 6,
   "kind": "ability",
+  "element": "blood",
   "label": "Bloodroot Thorns",
   "hint": "Blood — roots race out across the floor, a thorn thicket bursts up along them and drains whoever stands in it",
   "key": "B",

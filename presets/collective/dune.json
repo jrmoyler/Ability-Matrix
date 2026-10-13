@@ -5,6 +5,7 @@
   "id": "dune",
   "slot": 1,
   "kind": "ability",
+  "element": "earth",
   "label": "Dune Scourge",
   "hint": "Sand — a scouring dune wave rolls down the line and breaks",
   "key": "E",
