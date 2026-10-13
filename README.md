@@ -66,6 +66,8 @@ sh tools/stage-site.sh
 npx serve site
 ```
 
+`npm run build` does both steps. Vercel runs that command and publishes `site` (`vercel.json`). The same tree is copied to `dist` so a Vite preset that still expects `dist` succeeds. The hosted matrix loads the sandbox with `?bin=wasm`; staging renames models and HDRIs to `.wasm` and the sandbox bridge rewrites those requests.
+
 To work on the sandbox alone: `cd packs/sandbox && npm i && npm run dev`.
 
 Sandbox keys:

@@ -18,3 +18,8 @@ done
 find "$OUT/packs" -type f \( -name "*.fbx" -o -name "*.glb" -o -name "*.hdr" \) -exec sh -c 'mv "$1" "$1.wasm"' _ {} \;
 for f in "$OUT"/packs/*/index.html; do sed -i -E 's/\.(fbx|glb|hdr)"/.\1.wasm"/g' "$f"; done
 du -sh "$OUT"; find "$OUT" -type f | wc -l
+# Vercel’s Vite preset publishes ./dist unless vercel.json is honored.
+# Mirror the staged site so either output directory succeeds.
+rm -rf "$ROOT/dist"
+mkdir -p "$ROOT/dist"
+tar -C "$OUT" -cf - . | tar -C "$ROOT/dist" -xf -
