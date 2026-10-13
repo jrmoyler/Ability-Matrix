@@ -4,6 +4,7 @@
  */
 export default {
   "id": "noxioushalo",
+  "particle": "BUBBLE",
   "meta": {
     "label": "Noxious Halo",
     "accent": "#e4ff8a",

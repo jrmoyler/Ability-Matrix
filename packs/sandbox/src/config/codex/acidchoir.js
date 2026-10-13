@@ -4,6 +4,7 @@
  */
 export default {
   "id": "acidchoir",
+  "particle": "BUBBLE",
   "meta": {
     "label": "Acid Choir",
     "accent": "#d6ff4a",

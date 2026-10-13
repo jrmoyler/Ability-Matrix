@@ -4,6 +4,7 @@
  */
 export default {
   "id": "arterial",
+  "particle": "DROPLET",
   "meta": {
     "label": "Arterial Whip",
     "accent": "#ff2a4a",

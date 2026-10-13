@@ -4,6 +4,7 @@
  */
 export default {
   "id": "sporecoffin",
+  "particle": "SMOKE",
   "meta": {
     "label": "Spore Coffin",
     "accent": "#b6e24a",

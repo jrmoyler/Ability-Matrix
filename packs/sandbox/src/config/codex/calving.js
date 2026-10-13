@@ -4,6 +4,7 @@
  */
 export default {
   "id": "calving",
+  "particle": "CHIP",
   "meta": {
     "label": "Glacier Calving",
     "accent": "#c5e4f5",

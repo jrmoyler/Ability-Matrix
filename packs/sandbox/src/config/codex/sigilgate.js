@@ -4,6 +4,7 @@
  */
 export default {
   "id": "sigilgate",
+  "particle": "SOFT",
   "meta": {
     "label": "Sigil Gate",
     "accent": "#c9d2ff",

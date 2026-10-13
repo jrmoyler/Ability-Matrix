@@ -12,6 +12,22 @@ const ndc = new Vector2();
 
 const raf = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
+/** A look-pointer counts as a tap only if it never joined a second finger. */
+export const TAP_SLOP = 14;
+
+export function markLookPointer(pointers, id, x, y) {
+  const rec = { x, y, moved: 0, multi: false };
+  pointers.set(id, rec);
+  if (pointers.size > 1) {
+    for (const p of pointers.values()) p.multi = true;
+  }
+  return rec;
+}
+
+export function isTapCast(rec) {
+  return !!rec && !rec.multi && rec.moved < TAP_SLOP;
+}
+
 function wantsTouch() {
   if (typeof window === 'undefined') return false;
   const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
@@ -112,7 +128,7 @@ export class TouchControls {
     event.preventDefault();
     this._look.setPointerCapture(event.pointerId);
     this._lookId = event.pointerId;
-    this._pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, moved: 0 });
+    markLookPointer(this._pointers, event.pointerId, event.clientX, event.clientY);
     this._localNDC(event.clientX, event.clientY);
     this.app.activeAim?.point(ndc.clone());
     this.app.input.emit('pointer:move', ndc.clone());
@@ -147,7 +163,8 @@ export class TouchControls {
     if (look) {
       this._pointers.delete(event.pointerId);
       if (event.pointerId === this._lookId) this._lookId = null;
-      if (look.moved < 14) this._castAt(event.clientX, event.clientY);
+      if (this._pointers.size < 2) this._pinch = null;
+      if (isTapCast(look)) this._castAt(event.clientX, event.clientY);
     }
   };
 

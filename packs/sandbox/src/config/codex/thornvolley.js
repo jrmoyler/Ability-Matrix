@@ -4,6 +4,7 @@
  */
 export default {
   "id": "thornvolley",
+  "particle": "LEAF",
   "meta": {
     "label": "Thorn Volley",
     "accent": "#b6f29a",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "bloomcrown",
+  "particle": "LEAF",
   "meta": {
     "label": "Bloom Crown",
     "accent": "#ffd0ea",

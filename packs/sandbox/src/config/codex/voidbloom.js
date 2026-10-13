@@ -4,6 +4,7 @@
  */
 export default {
   "id": "voidbloom",
+  "particle": "SMOKE",
   "meta": {
     "label": "Void Bloom",
     "accent": "#6a5cff",

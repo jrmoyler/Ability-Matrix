@@ -4,6 +4,7 @@
  */
 export default {
   "id": "cometharpoon",
+  "particle": "STREAK",
   "meta": {
     "label": "Comet Harpoon",
     "accent": "#ffe1a8",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "sirennote",
+  "particle": "STREAK",
   "meta": {
     "label": "Siren Note",
     "accent": "#e9fff8",

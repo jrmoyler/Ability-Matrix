@@ -4,6 +4,7 @@
  */
 export default {
   "id": "rewindsnare",
+  "particle": "RING",
   "meta": {
     "label": "Rewind Snare",
     "accent": "#ffd98a",

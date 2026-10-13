@@ -4,6 +4,7 @@
  */
 export default {
   "id": "vortexbell",
+  "particle": "STREAK",
   "meta": {
     "label": "Vortex Bell",
     "accent": "#d9fff6",

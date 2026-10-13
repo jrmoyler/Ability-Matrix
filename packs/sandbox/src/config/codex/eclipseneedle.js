@@ -4,6 +4,7 @@
  */
 export default {
   "id": "eclipseneedle",
+  "particle": "STREAK",
   "meta": {
     "label": "Eclipse Needle",
     "accent": "#d9d0ff",

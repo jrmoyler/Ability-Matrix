@@ -4,6 +4,7 @@
  */
 export default {
   "id": "dustmarch",
+  "particle": "SMOKE",
   "meta": {
     "label": "Dust Devil March",
     "accent": "#efe6d4",

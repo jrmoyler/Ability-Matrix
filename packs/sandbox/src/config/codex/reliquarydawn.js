@@ -4,6 +4,7 @@
  */
 export default {
   "id": "reliquarydawn",
+  "particle": "SOFT",
   "meta": {
     "label": "Reliquary Dawn",
     "accent": "#ffe9a8",

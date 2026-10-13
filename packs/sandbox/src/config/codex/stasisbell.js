@@ -4,6 +4,7 @@
  */
 export default {
   "id": "stasisbell",
+  "particle": "RING",
   "meta": {
     "label": "Stasis Bell",
     "accent": "#fff0cc",

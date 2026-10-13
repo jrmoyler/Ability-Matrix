@@ -4,6 +4,7 @@
  */
 export default {
   "id": "pearltempest",
+  "particle": "BUBBLE",
   "meta": {
     "label": "Pearl Tempest",
     "accent": "#e7f8ff",

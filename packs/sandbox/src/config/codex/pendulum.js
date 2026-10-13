@@ -4,6 +4,7 @@
  */
 export default {
   "id": "pendulum",
+  "particle": "STREAK",
   "meta": {
     "label": "Pendulum Cleaver",
     "accent": "#ffe7b8",

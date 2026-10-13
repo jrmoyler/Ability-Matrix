@@ -112,7 +112,7 @@ export function makeAbility(spec) {
     }
 
     createParticles() {
-      const shape = SHAPES[spec.particle] ?? ParticleShape.SOFT;
+      const shape = SHAPES[spec.particle ?? spec.settings?.particle] ?? ParticleShape.SOFT;
       const id = spec.id;
       this._streaks = this.ctx.particles.get(`tenth.${id}.streak`, {
         capacity: 360,

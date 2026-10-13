@@ -4,6 +4,7 @@
  */
 export default {
   "id": "heartstake",
+  "particle": "DROPLET",
   "meta": {
     "label": "Heartstake",
     "accent": "#ff2244",

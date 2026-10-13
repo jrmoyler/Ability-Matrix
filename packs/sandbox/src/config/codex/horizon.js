@@ -4,6 +4,7 @@
  */
 export default {
   "id": "horizon",
+  "particle": "RING",
   "meta": {
     "label": "Event Horizon",
     "accent": "#c9b6ff",

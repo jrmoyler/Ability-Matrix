@@ -4,6 +4,7 @@
  */
 export default {
   "id": "orbitlock",
+  "particle": "RING",
   "meta": {
     "label": "Orbit Lock",
     "accent": "#e7deff",

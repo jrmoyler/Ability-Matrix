@@ -4,6 +4,7 @@
  */
 export default {
   "id": "shearwall",
+  "particle": "STREAK",
   "meta": {
     "label": "Shear Wall",
     "accent": "#f4fffd",

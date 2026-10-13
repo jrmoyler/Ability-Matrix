@@ -4,6 +4,7 @@
  */
 export default {
   "id": "faultchoir",
+  "particle": "CHIP",
   "meta": {
     "label": "Fault Choir",
     "accent": "#e6c48a",

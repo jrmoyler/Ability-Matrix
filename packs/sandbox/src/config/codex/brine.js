@@ -4,6 +4,7 @@
  */
 export default {
   "id": "brine",
+  "particle": "DROPLET",
   "meta": {
     "label": "Brine Geyser",
     "accent": "#7ecbff",
