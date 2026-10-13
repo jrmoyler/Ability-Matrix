@@ -570,7 +570,7 @@ export class NightfallScytheAbility extends Ability {
       endRadius: c.burstSize * power,
       life: 0.6,
       intensity: c.burstIntensity,
-      opacity: 0.6,
+      opacity: 0.4,
       fresnel: 2.2,
       displace: 0.4,
       squash: 0.5,

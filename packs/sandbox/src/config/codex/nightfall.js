@@ -99,15 +99,15 @@ export default {
     /* ================================================================ */
     /* 3 · BLACK SMOKE                                                   */
     /* ================================================================ */
-    smokeRate: 260, // puffs/second off the blade's smoky back
+    smokeRate: 200, // puffs/second off the blade's smoky back
     smokeSize: 0.75,
     smokeLifetime: 1.7,
-    smokeOpacity: 0.78,
+    smokeOpacity: 0.68,
     smokeShed: 1.1, // m/s thrown off the back of the blade
     smokeRise: 0.35, // upward drift
     smokeDrag: 1.5,
     smokeTurbulence: 0.8,
-    smokeWake: 120, // puffs/second left on the floor along the line
+    smokeWake: 55, // puffs/second left on the floor along the line
     colorSmokeA: '#2a1648',
     colorSmokeB: '#120a22',
     colorSmokeC: '#08050f',
@@ -185,7 +185,7 @@ export default {
     dissolveDrift: 2.4, // metres it drifts on past the target
     dissolveSpinDown: 0.65, // 0..1 how much it slows while dissolving
     dissolveSmoke: 160, // puffs thrown as it goes
-    burstSize: 4.2, // the shell of night at the end, metres
+    burstSize: 3.2, // the shell of night at the end, metres
     burstIntensity: 1.0,
     shockRadius: 5.5,
     impactShake: 0.34,
@@ -193,7 +193,7 @@ export default {
     impactFlash: 0.3,
     impactLight: 2.4, // light punch (× intensity)
     travelRumble: 0.1,
-    castSmoke: 46, // smoke where the blade forms
+    castSmoke: 30, // smoke where the blade forms
     colorBurstA: '#d8c4ff',
     colorBurstB: '#6a3fe0',
     colorBurstC: '#120822',
