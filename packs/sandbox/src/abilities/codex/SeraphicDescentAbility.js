@@ -360,7 +360,7 @@ export class SeraphicDescentAbility extends Ability {
     }
     for (let j = 0; j < MAX_SHAFTS; j++) {
       this._rayAngle[j] = (j / MAX_SHAFTS) * TAU + (Math.random() - 0.5) * 0.8;
-      this._rayDist[j] = 0.3 + Math.random() * 0.7;
+      this._rayDist[j] = 0.45 + Math.random() * 0.55;
       this._rayTop[j] = Math.random();
       this._raySeed[j] = Math.random();
     }
@@ -676,9 +676,9 @@ export class SeraphicDescentAbility extends Ability {
       }
       const angle = this._rayAngle[j];
       // Tops round the halo, feet scattered in the circle, all leaning away.
-      top[k4] = _a.x + Math.cos(angle) * c.haloRadius * 0.6 * this._rayTop[j];
+      top[k4] = _a.x + Math.cos(angle) * c.haloRadius * (0.5 + 0.5 * this._rayTop[j]);
       top[k4 + 1] = _a.y + c.haloRise * Easing.inQuad(fadeT);
-      top[k4 + 2] = _a.z + Math.sin(angle) * c.haloRadius * 0.6 * this._rayTop[j];
+      top[k4 + 2] = _a.z + Math.sin(angle) * c.haloRadius * (0.5 + 0.5 * this._rayTop[j]);
       top[k4 + 3] = c.rayTopRadius;
       const reach = c.zoneRadius * c.rayScatter * this._rayDist[j];
       bot[k4] = _centre.x + Math.cos(angle) * reach + this.direction.x * c.raySlant;

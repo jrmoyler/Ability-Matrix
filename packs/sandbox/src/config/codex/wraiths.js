@@ -65,8 +65,8 @@ export default {
     runeRadius: 0.78, // × the pool radius
     runeWidth: 0.34, // metres across the band of runes
     runeCount: 14, // runes round the ring
-    runeStroke: 0.035, // stroke width, metres
-    runeGlow: 2.4,
+    runeStroke: 0.05, // stroke width, metres
+    runeGlow: 3.0,
     runeIgnite: 0.7, // seconds for the runes to light round the ring
     runeSpin: 0.12, // radians/second the ring turns
     runeFlicker: 0.35, // 0..1 how much they waver
@@ -76,13 +76,13 @@ export default {
     /* 2 · THE WRAITHS                                                   */
     /* ================================================================ */
     wraithCount: 7, // shades in the host (up to 12)
-    wraithScale: 1.0, // × a 1.7 m figure
+    wraithScale: 1.3, // × a 1.7 m figure
     wraithScaleJitter: 0.18,
 
     /* --- shading --- */
-    bodyOpacity: 0.42, // the translucent body
-    fresnelPower: 2.2, // how tight the rim is
-    rimGlow: 2.4, // brightness of the rim
+    bodyOpacity: 0.2, // the translucent body
+    fresnelPower: 2.8, // how tight the rim is
+    rimGlow: 1.5, // brightness of the rim
     wispScale: 3.0, // wisp features down the cloak
     wispFlow: 1.2, // how fast they stream down it
     tatterDepth: 0.34, // how deep the ragged hem bites, fraction of the figure
@@ -91,7 +91,7 @@ export default {
     flutter: 0.06, // metres the cloak billows
     trailPerSpeed: 0.12, // metres the hem trails per m/s of speed
     trailMax: 1.4, // longest trail, metres
-    leanSpeed: 6, // m/s at which a shade flies head-first
+    leanSpeed: 10, // m/s at which a shade flies head-first
     maxLean: 0.85, // 0..1 how far over it leans
     eyeGlow: 6, // the two points in the hood
     eyeSize: 0.026,
@@ -101,7 +101,7 @@ export default {
     softFade: 0.35,
     colorA: '#9fb4ff', // the rim
     colorB: '#ffffff', // the fray as a shade dissolves
-    colorBody: '#3a4a86', // the body's haze
+    colorBody: '#2a3870', // the body's haze
     colorEye: '#d9f2ff',
 
     /* --- the rise --- */

@@ -187,7 +187,9 @@ const FEATHER_FRAGMENT = /* glsl */ `
     float tear = snoise(vec3(y * uTearScale, sign(x) * 4.0 + seed * 13.0, seed * 3.0));
     w *= 1.0 - uTear * smoothstep(0.35, 0.8, tear) * smoothstep(0.15, 0.4, abs(x) / max(w, 1e-3));
     float d = abs(x) / max(w, 1e-3);
-    float rachis = exp(-pow(x / max(uRachisWidth, 1e-3), 2.0)) * smoothstep(0.0, 0.04, y) * (1.0 - y * 0.7);
+    // Squared by hand: pow() of a negative base is undefined in GLSL.
+    float rx = x / max(uRachisWidth, 1e-3);
+    float rachis = exp(-rx * rx) * smoothstep(0.0, 0.04, y) * (1.0 - y * 0.7);
     if (d > 1.0 && rachis < 0.05) discard;
     float vane = (1.0 - smoothstep(0.7, 1.0, d)) * step(d, 1.0);
 
@@ -914,7 +916,7 @@ const DART_FRAGMENT = /* glsl */ `
       // Blade: a little pointed feather. Whatever is sunk into the floor or a
       // body is hidden by the depth test, so nothing here has to clip it.
       float b = vR - 1.0;
-      float w = pow(sin(3.14159 * clamp(b, 0.0, 1.0)), 0.7) * (1.0 - b * 0.35);
+      float w = pow(max(sin(3.14159 * clamp(b, 0.0, 1.0)), 0.0), 0.7) * (1.0 - b * 0.35);
       float d = x / max(w, 1e-3);
       if (d > 1.0) discard;
       float shaft = exp(-x * x * 120.0);

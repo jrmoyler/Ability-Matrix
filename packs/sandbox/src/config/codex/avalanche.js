@@ -82,20 +82,20 @@ export default {
     /* ================================================================ */
     /* 3 · POWDER — smoke-shaped snow off the crest and in its wake      */
     /* ================================================================ */
-    powderRate: 240, // puffs per second thrown off the front
-    powderSize: 1.25, // puff size, metres
-    powderEndSize: 2.3, // how much a puff has grown by the end of its life
-    powderLifetime: 1.5,
+    powderRate: 150, // puffs per second thrown off the front
+    powderSize: 0.85, // puff size, metres
+    powderEndSize: 1.9, // how much a puff has grown by the end of its life
+    powderLifetime: 1.1,
     powderSpeed: 4.2, // metres/second a puff leaves the shell at
     powderLift: 2.0, // upward share of that
     powderCurl: 2.8, // how hard the puffs curl forward over the crest, m/s
-    powderDrag: 1.4,
-    powderOpacity: 0.72,
+    powderDrag: 0.6,
+    powderOpacity: 0.62,
     powderTurbulence: 0.9,
-    trailRate: 110, // settling haze per second left behind the wave
-    trailSize: 1.6,
-    trailLifetime: 2.6,
-    trailOpacity: 0.42,
+    trailRate: 40, // settling haze per second left behind the wave
+    trailSize: 1.0,
+    trailLifetime: 1.6,
+    trailOpacity: 0.16,
     colorPowderA: "#ffffff",
     colorPowderB: "#e2eefc",
     colorPowderC: "#a9c2e2",
@@ -165,7 +165,7 @@ export default {
     rutWidth: 0.24, // half-width of a rut, metres
     heapHeight: 0.8, // the heap piled where the wave breaks
     heapRadius: 2.6,
-    driftLight: 1.0,
+    driftLight: 0.85,
     driftAmbient: 0.5,
     driftSparkle: 2.4, // brightness of the glints in the snow
     driftSparkleDensity: 38, // glint cells per metre
@@ -173,8 +173,8 @@ export default {
     meltDelay: 0.25, // fraction of the linger before it starts to go
     meltErode: 0.7, // how patchy the melt is
     meltWet: 0.65, // how dark the wet snow goes
-    colorDriftLit: "#eef6ff",
-    colorDriftShadow: "#7189b0",
+    colorDriftLit: "#c6d6ec",
+    colorDriftShadow: "#56709a",
     colorDriftWet: "#2a3c58",
     colorDriftSparkle: "#ffffff",
 
@@ -221,7 +221,7 @@ export default {
     impactFlash: 0.3,
     impactLight: 3, // × intensity
     rollRumble: 0.32, // camera rumble while it rolls
-    castPuff: 40, // powder off the caster's feet as the wall heaves up
+    castPuff: 12, // powder off the caster's feet as the wall heaves up
     colorBurstA: "#ffffff",
     colorBurstB: "#bfe2ff",
     colorBurstC: "#5d8fd0",

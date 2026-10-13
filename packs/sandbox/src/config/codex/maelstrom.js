@@ -77,7 +77,7 @@ export default {
     flowTwist: 3.6, // how tightly the flow lines wind in
     flowScale: 1.0, // flow line density
     flowSharp: 6, // how thin the flow lines are
-    flowStrength: 0.55, // how bright they are
+    flowStrength: 1.0, // how bright they are
 
     /* --- shading --- */
     waterOpacity: 0.97,
@@ -93,7 +93,7 @@ export default {
     foamScale: 3.0, // foam breakup per metre
     edgeFoam: 0.9, // foam where the water meets the stone
     rimGlow: 0.5, // a cold glow along the lip
-    colorShallow: "#2a86cf",
+    colorShallow: "#3a9be0",
     colorDeep: "#06264a",
     colorAbyss: "#010711",
     colorFoam: "#eaf8ff",
@@ -135,7 +135,7 @@ export default {
     mistRate: 36, // spray mist per second over the rim
     mistSize: 1.4,
     mistLifetime: 2.2,
-    mistOpacity: 0.28,
+    mistOpacity: 0.18,
     colorMistA: "#eaf6ff",
     colorMistB: "#bcdcf5",
     colorMistC: "#86b6e0",

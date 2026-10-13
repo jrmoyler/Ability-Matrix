@@ -89,7 +89,7 @@ export default {
     wingDrop: 1.15, // metres the shoulders hang below the halo
     wingShoulder: 0.32, // metres between the axis and each shoulder
     wingSpan: 5.4, // metres from shoulder to wing tip, fully open
-    wingLift: 0.6, // how high the arm arches, × span
+    wingLift: 0.72, // how high the arm arches, × span
     wingSweep: 0.9, // metres the tips are swept back, away from the caster
     wingFoldSpan: 0.22, // span when folded, × wingSpan
     wingFoldAngle: 1.95, // radians the folded arm is turned down
@@ -103,9 +103,9 @@ export default {
 
     /* --- feathers --- */
     featherCount: 30, // flight feathers along the trailing edge
-    featherLength: 2.6, // metres, the longest primaries at the hand
-    featherInnerLength: 1.5, // metres, the secondaries at the shoulder
-    featherWidth: 0.24, // half-width of a flight feather's vane, metres
+    featherLength: 2.9, // metres, the longest primaries at the hand
+    featherInnerLength: 1.95, // metres, the secondaries at the shoulder
+    featherWidth: 0.27, // half-width of a flight feather's vane, metres
     covertRows: 3, // rows of covert feathers layered over the flight feathers (max 4)
     covertCount: 22, // feathers in the first covert row (later rows have fewer)
     covertLength: 0.52, // each covert row's length, × the row under it
@@ -141,10 +141,10 @@ export default {
     /* 3 · GOD RAYS                                                      */
     /* ================================================================ */
     rayCount: 5, // slanting shafts from the halo (max 6)
-    rayTopRadius: 0.35, // metres at the halo
-    rayBottomRadius: 1.25, // metres at the floor
+    rayTopRadius: 0.22, // metres at the halo
+    rayBottomRadius: 0.85, // metres at the floor
     raySlant: 1.6, // metres the shafts lean away from the caster as they fall
-    rayScatter: 0.65, // where their feet land, × the circle radius
+    rayScatter: 0.95, // where their feet land, × the circle radius
     rayGlow: 0.85,
     rayOpacity: 0.32,
     rayEdge: 2.4, // how soft their edges are (higher = thinner core)
