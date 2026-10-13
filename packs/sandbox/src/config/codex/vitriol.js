@@ -4,6 +4,7 @@
  */
 export default {
   "id": "vitriol",
+  "particle": "DROPLET",
   "meta": {
     "label": "Vitriol Rain",
     "accent": "#d2ff55",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "briar",
+  "particle": "LEAF",
   "meta": {
     "label": "Briar Cathedral",
     "accent": "#8ee07a",

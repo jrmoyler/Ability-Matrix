@@ -4,6 +4,7 @@
  */
 export default {
   "id": "hemorrhage",
+  "particle": "DROPLET",
   "meta": {
     "label": "Hemorrhage Ring",
     "accent": "#ff4d68",

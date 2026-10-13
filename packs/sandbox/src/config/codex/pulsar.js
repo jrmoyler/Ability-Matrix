@@ -4,6 +4,7 @@
  */
 export default {
   "id": "pulsar",
+  "particle": "STREAK",
   "meta": {
     "label": "Pulsar Lash",
     "accent": "#d8ccff",

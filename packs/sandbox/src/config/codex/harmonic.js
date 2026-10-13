@@ -4,6 +4,7 @@
  */
 export default {
   "id": "harmonic",
+  "particle": "STREAK",
   "meta": {
     "label": "Harmonic Reed",
     "accent": "#e7fff8",

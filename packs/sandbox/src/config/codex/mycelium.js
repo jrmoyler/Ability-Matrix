@@ -4,6 +4,7 @@
  */
 export default {
   "id": "mycelium",
+  "particle": "SMOKE",
   "meta": {
     "label": "Mycelium Wake",
     "accent": "#d6ff9a",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "glasstide",
+  "particle": "DROPLET",
   "meta": {
     "label": "Glass Tide",
     "accent": "#b7e6ff",

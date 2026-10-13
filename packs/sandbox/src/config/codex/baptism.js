@@ -4,6 +4,7 @@
  */
 export default {
   "id": "baptism",
+  "particle": "DROPLET",
   "meta": {
     "label": "Crimson Baptism",
     "accent": "#ff5a72",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "whiteout",
+  "particle": "CHIP",
   "meta": {
     "label": "Whiteout Needle",
     "accent": "#f4fbff",

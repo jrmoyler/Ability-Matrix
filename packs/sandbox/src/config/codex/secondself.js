@@ -4,6 +4,7 @@
  */
 export default {
   "id": "secondself",
+  "particle": "RING",
   "meta": {
     "label": "Second Self",
     "accent": "#ffe2a8",

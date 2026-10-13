@@ -4,6 +4,7 @@
  */
 export default {
   "id": "umbral",
+  "particle": "SMOKE",
   "meta": {
     "label": "Umbral Guillotine",
     "accent": "#c4b6ff",

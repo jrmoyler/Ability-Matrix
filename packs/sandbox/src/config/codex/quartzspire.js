@@ -4,6 +4,7 @@
  */
 export default {
   "id": "quartzspire",
+  "particle": "CHIP",
   "meta": {
     "label": "Quartz Spire",
     "accent": "#f3e2ff",

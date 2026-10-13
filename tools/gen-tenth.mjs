@@ -271,6 +271,7 @@ export default {
  */
 export default ${JSON.stringify({
     id: spell.id,
+    particle: spell.particle,
     meta: {
       label: spell.label,
       accent: spell.colorA,

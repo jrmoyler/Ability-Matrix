@@ -4,6 +4,7 @@
  */
 export default {
   "id": "darkwell",
+  "particle": "SOFT",
   "meta": {
     "label": "Dark Matter Well",
     "accent": "#1c1030",

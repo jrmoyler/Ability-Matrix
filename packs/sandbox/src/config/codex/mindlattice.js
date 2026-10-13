@@ -4,6 +4,7 @@
  */
 export default {
   "id": "mindlattice",
+  "particle": "STREAK",
   "meta": {
     "label": "Mind Lattice",
     "accent": "#dfe4ff",

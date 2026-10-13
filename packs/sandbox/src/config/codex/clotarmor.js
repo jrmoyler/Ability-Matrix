@@ -4,6 +4,7 @@
  */
 export default {
   "id": "clotarmor",
+  "particle": "DROPLET",
   "meta": {
     "label": "Clot Armor",
     "accent": "#ff3355",

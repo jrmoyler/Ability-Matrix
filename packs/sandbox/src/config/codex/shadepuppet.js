@@ -4,6 +4,7 @@
  */
 export default {
   "id": "shadepuppet",
+  "particle": "SMOKE",
   "meta": {
     "label": "Shade Puppets",
     "accent": "#b7a6ff",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "haloguillotine",
+  "particle": "RING",
   "meta": {
     "label": "Halo Guillotine",
     "accent": "#fff4c8",

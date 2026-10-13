@@ -4,6 +4,7 @@
  */
 export default {
   "id": "undertow",
+  "particle": "DROPLET",
   "meta": {
     "label": "Undertow Chains",
     "accent": "#49b4ff",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "veinlattice",
+  "particle": "DROPLET",
   "meta": {
     "label": "Vein Lattice",
     "accent": "#ff3b58",

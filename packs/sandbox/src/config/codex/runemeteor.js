@@ -4,6 +4,7 @@
  */
 export default {
   "id": "runemeteor",
+  "particle": "SOFT",
   "meta": {
     "label": "Rune Meteor",
     "accent": "#b7c3ff",

@@ -4,6 +4,7 @@
  */
 export default {
   "id": "rimehalo",
+  "particle": "SOFT",
   "meta": {
     "label": "Rime Halo",
     "accent": "#e7fbff",

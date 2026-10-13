@@ -4,6 +4,7 @@
  */
 export default {
   "id": "hoarfrost",
+  "particle": "CHIP",
   "meta": {
     "label": "Hoarfrost Mirror",
     "accent": "#d7f4ff",

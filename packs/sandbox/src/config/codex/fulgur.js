@@ -4,6 +4,7 @@
  */
 export default {
   "id": "fulgur",
+  "particle": "STREAK",
   "meta": {
     "label": "Fulgur Cage",
     "accent": "#d6e4ff",

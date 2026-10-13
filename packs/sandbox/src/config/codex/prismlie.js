@@ -4,6 +4,7 @@
  */
 export default {
   "id": "prismlie",
+  "particle": "SOFT",
   "meta": {
     "label": "Prism Lie",
     "accent": "#d5dbff",
