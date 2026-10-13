@@ -600,7 +600,11 @@ const DRIFT_HEIGHT_GLSL = /* glsl */ `
 
   /** Snow depth at (a across, s along), metres. */
   float driftHeight(float a, float s) {
-    float w = max(uWidth, 0.05);
+    // The banks wander along the line (and differ side to side), so the
+    // drift reads as poured snow rather than a laid-down strip.
+    float wander = 0.22 * snoise(vec3(s * 0.35, sign(a) * 2.7, uSeed + 1.3))
+                 + 0.08 * snoise(vec3(s * 1.4, sign(a) * 5.1, uSeed));
+    float w = max(uWidth * (1.0 + wander), 0.05);
     float x = abs(a) / w;
     float bank = 1.0 - smoothstep(1.0 - clamp(uEdge, 0.02, 1.0), 1.0, x);
     float crown = 0.75 + 0.25 * cos(min(x, 1.0) * 1.5707963);

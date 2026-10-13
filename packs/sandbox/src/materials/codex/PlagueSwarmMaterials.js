@@ -810,8 +810,9 @@ const POOL_FRAGMENT = /* glsl */ `
     float popRing = bubbles * pop * (1.0 - smoothstep(0.0, 0.05, abs(cell.x - R * 1.4))) * inside;
 
     vec3 col = mix(uColorDeep, uColorToxic * 0.55, liquid * 0.8);
-    vec3 glow = uColorToxic * liquid * liquid * uPoolGlow * 0.4
-              + uColorEdge * caustic * uCaustic
+    // The liquid's own glow stays inside the pool: unmasked, it lit the whole quad.
+    vec3 glow = (uColorToxic * liquid * liquid * uPoolGlow * 0.4
+              + uColorEdge * caustic * uCaustic) * inside
               + uColorFoam * (bubble + popRing * 2.0) * uPoolGlow
               + uColorEdge * meniscus * uEdgeGlow;
     float alpha = inside * uOpacity + meniscus * 0.6 + bubble * 0.4;

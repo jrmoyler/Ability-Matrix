@@ -99,8 +99,8 @@ export default {
     pillarFlare: 0.9, // how much wider the base flares
     pillarTime: 0.9, // seconds each pillar stands
     pillarRise: 0.1, // seconds it takes to shoot to full height
-    pillarGlow: 2.6, // brightness
-    pillarCore: 2.0, // white-hot core strength
+    pillarGlow: 1.6, // brightness
+    pillarCore: 1.25, // white-hot core strength
     pillarStreaks: 10, // light streaks round it
     pillarStreakSpeed: 6, // how fast they race up
     pillarFresnel: 2.2, // edge brightening

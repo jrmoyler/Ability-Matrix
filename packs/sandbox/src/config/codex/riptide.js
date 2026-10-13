@@ -168,7 +168,7 @@ export default {
     waveWidth: 5.2, // metres across the line
     waveHeight: 4.2, // arc length of the curl's profile, metres (≈ its height)
     waveBack: 0.45, // the base sits this much of the profile behind the end
-    waveSlope: 1.2, // radians the back face rises at
+    waveSlope: 0.85, // radians the back face rises at — low enough that it reads as a slope from behind
     curlStart: 0.2, // radians the lip has curled when the wave stands up
     curlEnd: 2.9, // radians it has curled when it crashes (π = pointing back)
     curlPower: 1.7, // >1 keeps the back straight and the lip tight

@@ -674,7 +674,9 @@ const WAVE_VERTEX = /* glsl */ `
     float endK = pow(max(1.0 - u * u, 0.0), uEndTaper * 0.5 + 0.05);
     float peelK = 1.0 - uPeel * (u * 0.5 + 0.5);
     float lipN = snoise(vec3(u * uNoiseScale * 2.0, uFlow * 0.4, uSeed)) * uLipNoise;
-    float L = uLen * mix(0.35, 1.0, endK) * (1.0 + lipN * v);
+    // The ends come all the way down to the floor, so the wave grows out of
+    // the water rather than standing on it like a slab.
+    float L = uLen * mix(0.06, 1.0, endK) * (1.0 + lipN * v);
     float curl = uCurl * peelK * mix(0.6, 1.0, endK);
 
     // Integrate the profile: the tangent turns from the back face's slope
@@ -790,8 +792,12 @@ const WAVE_FRAGMENT = /* glsl */ `
     float edge = uCrash <= 0.45 ? 0.0 : smoothstep(thr - 0.02, thr + 0.08, dn) - smoothstep(thr + 0.08, thr + 0.2, dn);
     col = mix(col, uColorFoam * 1.4, clamp(edge, 0.0, 1.0));
 
-    float ends = 1.0 - smoothstep(0.82, 1.0, abs(u));
-    float base = smoothstep(0.0, 0.06, v);
+    // Ragged, soft ends, and white water where it meets the floor.
+    float ends = 1.0 - smoothstep(0.55, 1.0, abs(u) + (fn - 0.5) * 0.25);
+    float skirt = (1.0 - smoothstep(0.0, 0.16, v)) * (0.55 + 0.45 * fn);
+    col = mix(col, uColorFoam, skirt * 0.8);
+    foam = max(foam, skirt);
+    float base = smoothstep(0.0, 0.03, v);
     float alpha = max(mix(uOpacity, 1.0, clamp(fres, 0.0, 1.0)), foam) * keep * ends * base * uFade;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.25);

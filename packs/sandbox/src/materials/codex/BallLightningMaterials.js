@@ -535,7 +535,8 @@ const TRACK_FRAGMENT = /* glsl */ `
       cover = max(cover, crater * uChar);
       float rays = veins(vec2(atan(cp.y, cp.x) * 1.4, cr * 0.6), uVeinScale * 1.4, uVeinSharp, uSeed + 9.0);
       light += mix(uColorEmber, uColorHot, uCrater.z) * rays * crater * (0.25 + uCrater.z) * uVeins * 1.5;
-      light += uColorHot * exp(-cr * 1.5 / max(uCrater.y, 0.1)) * uCrater.z * uHeat;
+      // Clamped to a finite reach: a bare exponential never reaches zero and lit the quad's edges.
+      light += uColorHot * exp(-cr * 1.5 / max(uCrater.y, 0.1)) * (1.0 - smoothstep(uCrater.y * 1.1, uCrater.y * 2.2, cr)) * uCrater.z * uHeat;
     }
 
     /* ---- strike flares: a disc of arcs round each fresh strike ---- */
@@ -552,8 +553,11 @@ const TRACK_FRAGMENT = /* glsl */ `
       cover = max(cover, disc * disc * uChar * 0.6);
     }
 
-    light *= uFade * uGlobalGlow * uShaderIntensity;
-    cover *= uFade;
+    // Nothing may reach the quad's own border, whatever the sliders say.
+    float border = (1.0 - smoothstep(0.8, 1.0, abs(vUv.x - 0.5) * 2.0))
+                 * smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
+    light *= uFade * uGlobalGlow * uShaderIntensity * border;
+    cover *= uFade * border;
     if (cover < 0.002 && max(light.r, max(light.g, light.b)) < 0.002) discard;
     gl_FragColor = vec4(light + uColorChar * cover, cover);
   }

@@ -192,13 +192,13 @@ export default {
     /* ================================================================ */
     /* 6 · THE HIT                                                       */
     /* ================================================================ */
-    burstSize: 6.5, // the fireball shell when it lands, metres
-    burstIntensity: 2.2,
+    burstSize: 4.2, // the fireball shell when it lands, metres
+    burstIntensity: 1.3,
     shockRadius: 10, // the ground shockwave, metres
     impactShake: 0.9,
     shakeDuration: 0.7,
     strikeRumble: 0.3, // camera rumble while it burns
-    impactFlash: 0.55,
+    impactFlash: 0.35,
     cutShake: 0.18,
     cutFlash: 0.15,
     colorBurstA: "#ffffff",

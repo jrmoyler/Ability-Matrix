@@ -135,7 +135,7 @@
     "waveWidth": 5.2,
     "waveHeight": 4.2,
     "waveBack": 0.45,
-    "waveSlope": 1.2,
+    "waveSlope": 0.85,
     "curlStart": 0.2,
     "curlEnd": 2.9,
     "curlPower": 1.7,
