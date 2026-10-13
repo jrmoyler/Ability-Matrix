@@ -62,10 +62,10 @@ test('every native sandbox ability is catalogued with a preset', async () => {
   }
 });
 
-test('the sandbox hosts 100 castable abilities with unique uids', () => {
+test('the sandbox hosts 150 castable abilities with unique uids', () => {
   const castable = catalog.abilities.filter((a) => a.status === 'live' && ['ability', 'summon', 'buff'].includes(a.kind));
-  assert.equal(castable.length, 100);
-  assert.equal(catalog.abilities.filter((a) => a.pack === 'codex').length, 22);
+  assert.equal(castable.length, 150);
+  assert.equal(catalog.abilities.filter((a) => a.pack === 'codex').length, 72);
   assert.equal(new Set(catalog.abilities.map((a) => a.uid)).size, catalog.abilities.length);
   assert.equal(catalog.abilities.filter((a) => a.status === 'archived').length, 7);
 });
@@ -84,7 +84,7 @@ test('every castable belongs to exactly one known element', async () => {
   // The catalog's element list is the display order, with live counts that add up.
   assert.deepEqual(catalog.elements.map((e) => e.id), ELEMENT_GROUPS.map((e) => e.id));
   assert.equal(catalog.elements.reduce((n, e) => n + e.count, 0), castable.length);
-  for (const e of catalog.elements) assert.ok(e.count >= 4, `${e.id} has only ${e.count}`);
+  for (const e of catalog.elements) assert.equal(e.count, 10, `${e.id} has ${e.count}, expected 10`);
 });
 
 test('codex abilities carry their element in their own meta, matching the map', async () => {
