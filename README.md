@@ -1,6 +1,6 @@
 # Collective Ability Matrix
 
-**100 castable abilities** (95 abilities, 3 buffs, 2 summons) from 9 groups, **sorted into 15 elements**, plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
+**150 castable abilities** (145 abilities, 3 buffs, 2 summons) from 9 groups, **sorted into 15 elements**, plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
 
 Open the matrix, pick any ability, cast it, tune it, and copy its settings as a preset for your own Three.js games. Walk the caster around the arena while you do it.
 
@@ -13,7 +13,7 @@ Open the matrix, pick any ability, cast it, tune it, and copy its settings as a 
 | Collective | sandbox engine (native) | 12 | Collective originals |
 | Matrix New | sandbox engine (native) | 12 | New: shaders, rigs and dummy reactions at Collective quality |
 | Ability Atlas | sandbox engine (native) | 10 | New: the ten Atlas mechanics, rebuilt on the full engine with the character and dummies |
-| Elemental Codex | sandbox engine (native) | 22 | New: 22 abilities filling out the thinner elements, at the same quality bar |
+| Elemental Codex | sandbox engine (native) | 72 | New: every element filled out to ten castables, on the same engine as the Codex |
 | Linear | vendored `linear` engine | 6 | |
 | Linear Ext | vendored `linear-ext` engine | 7 + 3 buffs | Gate, ring and scribe aims; Electric, Magic and Fire boosts on the character |
 | Linear Extended | vendored `linear-extended` engine | 10 | Includes the Cyber Serpent model |
@@ -138,7 +138,7 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Emberveil Lattice | `matrix-new/emberveil` | Matrix New | zone | 0–16 | 5.5 |
 | Solar Lash **new** | `codex/solarlash` | Elemental Codex | line | 2–20 |  |
 
-### Frost · 6
+### Frost · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -148,8 +148,12 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Glacial Prison | `handcast/frost` | Hand Cast Ability | zone | 3–20 | 3.2 |
 | Permafrost Bloom **new** | `codex/permafrost` | Elemental Codex | zone | 0–18 | 4 |
 | Avalanche Wake **new** | `codex/avalanche` | Elemental Codex | line | 3–22 |  |
+| Glacier Calving **new** | `codex/calving` | Elemental Codex | zone | 2–18 | 5 |
+| Hoarfrost Mirror **new** | `codex/hoarfrost` | Elemental Codex | zone | 2–18 | 4.4 |
+| Rime Halo **new** | `codex/rimehalo` | Elemental Codex | zone | 2–18 | 4.6 |
+| Whiteout Needle **new** | `codex/whiteout` | Elemental Codex | line | 2–18 |  |
 
-### Lightning · 9
+### Lightning · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -162,8 +166,9 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Ion Storm Pillar | `matrix-new/ionstorm` | Matrix New | zone | 0–18 | 5 |
 | Arc Relay | `atlas/relay` | Ability Atlas | line | 3–18 |  |
 | Ball Lightning **new** | `codex/balllightning` | Elemental Codex | line | 2–20 |  |
+| Fulgur Cage **new** | `codex/fulgur` | Elemental Codex | zone | 2–18 | 4.4 |
 
-### Water · 6
+### Water · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -173,8 +178,12 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Abyssal Maw | `casting/shark` | Ability Casting (Elemental Sandbox) | zone | 0–20 | 1.1 |
 | Maelstrom Vortex **new** | `codex/maelstrom` | Elemental Codex | zone | 2–18 | 4.2 |
 | Riptide Lash **new** | `codex/riptide` | Elemental Codex | line | 2–20 |  |
+| Brine Geyser **new** | `codex/brine` | Elemental Codex | zone | 2–18 | 4.2 |
+| Glass Tide **new** | `codex/glasstide` | Elemental Codex | line | 2–18 |  |
+| Pearl Tempest **new** | `codex/pearltempest` | Elemental Codex | line | 2–18 |  |
+| Undertow Chains **new** | `codex/undertow` | Elemental Codex | zone | 2–18 | 4.8 |
 
-### Earth & Crystal · 8
+### Earth & Crystal · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -186,8 +195,10 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Obsidian Wall | `matrix-new/obsidianwall` | Matrix New | line | 2–18 |  |
 | Crystalline Heart | `matrix-new/crystallineheart` | Matrix New | zone | 0–14 | 5 |
 | Basalt Columns **new** | `codex/basalt` | Elemental Codex | zone | 0–16 | 4 |
+| Fault Choir **new** | `codex/faultchoir` | Elemental Codex | line | 2–18 |  |
+| Quartz Spire **new** | `codex/quartzspire` | Elemental Codex | zone | 2–18 | 4.5 |
 
-### Wind & Sound · 5
+### Wind & Sound · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -196,8 +207,13 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Gale Sever | `matrix-new/gale` | Matrix New | line | 1–22 |  |
 | Zephyr Shuriken **new** | `codex/zephyr` | Elemental Codex | line | 2–20 |  |
 | Downburst **new** | `codex/downburst` | Elemental Codex | zone | 0–18 | 4 |
+| Dust Devil March **new** | `codex/dustmarch` | Elemental Codex | zone | 2–18 | 5 |
+| Harmonic Reed **new** | `codex/harmonic` | Elemental Codex | zone | 2–18 | 4.2 |
+| Shear Wall **new** | `codex/shearwall` | Elemental Codex | line | 2–18 |  |
+| Siren Note **new** | `codex/sirennote` | Elemental Codex | line | 2–18 |  |
+| Vortex Bell **new** | `codex/vortexbell` | Elemental Codex | zone | 2–18 | 4.6 |
 
-### Nature · 6
+### Nature · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -207,8 +223,12 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Spore Bloom | `collective/spore` | Collective Originals | zone | 2–16 | 3.4 |
 | Pollen Nova **new** | `codex/pollen` | Elemental Codex | zone | 0–18 | 4 |
 | Seedstorm Volley **new** | `codex/seedstorm` | Elemental Codex | line | 2–20 |  |
+| Bloom Crown **new** | `codex/bloomcrown` | Elemental Codex | zone | 2–18 | 4.4 |
+| Briar Cathedral **new** | `codex/briar` | Elemental Codex | zone | 2–18 | 4.8 |
+| Mycelium Wake **new** | `codex/mycelium` | Elemental Codex | line | 2–18 |  |
+| Thorn Volley **new** | `codex/thornvolley` | Elemental Codex | line | 2–18 |  |
 
-### Poison · 5
+### Poison · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -217,8 +237,13 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Toxic Shield | `handcast/toxic` | Hand Cast Ability | zone | 3–20 | 3.4 |
 | Plague Swarm **new** | `codex/plague` | Elemental Codex | zone | 0–18 | 4 |
 | Miasma Spit **new** | `codex/miasma` | Elemental Codex | line | 2–17 |  |
+| Acid Choir **new** | `codex/acidchoir` | Elemental Codex | zone | 2–18 | 4.6 |
+| Bile Lance **new** | `codex/bilelance` | Elemental Codex | line | 2–18 |  |
+| Noxious Halo **new** | `codex/noxioushalo` | Elemental Codex | zone | 2–18 | 4.5 |
+| Spore Coffin **new** | `codex/sporecoffin` | Elemental Codex | zone | 2–18 | 4.2 |
+| Vitriol Rain **new** | `codex/vitriol` | Elemental Codex | zone | 2–18 | 4.8 |
 
-### Light & Holy · 8
+### Light & Holy · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -230,8 +255,10 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Starfall Rite | `matrix-new/starfall` | Matrix New | zone | 0–20 | 5.5 |
 | Dawn Sanctuary | `atlas/sanctuary` | Ability Atlas | zone | 0–16 | 3.2 |
 | Seraphic Descent **new** | `codex/seraph` | Elemental Codex | zone | 0–18 | 4 |
+| Halo Guillotine **new** | `codex/haloguillotine` | Elemental Codex | line | 2–18 |  |
+| Reliquary Dawn **new** | `codex/reliquarydawn` | Elemental Codex | zone | 2–18 | 4.6 |
 
-### Cosmic & Gravity · 5
+### Cosmic & Gravity · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -240,8 +267,13 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Astral Fang | `casting/wolf` | Ability Casting (Elemental Sandbox) | zone | 0–20 | 1.1 |
 | Graviton Collapse | `collective/graviton` | Collective Originals | zone | 2–16 | 3.2 |
 | Nebula Collapse **new** | `codex/nebula` | Elemental Codex | zone | 0–16 | 4 |
+| Comet Harpoon **new** | `codex/cometharpoon` | Elemental Codex | line | 2–18 |  |
+| Dark Matter Well **new** | `codex/darkwell` | Elemental Codex | zone | 2–18 | 4.8 |
+| Event Horizon **new** | `codex/horizon` | Elemental Codex | zone | 2–18 | 5 |
+| Orbit Lock **new** | `codex/orbitlock` | Elemental Codex | zone | 2–18 | 4.6 |
+| Pulsar Lash **new** | `codex/pulsar` | Elemental Codex | line | 2–18 |  |
 
-### Shadow & Void · 6
+### Shadow & Void · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -251,8 +283,12 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Voidstep Rift | `matrix-new/voidstep` | Matrix New | line | 3–16 |  |
 | Nightfall Scythe **new** | `codex/nightfall` | Elemental Codex | line | 2–20 |  |
 | Wraith Host **new** | `codex/wraiths` | Elemental Codex | zone | 0–18 | 4 |
+| Eclipse Needle **new** | `codex/eclipseneedle` | Elemental Codex | line | 2–18 |  |
+| Shade Puppets **new** | `codex/shadepuppet` | Elemental Codex | zone | 2–18 | 4.4 |
+| Umbral Guillotine **new** | `codex/umbral` | Elemental Codex | line | 2–18 |  |
+| Void Bloom **new** | `codex/voidbloom` | Elemental Codex | zone | 2–18 | 4.6 |
 
-### Blood · 4
+### Blood · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -260,8 +296,14 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Crimson Rite | `collective/crimson` | Collective Originals | zone | 2–16 | 3.2 |
 | Bloodroot Thorns | `matrix-new/bloodroot` | Matrix New | zone | 0–16 | 6 |
 | Sanguine Tide **new** | `codex/sanguine` | Elemental Codex | line | 3–20 |  |
+| Arterial Whip **new** | `codex/arterial` | Elemental Codex | line | 2–18 |  |
+| Crimson Baptism **new** | `codex/baptism` | Elemental Codex | zone | 2–18 | 4.4 |
+| Clot Armor **new** | `codex/clotarmor` | Elemental Codex | zone | 2–18 | 4.2 |
+| Heartstake **new** | `codex/heartstake` | Elemental Codex | line | 2–18 |  |
+| Hemorrhage Ring **new** | `codex/hemorrhage` | Elemental Codex | zone | 2–18 | 4.5 |
+| Vein Lattice **new** | `codex/veinlattice` | Elemental Codex | zone | 2–18 | 4.6 |
 
-### Arcane & Illusion · 6
+### Arcane & Illusion · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -271,8 +313,12 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Mirage Construct | `matrix-new/mirage` | Matrix New | zone | 0–12 | 3 |
 | Hall of Echoes | `atlas/echoes` | Ability Atlas | zone | 0–16 | 3.2 |
 | Glyph Barrage **new** | `codex/glyphs` | Elemental Codex | line | 3–20 |  |
+| Mind Lattice **new** | `codex/mindlattice` | Elemental Codex | zone | 2–18 | 4.5 |
+| Prism Lie **new** | `codex/prismlie` | Elemental Codex | line | 2–18 |  |
+| Rune Meteor **new** | `codex/runemeteor` | Elemental Codex | zone | 2–18 | 4.2 |
+| Sigil Gate **new** | `codex/sigilgate` | Elemental Codex | zone | 2–18 | 4.4 |
 
-### Time & Motion · 6
+### Time & Motion · 10
 
 | Ability | uid | Group | Kind / aim | Range (m) | Circle (m) |
 |---------|-----|-------|------------|-----------|------------|
@@ -282,6 +328,10 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Parallax Blink | `atlas/parallax` | Ability Atlas | line | 4–18 |  |
 | Stillpoint | `atlas/stillpoint` | Ability Atlas | zone | 2–16 | 3.2 |
 | Hourglass Sunder **new** | `codex/hourglass` | Elemental Codex | zone | 0–16 | 4 |
+| Pendulum Cleaver **new** | `codex/pendulum` | Elemental Codex | line | 2–18 |  |
+| Rewind Snare **new** | `codex/rewindsnare` | Elemental Codex | zone | 2–18 | 4.6 |
+| Second Self **new** | `codex/secondself` | Elemental Codex | line | 2–18 |  |
+| Stasis Bell **new** | `codex/stasisbell` | Elemental Codex | zone | 2–18 | 4.4 |
 
 ### Tech & Force · 10
 

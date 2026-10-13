@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Ability Matrix</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -19,23 +24,56 @@
   color-scheme: dark;
 }
 html, body { height: 100%; }
-body { margin: 0; background: var(--ink); color: var(--fg); font: 14px/1.45 var(--body); }
+body { margin: 0; background: var(--ink); color: var(--fg); font: 14px/1.45 var(--body); overflow: hidden; }
 * { box-sizing: border-box; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.app { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); gap: 14px; padding: 14px 16px; height: 100%; }
-@media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); height: auto; } }
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.9fr);
+  gap: 14px;
+  padding: 14px 16px;
+  height: 100%;
+  height: 100dvh;
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(148px, 36dvh);
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  }
+}
 
 /* ---------- stage ---------- */
 .stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
 .brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .brand h1 { margin: 0; font: 800 30px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
 .brand .tally { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.screen { position: relative; flex: 1; min-height: 300px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #05060a; }
-@media (max-width: 900px) { .screen { flex: none; aspect-ratio: 4 / 3; max-width: 100%; min-height: 0; } }
+.screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #05060a;
+  touch-action: none;
+}
 .screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+@media (max-width: 900px) {
+  .brand h1 { font-size: 22px; }
+  .stage { gap: 6px; }
+  .screen { min-height: 180px; }
+  .now h2 { font-size: 18px; }
+  .now p, .note { display: none; }
+  .btn { min-height: 40px; }
+  .controls { gap: 6px; }
+}
 .screen .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); pointer-events: none; }
 .now { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .now .sigil { width: 46px; height: 46px; flex: none; color: var(--a, var(--accent)); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: var(--panel); }
@@ -54,7 +92,7 @@ button { cursor: pointer; }
 .row-label { font: 600 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); align-self: center; margin-right: 4px; }
 
 /* ---------- spellbook ---------- */
-.book { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.book { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: hidden; }
 .filters { display: flex; flex-direction: column; gap: 8px; }
 .search { width: 100%; background: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -126,7 +164,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
       <button class="btn" id="presetBtn">Preset JSON</button>
     </div>
     <div class="controls" id="moves"></div>
-    <p class="note">Click inside the stage, then <b>W A S D</b> to walk, <b>Shift</b> to run and <b>Space</b> to dash. Casting works on the move.</p>
+    <p class="note">Click the stage, then <b>W A S D</b> to walk, <b>Shift</b> to run, <b>Space</b> to dash. On a phone use the stick, drag the right side to look, and tap to cast. The full scene renders on every screen — nothing is stripped.</p>
     <div class="preset" id="preset">
       <p class="note" id="presetHelp">The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.</p>
       <textarea id="presetText" readonly></textarea>
@@ -420,5 +458,7 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   const hash = location.hash.slice(1);
   const start = c.abilities.find((a) => a.uid.replace(/[^A-Za-z0-9._~-]/g, '_') === hash) || c.abilities.find((a) => a.uid === 'collective/tempest');
   select(start, { cast: true });
-}).catch(() => { $('tally').textContent = 'Could not load presets/catalog.json \u2014 serve this folder over http.'; });
+}).catch(() => { $('tally').textContent = 'Could not load presets/catalog.json — serve this folder over http.'; });
 </script>
+</body>
+</html>
