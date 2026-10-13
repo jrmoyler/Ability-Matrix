@@ -4395,6 +4395,62 @@ export function zoneRadiusOf(element) {
   return castShapeOf(element) === CastShape.ZONE ? (settings[element]?.zoneRadius ?? 0) : 0;
 }
 
+/**
+ * Moving the caster around the arena (`sandbox/Locomotion.js`).
+ *
+ * There is no walk clip in the rig — the character only ships an idle and three
+ * casts — so the gait is procedural: every value under "gait" is a joint angle
+ * or an offset laid over the idle, scaled by how fast the body is going. Speeds
+ * are metres/second, angles radians, distances metres.
+ */
+settings.move = {
+  enabled: true,
+  cameraRelative: true, // W is "away from the camera"; off, W is world +Z
+
+  /* --- speed --- */
+  walkSpeed: 3.4, // W A S D
+  runSpeed: 7.2, // with Shift held
+  aimSpeed: 0.7, // × speed while an ability is armed: you strafe, still facing the aim
+  acceleration: 18, // m/s² toward the wanted velocity
+  deceleration: 22, // m/s² back to a stand when the keys are let go
+  turnRate: 0.0008, // fraction of the heading gap left after one second (lower = snappier)
+  arenaRadius: 60, // the caster is kept inside this circle round the origin
+  bodyRadius: 0.38, // the caster's own footprint, for walking into dummies
+
+  /* --- dash (Space) --- */
+  dashDistance: 5.2, // metres covered by one dash
+  dashTime: 0.24, // seconds the dash lasts
+  dashCooldown: 0.75, // seconds before the next one
+  dashLean: 0.32, // radians the body pitches into it
+  dashDust: 1, // 0/1 — kick up a dust ring and puff where it starts and lands
+  dashTrail: 60, // streak particles left along the dash path
+  colorDust: '#b9ab96',
+  colorTrail: '#cfe8ff',
+
+  /* --- gait: walk --- */
+  stride: 1.45, // metres covered by one full cycle (two steps) at walking pace
+  legSwing: 0.42, // thigh swing either side of straight down
+  kneeBend: 0.75, // knee flex at the middle of a swing
+  kneeStance: 0.08, // the knee never quite locks
+  armSwing: 0.34, // upper arm swing, opposite the legs
+  elbowBend: 0.32, // forearm bend, deepest as the arm swings forward
+  hipBob: 0.035, // metres the hips rise and fall per step
+  hipSway: 0.05, // radians the pelvis rolls over the stance foot
+  spineTwist: 0.12, // radians the shoulders counter-rotate the hips
+  lean: 0.06, // radians the torso pitches forward at walking pace
+
+  /* --- gait: run (blended in above walking pace) --- */
+  runStride: 2.6, // metres per cycle at a run
+  runLegSwing: 0.78,
+  runKneeBend: 1.45,
+  runArmSwing: 0.7,
+  runElbowBend: 1.1, // a run carries the forearms bent
+  runHipBob: 0.07,
+  runLean: 0.2,
+  footDust: 1, // 0/1 — a puff of dust at every footfall while running
+  blendTime: 0.12 // seconds the gait takes to fade in and out
+};
+
 // Collective Originals: each new ability ships its own settings block.
 Object.assign(settings, structuredClone(COLLECTIVE_SETTINGS));
 

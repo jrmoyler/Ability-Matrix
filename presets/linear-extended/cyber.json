@@ -5,6 +5,7 @@
   "id": "cyber",
   "slot": 3,
   "kind": "ability",
+  "element": "tech",
   "label": "Cyber Serpent",
   "hint": "Neon Cyber Serpent",
   "key": "F",

@@ -5,6 +5,7 @@
   "id": "monowheel",
   "slot": 7,
   "kind": "summon",
+  "element": "tech",
   "label": "Monowheel Bot",
   "hint": "Monowheel Army Bot — toggle to deploy",
   "key": "V",

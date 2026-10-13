@@ -2,6 +2,7 @@
 //   - the five source packs are vendored into the sandbox byte-for-byte
 //   - every catalog entry and preset for a source pack matches that pack's own settings.js
 //   - every native sandbox ability has a catalog entry and preset
+//   - every castable is sorted into exactly one element
 //   - each pack's files match the recorded snapshot (tests/fixtures/original-inventory.json)
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,7 @@ const baseline = json('tests/fixtures/original-inventory.json');
 const catalog = json('presets/catalog.json');
 const library = json('presets/library.json');
 const SOURCE_PACKS = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting'];
-const NATIVE_PACKS = ['collective', 'matrix-new', 'atlas'];
+const NATIVE_PACKS = ['collective', 'matrix-new', 'atlas', 'codex'];
 
 function filesUnder(dir, skip = ['node_modules', 'dist', '.git']) {
   return readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
@@ -61,11 +62,40 @@ test('every native sandbox ability is catalogued with a preset', async () => {
   }
 });
 
-test('the sandbox hosts 78 castable abilities with unique uids', () => {
+test('the sandbox hosts 100 castable abilities with unique uids', () => {
   const castable = catalog.abilities.filter((a) => a.status === 'live' && ['ability', 'summon', 'buff'].includes(a.kind));
-  assert.equal(castable.length, 78);
+  assert.equal(castable.length, 100);
+  assert.equal(catalog.abilities.filter((a) => a.pack === 'codex').length, 22);
   assert.equal(new Set(catalog.abilities.map((a) => a.uid)).size, catalog.abilities.length);
   assert.equal(catalog.abilities.filter((a) => a.status === 'archived').length, 7);
+});
+
+test('every castable belongs to exactly one known element', async () => {
+  const { ELEMENT_GROUPS, ELEMENT_OF } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/elements.js')).href);
+  const known = new Set(ELEMENT_GROUPS.map((e) => e.id));
+  assert.equal(known.size, ELEMENT_GROUPS.length);
+  const castable = catalog.abilities.filter((a) => a.status === 'live' && ['ability', 'summon', 'buff'].includes(a.kind));
+  for (const a of castable) {
+    assert.ok(known.has(a.element), `${a.uid} has element ${a.element}`);
+    assert.equal(a.element, ELEMENT_OF[a.uid], a.uid);
+  }
+  // The map lists nothing that is not castable.
+  assert.deepEqual(Object.keys(ELEMENT_OF).sort(), castable.map((a) => a.uid).sort());
+  // The catalog's element list is the display order, with live counts that add up.
+  assert.deepEqual(catalog.elements.map((e) => e.id), ELEMENT_GROUPS.map((e) => e.id));
+  assert.equal(catalog.elements.reduce((n, e) => n + e.count, 0), castable.length);
+  for (const e of catalog.elements) assert.ok(e.count >= 4, `${e.id} has only ${e.count}`);
+});
+
+test('codex abilities carry their element in their own meta, matching the map', async () => {
+  const { CODEX_META } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/codex/index.js')).href);
+  const { ELEMENT_OF } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/elements.js')).href);
+  for (const [id, meta] of Object.entries(CODEX_META)) assert.equal(meta.element, ELEMENT_OF[`codex/${id}`], id);
+});
+
+test('movement settings ship in the shared preset block', () => {
+  const shared = json('presets/codex/_shared.json');
+  for (const key of ['walkSpeed', 'runSpeed', 'dashDistance', 'stride', 'legSwing', 'armSwing']) assert.equal(typeof shared.move[key], 'number', key);
 });
 
 test('the five portable Atlas prototype modules are unchanged', () => {

@@ -5,6 +5,7 @@
   "id": "snare",
   "slot": 4,
   "kind": "ability",
+  "element": "storm",
   "label": "Voltaic Snare",
   "hint": "Voltaic Snare",
   "key": "V",

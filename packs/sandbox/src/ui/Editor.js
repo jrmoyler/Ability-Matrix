@@ -40,6 +40,7 @@ export class Editor {
     this._buildPost();
     this._buildCamera();
     this._buildCharacter();
+    this._buildMovement();
     this._buildDummies();
 
     // Everything starts collapsed, top-level folders included. There are enough
@@ -3387,6 +3388,63 @@ export class Editor {
     R(lunge, c, 'castLean', 0, 1.2, 0.01, 'lunge lean');
     R(lunge, c, 'castRecoil', 0, 0.8, 0.005, 'lunge recoil');
     R(lunge, c, 'castSettle', 0.2, 8, 0.05, 'lunge settle');
+  }
+
+  /**
+   * Walking, running and dashing (`sandbox/Locomotion.js`), and the procedural
+   * gait the body walks with (`sandbox/SandboxCharacter.js`). All of it is read
+   * every frame, so a slider moved while walking changes the stride under you.
+   */
+  _buildMovement() {
+    const folder = this.gui.addFolder('Movement');
+    const m = settings.move;
+    const R = Editor.range;
+
+    folder.add(m, 'enabled').name('WASD moves the caster');
+    folder.add(m, 'cameraRelative').name('relative to the camera');
+
+    const speed = folder.addFolder('Speed');
+    R(speed, m, 'walkSpeed', 0.5, 10, 0.1, 'walk, m/s');
+    R(speed, m, 'runSpeed', 1, 18, 0.1, 'run (Shift), m/s');
+    R(speed, m, 'aimSpeed', 0, 1, 0.01, 'while aiming, ×');
+    R(speed, m, 'acceleration', 1, 80, 0.5, 'acceleration');
+    R(speed, m, 'deceleration', 1, 80, 0.5, 'deceleration');
+    R(speed, m, 'turnRate', 0.000001, 0.1, 0.000001, 'turn follow');
+    R(speed, m, 'arenaRadius', 5, 150, 1, 'arena radius');
+    R(speed, m, 'bodyRadius', 0.1, 1.5, 0.01, 'body radius');
+
+    const dash = folder.addFolder('Dash (Space)');
+    R(dash, m, 'dashDistance', 0.5, 16, 0.1, 'distance');
+    R(dash, m, 'dashTime', 0.05, 1, 0.01, 'duration');
+    R(dash, m, 'dashCooldown', 0, 5, 0.05, 'cooldown');
+    R(dash, m, 'dashLean', 0, 1, 0.01, 'lean');
+    R(dash, m, 'dashTrail', 0, 300, 1, 'trail streaks');
+    dash.add(m, 'dashDust', 0, 1, 1).name('dust ring');
+    dash.addColor(m, 'colorDust').name('dust');
+    dash.addColor(m, 'colorTrail').name('trail');
+
+    const walk = folder.addFolder('Gait — walk');
+    R(walk, m, 'stride', 0.3, 4, 0.01, 'stride, m per cycle');
+    R(walk, m, 'legSwing', 0, 1.2, 0.01, 'leg swing');
+    R(walk, m, 'kneeBend', 0, 2, 0.01, 'knee bend');
+    R(walk, m, 'kneeStance', 0, 0.6, 0.01, 'knee at stance');
+    R(walk, m, 'armSwing', 0, 1.2, 0.01, 'arm swing');
+    R(walk, m, 'elbowBend', 0, 2, 0.01, 'elbow bend');
+    R(walk, m, 'hipBob', 0, 0.2, 0.001, 'hip bob, m');
+    R(walk, m, 'hipSway', 0, 0.4, 0.005, 'hip roll');
+    R(walk, m, 'spineTwist', 0, 0.6, 0.005, 'shoulder twist');
+    R(walk, m, 'lean', -0.3, 0.6, 0.005, 'lean');
+    R(walk, m, 'blendTime', 0.01, 1, 0.01, 'blend time');
+
+    const run = folder.addFolder('Gait — run');
+    R(run, m, 'runStride', 0.5, 6, 0.01, 'stride, m per cycle');
+    R(run, m, 'runLegSwing', 0, 1.6, 0.01, 'leg swing');
+    R(run, m, 'runKneeBend', 0, 2.4, 0.01, 'knee bend');
+    R(run, m, 'runArmSwing', 0, 1.6, 0.01, 'arm swing');
+    R(run, m, 'runElbowBend', 0, 2.4, 0.01, 'elbow bend');
+    R(run, m, 'runHipBob', 0, 0.3, 0.001, 'hip bob, m');
+    R(run, m, 'runLean', -0.3, 0.8, 0.005, 'lean');
+    run.add(m, 'footDust', 0, 1, 1).name('footfall dust');
   }
 
   /**

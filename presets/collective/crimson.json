@@ -5,6 +5,7 @@
   "id": "crimson",
   "slot": 7,
   "kind": "ability",
+  "element": "blood",
   "label": "Crimson Rite",
   "hint": "Blood — a moon-lit rite that impales the circle",
   "key": "Z",

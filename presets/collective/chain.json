@@ -5,6 +5,7 @@
   "id": "chain",
   "slot": 3,
   "kind": "ability",
+  "element": "storm",
   "label": "Chain Arc",
   "hint": "Lightning — a bolt that leaps from body to body, then grounds",
   "key": "F",

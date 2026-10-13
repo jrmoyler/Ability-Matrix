@@ -5,6 +5,7 @@
   "id": "ward",
   "slot": 0,
   "kind": "ability",
+  "element": "fire",
   "label": "Volcanic Ward",
   "hint": "Volcanic Horror Ward",
   "key": "Q",

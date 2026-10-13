@@ -14,6 +14,7 @@ import { AssetLoader } from '../loaders/AssetLoader.js';
 import { getStoneTextures } from '../loaders/StoneTextures.js';
 import { buildSerpentGeometry } from '../assets/SerpentGeometry.js';
 import { SandboxCharacter } from '../sandbox/SandboxCharacter.js';
+import { Locomotion } from '../sandbox/Locomotion.js';
 import { AssetLoader as CharacterAssets } from '../vendor/linear-ext/loaders/AssetLoader.js';
 import { settings as characterSettings } from '../vendor/linear-ext/config/settings.js';
 import { VENDOR_PACKS, loadVendorRuntime } from '../sandbox/vendors.js';
@@ -169,6 +170,17 @@ export class App {
     this.input = new InputManager(canvas);
     this.aim = new AimController(this.camera);
     this.scene.add(this.aim.object3D);
+
+    /* ---- moving the caster: WASD / arrows, Shift runs, Space dashes ---- */
+    this.locomotion = new Locomotion({
+      character: this.character,
+      input: this.input,
+      camera: this.camera,
+      dummies: this.dummies,
+      particles: this.particles,
+      decals: this.decals,
+      shake: this.shake
+    });
 
     /* ---- post ---- */
     this.post = new PostProcessing(this.renderer, this.scene, this.camera);
@@ -441,6 +453,12 @@ export class App {
     return true;
   }
 
+  /** Whether any hosted pack has a summon out (it owns WASD and Space then). */
+  _summonOut() {
+    for (const runtime of this.runtimes.values()) if (runtime.summonOut?.()) return true;
+    return false;
+  }
+
   /** Back-compat for the HUD and native key slots. */
   armAbility(element = this.element) {
     return this.arm(this.uidOf(element));
@@ -672,9 +690,17 @@ export class App {
     this.environment.setFocus(this.character.position.x, this.character.position.z);
     this.environment.update();
 
+    // Walk first, so the aim and the ring below are anchored on where the
+    // caster is *this* frame. A summon out owns WASD and Space instead.
+    const aim = this.activeAim;
+    this.locomotion.update(dt, {
+      aiming: aim.isArmed,
+      locked: this._summonOut(),
+      abilities: this.abilities.active
+    });
+
     // Targeting runs on *real* time so the arrow keeps sweeping and animating
     // while the sandbox is paused — pausing freezes the effects, not the UI.
-    const aim = this.activeAim;
     aim.setOrigin(this.character.position);
     aim.update(raw);
 

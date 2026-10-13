@@ -5,6 +5,7 @@
   "id": "shard",
   "slot": 3,
   "kind": "ability",
+  "element": "shadow",
   "label": "Corrupted Shard",
   "hint": "Corrupted Shard Spawn — a light that fires back",
   "key": "X",

@@ -5,6 +5,7 @@
   "id": "aetherblade",
   "slot": 4,
   "kind": "ability",
+  "element": "arcane",
   "label": "Aetherblade Cascade",
   "hint": "Arcane — spectral swords form above the line and stab down one after another",
   "key": "V",

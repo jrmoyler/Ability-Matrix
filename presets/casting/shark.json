@@ -5,6 +5,7 @@
   "id": "shark",
   "slot": 0,
   "kind": "ability",
+  "element": "water",
   "label": "Abyssal Maw",
   "hint": "Abyssal Maw — a rock kicks the target up, a shark takes it under",
   "key": "K",

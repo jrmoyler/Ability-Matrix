@@ -5,6 +5,7 @@
   "id": "portal",
   "slot": 4,
   "kind": "ability",
+  "element": "nature",
   "label": "Verdant Gate",
   "hint": "Verdant Gate",
   "key": "V",

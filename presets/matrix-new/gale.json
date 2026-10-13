@@ -5,6 +5,7 @@
   "id": "gale",
   "slot": 0,
   "kind": "ability",
+  "element": "wind",
   "label": "Gale Sever",
   "hint": "Wind — a crescent of compressed air that slices what it crosses and scars the floor",
   "key": "Q",

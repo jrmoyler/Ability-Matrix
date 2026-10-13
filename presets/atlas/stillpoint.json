@@ -5,6 +5,7 @@
   "id": "stillpoint",
   "slot": 8,
   "kind": "ability",
+  "element": "time",
   "label": "Stillpoint",
   "hint": "Control — a geodesic lattice stops time: torn-up rock and glass hang frozen and turn, bodies inside are held, then the stored momentum lets go",
   "key": "",

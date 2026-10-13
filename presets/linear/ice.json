@@ -5,6 +5,7 @@
   "id": "ice",
   "slot": 0,
   "kind": "ability",
+  "element": "frost",
   "label": "Frost Lance",
   "hint": "Frost Lance",
   "key": "Q",

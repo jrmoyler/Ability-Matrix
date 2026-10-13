@@ -5,6 +5,7 @@
   "id": "electrical",
   "slot": 2,
   "kind": "ability",
+  "element": "storm",
   "label": "Electrical Sphere",
   "hint": "Electrical Sphere",
   "key": "R",

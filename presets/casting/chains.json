@@ -5,6 +5,7 @@
   "id": "chains",
   "slot": 1,
   "kind": "ability",
+  "element": "light",
   "label": "Chains of Penance",
   "hint": "Chains of Penance — chains from portals all round it tear the target apart",
   "key": "L",

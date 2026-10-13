@@ -5,6 +5,7 @@
   "id": "emberveil",
   "slot": 1,
   "kind": "ability",
+  "element": "fire",
   "label": "Emberveil Lattice",
   "hint": "Fire — a woven cage of burning strands traps the circle, then collapses inward",
   "key": "E",

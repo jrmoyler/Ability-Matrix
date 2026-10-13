@@ -5,6 +5,7 @@
   "id": "venom",
   "slot": 4,
   "kind": "ability",
+  "element": "poison",
   "label": "Venom Surge",
   "hint": "Crystallized Venom Surge",
   "key": "V",

@@ -5,6 +5,7 @@
   "id": "phoenix",
   "slot": 6,
   "kind": "ability",
+  "element": "fire",
   "label": "Serpent Tide Field",
   "hint": "Serpent Tide Field — a phoenix that hunts",
   "key": "F",

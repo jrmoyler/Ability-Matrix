@@ -5,6 +5,7 @@
   "id": "relay",
   "slot": 0,
   "kind": "ability",
+  "element": "storm",
   "label": "Arc Relay",
   "hint": "Chain — the bolt turns every body it reaches into a relay, branches the lattice outward, then discharges it all at once",
   "key": "",

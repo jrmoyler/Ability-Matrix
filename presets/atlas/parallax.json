@@ -5,6 +5,7 @@
   "id": "parallax",
   "slot": 2,
   "kind": "ability",
+  "element": "time",
   "label": "Parallax Blink",
   "hint": "Mobility — two chrome irises open a ring corridor; you dissolve into one and reassemble out of the other",
   "key": "",

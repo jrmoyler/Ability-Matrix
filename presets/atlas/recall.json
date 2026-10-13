@@ -5,6 +5,7 @@
   "id": "recall",
   "slot": 1,
   "kind": "ability",
+  "element": "time",
   "label": "Chrono Recall",
   "hint": "Time — dash a bent arc leaving frozen echoes of yourself, then rewind back to the start",
   "key": "",

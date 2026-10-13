@@ -5,6 +5,7 @@
   "id": "frost",
   "slot": 4,
   "kind": "ability",
+  "element": "frost",
   "label": "Glacial Prison",
   "hint": "Glacial Prison — freezes what stands in it, then shatters it",
   "key": "B",

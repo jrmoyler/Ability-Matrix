@@ -5,6 +5,7 @@
   "id": "astral",
   "slot": 7,
   "kind": "ability",
+  "element": "cosmic",
   "label": "Astral Void Blast",
   "hint": "Cosmic Singularity",
   "key": "Z",

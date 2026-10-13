@@ -5,6 +5,7 @@
   "id": "growth",
   "slot": 2,
   "kind": "ability",
+  "element": "nature",
   "label": "Arborist's Growth",
   "hint": "Arborist's Growth Chrono-Summon",
   "key": "R",

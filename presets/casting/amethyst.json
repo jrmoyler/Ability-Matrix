@@ -5,6 +5,7 @@
   "id": "amethyst",
   "slot": 4,
   "kind": "ability",
+  "element": "earth",
   "label": "Amethyst Verdict",
   "hint": "Amethyst Verdict — amethyst points rise round the target and crush it",
   "key": "U",

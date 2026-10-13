@@ -5,6 +5,7 @@
   "id": "aegis",
   "slot": 9,
   "kind": "ability",
+  "element": "tech",
   "label": "Aegis Bulwark",
   "hint": "Shield — a hex-lattice dome that throws back what it touches",
   "key": "K",

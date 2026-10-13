@@ -5,6 +5,7 @@
   "id": "geode",
   "slot": 3,
   "kind": "ability",
+  "element": "earth",
   "label": "Geode Eruption",
   "hint": "Crystal — a stone geode grows out of the floor, cracks open on an amethyst heart, then slowly shatters outward",
   "key": "F",

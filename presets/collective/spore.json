@@ -5,6 +5,7 @@
   "id": "spore",
   "slot": 10,
   "kind": "ability",
+  "element": "nature",
   "label": "Spore Bloom",
   "hint": "Fungal — a seed pod roots, glowing mushrooms burst into a corroding spore cloud",
   "key": "Y",

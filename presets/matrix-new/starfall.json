@@ -5,6 +5,7 @@
   "id": "starfall",
   "slot": 9,
   "kind": "ability",
+  "element": "light",
   "label": "Starfall Rite",
   "hint": "Light — a constellation draws itself over the circle, then drops its stars one by one",
   "key": "K",

@@ -5,6 +5,7 @@
   "id": "toxic",
   "slot": 5,
   "kind": "ability",
+  "element": "poison",
   "label": "Toxic Shield",
   "hint": "Toxic Shield of Conquest — turns what stands in it to glass, then shatters it",
   "key": "Z",

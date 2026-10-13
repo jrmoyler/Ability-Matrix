@@ -5,6 +5,7 @@
   "id": "reversal",
   "slot": 7,
   "kind": "ability",
+  "element": "tech",
   "label": "Aegis Reversal",
   "hint": "Defense — a shield of turning plates catches an incoming bolt, stores the blow, then fires it back as a widening cone",
   "key": "",

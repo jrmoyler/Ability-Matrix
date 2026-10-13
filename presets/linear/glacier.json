@@ -5,6 +5,7 @@
   "id": "glacier",
   "slot": 5,
   "kind": "ability",
+  "element": "frost",
   "label": "Glacial Crown",
   "hint": "Glacial Crown",
   "key": "X",

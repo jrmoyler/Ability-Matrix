@@ -30,6 +30,7 @@ export class InputManager extends EventEmitter {
     window.addEventListener('pointermove', this._onPointerMove);
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
     this.dom.addEventListener('contextmenu', this._onContextMenu);
   }
 
@@ -63,9 +64,12 @@ export class InputManager extends EventEmitter {
   };
 
   _onKeyDown = (event) => {
-    if (event.repeat) return;
     const target = event.target;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    // Space and the arrows walk and dash the caster; keep them (held ones
+    // included) from scrolling the page.
+    if (event.code === 'Space' || event.code.startsWith('Arrow')) event.preventDefault();
+    if (event.repeat) return;
 
     this.keys.add(event.code);
 
@@ -153,11 +157,17 @@ export class InputManager extends EventEmitter {
     this.keys.delete(event.code);
   };
 
+  /** A key released while the page had no focus never fires keyup: forget them all. */
+  _onBlur = () => {
+    this.keys.clear();
+  };
+
   dispose() {
     this.dom.removeEventListener('pointerdown', this._onPointerDown);
     window.removeEventListener('pointermove', this._onPointerMove);
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
     this.dom.removeEventListener('contextmenu', this._onContextMenu);
     this.clear();
   }

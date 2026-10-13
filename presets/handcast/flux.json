@@ -5,6 +5,7 @@
   "id": "flux",
   "slot": 0,
   "kind": "ability",
+  "element": "blood",
   "label": "Shimmering Flux",
   "hint": "Shimmering Flux of Chaos",
   "key": "Q",
