@@ -1,6 +1,6 @@
 {
   "format": "collective-ability-catalog@1",
-  "generated": "2026-10-13T02:12:10.872Z",
+  "generated": "2026-10-13T06:41:14.649Z",
   "elements": [
     {
       "id": "fire",
@@ -1987,7 +1987,7 @@
       "range": 20,
       "minRange": 2,
       "zoneRadius": null,
-      "controls": 177,
+      "controls": 179,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 62C26 58 40 56 54 50\"/><path d=\"M10 70C28 66 44 64 58 58\"/><path d=\"M54 74C50 52 62 30 80 28C92 28 94 42 84 46C76 48 72 40 78 36\"/><path d=\"M50 84C62 82 78 82 92 84\"/></svg>"
     },
@@ -2083,7 +2083,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Plague Swarm",
-      "hint": "Poison — a hive cracks open and a swarm of glowing toxic insects devours the circle",
+      "hint": "Poison — a chitinous hive bursts up and cracks open; its glowing swarm engulfs and corrodes every body in the circle",
       "key": "",
       "accent": "#b6ff3d",
       "cast": "zone",
@@ -2092,9 +2092,9 @@
       "range": 18,
       "minRange": 0,
       "zoneRadius": 4,
-      "controls": 12,
+      "controls": 203,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"26\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 84C30 84 26 62 32 46C38 30 46 22 50 16C54 22 62 30 68 46C74 62 70 84 50 84Z\"/><path d=\"M50 16V48\"/><path d=\"M38 40L50 52L62 40\"/><path d=\"M20 30L26 26L30 32\"/><path d=\"M76 22L82 26L76 30\"/><path d=\"M14 56L20 52L22 58\"/><path d=\"M84 54L88 60L82 62\"/></svg>"
     },
     {
       "uid": "codex/miasma",
@@ -2218,7 +2218,7 @@
       "range": 20,
       "minRange": 3,
       "zoneRadius": null,
-      "controls": 145,
+      "controls": 148,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"22\" cy=\"70\" r=\"13\"/><circle cx=\"50\" cy=\"50\" r=\"13\"/><circle cx=\"78\" cy=\"30\" r=\"13\"/><path d=\"M22 61L28 75H16Z\"/><path d=\"M50 41L56 55H44Z\"/><path d=\"M78 21L84 35H72Z\"/><path d=\"M78 8V2\"/><path d=\"M78 52V58\"/></svg>"
     },

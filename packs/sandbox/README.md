@@ -1,6 +1,6 @@
 # Ability Sandbox
 
-The one scene where every ability in the Ability Matrix can be cast. It has one character, one set of target dummies, one camera and one environment. It hosts 78 castable abilities: 73 abilities, 3 buffs and 2 summons.
+The one scene where every ability in the Ability Matrix can be cast. It has one character, one set of target dummies, one camera and one environment. It hosts 100 castable abilities: 95 abilities, 3 buffs and 2 summons, each tagged with one of 15 elements.
 
 Built with Three.js r185, Vite 8 and hand-written GLSL.
 
@@ -13,6 +13,8 @@ The matrix page (`../../index.html`) embeds this sandbox with `?hud=0` and acts 
 
 | Key | Action |
 |-----|--------|
+| `W A S D` / arrows | Walk the caster (relative to the camera) |
+| `Shift` / `Space` | Run / dash |
 | `[` / `]` | Step through every ability, in every pack |
 | `Q E R F V X B Z N K Y U` | The twelve Collective originals |
 | `G` | VFX editor |
@@ -28,6 +30,9 @@ The matrix page (`../../index.html`) embeds this sandbox with `?hud=0` and acts 
 | `src/abilities/collective`, `src/config/collective` | The 12 Collective originals (native) |
 | `src/abilities/matrix-new`, `src/config/matrix-new` | The 12 Matrix New abilities (native) |
 | `src/abilities/atlas`, `src/config/atlas` | The 10 Ability Atlas abilities, rebuilt on this engine (native) |
+| `src/abilities/codex`, `src/config/codex` | The 22 Elemental Codex abilities (native) |
+| `src/config/elements.js` | The element of every castable |
+| `src/sandbox/Locomotion.js` | Walking, running and dashing; the gait itself is in `SandboxCharacter.js` |
 | `src/config/sandbox.js` | The native groups and their order |
 | `src/vendor/<pack>/` | The five source packs, byte-for-byte copies of `packs/<pack>/src` |
 | `src/vendor/runtimes/<pack>.js` | How each source pack is hosted: models, summons, buffs and editor folders |

@@ -132,7 +132,7 @@
     "ringWidth": 0.07,
     "ringGlow": 5,
     "ringWarp": 1.4,
-    "burstSize": 2.2,
+    "burstSize": 1.6,
     "burstIntensity": 1.4,
     "shockRadius": 5.5,
     "scorchRadius": 1.6,
