@@ -62,10 +62,11 @@ const BLOOD_SHADE_GLSL = /* glsl */ `
     float ndv = clamp(dot(N, V), 0.0, 1.0);
     float hi = pow(clamp(dot(N, H), 0.0, 1.0), max(gloss, 1.0)) * spec;
     float sheen = pow(clamp(dot(N, H), 0.0, 1.0), max(gloss * 0.08, 1.0)) * spec * 0.12;
+    vec3 sheenCol = mix(specColor, base * 3.0, 0.7);   // a broad sheen takes the liquid's colour
     float fres = 0.035 + 0.965 * pow(1.0 - ndv, 5.0);
     vec3 env = texture2D(envMap, equirectUv(reflect(-V, N))).rgb;
     return base * wrap * (1.0 - fres * 0.4)
-         + specColor * (hi + sheen)
+         + specColor * hi + sheenCol * sheen
          + env * mix(vec3(1.0), specColor * 0.6 + base * 2.0, 0.45) * envAmt * fres * fresAmt;
   }
 `;

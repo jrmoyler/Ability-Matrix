@@ -157,8 +157,8 @@ const CLOUD_FRAGMENT = /* glsl */ `
     // The core lighting up from inside as the pressure builds.
     color += uColorRim * uCharge * uChargeGlow * exp(-r * r * 10.0) * (0.6 + 0.4 * d0);
     // Sheet lightning: patches of the cloud lit from within for a frame.
-    float patch = smoothstep(0.35, 0.85, snoise(vec3(vDisc * 2.6, floor(uTime * 7.0) + uSeed)));
-    color += uColorFlash * uFlash * patch * (0.4 + 0.6 * d0);
+    float flashPatch = smoothstep(0.35, 0.85, snoise(vec3(vDisc * 2.6, floor(uTime * 7.0) + uSeed)));
+    color += uColorFlash * uFlash * flashPatch * (0.4 + 0.6 * d0);
 
     gl_FragColor = vec4(color * uGlobalGlow, clamp(alpha, 0.0, 1.0));
   }
@@ -366,7 +366,10 @@ const COLUMN_FRAGMENT = /* glsl */ `
     float energy = (0.18 + lines * 0.82 * uShaderIntensity) * (0.35 + rim) * uOpacity;
     vec3 color = uColor * energy * uGlow + uColorHot * (front * (0.6 + 0.4 * lines) + lines * rim * 0.4);
 
-    float mask = top * keep * uFade;
+    // The splayed foot is seen face-on from above and stacks up its own
+    // layers: thin it, so the column reads as air hitting the floor, not a disc.
+    float foot = mix(0.22, 1.0, smoothstep(0.0, 1.4, y));
+    float mask = top * keep * foot * uFade;
     if (mask < 0.004) discard;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);

@@ -557,7 +557,7 @@ export class SolarLashAbility extends Ability {
       endRadius: c.burstSize * power,
       life: 0.5,
       intensity: c.burstIntensity,
-      opacity: 0.85,
+      opacity: 0.6,
       fresnel: 1.8,
       displace: 0.4,
       turbulence: 1.2,

@@ -1199,6 +1199,7 @@ export function buildEditor(gui, c, Editor) {
   R(wave, c, 'curlPower', 0.2, 5, 0.01, 'curl tightness');
   R(wave, c, 'peel', 0, 1, 0.01, 'peels from one side');
   R(wave, c, 'endTaper', 0, 3, 0.01, 'ends fall away');
+  R(wave, c, 'waveBend', -1, 2, 0.01, 'ends wrap forward');
   R(wave, c, 'lipNoise', 0, 1, 0.01, 'ragged lip');
   R(wave, c, 'waveNoiseScale', 0.1, 6, 0.05, 'lip noise scale');
   R(wave, c, 'riseEnd', 0.05, 0.95, 0.01, 'stood up by');

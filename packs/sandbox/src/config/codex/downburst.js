@@ -38,7 +38,7 @@ export default {
     lightColor: '#cfe3ff',
     lightIntensity: 6, // the steady glow under the cloud
     lightRadius: 8,
-    lightHeight: 3, // metres above the circle the light sits
+    lightHeight: 2.5, // metres above the circle the light sits
     lightFlicker: 0.35, // 0..1 how much it gutters with the lightning
 
     /* --- the herald: a gust running out to the circle and up into the sky --- */
@@ -59,10 +59,10 @@ export default {
     /* ================================================================ */
     /* 1 · THE STORM CLOUD                                               */
     /* ================================================================ */
-    cloudHeight: 7, // metres its rim hangs at
+    cloudHeight: 4.9, // metres its rim hangs at
     cloudRadius: 1.35, // × zoneRadius
-    cloudSag: 1.5, // metres the heavy core hangs below the rim when fully gathered
-    cloudSagSlam: 1.2, // extra metres it lurches down on the drop
+    cloudSag: 1.0, // metres the heavy core hangs below the rim when fully gathered
+    cloudSagSlam: 0.8, // extra metres it lurches down on the drop
     cloudSagWidth: 0.42, // 0..1 of the radius the sag spans
     cloudBillow: 0.5, // metres of noise on the underside
     cloudBillowScale: 2.2, // billows across the cloud
@@ -113,15 +113,15 @@ export default {
     /* ================================================================ */
     columnRadius: 0.78, // × zoneRadius, through the middle of the drop
     columnTopScale: 0.55, // how pinched it is where it leaves the cloud
-    columnFlare: 0.9, // how far the foot splays out over the floor
+    columnFlare: 0.6, // how far the foot splays out over the floor
     columnFlareHeight: 1.1, // metres the splay climbs
     columnStreaks: 26, // wind streaks round it
     columnStreakSharp: 0.7, // 0 = soft haze, 1 = hard lines
     columnFlow: 24, // metres/second the streaks fall
-    columnOpacity: 0.55,
-    columnGlow: 2.4,
+    columnOpacity: 0.4,
+    columnGlow: 1.5,
     columnRim: 1.6, // the walls, seen edge-on
-    columnFront: 3.5, // the hot leading front
+    columnFront: 2.0, // the hot leading front
     columnFrontWidth: 0.8, // metres
     columnSoftFade: 0.6, // soft intersection with the floor, metres
     colorColumn: '#a9c9f5',
@@ -135,13 +135,13 @@ export default {
     ringGlow: 3.2,
     ringFadeStart: 0.45, // 0..1 of its run where the ring starts to dim
     scourStreaks: 70, // radial streaks combed into the dust
-    scourOpacity: 0.5,
+    scourOpacity: 0.38,
     scourContrast: 1.5,
     imprintOpacity: 0.55, // the pressed, dark middle
     warnGlow: 0.9, // the telegraph while the cloud gathers
     groundErode: 0.7, // 0 = fades evenly, 1 = erodes on noise
     colorRing: '#e6f2ff',
-    colorScour: '#8f9aa7',
+    colorScour: '#6f7986',
     colorImprint: '#161b22',
     colorWarn: '#8fb8ff',
 

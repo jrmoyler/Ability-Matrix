@@ -651,6 +651,7 @@ const WAVE_VERTEX = /* glsl */ `
   uniform float uCurlPow;
   uniform float uPeel;
   uniform float uEndTaper;
+  uniform float uBend;
   uniform float uLipNoise;
   uniform float uNoiseScale;
   uniform float uCrash;       // 0 standing .. 1 collapsed
@@ -695,7 +696,8 @@ const WAVE_VERTEX = /* glsl */ `
     float fall = uCrash * uCrash;
     p.y *= 1.0 - fall;
     p.x += uSurge * uCrash * (0.4 + 0.6 * v);
-    float z = p.x - uLen * uBack;
+    // A crescent: the ends wrap forward round the far end of the line.
+    float z = p.x - uLen * uBack + uBend * u * u * uWidth * 0.5;
     float across = u * uWidth * 0.5 * (1.0 + uCrash * 0.25);
     vec3 world = uCentre + uSide * across + uDir * z + vec3(0.0, max(p.y, 0.0) + 0.02, 0.0);
 
@@ -820,6 +822,7 @@ export function createRiptideWaveMaterial() {
       uCurlPow: { value: 1.7 },
       uPeel: { value: 0.3 },
       uEndTaper: { value: 0.6 },
+      uBend: { value: 0.4 },
       uLipNoise: { value: 0.18 },
       uNoiseScale: { value: 1.4 },
       uCrash: { value: 0 },
@@ -863,6 +866,7 @@ export function createRiptideWaveMaterial() {
     u.uCurlPow.value = Math.max(0.2, c.curlPower);
     u.uPeel.value = c.peel * g.randomness;
     u.uEndTaper.value = c.endTaper;
+    u.uBend.value = c.waveBend;
     u.uLipNoise.value = c.lipNoise * g.noiseStrength;
     u.uNoiseScale.value = c.waveNoiseScale * g.noiseFrequency;
     u.uCrash.value = state.crash;

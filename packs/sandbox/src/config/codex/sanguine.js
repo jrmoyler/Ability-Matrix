@@ -70,10 +70,10 @@ export default {
 
     /* --- shading --- */
     gloss: 110, // specular exponent — blood is a mirror when it is fresh
-    specular: 1.7, // sun highlight strength
-    envReflect: 0.5, // how much sky the surface reflects
+    specular: 1.4, // sun highlight strength
+    envReflect: 0.35, // how much sky the surface reflects
     fresnel: 1.1, // reflection at grazing angles
-    ripple: 0.35, // fine surface ripple bent into the normal
+    ripple: 0.2, // fine surface ripple bent into the normal
     rippleScale: 5, // ripple features per metre
     sss: 1.3, // light glowing through the thin curling lip
     troughDark: 0.8, // how much darker the trough and back slope are than the crest
@@ -212,8 +212,8 @@ export default {
     catchImpulse: 2.5, // m/s the crest knocks a body forward when it takes it
     catchLift: 4.0, // m/s up
     catchSpin: 0.6, // tumble
-    carryHeight: 0.75, // × wave height a carried body rides at
-    carryAhead: 0.95, // metres ahead of the crest it rides
+    carryHeight: 1.0, // × wave height a carried body rides at
+    carryAhead: 0.4, // metres ahead of the crest it rides
     carryMatch: 1.0, // × wave speed it is carried at
     carryPull: 5, // how hard it is pulled onto its riding spot (1/s)
     carryGrab: 7, // how quickly the current takes hold (1/s)

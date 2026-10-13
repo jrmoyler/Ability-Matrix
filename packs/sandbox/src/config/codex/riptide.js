@@ -166,14 +166,15 @@ export default {
     /* ================================================================ */
     waveTime: 1.25, // seconds from the jet folding up to the wave gone
     waveWidth: 5.2, // metres across the line
-    waveHeight: 3.4, // arc length of the curl's profile, metres (≈ its height)
+    waveHeight: 4.2, // arc length of the curl's profile, metres (≈ its height)
     waveBack: 0.45, // the base sits this much of the profile behind the end
-    waveSlope: 1.05, // radians the back face rises at
+    waveSlope: 1.2, // radians the back face rises at
     curlStart: 0.2, // radians the lip has curled when the wave stands up
     curlEnd: 2.9, // radians it has curled when it crashes (π = pointing back)
     curlPower: 1.7, // >1 keeps the back straight and the lip tight
     peel: 0.35, // 0..1 one side breaks before the other
-    endTaper: 0.6, // how much the two ends of the wave fall away
+    endTaper: 1.8, // how much the two ends of the wave fall away
+    waveBend: 0.45, // the ends wrap forward round the far end, × the half-width
     lipNoise: 0.18, // ragged lip, × the profile
     waveNoiseScale: 1.4,
     riseEnd: 0.42, // 0..1 through the wave it has stood up fully

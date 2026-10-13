@@ -169,7 +169,7 @@ export default {
     ringWidth: 0.07, // its thickness, × its radius
     ringGlow: 5.0,
     ringWarp: 1.4, // how hard the boom bends the air
-    burstSize: 2.2, // the FIRE shell, metres
+    burstSize: 1.6, // the FIRE shell, metres
     burstIntensity: 1.4,
     shockRadius: 5.5, // the shockwave on the floor, metres
     scorchRadius: 1.6, // the scorch the crack leaves, metres
