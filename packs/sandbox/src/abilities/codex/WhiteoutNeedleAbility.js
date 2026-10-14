@@ -59,7 +59,7 @@ const _zero = new Matrix4().makeScale(0, 0, 0);
 const NOMINAL = { slantD: 0.5, yawD: 0.5 };
 
 const _cloudState = { length: 10, width: 5, lead: 0, seed: 0, fade: 0, flash: 0 };
-const _driftState = { length: 10, width: 3, front: 0, seed: 0, erode: 0 };
+const _driftState = { length: 10, width: 3, front: 0, seed: 0, erode: 0, start: 0 };
 const _coldState = { length: 10, width: 3, front: 0, strength: 0 };
 
 function syncSystem(p, a, b, cc, d, size, glow, turb) {
@@ -356,7 +356,9 @@ export class WhiteoutNeedleAbility extends Ability {
   /** Fraction down the line a field icicle falls at — re-spread live over `needleCount`. */
   _uOf(r, c) {
     const n = Math.min(MAX_FIELD, Math.max(1, Math.round(c.needleCount)));
-    return (r.idx + r.uD) / n;
+    // The field starts `laneStart` metres out so it never buries the caster.
+    const s0 = Math.min(c.laneStart, this.length * 0.5) / Math.max(0.01, this.length);
+    return s0 + (1 - s0) * ((r.idx + r.uD) / n);
   }
 
   /** Where it strikes the floor, written to `_ground`. */
@@ -524,6 +526,7 @@ export class WhiteoutNeedleAbility extends Ability {
     _driftState.front = this.phase === AbilityPhase.FADE ? reach : this.front + extra;
     _driftState.seed = this._seed;
     _driftState.erode = fadeK;
+    _driftState.start = Math.min(c.laneStart, L * 0.5);
     this.driftMaterial.userData.sync(_driftState);
     this.drift.visible = true;
 
@@ -739,7 +742,8 @@ export class WhiteoutNeedleAbility extends Ability {
       _emit.tint = null;
       _emit.time = time;
       for (let k = 0; k < nf; k++) {
-        const s = Math.random() * Math.max(0.5, to);
+        const s0 = Math.min(c.laneStart, L * 0.5);
+        const s = s0 + Math.random() * Math.max(0.5, to - s0);
         this.pointAt(saturate(s / L), _pos).addScaledVector(this.side, (Math.random() * 2 - 1) * (c.laneWidth + 1.2));
         _pos.y = Math.random() * c.cloudHeight;
         _emit.position = _pos;
@@ -829,7 +833,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this._sync();
     this._updateSky(dt, 0);
     this._updateIcicles(dt, 0);
-    this._snowFx(dt, c, g, Math.max(0, this.front - c.snowSpan), this.front + c.cloudLead * 0.5, 1);
+    this._snowFx(dt, c, g, Math.max(Math.min(c.laneStart, this.length * 0.5), this.front - c.snowSpan), this.front + c.cloudLead * 0.5, 1);
     this._catch(this.position.x, this.position.z, c.hitRadius);
     this._holdPins(0);
     this.ctx.shake.rumble(c.stormRumble * g.cameraShake, dt);
@@ -936,6 +940,7 @@ export function buildEditor(gui, c, Editor) {
   const cl = folder.addFolder('2 · Cloud');
   R(cl, c, 'cloudHeight', 2, 15, 0.05, 'height (m)');
   R(cl, c, 'cloudWidth', 1, 15, 0.05, 'width (m)');
+  R(cl, c, 'laneStart', 0, 10, 0.05, 'storm starts ahead of the caster (m)');
   R(cl, c, 'cloudStart', -3, 10, 0.05, 'starts ahead of the caster (m)');
   R(cl, c, 'cloudLead', 0, 10, 0.05, 'runs ahead (m)');
   R(cl, c, 'cloudBillow', 0, 4, 0.05, 'billow (m)');

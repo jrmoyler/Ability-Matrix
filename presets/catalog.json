@@ -1,6 +1,6 @@
 {
   "format": "collective-ability-catalog@1",
-  "generated": "2026-10-14T04:54:42.683Z",
+  "generated": "2026-10-14T05:28:52.069Z",
   "elements": [
     {
       "id": "fire",
@@ -2407,7 +2407,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 0,
-      "controls": 110,
+      "controls": 111,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 26C14 16 30 12 38 18C44 8 64 8 70 18C82 14 92 22 88 32H12Z\"/><path d=\"M26 40L34 82M44 40L52 90M62 40L70 76M80 40L86 66\"/></svg>"
     },

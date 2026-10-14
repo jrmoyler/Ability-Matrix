@@ -16,7 +16,7 @@
   "range": 18,
   "minRange": 2,
   "zoneRadius": 0,
-  "controls": 110,
+  "controls": 111,
   "status": "live",
   "settings": {
     "range": 18,
@@ -34,6 +34,7 @@
     "holdTime": 1,
     "needleCount": 84,
     "laneWidth": 1.5,
+    "laneStart": 2.5,
     "needleLength": 1.7,
     "needleWidth": 0.09,
     "needleJitter": 0.45,

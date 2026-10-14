@@ -330,6 +330,7 @@ const DRIFT_FRAGMENT = /* glsl */ `
   uniform float uLength;
   uniform float uWidth;
   uniform float uFront;       // metres the snow has reached
+  uniform float uStart;       // metres out from the caster the snow begins
   uniform float uSeed;
   uniform float uStreak;
   uniform float uEdgeGlow;
@@ -366,6 +367,7 @@ const DRIFT_FRAGMENT = /* glsl */ `
     col += uColorGlow * edge * uEdgeGlow * uGlobalGlow * uShaderIntensity;
 
     float a = shape * reached * (0.55 + 0.45 * body);
+    a *= smoothstep(uStart, uStart + 1.5, p.x + ragged * 0.4);
     float n = snoise(vec3(p * 1.4, uSeed * 3.0)) * 0.5 + 0.5;
     float thr = uErode * 1.25 - 0.15;
     a *= smoothstep(thr, thr + 0.12, n * 0.7 + body * 0.3);
@@ -390,6 +392,7 @@ export function createDriftMaterial() {
       uLength: { value: 10 },
       uWidth: { value: 3 },
       uFront: { value: 0 },
+      uStart: { value: 0 },
       uSeed: { value: 0 },
       uStreak: { value: 1 },
       uEdgeGlow: { value: 2 },
@@ -413,6 +416,7 @@ export function createDriftMaterial() {
     u.uLength.value = s.length;
     u.uWidth.value = s.width;
     u.uFront.value = s.front;
+    u.uStart.value = s.start ?? 0;
     u.uSeed.value = s.seed;
     u.uStreak.value = c.driftStreak * g.noiseFrequency;
     u.uEdgeGlow.value = c.driftEdgeGlow * g.glow;

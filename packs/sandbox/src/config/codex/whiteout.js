@@ -48,6 +48,7 @@ export default {
     /* ================================================================ */
     needleCount: 84, // down the line (max 160)
     laneWidth: 1.5, // metres either side of the line they land in
+    laneStart: 2.5, // metres ahead of the caster the storm begins, so it never buries them
     needleLength: 1.7, // metres, longest
     needleWidth: 0.09, // metres at the root
     needleJitter: 0.45, // 0..1 length variety
