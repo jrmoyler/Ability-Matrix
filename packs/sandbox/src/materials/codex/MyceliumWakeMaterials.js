@@ -318,7 +318,7 @@ const STROMA_FRAGMENT = /* glsl */ `
     vec3 head = mix(uColorClub, uColorClubTip, smoothstep(0.7, 1.0, vT) + vc.y * 0.2);
     head *= 1.0 - pore * 0.35;
     vec3 albedo = mix(stalk, head, club);
-    albedo = mix(albedo, uColorDead, wither * (0.6 + 0.4 * snoise(vec3(vLocal * 6.0, seed))));
+    albedo = mix(albedo, uColorDead, wither * (0.6 + 0.4 * snoise(vLocal * 6.0 + vec3(seed))));
 
     float wrap = clamp(dot(N, L) * 0.6 + 0.4, 0.0, 1.0);
     vec3 color = albedo * (0.3 + 0.85 * wrap);

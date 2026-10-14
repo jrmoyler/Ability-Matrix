@@ -77,6 +77,7 @@ export default {
     /* ================================================================ */
     cloudHeight: 6.5, // metres off the floor
     cloudWidth: 5.5, // metres across
+    cloudStart: 3.5, // metres ahead of the caster it begins (behind them it blocks the camera)
     cloudLead: 3, // metres it runs ahead of the front
     cloudBillow: 1.4, // metres the belly hangs down
     cloudScale: 0.35, // billows per metre
@@ -115,11 +116,11 @@ export default {
     /* ================================================================ */
     /* 5 · STRIKES                                                       */
     /* ================================================================ */
-    puffCount: 5, // snow puffs per icicle strike
+    puffCount: 3, // snow puffs per icicle strike
     puffSize: 0.55,
     puffSpeed: 1.6,
     puffLifetime: 1.0,
-    puffOpacity: 0.55,
+    puffOpacity: 0.22, // low: seen down the line, the puffs of every strike stack up
     chipCount: 6, // ice chips per strike
     chipSpeed: 4.5,
     chipSize: 0.08,
@@ -127,7 +128,7 @@ export default {
     chipGravity: -14,
     strikeDecalEvery: 3, // a frost decal under every nth strike
     strikeDecalRadius: 0.45,
-    hazeRate: 40, // ground blizzard rolling with the front
+    hazeRate: 18, // ground blizzard rolling with the front
     colorPuffA: '#ffffff',
     colorPuffB: '#e2f0fb',
     colorPuffC: '#a4c3dc',

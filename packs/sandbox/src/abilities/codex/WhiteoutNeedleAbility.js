@@ -39,8 +39,6 @@ const MAX_NEEDLES = MAX_FIELD + MAX_VOLLEY + MAX_PINS * PIN_EACH;
 const KIND_FIELD = 0;
 const KIND_VOLLEY = 1;
 const KIND_PIN = 2;
-/** How far behind the caster the cloud starts, metres. */
-const CLOUD_TAIL = 1.5;
 
 const _emit = {};
 const _pos = new Vector3();
@@ -249,7 +247,7 @@ export class WhiteoutNeedleAbility extends Ability {
 
     this.puffs = particles.get('whiteout.puff', { capacity: 1400, shape: ParticleShape.SMOKE, additive: false, curl: true, softFade: 0.6 });
     this.puffs.uniforms.uDrag.value = 1.8;
-    this.puffs.uniforms.uEndSize.value = 2.0;
+    this.puffs.uniforms.uEndSize.value = 1.4;
     this.puffs.uniforms.uSizeIn.value = 0.08;
     this.puffs.uniforms.uFadeIn.value = 0.05;
     this.puffs.uniforms.uFadeOut.value = 0.6;
@@ -495,14 +493,17 @@ export class WhiteoutNeedleAbility extends Ability {
     const reach = L + c.volleyRadius + 2;
 
     /* the cloud */
-    const cl = reach + CLOUD_TAIL + c.cloudLead;
-    this.cloud.position.copy(this.origin).addScaledVector(this.direction, -CLOUD_TAIL);
+    // The cloud starts ahead of the caster: behind them it would hang between
+    // the chase camera and the body and fill the screen.
+    const start = Math.min(c.cloudStart, reach - 1);
+    const cl = Math.max(1, reach - start + c.cloudLead);
+    this.cloud.position.copy(this.origin).addScaledVector(this.direction, start);
     this.cloud.position.y = c.cloudHeight + c.cloudBillow;
     this.cloud.rotation.set(0, yaw, 0);
     this.cloud.scale.set(cl, 1, c.cloudWidth);
     _cloudState.length = cl;
     _cloudState.width = c.cloudWidth;
-    _cloudState.lead = this.front + CLOUD_TAIL + c.cloudLead + (this.phase === AbilityPhase.TRAVEL ? 0 : c.volleyRadius + 2);
+    _cloudState.lead = this.front - start + c.cloudLead + (this.phase === AbilityPhase.TRAVEL ? 0 : c.volleyRadius + 2);
     _cloudState.seed = this._seed;
     _cloudState.fade = fadeK;
     this._flash = Math.max(0, this._flash - dt * 4);
@@ -935,6 +936,7 @@ export function buildEditor(gui, c, Editor) {
   const cl = folder.addFolder('2 · Cloud');
   R(cl, c, 'cloudHeight', 2, 15, 0.05, 'height (m)');
   R(cl, c, 'cloudWidth', 1, 15, 0.05, 'width (m)');
+  R(cl, c, 'cloudStart', -3, 10, 0.05, 'starts ahead of the caster (m)');
   R(cl, c, 'cloudLead', 0, 10, 0.05, 'runs ahead (m)');
   R(cl, c, 'cloudBillow', 0, 4, 0.05, 'billow (m)');
   R(cl, c, 'cloudScale', 0.05, 2, 0.01, 'billows / m');
