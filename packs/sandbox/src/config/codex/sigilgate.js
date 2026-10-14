@@ -1,85 +1,146 @@
 /**
- * Sigil Gate — fills arcane out to ten castables.
+ * Sigil Gate — Arcane, zone cast.
+ *
+ * A ley line of runes races to the circle. At its far rim two obelisks punch
+ * up and between them a ring of dark stone rises out of the floor — a gate,
+ * standing face-on to the caster, its seal inscribing itself ring by ring and
+ * turning. Then the gate falls: it tips toward the caster like a felled door
+ * and slams flat onto the circle, stamping the seal into the floor white-hot.
+ * Everything under it is crushed outward. The gate lifts away into motes and
+ * the brand cools to a violet scar.
+ *
  * Data only. SigilGateAbility reads every field live.
  */
 export default {
-  "id": "sigilgate",
-  "particle": "SOFT",
-  "meta": {
-    "label": "Sigil Gate",
-    "accent": "#c9d2ff",
-    "key": "",
-    "element": "arcane",
-    "hint": "Arcane — a sigil gate stands and brands the circle",
-    "cast": "zone",
-    "glyph": "<path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/>"
+  id: 'sigilgate',
+  meta: {
+    label: 'Sigil Gate',
+    accent: '#c9d2ff',
+    key: '',
+    element: 'arcane',
+    hint: 'Arcane — a sigil gate rises, falls flat on the circle and brands it',
+    cast: 'zone',
+    glyph: '<circle cx="50" cy="44" r="26"/><circle cx="50" cy="44" r="9"/><path d="M18 88V30M82 88V30"/><path d="M12 88H88"/>'
   },
-  "settings": {
-    "range": 18,
-    "minRange": 2,
-    "speed": 22,
-    "lifetime": 1.5,
-    "cooldown": 0.6,
-    "castAnim": "cast1",
-    "impactTime": 0.85,
-    "fadeTime": 1.35,
-    "lightIntensity": 9,
-    "lightRadius": 10,
-    "lightFlicker": 0.3,
-    "lightPunch": 12,
-    "count": 6,
-    "bodyRadius": 0.9,
-    "flightHeight": 1.2,
-    "blades": 6,
-    "taper": 1.35,
-    "curve": 1,
-    "thickness": 0.34,
-    "hole": 0.08,
-    "hub": 0.2,
-    "spikes": 8,
-    "twist": 3.2,
-    "noiseAmt": 0.45,
-    "edgeGlow": 5,
-    "bodyOpacity": 0.42,
-    "fringe": 0.9,
-    "rimGlow": 0.85,
-    "softFade": 0.35,
-    "spinSpeed": 9,
-    "braidWidth": 1.25,
-    "braidPitch": 5,
-    "braidLift": 0.4,
-    "arcHeight": 1.5,
-    "lift": 4.2,
-    "spread": 0.55,
-    "stagger": 0.4,
-    "spreadIn": 2.2,
-    "orbit": 0.85,
-    "warp": 0.9,
-    "warpSwirl": 0.65,
-    "zoneRadius": 4.4,
-    "decalLife": 1.45,
-    "burstScale": 1.15,
-    "burstLife": 0.72,
-    "burstSquash": 0.5,
-    "impactShake": 0.5,
-    "impactFlash": 0.4,
-    "trailRate": 80,
-    "trailSpeed": 9,
-    "trailSize": 0.055,
-    "trailLife": 0.38,
-    "mistRate": 46,
-    "mistSize": 0.2,
-    "mistLife": 0.85,
-    "burstCount": 32,
-    "debrisSize": 0.14,
-    "motion": "bloom",
-    "style": 4,
-    "accentStyle": 2,
-    "decal": "ARC",
-    "burst": "STORM",
-    "colorA": "#c9d2ff",
-    "colorB": "#ffffff",
-    "colorC": "#7c8cff",
-    "lightColor": "#ffffff"
+  settings: {
+    // ---- the cast ----
+    range: 18, // max cast distance (m)
+    minRange: 2,
+    speed: 22, // the ley line runs at (m/s)
+    zoneRadius: 4.4, // the circle (m)
+    cooldown: 0.6,
+    castAnim: 'cast1',
+    colorA: '#c9d2ff', // accent
+    colorB: '#ffffff', // accent, hot
+
+    // ---- timing (s) ----
+    riseTime: 0.38, // the gate and posts rise over
+    standTime: 0.32, // it stands, seal turning, for
+    fallTime: 0.36, // it falls flat over (accelerating)
+    bounce: 0.06, // rebounds this far off the floor (rad)
+    lifetime: 1.1, // lies branding the circle for
+    liftTime: 0.6, // the gate lifts away into motes over
+    brandFade: 1.3, // the scar cools and fades over
+
+    // ---- 1 · the gate ----
+    gateScale: 0.9, // ring radius (× circle)
+    frameThickness: 0.17, // m
+    innerRing: 0.88, // the inner ring (× ring radius)
+    spikeCount: 12,
+    spikeLength: 0.75, // m
+    spikeWidth: 0.2, // m
+    postHeight: 5.2, // m
+    postWidth: 0.7, // m
+    postGap: 0.7, // posts stand this far outside the ring (m)
+    colorStone: '#14121f',
+    colorStoneVein: '#3a3658',
+    colorRune: '#8ea0ff',
+    colorHot: '#ffffff',
+    runeGlow: 2.2,
+    runeScale: 54, // runes round the ring
+    stoneSheen: 0.8,
+    stoneSpecular: 0.6,
+
+    // ---- 2 · the seal ----
+    colorSeal: '#a8b8ff',
+    colorFilm: '#3a2a8a',
+    sealGlow: 2.6,
+    sealLineWidth: 0.013, // × ring radius
+    filmGlow: 0.35,
+    spinSpeed: 0.7, // rad/s, rings turning against each other
+    flare: 2.2, // the seal blazes as the gate falls
+
+    // ---- 3 · the brand ----
+    colorBrand: '#b088ff',
+    colorScar: '#5a3aa8',
+    colorChar: '#07060c',
+    brandGlow: 2.2,
+    burnCool: 0.9, // white-hot cools over (s)
+    charDarkness: 0.75,
+    charMargin: 0.9, // scorched past the rim (m)
+
+    // ---- 4 · the crush ----
+    slamImpulse: 7,
+    slamLift: 2,
+    slamSpin: 2,
+
+    // ---- 5 · motes, sparks, dust ----
+    moteRate: 120, // drawn into the seal while it stands
+    moteSize: 0.07,
+    moteSpeed: 3,
+    moteLifetime: 0.8,
+    moteGlow: 2.6,
+    brandMotes: 90, // rising off the brand per second
+    colorMoteA: '#ffffff',
+    colorMoteB: '#c9d2ff',
+    colorMoteC: '#7c8cff',
+    colorMoteD: '#241a5a',
+    sparkCount: 110,
+    sparkSpeed: 12,
+    sparkSize: 0.05,
+    sparkLifetime: 0.5,
+    sparkStretch: 0.45,
+    colorSparkA: '#ffffff',
+    colorSparkB: '#c9d2ff',
+    colorSparkC: '#8a6cff',
+    colorSparkD: '#2a1a60',
+    dustCount: 60,
+    dustSize: 1.0,
+    dustSpeed: 6,
+    dustLifetime: 1.2,
+    dustOpacity: 0.55,
+    colorDustA: '#6a6488',
+    colorDustB: '#4a4466',
+    colorDustC: '#2a2640',
+    colorDustD: '#141220',
+
+    // ---- 6 · the beat ----
+    riseShake: 0.2,
+    slamShake: 0.85,
+    slamFlash: 0.5,
+    colorFlash: '#d8dcff',
+    slamLight: 45,
+    burstRadius: 4.5,
+    burstLife: 0.5,
+    colorBurstA: '#ffffff',
+    colorBurstB: '#a8b8ff',
+    colorBurstC: '#4a3aa8',
+    shockRadius: 10,
+    shockLife: 0.8,
+    colorShockA: '#a8b8ff',
+    colorShockB: '#ffffff',
+    dustRingRadius: 7,
+    dustRingLife: 1.4,
+    slamWarp: 1.2,
+    slamWarpRadius: 9,
+    slamWarpTime: 0.6,
+    leyArcSpacing: 1.6, // m between rune burns on the ley line
+    leyArcLife: 1.0,
+
+    // ---- light ----
+    lightColor: '#c9d2ff',
+    lightIntensity: 9,
+    lightRadius: 10,
+    lightFlicker: 0.2
   }
 };
