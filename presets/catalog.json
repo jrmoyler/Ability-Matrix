@@ -1,6 +1,6 @@
 {
   "format": "collective-ability-catalog@1",
-  "generated": "2026-10-13T22:29:48.082Z",
+  "generated": "2026-10-14T04:14:26.309Z",
   "elements": [
     {
       "id": "fire",
@@ -2356,7 +2356,7 @@
       "kind": "ability",
       "element": "frost",
       "label": "Hoarfrost Mirror",
-      "hint": "Frost — a mirror of rime rises in the circle and throws the cold back out",
+      "hint": "Frost — a mirror of rime rises in the circle, drinks in the cold and throws it back out as a gale",
       "key": "",
       "accent": "#d7f4ff",
       "cast": "zone",
@@ -2365,9 +2365,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 136,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 86V46C30 30 40 20 50 12C60 20 70 30 70 46V86Z\"/><path d=\"M38 80V48C38 38 44 30 50 24C56 30 62 38 62 48V80\"/><path d=\"M22 92H78\"/><path d=\"M18 50L8 46M82 50L92 46M24 30L16 22M76 30L84 22\"/></svg>"
     },
     {
       "uid": "codex/rimehalo",
@@ -2377,7 +2377,7 @@
       "kind": "ability",
       "element": "frost",
       "label": "Rime Halo",
-      "hint": "Frost — a halo of needles walks the rim and freezes whatever it closes on",
+      "hint": "Frost — a halo of needles walks the rim, spins up and closes like a noose, freezing whatever it closes on",
       "key": "",
       "accent": "#e7fbff",
       "cast": "zone",
@@ -2386,9 +2386,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 114,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V36M50 64V80M20 50H36M64 50H80M29 29L40 40M71 29L60 40M29 71L40 60M71 71L60 60\"/><circle cx=\"50\" cy=\"20\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/whiteout",
@@ -2398,7 +2398,7 @@
       "kind": "ability",
       "element": "frost",
       "label": "Whiteout Needle",
-      "hint": "Frost — a whiteout of needles falls along the line and pins what it reaches",
+      "hint": "Frost — a whiteout rolls down the line and rains icicles point-first, pinning what it reaches to the floor",
       "key": "",
       "accent": "#f4fbff",
       "cast": "line",
@@ -2407,9 +2407,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 0,
-      "controls": 66,
+      "controls": 109,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 26C14 16 30 12 38 18C44 8 64 8 70 18C82 14 92 22 88 32H12Z\"/><path d=\"M26 40L34 82M44 40L52 90M62 40L70 76M80 40L86 66\"/></svg>"
     },
     {
       "uid": "codex/calving",
@@ -2419,7 +2419,7 @@
       "kind": "ability",
       "element": "frost",
       "label": "Glacier Calving",
-      "hint": "Frost — a shelf of glacier calves upward, then breaks into the circle",
+      "hint": "Frost — a cliff of glacier heaves up behind the circle, cracks at its foot and calves forward across it",
       "key": "",
       "accent": "#c5e4f5",
       "cast": "zone",
@@ -2428,9 +2428,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 5,
-      "controls": 66,
+      "controls": 114,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M56 86V30L62 22L66 30L72 18L78 28V86\"/><path d=\"M50 86L20 66L26 56L52 70\"/><path d=\"M14 86H90\"/><path d=\"M60 50L66 58L62 66\"/></svg>"
     },
     {
       "uid": "codex/fulgur",
@@ -2440,7 +2440,7 @@
       "kind": "ability",
       "element": "storm",
       "label": "Fulgur Cage",
-      "hint": "Lightning — bars of fulgur drop in a cage and arc inward",
+      "hint": "Lightning — bars of fulgur drop from the sky in a ring, stand as a crackling cage, then arc inward and burst",
       "key": "",
       "accent": "#d6e4ff",
       "cast": "zone",
@@ -2449,9 +2449,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 110,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 22V78M50 16V84M70 22V78\"/><path d=\"M22 30H78M22 70H78\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M24 14L28 40L22 58L27 86\"/><path d=\"M50 8L46 34L53 56L48 90\"/><path d=\"M76 14L72 40L78 58L73 86\"/><path d=\"M27 48L38 52L50 46L62 52L74 48\"/><circle cx=\"50\" cy=\"62\" r=\"5\"/></svg>"
     },
     {
       "uid": "codex/brine",
@@ -2461,7 +2461,7 @@
       "kind": "ability",
       "element": "water",
       "label": "Brine Geyser",
-      "hint": "Water — a brine column punches up and salts the circle",
+      "hint": "Water — the ground cracks and seeps, a brine column punches up through it, rains down, and the circle crusts over in salt",
       "key": "",
       "accent": "#7ecbff",
       "cast": "zone",
@@ -2470,9 +2470,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "controls": 66,
+      "controls": 108,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M40 86V34C40 26 32 22 24 24M60 86V34C60 26 68 22 76 24\"/><path d=\"M50 30V8\"/><path d=\"M18 86H82\"/><path d=\"M26 86L30 76L34 86M66 86L70 74L74 86\"/></svg>"
     },
     {
       "uid": "codex/glasstide",
@@ -2482,7 +2482,7 @@
       "kind": "ability",
       "element": "water",
       "label": "Glass Tide",
-      "hint": "Water — a glass-hard sheet of tide whips down the line",
+      "hint": "Water — a glass-hard sheet of tide whips down the line, freezes into glass at the end and shatters",
       "key": "",
       "accent": "#b7e6ff",
       "cast": "line",
@@ -2490,10 +2490,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 109,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 58C28 40 40 70 54 48C66 32 74 60 88 42\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 80C24 74 30 52 44 50C58 48 62 66 74 58C82 52 84 34 88 18\"/><path d=\"M12 80H88\"/><path d=\"M66 30L74 22M78 40L90 36M60 20L62 10\"/></svg>"
     },
     {
       "uid": "codex/undertow",
@@ -2503,7 +2503,7 @@
       "kind": "ability",
       "element": "water",
       "label": "Undertow Chains",
-      "hint": "Water — chains of undertow spiral in and drag the circle down",
+      "hint": "Water — the circle floods dark, chains of undertow spiral in from its rim, pull taut and drag it all under",
       "key": "",
       "accent": "#49b4ff",
       "cast": "zone",
@@ -2512,9 +2512,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.8,
-      "controls": 66,
+      "controls": 96,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"34\"/><path d=\"M84 50C80 72 58 74 50 60\"/><path d=\"M33 21C52 12 66 30 56 44\"/><path d=\"M24 70C16 52 30 40 44 48\"/><circle cx=\"50\" cy=\"52\" r=\"5\"/></svg>"
     },
     {
       "uid": "codex/pearltempest",
@@ -2524,7 +2524,7 @@
       "kind": "ability",
       "element": "water",
       "label": "Pearl Tempest",
-      "hint": "Water — pearls of compressed tide arc down the line and burst wet",
+      "hint": "Water — pearls of compressed tide wheel round the hand, arc down the line in a volley and burst into crowns of spray",
       "key": "",
       "accent": "#e7f8ff",
       "cast": "line",
@@ -2532,10 +2532,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 97,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"14\"/><circle cx=\"50\" cy=\"50\" r=\"28\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"22\" cy=\"72\" r=\"7\"/><circle cx=\"46\" cy=\"40\" r=\"6\"/><circle cx=\"72\" cy=\"26\" r=\"5\"/><path d=\"M14 86C30 60 52 30 86 18\"/><path d=\"M64 84L70 72L76 84M78 86L84 76L90 86\"/></svg>"
     },
     {
       "uid": "codex/faultchoir",
@@ -2545,7 +2545,7 @@
       "kind": "ability",
       "element": "earth",
       "label": "Fault Choir",
-      "hint": "Earth — the fault sings a stone lance and splits what it crosses",
+      "hint": "Earth — the fault splits down the line, a choir of stone blades rises singing from it, and the last note is a lance through the target",
       "key": "",
       "accent": "#e6c48a",
       "cast": "line",
@@ -2553,10 +2553,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 106,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14L62 50L50 86L38 50Z\"/><path d=\"M18 50H82\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 88L22 80L18 72L30 66L26 58L40 50L36 42L52 34\"/><path d=\"M30 66L34 50M44 54L48 36M58 46L64 24\"/><path d=\"M70 60L90 10L80 64Z\"/></svg>"
     },
     {
       "uid": "codex/quartzspire",
@@ -2566,7 +2566,7 @@
       "kind": "ability",
       "element": "earth",
       "label": "Quartz Spire",
-      "hint": "Earth — quartz spires choir up through the circle",
+      "hint": "Earth — a ring of clear quartz points spirals up through the circle, leaning in to a towering master crystal that sings gold",
       "key": "",
       "accent": "#f3e2ff",
       "cast": "zone",
@@ -2575,9 +2575,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.5,
-      "controls": 66,
+      "controls": 136,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L60 26V86H40V26Z\"/><path d=\"M24 86V50L30 40L36 50V86\"/><path d=\"M64 86V50L70 40L76 50V86\"/><path d=\"M14 86H86\"/></svg>"
     },
     {
       "uid": "codex/sirennote",
@@ -2587,7 +2587,7 @@
       "kind": "ability",
       "element": "wind",
       "label": "Siren Note",
-      "hint": "Wind — a single held note cuts the line as a visible sheet of air",
+      "hint": "Wind — a single held note cuts the line as a shivering sheet of air, sorting the dust into nodal lines, and screams apart at the end",
       "key": "",
       "accent": "#e9fff8",
       "cast": "line",
@@ -2595,10 +2595,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 105,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 58C28 40 40 70 54 48C66 32 74 60 88 42\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 50C22 34 34 66 46 50C58 34 70 66 82 50\"/><path d=\"M10 38H34M10 62H34\"/><path d=\"M86 30C94 42 94 58 86 70\"/><path d=\"M78 36C84 44 84 56 78 64\"/></svg>"
     },
     {
       "uid": "codex/vortexbell",
@@ -2608,7 +2608,7 @@
       "kind": "ability",
       "element": "wind",
       "label": "Vortex Bell",
-      "hint": "Wind — a bell of air rings the circle and throws a vortex off the rim",
+      "hint": "Wind — a great bell of streaming air drops over the circle and rings, and a rolling vortex ring blows off its rim and sweeps everything outward",
       "key": "",
       "accent": "#d9fff6",
       "cast": "zone",
@@ -2617,9 +2617,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 111,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14C36 14 32 26 32 40C32 56 28 64 18 70H82C72 64 68 56 68 40C68 26 64 14 50 14Z\"/><ellipse cx=\"50\" cy=\"82\" rx=\"38\" ry=\"8\"/><circle cx=\"50\" cy=\"74\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/shearwall",
@@ -2629,7 +2629,7 @@
       "kind": "ability",
       "element": "wind",
       "label": "Shear Wall",
-      "hint": "Wind — a wall of shear snaps laterally down the cast",
+      "hint": "Wind — a pleated wall of air ploughs down the cast, its layers snapping sideways against each other, and tears in two at the end",
       "key": "",
       "accent": "#f4fffd",
       "cast": "line",
@@ -2637,10 +2637,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 95,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 58C28 40 40 70 54 48C66 32 74 60 88 42\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 22H58M30 40H70M18 58H58M30 76H70\"/><path d=\"M62 18L70 22L62 26M74 36L82 40L74 44\"/><path d=\"M26 54L18 58L26 62M38 72L30 76L38 80\"/></svg>"
     },
     {
       "uid": "codex/dustmarch",
@@ -2650,7 +2650,7 @@
       "kind": "ability",
       "element": "wind",
       "label": "Dust Devil March",
-      "hint": "Wind — a march of dust devils crowns the circle and walks it",
+      "hint": "Wind — a gust splits into a ring of dust devils that crown the circle and march round its rim, flinging whoever they pass",
       "key": "",
       "accent": "#efe6d4",
       "cast": "zone",
@@ -2659,9 +2659,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 5,
-      "controls": 66,
+      "controls": 120,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 22H46M24 30H44M27 38H41M30 46H38M32 54H36\"/><path d=\"M56 30H80M58 38H78M61 46H75M64 54H72M66 62H70\"/><ellipse cx=\"50\" cy=\"80\" rx=\"40\" ry=\"10\"/><path d=\"M34 62L34 72M68 70V74\"/></svg>"
     },
     {
       "uid": "codex/harmonic",
@@ -2671,7 +2671,7 @@
       "kind": "ability",
       "element": "wind",
       "label": "Harmonic Reed",
-      "hint": "Wind — reeds of harmonic air stand up and ring",
+      "hint": "Wind — reeds of streaming air sprout in a spiral and ring, shedding rings of sound until the chord lifts everything in the circle",
       "key": "",
       "accent": "#e7fff8",
       "cast": "zone",
@@ -2680,9 +2680,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "controls": 66,
+      "controls": 109,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 86V40M42 86V22M54 86V30M66 86V48\"/><path d=\"M22 40H38M34 22H50M46 30H62M58 48H74\"/><path d=\"M14 86H86\"/></svg>"
     },
     {
       "uid": "codex/briar",
@@ -2692,7 +2692,7 @@
       "kind": "ability",
       "element": "nature",
       "label": "Briar Cathedral",
-      "hint": "Nature — a cathedral of briar rises and closes over the circle",
+      "hint": "Nature — ribs of briar rise round the circle and close over it into a thorned vault, light falling through as a rose window",
       "key": "",
       "accent": "#8ee07a",
       "cast": "zone",
@@ -2701,9 +2701,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.8,
-      "controls": 66,
+      "controls": 148,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 88C18 50 30 24 50 10C70 24 82 50 82 88\"/><path d=\"M34 88C34 56 40 34 50 20C60 34 66 56 66 88\"/><circle cx=\"50\" cy=\"66\" r=\"10\"/><path d=\"M50 56V76M40 66H60\"/><path d=\"M14 88H86\"/><path d=\"M24 48L18 44M76 48L82 44M28 32L23 27M72 32L77 27\"/></svg>"
     },
     {
       "uid": "codex/mycelium",
@@ -2713,7 +2713,7 @@
       "kind": "ability",
       "element": "nature",
       "label": "Mycelium Wake",
-      "hint": "Nature — mycelium wakes along the line and fruits where it hits",
+      "hint": "Nature — glowing mycelium races down the line under the floor and fruits where it arrives, a cluster of cordyceps that overgrows and spores",
       "key": "",
       "accent": "#d6ff9a",
       "cast": "line",
@@ -2721,10 +2721,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 143,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14L62 50L50 86L38 50Z\"/><path d=\"M18 50H82\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 82C26 78 40 86 58 80\"/><path d=\"M8 88C28 90 44 82 60 86\"/><path d=\"M24 80L20 72M40 84L44 76\"/><path d=\"M70 86V48C70 40 64 34 66 26\"/><path d=\"M80 86V56C80 50 86 44 84 36\"/><path d=\"M74 60L64 52M82 62L90 54\"/><ellipse cx=\"66\" cy=\"22\" rx=\"4\" ry=\"7\"/><ellipse cx=\"84\" cy=\"32\" rx=\"4\" ry=\"6\"/></svg>"
     },
     {
       "uid": "codex/thornvolley",
@@ -2734,7 +2734,7 @@
       "kind": "ability",
       "element": "nature",
       "label": "Thorn Volley",
-      "hint": "Nature — a volley of thorns arcs and pins",
+      "hint": "Nature — a fan of great thorns arcs down the line and drives into the floor, pinning whoever they land by",
       "key": "",
       "accent": "#b6f29a",
       "cast": "line",
@@ -2742,10 +2742,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 121,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 70C30 30 60 18 88 22\"/><path d=\"M14 84C36 52 62 44 88 44\"/><path d=\"M88 22L80 16M88 22L82 30\"/><path d=\"M88 44L80 38M88 44L80 50\"/><path d=\"M40 36L36 30M58 26L56 20M44 56L40 50M64 48L62 42\"/><path d=\"M8 94H92\"/></svg>"
     },
     {
       "uid": "codex/bloomcrown",
@@ -2755,7 +2755,7 @@
       "kind": "ability",
       "element": "nature",
       "label": "Bloom Crown",
-      "hint": "Nature — a crown of blooms orbits, then slams into seed",
+      "hint": "Nature — a crown of blossoms orbits over the circle, gathers into one seed and slams it into the floor",
       "key": "",
       "accent": "#ffd0ea",
       "cast": "zone",
@@ -2764,9 +2764,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 151,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"50\" cy=\"34\" rx=\"34\" ry=\"10\"/><circle cx=\"16\" cy=\"34\" r=\"6\"/><circle cx=\"84\" cy=\"34\" r=\"6\"/><circle cx=\"50\" cy=\"24\" r=\"6\"/><circle cx=\"30\" cy=\"43\" r=\"5\"/><circle cx=\"70\" cy=\"43\" r=\"5\"/><path d=\"M50 52V80\"/><path d=\"M42 72L50 84L58 72\"/><path d=\"M26 88H74\"/></svg>"
     },
     {
       "uid": "codex/acidchoir",
@@ -2776,7 +2776,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Acid Choir",
-      "hint": "Poison — a choir of acid rings walks outward and eats the stone",
+      "hint": "Poison — a font of acid sings rings of acid out across the circle, one voice after another, eating the stone",
       "key": "",
       "accent": "#d6ff4a",
       "cast": "zone",
@@ -2785,9 +2785,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 91,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"8\"/><path d=\"M50 30C61 30 70 39 70 50C70 61 61 70 50 70C39 70 30 61 30 50C30 39 39 30 50 30Z\" stroke-dasharray=\"6 4\"/><path d=\"M50 14C70 14 86 30 86 50C86 70 70 86 50 86C30 86 14 70 14 50C14 30 30 14 50 14Z\"/></svg>"
     },
     {
       "uid": "codex/bilelance",
@@ -2797,7 +2797,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Bile Lance",
-      "hint": "Poison — a lance of bile drills the line",
+      "hint": "Poison — a spinning drill of bile screws down the line, bores into the floor and erupts",
       "key": "",
       "accent": "#c6f25a",
       "cast": "line",
@@ -2805,10 +2805,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 130,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14L62 50L50 86L38 50Z\"/><path d=\"M18 50H82\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 50L70 38L92 50L70 62Z\"/><path d=\"M30 46L36 54M44 43L50 57M58 40L64 60\"/><path d=\"M8 40C14 44 14 56 8 60\"/></svg>"
     },
     {
       "uid": "codex/sporecoffin",
@@ -2818,7 +2818,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Spore Coffin",
-      "hint": "Poison — a coffin of spores cages the circle and bursts",
+      "hint": "Poison — fungal ribs sprout round the circle, close over it like a cage, fill with spores and burst",
       "key": "",
       "accent": "#b6e24a",
       "cast": "zone",
@@ -2827,9 +2827,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "controls": 66,
+      "controls": 107,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 86C20 50 34 22 50 12C66 22 80 50 80 86\"/><path d=\"M34 86C34 56 42 30 50 12C58 30 66 56 66 86\"/><path d=\"M50 12V86\"/><path d=\"M14 86H86\"/><circle cx=\"34\" cy=\"62\" r=\"4\"/><circle cx=\"64\" cy=\"48\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/noxioushalo",
@@ -2839,7 +2839,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Noxious Halo",
-      "hint": "Poison — a noxious halo tightens, then pops",
+      "hint": "Poison — a ring of churning gas hangs over the circle trailing a curtain of fume, tightens like a noose, then pops",
       "key": "",
       "accent": "#e4ff8a",
       "cast": "zone",
@@ -2848,9 +2848,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.5,
-      "controls": 66,
+      "controls": 112,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"50\" cy=\"34\" rx=\"34\" ry=\"11\"/><path d=\"M20 40L30 82M34 44L38 86M50 46V88M66 44L62 86M80 40L70 82\"/></svg>"
     },
     {
       "uid": "codex/vitriol",
@@ -2860,7 +2860,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Vitriol Rain",
-      "hint": "Poison — vitriol rains inside the circle and pits the ground",
+      "hint": "Poison — a sick cloud gathers over the circle and rains vitriol that pits the ground",
       "key": "",
       "accent": "#d2ff55",
       "cast": "zone",
@@ -2869,9 +2869,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.8,
-      "controls": 66,
+      "controls": 105,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M24 40C24 28 36 22 46 26C52 14 72 16 74 30C86 30 88 46 76 48H28C20 48 18 42 24 40Z\"/><path d=\"M32 58L28 70M48 58L44 74M64 58L60 70M40 78L38 84M58 78L56 86\"/></svg>"
     },
     {
       "uid": "codex/haloguillotine",
@@ -2881,7 +2881,7 @@
       "kind": "ability",
       "element": "light",
       "label": "Halo Guillotine",
-      "hint": "Light — a halo hinges into a guillotine and swings the line",
+      "hint": "Light — a halo hinges down beside you, grows a blade of light up the line and swings it shut like a guillotine",
       "key": "",
       "accent": "#fff4c8",
       "cast": "line",
@@ -2889,10 +2889,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 123,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"20\" cy=\"78\" r=\"9\"/><path d=\"M26 72L86 22\"/><path d=\"M28 80C50 74 72 54 86 22\"/><path d=\"M8 92H94\"/></svg>"
     },
     {
       "uid": "codex/reliquarydawn",
@@ -2902,7 +2902,7 @@
       "kind": "ability",
       "element": "light",
       "label": "Reliquary Dawn",
-      "hint": "Light — a reliquary of dawn stands up and washes the circle",
+      "hint": "Light — a gilded reliquary rises out of the circle, its sun-relic kindles, the windows fall open and dawn washes the circle",
       "key": "",
       "accent": "#ffe9a8",
       "cast": "zone",
@@ -2911,9 +2911,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 118,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 6L64 24H36Z\"/><path d=\"M32 30H68V78H32Z\"/><path d=\"M42 78V52C42 44 58 44 58 52V78\"/><path d=\"M24 84H76\"/><circle cx=\"50\" cy=\"38\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/horizon",
@@ -2923,7 +2923,7 @@
       "kind": "ability",
       "element": "cosmic",
       "label": "Event Horizon",
-      "hint": "Cosmic — an event horizon draws the circle in and shears it",
+      "hint": "Cosmic — a wall of black stands round the circle, draws it closed like a drawstring, and is sheared apart by a plane of light",
       "key": "",
       "accent": "#c9b6ff",
       "cast": "zone",
@@ -2932,9 +2932,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 5,
-      "controls": 66,
+      "controls": 111,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"50\" cy=\"26\" rx=\"30\" ry=\"8\"/><path d=\"M20 26V74\"/><path d=\"M80 26V74\"/><ellipse cx=\"50\" cy=\"74\" rx=\"30\" ry=\"8\"/><path d=\"M8 52H92\"/></svg>"
     },
     {
       "uid": "codex/pulsar",
@@ -2944,7 +2944,7 @@
       "kind": "ability",
       "element": "cosmic",
       "label": "Pulsar Lash",
-      "hint": "Cosmic — a pulsar lashes the line in a hard whip",
+      "hint": "Cosmic — a spinning neutron star rides the line, its twin beams lashing the floor, then quakes and pins the target",
       "key": "",
       "accent": "#d8ccff",
       "cast": "line",
@@ -2952,10 +2952,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 136,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14L62 50L50 86L38 50Z\"/><path d=\"M18 50H82\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"7\"/><path d=\"M50 50C40 34 22 26 10 30\"/><path d=\"M50 50C60 66 78 74 90 70\"/><path d=\"M38 62C30 56 30 44 38 38\"/><path d=\"M62 38C70 44 70 56 62 62\"/></svg>"
     },
     {
       "uid": "codex/darkwell",
@@ -2965,7 +2965,7 @@
       "kind": "ability",
       "element": "cosmic",
       "label": "Dark Matter Well",
-      "hint": "Cosmic — a well of dark matter swallows the circle from the rim",
+      "hint": "Cosmic — the floor sags into a gravity well and a wall of dark matter closes from the rim, swallowing everything inside",
       "key": "",
       "accent": "#1c1030",
       "cast": "zone",
@@ -2974,9 +2974,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.8,
-      "controls": 66,
+      "controls": 113,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"14\"/><circle cx=\"50\" cy=\"50\" r=\"28\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"34\"/><ellipse cx=\"50\" cy=\"50\" rx=\"34\" ry=\"10\"/><path d=\"M16 50C30 52 40 58 46 84M84 50C70 52 60 58 54 84\"/><circle cx=\"50\" cy=\"50\" r=\"5\"/></svg>"
     },
     {
       "uid": "codex/cometharpoon",
@@ -2986,7 +2986,7 @@
       "kind": "ability",
       "element": "cosmic",
       "label": "Comet Harpoon",
-      "hint": "Cosmic — a comet harpoon rides the line and blooms on impact",
+      "hint": "Cosmic — a harpoon of comet ice flies the line on a tether of starlight, drives in and blooms into petals of ice",
       "key": "",
       "accent": "#ffe1a8",
       "cast": "line",
@@ -2994,10 +2994,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 147,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 86L70 30\"/><path d=\"M70 30L84 16L80 34Z\"/><path d=\"M62 30L72 22\"/><path d=\"M70 38L78 28\"/><path d=\"M14 86C30 90 44 84 52 74\"/><circle cx=\"78\" cy=\"22\" r=\"10\"/></svg>"
     },
     {
       "uid": "codex/orbitlock",
@@ -3007,7 +3007,7 @@
       "kind": "ability",
       "element": "cosmic",
       "label": "Orbit Lock",
-      "hint": "Cosmic — orbits lock above the circle, then drop into one ring",
+      "hint": "Cosmic — a star bursts into planets on tilted orbits above the circle; the orbits lock into one ring and it slams down",
       "key": "",
       "accent": "#e7deff",
       "cast": "zone",
@@ -3016,9 +3016,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 110,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><ellipse cx=\"50\" cy=\"50\" rx=\"34\" ry=\"12\" transform=\"rotate(-25 50 50)\"/><circle cx=\"80\" cy=\"50\" r=\"5\"/><circle cx=\"26\" cy=\"64\" r=\"4\"/><circle cx=\"50\" cy=\"50\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/umbral",
@@ -3028,7 +3028,7 @@
       "kind": "ability",
       "element": "shadow",
       "label": "Umbral Guillotine",
-      "hint": "Shadow — an umbral blade swings across the line",
+      "hint": "Shadow — a crescent headsman's blade of shadow swings side to side across the line, then chops down into the target",
       "key": "",
       "accent": "#c4b6ff",
       "cast": "line",
@@ -3036,10 +3036,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 94,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8V46\"/><circle cx=\"50\" cy=\"8\" r=\"5\"/><path d=\"M18 52C24 86 76 86 82 52C72 70 28 70 18 52Z\"/></svg>"
     },
     {
       "uid": "codex/voidbloom",
@@ -3049,7 +3049,7 @@
       "kind": "ability",
       "element": "shadow",
       "label": "Void Bloom",
-      "hint": "Shadow — a void bloom opens and pulls the circle into its throat",
+      "hint": "Shadow — a black flower bursts from the floor and opens; its throat pulls the circle in, then the petals snap shut and sink",
       "key": "",
       "accent": "#6a5cff",
       "cast": "zone",
@@ -3058,9 +3058,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 102,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"14\"/><circle cx=\"50\" cy=\"50\" r=\"28\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 82C34 64 30 40 50 18C70 40 66 64 50 82Z\"/><path d=\"M50 82C30 76 14 58 16 40C34 44 46 60 50 82Z\"/><path d=\"M50 82C70 76 86 58 84 40C66 44 54 60 50 82Z\"/><circle cx=\"50\" cy=\"82\" r=\"4\"/></svg>"
     },
     {
       "uid": "codex/shadepuppet",
@@ -3070,7 +3070,7 @@
       "kind": "ability",
       "element": "shadow",
       "label": "Shade Puppets",
-      "hint": "Shadow — shade puppets crown the circle and fall inward",
+      "hint": "Shadow — shade marionettes are hauled up round the circle on glowing strings, dance, and are yanked inward to fall",
       "key": "",
       "accent": "#b7a6ff",
       "cast": "zone",
@@ -3079,9 +3079,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 140,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M26 14H74\"/><path d=\"M34 14L30 6M50 14V4M66 14L70 6\"/><path d=\"M34 14L38 44M50 14V36M66 14L62 44\"/><circle cx=\"50\" cy=\"40\" r=\"5\"/><path d=\"M50 45V66M38 50L50 48L62 50M44 84L50 66L56 84\"/></svg>"
     },
     {
       "uid": "codex/eclipseneedle",
@@ -3091,7 +3091,7 @@
       "kind": "ability",
       "element": "shadow",
       "label": "Eclipse Needle",
-      "hint": "Shadow — an eclipse needle drills the line and leaves a dark wake",
+      "hint": "Shadow — a needle tipped with an eclipse drills down the line, leaving a hanging wake of darkness; at the target it flares to totality",
       "key": "",
       "accent": "#d9d0ff",
       "cast": "line",
@@ -3099,10 +3099,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 91,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"72\" cy=\"28\" r=\"12\"/><circle cx=\"72\" cy=\"28\" r=\"19\"/><path d=\"M64 36L14 86\"/><path d=\"M58 30L24 64M70 42L36 76\"/></svg>"
     },
     {
       "uid": "codex/hemorrhage",
@@ -3112,7 +3112,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Hemorrhage Ring",
-      "hint": "Blood — a hemorrhage ring races the rim and bursts inward",
+      "hint": "Blood — a hemorrhage races the rim, stands up into a spinning wall and bursts inward",
       "key": "",
       "accent": "#ff4d68",
       "cast": "zone",
@@ -3121,9 +3121,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.5,
-      "controls": 66,
+      "controls": 114,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"54\" r=\"32\"/><path d=\"M82 54C82 40 74 28 62 24\"/><circle cx=\"60\" cy=\"23\" r=\"5\"/><path d=\"M50 30V44M26 54H38M74 54H62M50 78V64\"/><path d=\"M50 54V36\"/></svg>"
     },
     {
       "uid": "codex/clotarmor",
@@ -3133,7 +3133,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Clot Armor",
-      "hint": "Blood — clot plates stand up into armor around the circle",
+      "hint": "Blood — a carapace of clotted plates stands up round the circle and locks shut",
       "key": "",
       "accent": "#ff3355",
       "cast": "zone",
@@ -3142,9 +3142,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "controls": 66,
+      "controls": 122,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M38 86V28L50 14L62 28V86\"/><path d=\"M30 86H70\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 84C26 60 30 38 42 20\"/><path d=\"M70 84C74 60 70 38 58 20\"/><path d=\"M42 84C40 62 44 42 50 28C56 42 60 62 58 84\"/><path d=\"M24 86H76\"/></svg>"
     },
     {
       "uid": "codex/arterial",
@@ -3154,7 +3154,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Arterial Whip",
-      "hint": "Blood — an arterial whip cracks down the line",
+      "hint": "Blood — an artery pays out of the wrist, arches overhead and slams down the line, spraying blood",
       "key": "",
       "accent": "#ff2a4a",
       "cast": "line",
@@ -3162,10 +3162,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 121,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 14L62 50L50 86L38 50Z\"/><path d=\"M18 50H82\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 78C20 40 40 18 60 22C76 26 82 44 88 82\"/><circle cx=\"30\" cy=\"40\" r=\"4\"/><circle cx=\"46\" cy=\"25\" r=\"4\"/><circle cx=\"64\" cy=\"24\" r=\"4\"/><circle cx=\"78\" cy=\"38\" r=\"4\"/><path d=\"M84 86L90 74M88 88L96 82M80 88L78 96\"/></svg>"
     },
     {
       "uid": "codex/baptism",
@@ -3175,7 +3175,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Crimson Baptism",
-      "hint": "Blood — a crimson baptism fountains and falls back as rain",
+      "hint": "Blood — a crimson fountain bursts up out of the circle and falls back over it as rain",
       "key": "",
       "accent": "#ff5a72",
       "cast": "zone",
@@ -3184,9 +3184,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 121,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 58C28 40 40 70 54 48C66 32 74 60 88 42\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 88V30\"/><path d=\"M50 30C40 18 22 22 16 44\"/><path d=\"M50 30C60 18 78 22 84 44\"/><path d=\"M14 54V60M26 60V66M74 60V66M86 54V60M38 66V72M62 66V72\"/><path d=\"M20 88H80\"/></svg>"
     },
     {
       "uid": "codex/heartstake",
@@ -3196,7 +3196,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Heartstake",
-      "hint": "Blood — a heartstake flies the line and roots",
+      "hint": "Blood — a barbed heartstake flies the line, drives into the target and roots there, beating",
       "key": "",
       "accent": "#ff2244",
       "cast": "line",
@@ -3204,10 +3204,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 144,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 86L70 30\"/><path d=\"M70 30L88 12L80 36Z\"/><path d=\"M52 48L60 40M44 56L52 48\"/><path d=\"M26 66C18 60 20 50 28 52C30 44 40 46 36 56C34 62 28 66 26 66Z\"/></svg>"
     },
     {
       "uid": "codex/veinlattice",
@@ -3217,7 +3217,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Vein Lattice",
-      "hint": "Blood — a lattice of veins climbs out of the circle",
+      "hint": "Blood — a living lattice of veins climbs out of the circle and beats",
       "key": "",
       "accent": "#ff3b58",
       "cast": "zone",
@@ -3226,9 +3226,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 101,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 86C30 64 38 52 50 40C62 52 70 64 70 86\"/><path d=\"M50 40C44 30 38 22 30 16\"/><path d=\"M50 40C56 30 62 22 70 16\"/><path d=\"M38 64C46 58 54 58 62 64\"/></svg>"
     },
     {
       "uid": "codex/sigilgate",
@@ -3238,7 +3238,7 @@
       "kind": "ability",
       "element": "arcane",
       "label": "Sigil Gate",
-      "hint": "Arcane — a sigil gate stands and brands the circle",
+      "hint": "Arcane — a sigil gate rises, falls flat on the circle and brands it",
       "key": "",
       "accent": "#c9d2ff",
       "cast": "zone",
@@ -3247,9 +3247,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 102,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16L74 32V68L50 84L26 68V32Z\"/><circle cx=\"50\" cy=\"50\" r=\"8\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"44\" r=\"26\"/><circle cx=\"50\" cy=\"44\" r=\"9\"/><path d=\"M18 88V30M82 88V30\"/><path d=\"M12 88H88\"/></svg>"
     },
     {
       "uid": "codex/prismlie",
@@ -3259,7 +3259,7 @@
       "kind": "ability",
       "element": "arcane",
       "label": "Prism Lie",
-      "hint": "Arcane — three lying prisms take the same line and disagree",
+      "hint": "Arcane — three prisms braid down the line; two are lies, one shatters on the target",
       "key": "",
       "accent": "#d5dbff",
       "cast": "line",
@@ -3267,10 +3267,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 95,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8L58 50L50 92L42 50Z\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 10L60 26V74L50 90L40 74V26Z\"/><path d=\"M24 30L30 40V66L24 76L18 66V40Z\"/><path d=\"M76 30L82 40V66L76 76L70 66V40Z\"/></svg>"
     },
     {
       "uid": "codex/runemeteor",
@@ -3280,7 +3280,7 @@
       "kind": "ability",
       "element": "arcane",
       "label": "Rune Meteor",
-      "hint": "Arcane — a rune meteor drops into the circle and unfolds",
+      "hint": "Arcane — a rune-wrapped star drops into the circle, unfolds into a ring of standing stones, and detonates",
       "key": "",
       "accent": "#b7c3ff",
       "cast": "zone",
@@ -3289,9 +3289,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "controls": 66,
+      "controls": 121,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"14\"/><circle cx=\"50\" cy=\"50\" r=\"28\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 6V30\"/><path d=\"M50 30L58 40L50 50L42 40Z\"/><circle cx=\"50\" cy=\"66\" r=\"26\"/><path d=\"M50 40V92M24 66H76\"/><path d=\"M28 50L34 44M72 50L66 44M28 82L34 88M72 82L66 88\"/></svg>"
     },
     {
       "uid": "codex/mindlattice",
@@ -3301,7 +3301,7 @@
       "kind": "ability",
       "element": "arcane",
       "label": "Mind Lattice",
-      "hint": "Arcane — a lattice of thought cages the circle in light",
+      "hint": "Arcane — a turning tesseract of thought hangs over the circle and cages it in bars of light",
       "key": "",
       "accent": "#dfe4ff",
       "cast": "zone",
@@ -3310,9 +3310,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.5,
-      "controls": 66,
+      "controls": 88,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 22V78M50 16V84M70 22V78\"/><path d=\"M22 30H78M22 70H78\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M26 30H64V68H26Z\"/><path d=\"M38 20H76V58H38Z\"/><path d=\"M26 30L38 20M64 30L76 20M64 68L76 58M26 68L38 58\"/></svg>"
     },
     {
       "uid": "codex/secondself",
@@ -3322,7 +3322,7 @@
       "kind": "ability",
       "element": "time",
       "label": "Second Self",
-      "hint": "Time — a second self braids down the line a heartbeat late",
+      "hint": "Time — a golden second self steps out of you and runs the line a heartbeat behind its own footprints",
       "key": "",
       "accent": "#ffe2a8",
       "cast": "line",
@@ -3330,10 +3330,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 120,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"38\" cy=\"22\" r=\"7\"/><path d=\"M38 30L34 52L22 70M34 52L46 66M36 36L24 46M36 36L50 42\"/><circle cx=\"62\" cy=\"26\" r=\"7\" stroke-dasharray=\"3 4\"/><path d=\"M62 34L58 56L46 74M58 56L70 70M60 40L48 50M60 40L74 46\" stroke-dasharray=\"3 4\"/></svg>"
     },
     {
       "uid": "codex/rewindsnare",
@@ -3343,7 +3343,7 @@
       "kind": "ability",
       "element": "time",
       "label": "Rewind Snare",
-      "hint": "Time — the circle rewinds inward and snare-locks where it began",
+      "hint": "Time — film unspools across the circle, then rewinds, dragging all of it back to the centre and locking it in a cocoon of film",
       "key": "",
       "accent": "#ffd98a",
       "cast": "zone",
@@ -3352,9 +3352,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.6,
-      "controls": 66,
+      "controls": 97,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 50m-4 0a4 4 0 1 0 8 0a8 8 0 1 0 -16 0a12 12 0 1 0 24 0a16 16 0 1 0 -32 0a20 20 0 1 0 40 0a24 24 0 1 0 -48 0\"/><path d=\"M84 30L76 38L86 42\"/></svg>"
     },
     {
       "uid": "codex/pendulum",
@@ -3364,7 +3364,7 @@
       "kind": "ability",
       "element": "time",
       "label": "Pendulum Cleaver",
-      "hint": "Time — a pendulum cleaves the cast on a slowing swing",
+      "hint": "Time — a crescent pendulum swings down the line, slower every pass, stalls, then cleaves",
       "key": "",
       "accent": "#ffe7b8",
       "cast": "line",
@@ -3372,10 +3372,10 @@
       "cooldown": 0.6,
       "range": 18,
       "minRange": 2,
-      "zoneRadius": 0,
-      "controls": 66,
+      "zoneRadius": null,
+      "controls": 128,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 78C28 40 70 28 78 48C84 64 60 70 50 58\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 8V58\"/><circle cx=\"50\" cy=\"8\" r=\"5\"/><path d=\"M22 60C30 78 70 78 78 60C66 68 34 68 22 60Z\"/><path d=\"M18 40C24 52 30 58 40 62\" stroke-dasharray=\"4 5\"/></svg>"
     },
     {
       "uid": "codex/stasisbell",
@@ -3385,7 +3385,7 @@
       "kind": "ability",
       "element": "time",
       "label": "Stasis Bell",
-      "hint": "Time — a stasis bell rings the rim and holds the circle",
+      "hint": "Time — a brass bell tolls over the circle; tines round the rim ring with it and hold everything inside still",
       "key": "",
       "accent": "#fff0cc",
       "cast": "zone",
@@ -3394,9 +3394,9 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.4,
-      "controls": 66,
+      "controls": 118,
       "status": "live",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"30\"/><path d=\"M50 20V34M50 66V80M20 50H34M66 50H80\"/></svg>"
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M34 64C34 40 38 26 50 26C62 26 66 40 66 64Z\"/><path d=\"M28 66H72\"/><circle cx=\"50\" cy=\"72\" r=\"4\"/><path d=\"M50 18V26\"/><path d=\"M14 80V62M20 80V62M80 80V62M86 80V62\"/><path d=\"M20 70C34 74 66 74 80 70\" stroke-dasharray=\"3 3\"/></svg>"
     },
     {
       "uid": "linear/archive/fire",

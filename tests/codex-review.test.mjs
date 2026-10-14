@@ -8,24 +8,29 @@ import { markLookPointer, isTapCast } from '../packs/sandbox/src/input/TouchCont
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const abilityDir = path.join(root, 'packs/sandbox/src/abilities/codex');
 const configDir = path.join(root, 'packs/sandbox/src/config/codex');
-const SHAPES = ['SOFT', 'SMOKE', 'STREAK', 'LEAF', 'CHIP', 'RING', 'BUBBLE', 'DROPLET'];
+const materialDir = path.join(root, 'packs/sandbox/src/materials/codex');
 
-test('generated tenth specs keep the particle the engine reads', async () => {
-  const files = readdirSync(abilityDir).filter((name) => {
-    const src = readFileSync(path.join(abilityDir, name), 'utf8');
-    return src.includes("from './TenthEngine.js'") && src.includes('makeAbility(spec)');
-  });
-  assert.equal(files.length, 50);
-  const seen = new Set();
+test('every codex ability is bespoke: its own class, shaders and full editor', async () => {
+  const files = readdirSync(abilityDir).filter((name) => name.endsWith('Ability.js'));
+  assert.equal(files.length, 72);
+  const materials = new Set(readdirSync(materialDir));
   for (const name of files) {
     const src = readFileSync(path.join(abilityDir, name), 'utf8');
-    const id = src.match(/config\/codex\/([a-z0-9]+)\.js/)[1];
+    const cls = name.replace(/\.js$/, '');
+    const stem = cls.replace(/Ability$/, '');
+    assert.ok(!/TenthEngine|TenthMaterials|makeAbility\(/.test(src), `${cls} is not a shared-engine wrapper`);
+    assert.match(src, new RegExp(`export class ${cls} extends Ability`), `${cls} class`);
+    assert.match(src, /export function buildEditor\(gui, c, Editor\)/, `${cls} editor`);
+    assert.ok(materials.has(`${stem}Materials.js`), `${cls} has its own materials`);
+    const shaders = readFileSync(path.join(materialDir, `${stem}Materials.js`), 'utf8');
+    assert.ok((shaders.match(/new ShaderMaterial\(/g) ?? []).length >= 2, `${cls} writes its own GLSL`);
+    assert.ok(src.split('\n').length >= 400, `${cls} is a full ability, not a wrapper`);
+    assert.ok((src.match(/\.addFolder\(/g) ?? []).length >= 4, `${cls} editor has a folder per layer`);
+    const id = src.match(/export const ID = '([a-z0-9]+)'/)?.[1];
+    assert.ok(id, `${cls} ID`);
     const spec = (await import(pathToFileURL(path.join(configDir, `${id}.js`)).href)).default;
-    assert.ok(SHAPES.includes(spec.particle), `${id} particle`);
-    seen.add(spec.particle);
-  }
-  for (const shape of ['SMOKE', 'LEAF', 'CHIP', 'RING', 'BUBBLE', 'DROPLET']) {
-    assert.ok(seen.has(shape), shape);
+    assert.equal(spec.id, id, `${cls} config id`);
+    assert.ok(!('particle' in spec), `${cls} config drops the shared-engine particle key`);
   }
 });
 
