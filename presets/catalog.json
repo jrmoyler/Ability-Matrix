@@ -3488,7 +3488,7 @@
       "id": "idle",
       "kind": "move",
       "label": "Idle",
-      "hint": "Idle.fbx — the rig and its idle loop, shared by every pack",
+      "hint": "Soldier.glb — the PBR caster and its idle loop, shared by every pack",
       "cast": "move",
       "status": "live"
     },
