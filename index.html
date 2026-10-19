@@ -81,6 +81,10 @@ button { cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--muted); }
 .chip[aria-pressed="true"] { color: var(--ink); background: var(--fg); border-color: var(--fg); }
+.chip.tone { color: var(--chip); border-color: var(--chip); }
+.chip.tone[aria-pressed="true"] { color: var(--ink); background: var(--chip); border-color: var(--chip); }
+.extra-filters { display: flex; flex-direction: column; gap: 8px; }
+.filters-toggle { display: none; align-self: flex-start; }
 .viewbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .count { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .list { overflow: auto; min-height: 0; flex: 1; }
@@ -94,6 +98,7 @@ button { cursor: pointer; }
 .card .n { font-weight: 600; font-size: 13px; line-height: 1.15; overflow-wrap: anywhere; }
 .card .m { font: 10px var(--mono); color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .card.sel { border-color: var(--a); box-shadow: 0 0 0 1px var(--a) inset; }
+.card, tbody tr { scroll-margin: 36px 0; }
 .card.archived { opacity: 0.55; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex: none; }
 .dot.done { background: var(--ok); }
@@ -137,7 +142,9 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
   }
   .now h2 { font-size: 18px; }
   .now .sigil { width: 34px; height: 34px; }
-  .now p, .note { display: none; }
+  .now p, .stage .note { display: none; }
+  .filters-toggle { display: inline-block; }
+  body:not(.filters-open) .extra-filters { display: none; }
   .btn { min-height: 40px; flex: none; }
   .controls { gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
   body:not(.dock-open) .controls-extra,
@@ -207,9 +214,12 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     <div class="filters">
       <input class="search" id="q" type="search" placeholder="Search &mdash; fire, frost, summon, chain, cast3&hellip;" aria-label="Search abilities">
       <div class="chips" id="elementChips" aria-label="Elements"></div>
-      <div class="chips" id="kindChips"></div>
-      <div class="chips" id="castChips"></div>
-      <div class="chips" id="packChips"></div>
+      <div class="chips" id="kindChips" aria-label="Ability types"></div>
+      <button type="button" class="chip filters-toggle" id="filtersToggle" aria-expanded="false" aria-controls="extraFilters">Filters</button>
+      <div class="extra-filters" id="extraFilters">
+        <div class="chips" id="castChips" aria-label="Cast aim"></div>
+        <div class="chips" id="packChips" aria-label="Packs"></div>
+      </div>
     </div>
     <div class="viewbar">
       <span class="count" id="count"></span>
@@ -247,17 +257,52 @@ const svg = (a) => a.glyph ? a.glyph.replace(/class="glyph-svg"/, '') : '<svg vi
 const castable = (a) => a.status === 'live' && (a.kind === 'ability' || a.kind === 'summon' || a.kind === 'buff');
 
 /* ---------- stage messaging ---------- */
+/** One sandbox hosts every ability; it boots once and is never reloaded. */
 const frame = $('stage');
 function send(msg) {
   if (!ready) { pending.push(msg); return; }
   frame.contentWindow.postMessage(msg, '*');
 }
-/** One sandbox hosts every ability; it boots once and is never reloaded. */
+/** True when the URL is the staged binary, not an HTML fallback. */
+async function bodyLooksLikeHtml(url) {
+  try {
+    const r = await fetch(url, { headers: { Range: 'bytes=0-79' } });
+    if (r.status === 404 || r.status === 410 || (!r.ok && r.status !== 206)) return true;
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    const head = new TextDecoder().decode(bytes.slice(0, 80)).trimStart().toLowerCase();
+    return head.startsWith('<!doctype') || head.startsWith('<html') || head.startsWith('<head');
+  } catch { return true; }
+}
+/**
+ * Staged publishes rename the HDR to `.hdr.wasm` and the sandbox only
+ * rewrites fetches when `bin=wasm` is set. A source checkout has no such
+ * file (a dev server may even answer with its HTML shell), and passing the
+ * flag there makes HDRLoader die on the first token.
+ */
+async function wasmBinSuffix() {
+  const url = 'packs/sandbox/hdri/spruit_sunrise.hdr.wasm';
+  try {
+    const head = await fetch(url, { method: 'HEAD' });
+    if (head.status === 404 || head.status === 410) return '';
+    const type = (head.headers.get('content-type') || '').toLowerCase();
+    if (head.ok && type && !type.includes('text/html')) return '&bin=wasm';
+    if (head.ok || head.status === 405 || head.status === 501) {
+      return (await bodyLooksLikeHtml(url)) ? '' : '&bin=wasm';
+    }
+    return '';
+  } catch { return ''; }
+}
 function boot(query = '') {
   if (livePack) return;
   livePack = 'sandbox'; ready = false;
   $('loading').hidden = false;
-  frame.src = `packs/sandbox/index.html?hud=0&bin=wasm${query}`;
+  const q = query || '';
+  wasmBinSuffix().then((suffix) => {
+    if (frame.getAttribute('src')) return;
+    frame.src = `packs/sandbox/index.html?hud=0${suffix}${q}`;
+  }).catch(() => {
+    if (!frame.getAttribute('src')) frame.src = `packs/sandbox/index.html?hud=0${q}`;
+  });
 }
 window.addEventListener('message', (e) => {
   const d = e.data; if (!d || typeof d.matrix !== 'string') return;
@@ -279,7 +324,7 @@ window.addEventListener('message', (e) => {
 function markTried(a) { tried.add(a.uid); store.set('tried', [...tried]); document.querySelectorAll(`[data-uid="${CSS.escape(a.uid)}"] .dot`).forEach((n) => n.classList.add('done')); updateTally(); }
 
 /* ---------- selection ---------- */
-function select(a, { cast = false } = {}) {
+function select(a, { cast = false, scroll = false } = {}) {
   current = a;
   $('presetHelp').innerHTML = "The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with its engine's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.";
   document.documentElement.style.setProperty('--a', a.accent || 'var(--accent)');
@@ -301,6 +346,10 @@ function select(a, { cast = false } = {}) {
   $('facts').innerHTML = f.join('');
   document.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel'));
   document.querySelectorAll(`[data-uid="${CSS.escape(a.uid)}"]`).forEach((n) => n.classList.add('sel'));
+  if (scroll) {
+    const node = document.querySelector(`#list [data-uid="${CSS.escape(a.uid)}"]`);
+    if (node) node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
 
   const live = a.status === 'live';
   ['castBtn', 'autoBtn', 'presetBtn'].forEach((id) => ($(id).disabled = !live));
@@ -402,7 +451,7 @@ $('gauntletBtn').onclick = () => {
     // The first ability of an engine loads that engine, so give it longer.
     const fresh = !gauntlet.seen.has(a.pack);
     gauntlet.seen.add(a.pack);
-    select(a, { cast: true });
+    select(a, { cast: true, scroll: true });
     gauntlet.t = setTimeout(step, fresh ? 12000 : 7000);
   };
   step();
@@ -419,8 +468,11 @@ function visible() {
     (!q || [a.label, a.hint, a.id, a.pack, a.cast, a.castAnim, a.key, a.element, elements[a.element]?.label].join(' ').toLowerCase().includes(q))
   );
 }
-function chips(el, entries, set, single = false) {
-  el.innerHTML = entries.map(([v, label]) => `<button class="chip" data-v="${v}" aria-pressed="${set.has(v)}">${label}</button>`).join('');
+function chips(el, entries, set, accents) {
+  el.innerHTML = entries.map(([v, label]) => {
+    const accent = accents && /^#[0-9a-fA-F]{3,8}$/.test(accents[v] || '') ? accents[v] : '';
+    return `<button class="chip${accent ? ' tone' : ''}"${accent ? ` style="--chip:${accent}"` : ''} data-v="${v}" aria-pressed="${set.has(v)}">${label}</button>`;
+  }).join('');
   el.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
     const v = c.dataset.v;
     if (set.has(v)) set.delete(v); else set.add(v);
@@ -428,10 +480,14 @@ function chips(el, entries, set, single = false) {
     render();
   }));
 }
+function emptyCopy() {
+  return filters.kind.size === 0 ? 'Turn an ability type back on' : 'Nothing matches \u2014 clear a filter.';
+}
 function render() {
   const items = visible();
   $('count').textContent = `${items.length} shown`;
   const list = $('list');
+  if (!items.length) { list.innerHTML = `<p class="note">${emptyCopy()}</p>`; return; }
   if (filters.view === 'table') {
     list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Element</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
       items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</td><td>${elements[a.element]?.label ?? ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
@@ -454,7 +510,7 @@ function render() {
       return `<div class="pack-head"><span>${title}</span>${link}</div><div class="cards">${
         members.map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}${filters.group === 'element' ? ` \u00b7 ${a.pack}` : ''}</span></button>`).join('')
       }</div>`;
-    }).join('') || '<p class="note">Nothing matches \u2014 clear a filter.</p>';
+    }).join('');
   }
   list.querySelectorAll('[data-uid]').forEach((n) => n.addEventListener('click', () => {
     const a = catalog.abilities.find((x) => x.uid === n.dataset.uid);
@@ -475,6 +531,28 @@ $('viewTable').onclick = () => { filters.view = 'table'; store.set('view', 'tabl
 function setGroup(g) { filters.group = g; store.set('group', g); $('groupElement').setAttribute('aria-pressed', g === 'element'); $('groupPack').setAttribute('aria-pressed', g === 'pack'); sortCatalog(); render(); }
 $('groupElement').onclick = () => setGroup('element');
 $('groupPack').onclick = () => setGroup('pack');
+$('filtersToggle').onclick = () => {
+  const open = document.body.classList.toggle('filters-open');
+  $('filtersToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  $('filtersToggle').setAttribute('aria-pressed', open ? 'true' : 'false');
+};
+function typingTarget(el) {
+  if (!el) return false;
+  if (el.id === 'q' || el.id === 'presetText' || el.isContentEditable) return true;
+  return !!(el.closest && el.closest('[contenteditable="true"]'));
+}
+window.addEventListener('keydown', (e) => {
+  if (e.key !== '[' && e.key !== ']') return;
+  if (e.metaKey || e.ctrlKey || e.altKey || typingTarget(e.target)) return;
+  if (!catalog) return;
+  const items = visible();
+  if (!items.length) return;
+  e.preventDefault();
+  let i = current ? items.findIndex((a) => a.uid === current.uid) : -1;
+  if (e.key === ']') i = i < 0 ? 0 : (i + 1) % items.length;
+  else i = i < 0 ? items.length - 1 : (i - 1 + items.length) % items.length;
+  select(items[i], { cast: true, scroll: true });
+});
 /** Element order (then pack order) for the element view; pack order for the pack view. */
 function sortCatalog() {
   const rank = (a) => { const i = ELEMENTS.findIndex((e) => e.id === a.element); return i < 0 ? ELEMENTS.length + (a.pack === 'moves' ? 2 : 1) : i; };
@@ -490,7 +568,7 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   for (const e of ELEMENTS) elements[e.id] = e;
   sortCatalog();
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
-  chips($('elementChips'), ELEMENTS.map((e) => [e.id, e.label]), filters.element);
+  chips($('elementChips'), ELEMENTS.map((e) => [e.id, e.label]), filters.element, Object.fromEntries(ELEMENTS.map((e) => [e.id, e.accent])));
   const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
   chips($('packChips'), PACK_ORDER.filter((p) => packs[p] && p !== 'moves').map((p) => [p, NEW_PACKS.includes(p) ? `${p} (new)` : p]), filters.pack);
