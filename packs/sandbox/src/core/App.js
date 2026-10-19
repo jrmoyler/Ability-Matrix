@@ -715,7 +715,7 @@ export class App {
       if (remaining > 0) this.cooldowns.set(element, Math.max(0, remaining - raw));
     }
 
-    this.ground.update(this.elapsed);
+    this.ground.update(this.elapsed, this.character ? this.character.position : null);
     this.dust.update(this.elapsed, this.character.position);
 
     this.abilities.update(dt);

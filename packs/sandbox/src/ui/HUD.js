@@ -27,7 +27,7 @@ export class HUD {
     root.innerHTML = `
       <div class="hud__panel hud__title">
         Ability Sandbox
-        <span data-blurb>Press Q E R F V X B Z N K Y U (or 1–0, -, =), aim, click to cast.</span>
+        <span data-blurb>This stage hosts every pack. [ ] cycles all of them; Q–U are only the twelve Collective originals. The matrix spellbook is the full list.</span>
       </div>
 
       <div class="hud__panel hud__stats">
@@ -38,11 +38,12 @@ export class HUD {
       </div>
 
       <div class="hud__panel hud__help">
-        <div><strong>[ / ]</strong> — previous / next ability, across every pack</div>
-        <div><strong>Q E R F V X B Z N K Y U</strong> — the twelve Collective originals</div>
+        <div>This stage hosts every pack.</div>
+        <div><strong>[ / ]</strong> — cycle all of them</div>
+        <div><strong>Q E R F V X B Z N K Y U</strong> — only the twelve Collective originals</div>
         <div><strong>W A S D</strong> — walk &nbsp; <strong>Shift</strong> — run &nbsp; <strong>Space</strong> — dash</div>
-        <div class="hud__help-note">On a phone: stick to move, drag the right side to look, tap to cast. Run and Dash sit in the corner.</div>
-        <div class="hud__help-note">The matrix lists every castable, ten in each element, with their presets.</div>
+        <div class="hud__help-note">Phone: stick to move, drag the right side to look, Run / Dash / Cast.</div>
+        <div class="hud__help-note">The matrix spellbook is the full list.</div>
         <div class="hud__help-note">Circle casts are aimed with a ring; the rest with the arrow.</div>
         <div><strong>Move</strong> — aim &nbsp; <strong>Left click</strong> — cast</div>
         <div><strong>Esc / right click</strong> — cancel the cast</div>
