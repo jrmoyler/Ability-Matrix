@@ -84,7 +84,7 @@ for (const [pack, id, label, hint] of archived) catalog.abilities.push({ uid: `$
 const MOVE_LABEL = { cast1: 'Cast gesture I', cast2: 'Cast gesture II', cast3: 'Cast gesture III' };
 // One sandbox, one caster: the character's moves are listed once.
 catalog.packs.push({ pack: 'moves', repo: '', title: 'Character & moves', castAnimations: ['cast1', 'cast2', 'cast3'], castShapes: [], count: 0 });
-catalog.abilities.push({ uid: 'moves/idle', pack: 'moves', id: 'idle', kind: 'move', label: 'Idle', hint: 'Idle.fbx — the rig and its idle loop, shared by every pack', cast: 'move', status: 'live' });
+catalog.abilities.push({ uid: 'moves/idle', pack: 'moves', id: 'idle', kind: 'move', label: 'Idle', hint: 'Soldier.glb — the PBR caster and its idle loop, shared by every pack', cast: 'move', status: 'live' });
 for (const a of ['cast1', 'cast2', 'cast3']) catalog.abilities.push({ uid: `moves/${a}`, pack: 'moves', id: a, kind: 'move', label: MOVE_LABEL[a], hint: `${a}.fbx — Mixamo cast clip, thrown with the cast lunge`, cast: 'move', status: 'live', move: a });
 catalog.abilities.push(
   { uid: 'moves/lunge', pack: 'moves', id: 'lunge', kind: 'move', label: 'Cast lunge', hint: 'Procedural body lunge thrown into every cast', cast: 'move', status: 'live', move: 'lunge' },

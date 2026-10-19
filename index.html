@@ -123,7 +123,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
 @media (max-width: 900px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(120px, 32dvh);
+    grid-template-rows: minmax(0, 1fr) minmax(200px, 42dvh);
     gap: 8px;
     padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
   }
@@ -145,6 +145,17 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
   .now p, .stage .note { display: none; }
   .filters-toggle { display: inline-block; }
   body:not(.filters-open) .extra-filters { display: none; }
+  /* The spellbook scrolls as one column on a phone, and every chip group is a
+     single swipeable row, so the filters can never squeeze the list to nothing. */
+  .book { overflow-y: auto; overscroll-behavior: contain; padding: 10px; gap: 8px; }
+  .filters { gap: 6px; }
+  .chips, .viewbar { flex-wrap: nowrap; }
+  #elementChips, .extra-filters .chips, .viewbar .chips { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  #elementChips::-webkit-scrollbar, .extra-filters .chips::-webkit-scrollbar, .viewbar .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; min-height: 32px; }
+  .list { flex: none; overflow: visible; min-height: 0; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .card { min-height: 48px; }
   .btn { min-height: 40px; flex: none; }
   .controls { gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
   body:not(.dock-open) .controls-extra,
@@ -153,7 +164,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
   body:not(.dock-open) #preset { display: none !important; }
 }
 @media (max-width: 900px) and (max-height: 520px) {
-  .app { grid-template-rows: minmax(0, 1fr) minmax(72px, 22dvh); }
+  .app { grid-template-rows: minmax(0, 1fr) minmax(120px, 40dvh); }
   .brand h1 { font-size: 18px; }
   .stage-dock { max-height: min(46%, 132px); }
 }
@@ -183,7 +194,9 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     </div>
     <div class="facts" id="facts"></div>
     <div class="controls">
+      <button class="btn" id="prevBtn" type="button" aria-label="Previous ability">&lsaquo; Prev</button>
       <button class="btn primary" id="castBtn">Cast</button>
+      <button class="btn" id="nextBtn" type="button" aria-label="Next ability">Next &rsaquo;</button>
       <button class="btn" id="clearBtn">Clear</button>
       <button class="btn dock-more" id="dockMore" type="button" aria-expanded="false">More</button>
     </div>
@@ -214,9 +227,9 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     <div class="filters">
       <input class="search" id="q" type="search" placeholder="Search &mdash; fire, frost, summon, chain, cast3&hellip;" aria-label="Search abilities">
       <div class="chips" id="elementChips" aria-label="Elements"></div>
-      <div class="chips" id="kindChips" aria-label="Ability types"></div>
       <button type="button" class="chip filters-toggle" id="filtersToggle" aria-expanded="false" aria-controls="extraFilters">Filters</button>
       <div class="extra-filters" id="extraFilters">
+        <div class="chips" id="kindChips" aria-label="Ability types"></div>
         <div class="chips" id="castChips" aria-label="Cast aim"></div>
         <div class="chips" id="packChips" aria-label="Packs"></div>
       </div>
@@ -541,17 +554,23 @@ function typingTarget(el) {
   if (el.id === 'q' || el.id === 'presetText' || el.isContentEditable) return true;
   return !!(el.closest && el.closest('[contenteditable="true"]'));
 }
+/** Previous (-1) or next (+1) ability in the current filter, wrapping. */
+function step(dir) {
+  if (!catalog) return false;
+  const items = visible();
+  if (!items.length) { toast(emptyCopy()); return false; }
+  let i = current ? items.findIndex((a) => a.uid === current.uid) : -1;
+  if (dir > 0) i = i < 0 ? 0 : (i + 1) % items.length;
+  else i = i < 0 ? items.length - 1 : (i - 1 + items.length) % items.length;
+  select(items[i], { cast: true, scroll: true });
+  return true;
+}
+$('prevBtn').onclick = () => step(-1);
+$('nextBtn').onclick = () => step(1);
 window.addEventListener('keydown', (e) => {
   if (e.key !== '[' && e.key !== ']') return;
   if (e.metaKey || e.ctrlKey || e.altKey || typingTarget(e.target)) return;
-  if (!catalog) return;
-  const items = visible();
-  if (!items.length) return;
-  e.preventDefault();
-  let i = current ? items.findIndex((a) => a.uid === current.uid) : -1;
-  if (e.key === ']') i = i < 0 ? 0 : (i + 1) % items.length;
-  else i = i < 0 ? items.length - 1 : (i - 1 + items.length) % items.length;
-  select(items[i], { cast: true, scroll: true });
+  if (step(e.key === ']' ? 1 : -1)) e.preventDefault();
 });
 /** Element order (then pack order) for the element view; pack order for the pack view. */
 function sortCatalog() {

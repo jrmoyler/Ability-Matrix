@@ -93,7 +93,7 @@ The caster walks, runs and dashes around the arena:
 
 - **W A S D** (or the arrows) walk relative to the camera, **Shift** runs, **Space** dashes the way you are moving (or facing).
 - **Cast on the move.** The aim arrow and the zone circle ride with the caster. While an ability is armed, the body keeps facing the aim and strafes, at `aimSpeed` of its pace.
-- **A procedural gait.** The rig ships only an idle and three cast clips, so `SandboxCharacter` builds the walk itself, over the idle: thigh swing, knee fold, arms against the legs, shoulder twist, pelvis roll and bob, and lean, blending into a longer, deeper run. A cast clip plays on top: the legs keep walking and the arm swing gets out of its way.
+- **A rigged PBR caster.** The caster is the Vanguard soldier (`packs/sandbox/public/models/Soldier.glb`), a skinned glTF with its own PBR materials and its own Idle, Walk and Run clips. `SandboxCharacter` blends Idle, Walk and Run by speed and scrubs Walk and Run by the gait phase, so the feet match the ground speed. The three cast gestures (`cast1–3.fbx`) were authored on a different Mixamo rig, so they are retargeted onto the soldier's skeleton once at load. Each clip is split at the hips: a cast always drives the upper body, and drives the legs only while the caster is standing, so casting on the move keeps the legs walking. A rig with no Walk clip falls back to the old procedural gait.
 - The caster walks round the dummies rather than through them, and stays inside `arenaRadius`. The dummies re-form round wherever you stand.
 - Steering stands down while a summon is out, and while Blink Step, Voidstep Rift, Parallax Blink or Chrono Recall is moving the body.
 - Every value (speeds, dash, every gait angle) is in `settings.move` and the editor's **Movement** folder, and ships in each group's `_shared.json`. The bridge takes `move('dash')`.
@@ -350,8 +350,8 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 
 ## Moves
 
-- Walk, run and dash (procedural, see above)
-- Idle (Idle.fbx), shared by every pack
+- Walk and run (the soldier's own clips), and dash (the run, leaned into)
+- Idle (Soldier.glb), shared by every pack
 - Cast gesture I, II and III (cast1–3.fbx), each thrown with the cast lunge
 - Cast lunge
 - Summon drive (Sentinel Drone and Monowheel Bot)
