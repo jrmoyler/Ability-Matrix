@@ -1,10 +1,12 @@
 import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
+import { DetailLayer } from './DetailLayer.js';
 import {
   createAureoleRingBodyMaterial,
   createAureoleRingLensMaterial,
   createAureoleRingGroundMaterial,
-  createAureoleRingVoiceMaterial
+  createAureoleRingVoiceMaterial,
+  createAureoleRingDetailMaterial
 } from '../../materials/codex/AureoleRingMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -14,10 +16,12 @@ import { LAYER } from '../../core/Layers.js';
 import { frame } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-import { saturate, lerp, Easing } from '../../utils/math.js';
+import { saturate, Easing } from '../../utils/math.js';
 
 export const ID = 'aureole';
 
+const TWIST = 'stamp';
+const KIND = 'rod';
 const HIT = 'ring';
 const CARRY = 'in';
 const WHEN = 'commit';
@@ -42,19 +46,18 @@ const _focus = new Vector3();
  *
  * The ring tightens. The flare is the moment the radius meets, not the moment it appears.
  *
- * The read is `stamp`. Hit timing is `commit`, blow `ring`, carry `in`.
- * There is no second beat — the commit is the whole of the blow.
- * 
- * 
+ * The read is `stamp`: hit timing `commit`, blow `ring`, carry `in`.
  *
  * ## Layers
  *
  *   1. **body** — the stamp placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a light pattern under the footprint, not a shared stamp.
+ *   3. **ground** — a light pattern under the footprint.
  *   4. **voice** — a crown riding alongside the body, spun with the cast.
- *   5. **shed** — dust, streaks and chips on RateEmitters, rates read live.
- *   6. **bodies** — `handlesOwnHits`. The ring tightens. The flare is the moment the radius meets, not the moment it appears.
+ *   5. **detail** — an InstancedMesh of rod pieces that build, hit and settle with the cast.
+ *   6. **shed** — dust, streaks, chips and motes on RateEmitters.
+ *   7. **aftershock** — a second, smaller beat when the fade starts.
+ *   8. **bodies** — `handlesOwnHits`: the ring tightens. The flare is the moment the radius meets, not the moment it appears.
  *
  * Every metre, rate and colour is read from `settings.aureole` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -80,6 +83,9 @@ export class AureoleRingAbility extends Ability {
     this.lensMaterial = createAureoleRingLensMaterial();
     this.groundMaterial = createAureoleRingGroundMaterial();
     this.voiceMaterial = createAureoleRingVoiceMaterial();
+    this.detailMaterial = createAureoleRingDetailMaterial();
+    this.detail = new DetailLayer(KIND, this.detailMaterial);
+    this.group.add(this.detail.mesh);
     this.body = this._mesh(this.bodyGeometry, this.bodyMaterial, LAYER.VFX, 12);
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
@@ -104,9 +110,11 @@ export class AureoleRingAbility extends Ability {
       dissolve: 0,
       phrase: 0,
       foot: 1,
-      footWidth: 1
+      footWidth: 1,
+      pulse: 1
     };
     this._seed = 0;
+    this._settled = false;
     this._spin = 0;
     this._hits = 0;
     this._echoed = false;
@@ -152,9 +160,16 @@ export class AureoleRingAbility extends Ability {
       lit: true,
       softFade: 0.15
     });
+    this.motes = particles.get('aureole.mote', {
+      capacity: 600,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      softFade: 0.2
+    });
     this.dustEmitter = new RateEmitter();
     this.streakEmitter = new RateEmitter();
     this.chipEmitter = new RateEmitter();
+    this.moteEmitter = new RateEmitter();
   }
 
   get impactDuration() {
@@ -175,12 +190,16 @@ export class AureoleRingAbility extends Ability {
     this._spin = Math.random() * Math.PI * 2;
     this._hits = 0;
     this._echoed = false;
+    this._settled = false;
     this._struck.length = 0;
     this._carried.length = 0;
     for (let i = 0; i < this._parts.length; i++) this._parts[i].armed = true;
     this.dustEmitter.reset();
     this.streakEmitter.reset();
     this.chipEmitter.reset();
+    this.moteEmitter.reset();
+    this.detail.reseed(this._seed);
+    this.detail.hide();
     this.body.visible = false;
     this.voice.visible = false;
     this.lens.visible = false;
@@ -203,9 +222,9 @@ export class AureoleRingAbility extends Ability {
     const u = this.u;
     const rise = committed ? 1 : Easing.outCubic(saturate(u));
     const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;
-    let grow = rise;
-    let open = beat;
-    let along = u;
+    let grow;
+    let open;
+    let along;
     along = 1; grow = rise; open = beat;
     let dissolve = 0;
     if (committed && fadeT >= 1) dissolve = saturate((fadeT - 1) * 1.15);
@@ -240,10 +259,13 @@ export class AureoleRingAbility extends Ability {
     st.phrase = phrase;
     st.foot = ZONE ? c.zoneRadius * 2 : Math.max(0.4, this.front);
     st.footWidth = ZONE ? c.zoneRadius * 2 : c.groundWidth;
+    st.pulse = 1 + c.bodyPulse * Math.sin(this.age * c.bodyPulseRate);
     this.bodyMaterial.userData.sync(st);
     this.lensMaterial.userData.sync(st);
     this.groundMaterial.userData.sync(st);
     this.voiceMaterial.userData.sync(st);
+    this.detailMaterial.userData.sync(st);
+    this.detail.update(TWIST, ZONE, st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
     this.body.visible = show;
     this.voice.visible = show;
@@ -269,6 +291,8 @@ export class AureoleRingAbility extends Ability {
     this.dust.uniforms.uOpacity.value = c.dustOpacity * g.opacity;
     sync(this.streaks, c.colorStreakA, c.colorStreakB, c.colorStreakC, c.colorStreakD, c.streakSize, 2 * g.glow, 0);
     this.streaks.uniforms.uStretch.value = c.streakStretch;
+    sync(this.motes, c.colorMoteA, c.colorMoteB, c.colorMoteC, c.colorMoteD, c.moteSize, 1.6 * g.glow, 0.5);
+    this.motes.uniforms.uOpacity.value = 0.9 * g.opacity;
     sync(this.chips, c.colorChipA, c.colorChipB, c.colorChipC, c.colorChipD, c.chipSize, 1, 2.5);
   }
 
@@ -294,8 +318,6 @@ export class AureoleRingAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._focusPoint(_end);
-    const fx = Math.cos(this._spin);
-    const fz = Math.sin(this._spin);
     const dustN = Math.round(this.dustEmitter.tick(dt, c.dustRate * strength) * g.particleCount);
     if (dustN > 0) {
       this._fillEmit(_end, ZONE ? c.zoneRadius * 0.35 : 0.3, _dir, c.dustSpeed, 0.45, 0.45, c.dustLife, 0.4);
@@ -326,8 +348,23 @@ export class AureoleRingAbility extends Ability {
         this.chips.emit(1, _emit);
       }
     }
-    void fx;
-    void fz;
+    this._motes(dt, strength);
+  }
+
+  /** Motes drift off whichever detail pieces are standing. */
+  _motes(dt, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this.moteEmitter.tick(dt, c.moteRate * strength * (this.detail.live / Math.max(1, c.detailCount))) * g.particleCount);
+    if (n <= 0) return;
+    const count = Math.round(c.detailCount);
+    for (let k = 0; k < n; k++) {
+      const pick = Math.floor(Math.random() * count);
+      if (!this.detail.pointOf(pick, _pos)) continue;
+      _dir.set((Math.random() - 0.5) * 0.6, 1, (Math.random() - 0.5) * 0.6);
+      this._fillEmit(_pos, 0.12, _dir, c.moteSpeed, 0.5, 0.08, c.moteLife, 1);
+      this.motes.emit(1, _emit);
+    }
   }
 
   _already(dummy) {
@@ -490,8 +527,8 @@ export class AureoleRingAbility extends Ability {
       radius: 0.35,
       endRadius: c.burstRadius * power,
       life: c.burstLife,
-      intensity: 1.4,
-      opacity: 0.85 * g.opacity,
+      intensity: 0.85,
+      opacity: 0.55 * g.opacity,
       squash: 0.7,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
@@ -511,6 +548,25 @@ export class AureoleRingAbility extends Ability {
       life: c.shockLife * 0.75,
       width: 0.05,
       intensity: 0.85,
+      colorA: getColor(c.colorShockB),
+      colorB: getColor(c.colorShockA),
+      height: 0.03
+    });
+  }
+
+  /** The smaller second beat: a settling ring, a low thud and a last flare of light. */
+  _aftershock() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._aim(_end);
+    this.ctx.shake.add(c.aftershockShake * power * g.cameraShake, 3, 12);
+    this.lightBoost += c.aftershockLight * power;
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+      radius: c.aftershockRadius * power,
+      life: c.aftershockLife,
+      width: 0.06,
+      intensity: 0.55,
       colorA: getColor(c.colorShockB),
       colorB: getColor(c.colorShockA),
       height: 0.03
@@ -542,6 +598,10 @@ export class AureoleRingAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
+    if (!this._settled && t > c.aftershockAt) {
+      this._settled = true;
+      this._aftershock();
+    }
     if (ECHO && !this._echoed && t > 1.08) {
       this._echoed = true;
       this._echo();
@@ -556,9 +616,12 @@ export class AureoleRingAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this.detail.hide();
   }
 
   dispose() {
+    this.detail.dispose();
+    this.detailMaterial.dispose();
     this.bodyGeometry.dispose();
     this.voiceGeometry.dispose();
     this.groundGeometry.dispose();
@@ -584,7 +647,7 @@ export function buildEditor(gui, c, Editor) {
   R(cast, c, 'zoneRadius', 0.5, 12, 0.05, 'circle (m)');
   Editor.castAnimation(cast, c);
 
-  const shape = folder.addFolder('1 · stamp');
+  const shape = folder.addFolder('1 · Shape — stamp');
   R(shape, c, 'count', 1, 16, 1, 'count');
   R(shape, c, 'height', 0.2, 10, 0.05, 'height (m)');
   R(shape, c, 'thickness', 0.02, 2, 0.01, 'thickness (m)');
@@ -600,17 +663,40 @@ export function buildEditor(gui, c, Editor) {
   R(look, c, 'bodyGlow', 0, 4, 0.01, 'body glow');
   R(look, c, 'edgeGlow', 0, 10, 0.05, 'edge glow');
   R(look, c, 'softFade', 0.01, 2, 0.01, 'soft fade (m)');
+  R(look, c, 'bodyPulse', 0, 1, 0.01, 'pulse');
+  R(look, c, 'bodyPulseRate', 0, 20, 0.1, 'pulse rate');
   R(look, c, 'lensWarp', 0, 3, 0.01, 'lens warp');
   look.addColor(c, 'colorA').name('edge');
   look.addColor(c, 'colorB').name('core');
   look.addColor(c, 'colorC').name('deep');
 
-  const floor = folder.addFolder('4 · Ground');
+  const voice = folder.addFolder('4 · Voice');
+  R(voice, c, 'voiceOpacity', 0, 2, 0.01, 'opacity');
+  voice.addColor(c, 'colorVoiceA').name('voice');
+  voice.addColor(c, 'colorVoiceB').name('voice, hot');
+
+  const floor = folder.addFolder('5 · Ground');
   R(floor, c, 'groundWidth', 0.2, 16, 0.05, 'width (m)');
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
   R(floor, c, 'groundLife', 0.1, 4, 0.05, 'life');
+  R(floor, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
+  floor.addColor(c, 'colorGroundA').name('ground');
+  floor.addColor(c, 'colorGroundB').name('ground, deep');
 
-  const parts = folder.addFolder('5 · Shed');
+  const pieces = folder.addFolder('6 · Detail pieces');
+  R(pieces, c, 'detailCount', 0, 48, 1, 'count');
+  R(pieces, c, 'detailSize', 0.05, 2, 0.01, 'size (m)');
+  R(pieces, c, 'detailSizeJitter', 0, 1, 0.01, 'size jitter');
+  R(pieces, c, 'detailSpread', 0.1, 2, 0.01, 'spread');
+  R(pieces, c, 'detailLift', 0, 8, 0.05, 'lift (m)');
+  R(pieces, c, 'detailSpin', -4, 4, 0.05, 'orbit');
+  R(pieces, c, 'detailGlow', 0, 6, 0.05, 'rim glow');
+  R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
+  pieces.addColor(c, 'colorDetailA').name('rim');
+  pieces.addColor(c, 'colorDetailB').name('lit');
+  pieces.addColor(c, 'colorDetailC').name('shade');
+
+  const parts = folder.addFolder('7 · Shed');
   R(parts, c, 'dustRate', 0, 400, 1, 'dust / s');
   R(parts, c, 'dustSize', 0.02, 2, 0.01, 'dust size');
   R(parts, c, 'dustSpeed', 0, 20, 0.1, 'dust speed');
@@ -629,7 +715,14 @@ export function buildEditor(gui, c, Editor) {
   R(parts, c, 'chipLife', 0.05, 3, 0.01, 'chip life');
   Editor.gradient(parts, c, 'colorChip', 'chip colour');
 
-  const beat = folder.addFolder('6 · The beat');
+  const motes = folder.addFolder('8 · Motes');
+  R(motes, c, 'moteRate', 0, 200, 1, 'motes / s');
+  R(motes, c, 'moteSize', 0.01, 0.4, 0.005, 'size');
+  R(motes, c, 'moteSpeed', 0, 10, 0.1, 'speed');
+  R(motes, c, 'moteLife', 0.1, 4, 0.05, 'life');
+  Editor.gradient(motes, c, 'colorMote', 'mote colour');
+
+  const beat = folder.addFolder('9 · The beat');
   R(beat, c, 'impactShake', 0, 2, 0.01, 'camera punch');
   R(beat, c, 'impactFlash', 0, 1, 0.01, 'flash');
   beat.addColor(c, 'colorFlash').name('flash');
@@ -643,7 +736,14 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
-  const bodies = folder.addFolder('7 · Bodies');
+  const after = folder.addFolder('10 · Aftershock');
+  R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
+  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
+  R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
+  R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
+  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
+
+  const bodies = folder.addFolder('11 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');
   R(bodies, c, 'hitImpulse', 0, 24, 0.1, 'impulse');
   R(bodies, c, 'hitLift', 0, 20, 0.1, 'lift');

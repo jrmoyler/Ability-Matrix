@@ -1,14 +1,16 @@
-// Quality pass over the 80 pure-element castables.
-// Rewrites each ability + materials file in place. Does not touch configs,
-// uids, or the element map. Run: node tools/sculpt-pure.mjs
+// Source of truth for the 80 pure-element castables.
+// Writes each config, ability and materials file. Does not touch uids or the
+// element map (gen-pure.mjs did that once). Run: node tools/sculpt-pure.mjs
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { SPELLS } from './pure-spells.mjs';
+import { PROFILE, configSource } from './pure-settings.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const abilityDir = path.join(root, 'packs/sandbox/src/abilities/codex');
+const configDir = path.join(root, 'packs/sandbox/src/config/codex');
 const materialDir = path.join(root, 'packs/sandbox/src/materials/codex');
 
 const ARCH = {
@@ -160,6 +162,25 @@ const COLOR = {
     col += uColorB * carved * uGlow;`,
   force: `vec3 col = mix(uColorC, uColorB, carved);
     col += uColorA * (1.0 - carved) * uEdge * 0.4;`
+};
+
+const DETAIL_PATTERN = {
+  earth: 'abs(sin(vWorld.y * 9.0 + vSeed * 20.0)) * 0.6 + snoise01(vWorld * 3.0) * 0.4',
+  crystal: 'pow(abs(sin(vSpan * 14.0 + vSeed * 12.0)), 3.0)',
+  wind: 'abs(sin(vSpan * 10.0 - uTime * 5.0 + vSeed * 9.0))',
+  sound: 'abs(sin(vWorld.y * 18.0 - uTime * 6.0))',
+  light: 'pow(vSpan, 1.5) + 0.3 * sin(uTime * 8.0 + vSeed * 20.0)',
+  holy: 'pow(1.0 - vSpan, 1.4) + 0.2',
+  cosmic: 'snoise01(vWorld * 4.0 + vec3(0.0, uTime * 0.6, vSeed * 8.0))',
+  gravity: 'smoothstep(0.2, 0.9, snoise01(vWorld * 2.4 + vSeed * 6.0))',
+  shadow: '1.0 - snoise01(vWorld * 3.2 + vec3(vSeed * 5.0, uTime * 0.4, 0.0))',
+  void: 'smoothstep(0.1, 0.9, 1.0 - rim)',
+  arcane: 'step(0.6, abs(sin(vWorld.x * 12.0 + vWorld.z * 12.0 + uTime * 2.0)))',
+  illusion: 'abs(sin(vWorld.x * 7.0 + uTime * 3.0) - sin(vWorld.z * 7.0 - uTime * 3.0))',
+  time: 'step(0.5, fract(vSpan * 6.0 + uTime * 0.7))',
+  motion: 'abs(fract(vSpan * 5.0 - uTime * 3.0) - 0.5) * 2.0',
+  tech: 'step(0.6, fract(vWorld.y * 6.0 + vSeed * 4.0)) * 0.7 + step(0.9, fract(vWorld.x * 5.0 + vWorld.z * 5.0)) * 0.3',
+  force: 'abs(fract(vWorld.x * 4.0 + vWorld.z * 4.0 + vSeed * 3.0) - 0.5) * 2.0'
 };
 
 const WHEN = {
@@ -623,30 +644,26 @@ function killMethod(mode) {
   }
   if (mode === 'swing') {
     return `
-  _killDir(dummy) {
+  _killDir() {
     const ang = lerp(-settings[ID].sweep, settings[ID].sweep, saturate(this._state.along));
     _dir.copy(this.direction).multiplyScalar(Math.cos(ang)).addScaledVector(this.side, Math.sin(ang));
-    void dummy;
   }`;
   }
   if (mode === 'up') {
     return `
-  _killDir(dummy) {
+  _killDir() {
     _dir.copy(this.direction).multiplyScalar(0.25);
-    void dummy;
   }`;
   }
   if (mode === 'down') {
     return `
-  _killDir(dummy) {
+  _killDir() {
     _dir.copy(this.direction).multiplyScalar(0.12);
-    void dummy;
   }`;
   }
   return `
-  _killDir(dummy) {
+  _killDir() {
     _dir.copy(this.direction);
-    void dummy;
   }`;
 }
 
@@ -762,12 +779,10 @@ const BODY_FRAGMENT = /* glsl */ \`
   \${commonGLSL}
   void main() {
     ${motif(spell)}
-    float keep = (vLocal + vAlong + vWorld.x + vViewZ) * 0.0;
     ${COLOR[spell.element]}
     col *= 1.0 + uPhrase * 0.18;
     float mask = uOpacity * (0.22 + 0.78 * clamp(carved, 0.0, 1.0));
     mask *= smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
-    mask += keep;
     if (uDissolve > 0.0) {
       float n = snoise01(vWorld * 0.45 + vec3(uSeed, uTime * 0.20, 0.0));
       float hold = smoothstep(uDissolve, uDissolve + 0.14, n * 0.65 + carved * 0.35);
@@ -795,10 +810,8 @@ const LENS_FRAGMENT = /* glsl */ \`
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
-    float keep = (vLocal + vAlong + vWorld.x + vViewZ + uTime * 0.0) * 0.0;
     float mask = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.82, 1.0, vUv.y));
     mask *= (0.40 + 0.60 * clamp(vLocal, 0.0, 1.0)) * (1.0 - uDissolve);
-    mask += keep;
     float s = uWarp * uShaderIntensity * mask * (1.0 + uPhrase * 0.25);
     if (s < 0.01) discard;
     ${lensFrag(spell.element)}
@@ -892,18 +905,84 @@ const VOICE_FRAGMENT = /* glsl */ \`
   \${noiseGLSL}
   \${commonGLSL}
   void main() {
-    float keep = (vAlong + vWorld.x + vViewZ) * 0.0;
     float band = 0.5 + 0.5 * sin(vLocal * ${f1} + uTime * ${spd} + uSeed);
     float grain = snoise01(vWorld * ${f2} + vec3(uSeed, uTime * 0.30, 0.0));
     float mask = (0.30 + 0.70 * band) * (0.45 + 0.55 * grain);
     mask *= uOpacity * (1.0 - uDissolve);
     mask *= smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.88, 1.0, vUv.y));
-    mask += keep;
     if (mask < 0.02) discard;
     vec3 col = mix(uColorA, uColorB, band) * (1.0 + uGlow) * (1.0 + uPhrase * 0.40);
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.35);
     gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+  }
+\`;
+
+const DETAIL_VERTEX = /* glsl */ \`
+  attribute float aSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSeed;
+  varying float vSpan;
+  varying float vViewZ;
+  void main() {
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 wp = model * vec4(position, 1.0);
+    vWorld = wp.xyz;
+    vNormalW = normalize(mat3(model) * normal);
+    vSeed = aSeed;
+    vSpan = position.y + 0.5;
+    vec4 mv = viewMatrix * wp;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+\`;
+
+const DETAIL_FRAGMENT = /* glsl */ \`
+  precision highp float;
+  uniform float uTime;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uDissolve;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  uniform vec3 uColorC;
+  uniform vec3 uLightDir;
+  uniform vec2 uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float uCameraNear;
+  uniform float uCameraFar;
+  uniform float uGlobalGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSeed;
+  varying float vSpan;
+  varying float vViewZ;
+  \${noiseGLSL}
+  \${commonGLSL}
+  void main() {
+    vec3 n = normalize(vNormalW);
+    vec3 view = normalize(cameraPosition - vWorld);
+    float rim = pow(1.0 - abs(dot(n, view)), 2.2);
+    float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
+    float pat = ${DETAIL_PATTERN[spell.element]};
+    vec3 col = mix(uColorC, uColorA, lit * 0.8);
+    col = mix(col, uColorB, clamp(pat, 0.0, 1.0) * 0.35);
+    col += uColorB * rim * uGlow * 0.6;
+    col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
+    float mask = uOpacity;
+    if (uDissolve > 0.0) {
+      float cut = snoise01(vWorld * 1.7 + vec3(vSeed * 9.0, uTime * 0.2, 0.0));
+      mask *= smoothstep(uDissolve, uDissolve + 0.12, cut);
+    }
+    if (mask < 0.02) discard;
+    vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
+    mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.3);
+    if (mask < 0.02) discard;
+    ${PROFILE[spell.element].solid ? 'gl_FragColor = vec4(col * uGlobalGlow, mask);' : 'gl_FragColor = vec4(col * mask * uGlobalGlow, mask);'}
   }
 \`;
 
@@ -974,8 +1053,8 @@ export function create${cls}BodyMaterial() {
     u.uDissolve.value = st.dissolve;
     u.uSoftFade.value = c.softFade;
     u.uOpacity.value = c.bodyOpacity * g.opacity * st.fade;
-    u.uGlow.value = c.bodyGlow * g.glow;
-    u.uEdge.value = c.edgeGlow * g.glow;
+    u.uGlow.value = c.bodyGlow * g.glow * st.pulse;
+    u.uEdge.value = c.edgeGlow * g.glow * st.pulse;
     u.uPhrase.value = st.phrase;
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorB));
@@ -1053,10 +1132,10 @@ export function create${cls}GroundMaterial() {
     u.uSeed.value = st.seed;
     u.uGlow.value = c.groundGlow * g.glow;
     u.uErode.value = st.dissolve;
-    u.uOpacity.value = g.opacity * st.fade;
+    u.uOpacity.value = c.groundOpacity * g.opacity * st.fade;
     u.uPhrase.value = st.phrase;
-    u.uColorA.value.copy(getColor(c.colorA));
-    u.uColorB.value.copy(getColor(c.colorC));
+    u.uColorA.value.copy(getColor(c.colorGroundA));
+    u.uColorB.value.copy(getColor(c.colorGroundB));
   };
   return material;
 }
@@ -1087,11 +1166,44 @@ export function create${cls}VoiceMaterial() {
     const u = material.uniforms;
     writeShape(u, st, st.voiceSpin);
     u.uDissolve.value = st.dissolve;
-    u.uOpacity.value = c.bodyOpacity * 0.65 * g.opacity * st.fade;
-    u.uGlow.value = c.bodyGlow * g.glow * 1.25;
+    u.uOpacity.value = c.bodyOpacity * c.voiceOpacity * g.opacity * st.fade;
+    u.uGlow.value = c.bodyGlow * g.glow * 1.25 * st.pulse;
     u.uPhrase.value = st.phrase;
-    u.uColorA.value.copy(getColor(c.colorB));
-    u.uColorB.value.copy(getColor(c.colorA));
+    u.uColorA.value.copy(getColor(c.colorVoiceA));
+    u.uColorB.value.copy(getColor(c.colorVoiceB));
+  };
+  return material;
+}
+
+export function create${cls}DetailMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: ${PROFILE[spell.element].solid},
+    depthTest: true,
+    blending: ${PROFILE[spell.element].solid ? 'NormalBlending' : 'AdditiveBlending'},
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uDissolve: { value: 0 },
+      uColorA: { value: new Color() },
+      uColorB: { value: new Color() },
+      uColorC: { value: new Color() }
+    }),
+    vertexShader: DETAIL_VERTEX,
+    fragmentShader: DETAIL_FRAGMENT
+  });
+  material.userData.sync = (st) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpacity.value = c.detailOpacity * g.opacity * st.fade;
+    u.uGlow.value = c.detailGlow * g.glow * st.pulse;
+    u.uDissolve.value = st.dissolve * 0.6;
+    u.uColorA.value.copy(getColor(c.colorDetailA));
+    u.uColorB.value.copy(getColor(c.colorDetailB));
+    u.uColorC.value.copy(getColor(c.colorDetailC));
   };
   return material;
 }
@@ -1110,13 +1222,16 @@ function abilitySource(spell) {
   const [shedA, shedB] = SHED[spell.element];
   const zone = spell.cast === 'zone';
   const cls = spell.cls;
+  const poseText = poseLines(score.twist);
   return `import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
+import { DetailLayer } from './DetailLayer.js';
 import {
   create${cls}BodyMaterial,
   create${cls}LensMaterial,
   create${cls}GroundMaterial,
-  create${cls}VoiceMaterial
+  create${cls}VoiceMaterial,
+  create${cls}DetailMaterial
 } from '../../materials/codex/${cls}Materials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -1126,10 +1241,12 @@ import { LAYER } from '../../core/Layers.js';
 import { frame } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-import { saturate, lerp, Easing } from '../../utils/math.js';
+import { saturate, ${hit === 'swing' ? 'lerp, ' : ''}Easing } from '../../utils/math.js';
 
 export const ID = '${spell.id}';
 
+const TWIST = '${score.twist}';
+const KIND = '${PROFILE[spell.element].kind}';
 const HIT = '${hit}';
 const CARRY = '${carry}';
 const WHEN = '${hitWhen}';
@@ -1154,19 +1271,18 @@ const _focus = new Vector3();
  *
  * ${score.note}
  *
- * The read is \`${score.twist}\`. Hit timing is \`${hitWhen}\`, blow \`${hit}\`${carry === 'none' ? '' : `, carry \`${carry}\``}.
- * ${echo ? `A second beat (${echo}) fires once the fade has started, for whoever the first beat missed.` : 'There is no second beat — the commit is the whole of the blow.'}
- * ${score.offset ? 'The kill is shifted off the aim by the thickness, on purpose.' : ''}
- * ${score.dissolveTravel ? 'The body starts dissolving while it is still travelling; the tail does not survive to the impact.' : ''}
+ * The read is \`${score.twist}\`: hit timing \`${hitWhen}\`, blow \`${hit}\`${carry === 'none' ? '' : `, carry \`${carry}\``}.${echo ? ` A second beat (\`${echo}\`) lands once the fade has started, for whoever the first beat missed.` : ''}${score.offset ? ' The kill sits off the aim by the thickness, on purpose.' : ''}${score.dissolveTravel ? ' The body starts to dissolve while it is still travelling.' : ''}
  *
  * ## Layers
  *
  *   1. **body** — the ${score.twist} placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a ${spell.element} pattern under the footprint, not a shared stamp.
+ *   3. **ground** — a ${spell.element} pattern under the footprint.
  *   4. **voice** — a ${VOICE[score.twist]} riding alongside the body, spun ${score.counter ? 'the other way' : 'with the cast'}.
- *   5. **shed** — dust, streaks and chips on RateEmitters, rates read live.
- *   6. **bodies** — \`handlesOwnHits\`. ${score.note}
+ *   5. **detail** — an InstancedMesh of ${PROFILE[spell.element].kind} pieces that build, hit and settle with the cast.
+ *   6. **shed** — dust, streaks, chips and motes on RateEmitters.
+ *   7. **aftershock** — a second, smaller beat when the fade starts.
+ *   8. **bodies** — \`handlesOwnHits\`: ${score.note.charAt(0).toLowerCase()}${score.note.slice(1)}
  *
  * Every metre, rate and colour is read from \`settings.${spell.id}\` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -1192,6 +1308,9 @@ export class ${cls}Ability extends Ability {
     this.lensMaterial = create${cls}LensMaterial();
     this.groundMaterial = create${cls}GroundMaterial();
     this.voiceMaterial = create${cls}VoiceMaterial();
+    this.detailMaterial = create${cls}DetailMaterial();
+    this.detail = new DetailLayer(KIND, this.detailMaterial);
+    this.group.add(this.detail.mesh);
     this.body = this._mesh(this.bodyGeometry, this.bodyMaterial, LAYER.VFX, 12);
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
@@ -1216,9 +1335,11 @@ export class ${cls}Ability extends Ability {
       dissolve: 0,
       phrase: 0,
       foot: 1,
-      footWidth: 1
+      footWidth: 1,
+      pulse: 1
     };
     this._seed = 0;
+    this._settled = false;
     this._spin = 0;
     this._hits = 0;
     this._echoed = false;
@@ -1264,9 +1385,16 @@ export class ${cls}Ability extends Ability {
       lit: true,
       softFade: 0.15
     });
+    this.motes = particles.get('${spell.id}.mote', {
+      capacity: 600,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      softFade: 0.2
+    });
     this.dustEmitter = new RateEmitter();
     this.streakEmitter = new RateEmitter();
     this.chipEmitter = new RateEmitter();
+    this.moteEmitter = new RateEmitter();
   }
 
   get impactDuration() {
@@ -1287,12 +1415,16 @@ export class ${cls}Ability extends Ability {
     this._spin = Math.random() * Math.PI * 2;
     this._hits = 0;
     this._echoed = false;
+    this._settled = false;
     this._struck.length = 0;
     this._carried.length = 0;
     for (let i = 0; i < this._parts.length; i++) this._parts[i].armed = true;
     this.dustEmitter.reset();
     this.streakEmitter.reset();
     this.chipEmitter.reset();
+    this.moteEmitter.reset();
+    this.detail.reseed(this._seed);
+    this.detail.hide();
     this.body.visible = false;
     this.voice.visible = false;
     this.lens.visible = false;
@@ -1313,12 +1445,12 @@ export class ${cls}Ability extends Ability {
 
   _pose(committed, fadeT) {
     const u = this.u;
-    const rise = committed ? 1 : Easing.outCubic(saturate(u));
-    const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;
-    let grow = rise;
-    let open = beat;
-    let along = u;
-    ${poseLines(score.twist)}
+    ${/rise/.test(poseText) ? 'const rise = committed ? 1 : Easing.outCubic(saturate(u));' : ''}
+    ${/beat/.test(poseText) ? 'const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;' : ''}
+    let grow;
+    let open;
+    let along;
+    ${poseText}
     let dissolve = 0;
     if (committed && fadeT >= 1) dissolve = saturate((fadeT - 1) * 1.15);
     else if (DISSOLVE_TRAVEL && !committed) dissolve = saturate(u * 0.55);
@@ -1352,10 +1484,13 @@ export class ${cls}Ability extends Ability {
     st.phrase = phrase;
     st.foot = ZONE ? c.zoneRadius * 2 : Math.max(0.4, this.front);
     st.footWidth = ZONE ? c.zoneRadius * 2 : c.groundWidth;
+    st.pulse = 1 + c.bodyPulse * Math.sin(this.age * c.bodyPulseRate);
     this.bodyMaterial.userData.sync(st);
     this.lensMaterial.userData.sync(st);
     this.groundMaterial.userData.sync(st);
     this.voiceMaterial.userData.sync(st);
+    this.detailMaterial.userData.sync(st);
+    this.detail.update(TWIST, ZONE, st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
     this.body.visible = show;
     this.voice.visible = show;
@@ -1381,6 +1516,8 @@ export class ${cls}Ability extends Ability {
     this.dust.uniforms.uOpacity.value = c.dustOpacity * g.opacity;
     sync(this.streaks, c.colorStreakA, c.colorStreakB, c.colorStreakC, c.colorStreakD, c.streakSize, 2 * g.glow, 0);
     this.streaks.uniforms.uStretch.value = c.streakStretch;
+    sync(this.motes, c.colorMoteA, c.colorMoteB, c.colorMoteC, c.colorMoteD, c.moteSize, 1.6 * g.glow, ${PROFILE[spell.element].mote === 'dust' ? -0.6 : 0.5});
+    this.motes.uniforms.uOpacity.value = 0.9 * g.opacity;
     sync(this.chips, c.colorChipA, c.colorChipB, c.colorChipC, c.colorChipD, c.chipSize, 1, ${spell.element === 'light' || spell.element === 'holy' ? 2.5 : -9});
   }
 
@@ -1406,8 +1543,6 @@ export class ${cls}Ability extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._focusPoint(_end);
-    const fx = Math.cos(this._spin);
-    const fz = Math.sin(this._spin);
     const dustN = Math.round(this.dustEmitter.tick(dt, c.dustRate * strength) * g.particleCount);
     if (dustN > 0) {
       this._fillEmit(_end, ZONE ? c.zoneRadius * 0.35 : 0.3, _dir, c.dustSpeed, 0.45, 0.45, c.dustLife, 0.4);
@@ -1438,8 +1573,23 @@ export class ${cls}Ability extends Ability {
         this.chips.emit(1, _emit);
       }
     }
-    void fx;
-    void fz;
+    this._motes(dt, strength);
+  }
+
+  /** Motes drift off whichever detail pieces are standing. */
+  _motes(dt, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this.moteEmitter.tick(dt, c.moteRate * strength * (this.detail.live / Math.max(1, c.detailCount))) * g.particleCount);
+    if (n <= 0) return;
+    const count = Math.round(c.detailCount);
+    for (let k = 0; k < n; k++) {
+      const pick = Math.floor(Math.random() * count);
+      if (!this.detail.pointOf(pick, _pos)) continue;
+      _dir.set((Math.random() - 0.5) * 0.6, 1, (Math.random() - 0.5) * 0.6);
+      this._fillEmit(_pos, 0.12, _dir, c.moteSpeed, 0.5, 0.08, c.moteLife, 1);
+      this.motes.emit(1, _emit);
+    }
   }
 
   _already(dummy) {
@@ -1584,8 +1734,8 @@ ${partMethods(score.twist)}
       radius: 0.35,
       endRadius: c.burstRadius * power,
       life: c.burstLife,
-      intensity: 1.4,
-      opacity: 0.85 * g.opacity,
+      intensity: 0.85,
+      opacity: 0.55 * g.opacity,
       squash: 0.7,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
@@ -1605,6 +1755,25 @@ ${partMethods(score.twist)}
       life: c.shockLife * 0.75,
       width: 0.05,
       intensity: 0.85,
+      colorA: getColor(c.colorShockB),
+      colorB: getColor(c.colorShockA),
+      height: 0.03
+    });
+  }
+
+  /** The smaller second beat: a settling ring, a low thud and a last flare of light. */
+  _aftershock() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._aim(_end);
+    this.ctx.shake.add(c.aftershockShake * power * g.cameraShake, 3, 12);
+    this.lightBoost += c.aftershockLight * power;
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+      radius: c.aftershockRadius * power,
+      life: c.aftershockLife,
+      width: 0.06,
+      intensity: 0.55,
       colorA: getColor(c.colorShockB),
       colorB: getColor(c.colorShockA),
       height: 0.03
@@ -1636,6 +1805,10 @@ ${partMethods(score.twist)}
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
+    if (!this._settled && t > c.aftershockAt) {
+      this._settled = true;
+      this._aftershock();
+    }
     if (ECHO && !this._echoed && t > 1.08) {
       this._echoed = true;
       this._echo();
@@ -1650,9 +1823,12 @@ ${partMethods(score.twist)}
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this.detail.hide();
   }
 
   dispose() {
+    this.detail.dispose();
+    this.detailMaterial.dispose();
     this.bodyGeometry.dispose();
     this.voiceGeometry.dispose();
     this.groundGeometry.dispose();
@@ -1678,7 +1854,7 @@ export function buildEditor(gui, c, Editor) {
   ${zone ? "R(cast, c, 'zoneRadius', 0.5, 12, 0.05, 'circle (m)');" : ''}
   Editor.castAnimation(cast, c);
 
-  const shape = folder.addFolder('1 · ${score.twist}');
+  const shape = folder.addFolder('1 · Shape — ${score.twist}');
   R(shape, c, 'count', 1, 16, 1, 'count');
   R(shape, c, 'height', 0.2, 10, 0.05, 'height (m)');
   R(shape, c, 'thickness', 0.02, 2, 0.01, 'thickness (m)');
@@ -1694,17 +1870,40 @@ export function buildEditor(gui, c, Editor) {
   R(look, c, 'bodyGlow', 0, 4, 0.01, 'body glow');
   R(look, c, 'edgeGlow', 0, 10, 0.05, 'edge glow');
   R(look, c, 'softFade', 0.01, 2, 0.01, 'soft fade (m)');
+  R(look, c, 'bodyPulse', 0, 1, 0.01, 'pulse');
+  R(look, c, 'bodyPulseRate', 0, 20, 0.1, 'pulse rate');
   R(look, c, 'lensWarp', 0, 3, 0.01, 'lens warp');
   look.addColor(c, 'colorA').name('edge');
   look.addColor(c, 'colorB').name('core');
   look.addColor(c, 'colorC').name('deep');
 
-  const floor = folder.addFolder('4 · Ground');
+  const voice = folder.addFolder('4 · Voice');
+  R(voice, c, 'voiceOpacity', 0, 2, 0.01, 'opacity');
+  voice.addColor(c, 'colorVoiceA').name('voice');
+  voice.addColor(c, 'colorVoiceB').name('voice, hot');
+
+  const floor = folder.addFolder('5 · Ground');
   R(floor, c, 'groundWidth', 0.2, 16, 0.05, 'width (m)');
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
   R(floor, c, 'groundLife', 0.1, 4, 0.05, 'life');
+  R(floor, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
+  floor.addColor(c, 'colorGroundA').name('ground');
+  floor.addColor(c, 'colorGroundB').name('ground, deep');
 
-  const parts = folder.addFolder('5 · Shed');
+  const pieces = folder.addFolder('6 · Detail pieces');
+  R(pieces, c, 'detailCount', 0, 48, 1, 'count');
+  R(pieces, c, 'detailSize', 0.05, 2, 0.01, 'size (m)');
+  R(pieces, c, 'detailSizeJitter', 0, 1, 0.01, 'size jitter');
+  R(pieces, c, 'detailSpread', 0.1, 2, 0.01, 'spread');
+  R(pieces, c, 'detailLift', 0, 8, 0.05, 'lift (m)');
+  R(pieces, c, 'detailSpin', -4, 4, 0.05, 'orbit');
+  R(pieces, c, 'detailGlow', 0, 6, 0.05, 'rim glow');
+  R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
+  pieces.addColor(c, 'colorDetailA').name('rim');
+  pieces.addColor(c, 'colorDetailB').name('lit');
+  pieces.addColor(c, 'colorDetailC').name('shade');
+
+  const parts = folder.addFolder('7 · Shed');
   R(parts, c, 'dustRate', 0, 400, 1, 'dust / s');
   R(parts, c, 'dustSize', 0.02, 2, 0.01, 'dust size');
   R(parts, c, 'dustSpeed', 0, 20, 0.1, 'dust speed');
@@ -1723,7 +1922,14 @@ export function buildEditor(gui, c, Editor) {
   R(parts, c, 'chipLife', 0.05, 3, 0.01, 'chip life');
   Editor.gradient(parts, c, 'colorChip', 'chip colour');
 
-  const beat = folder.addFolder('6 · The beat');
+  const motes = folder.addFolder('8 · Motes');
+  R(motes, c, 'moteRate', 0, 200, 1, 'motes / s');
+  R(motes, c, 'moteSize', 0.01, 0.4, 0.005, 'size');
+  R(motes, c, 'moteSpeed', 0, 10, 0.1, 'speed');
+  R(motes, c, 'moteLife', 0.1, 4, 0.05, 'life');
+  Editor.gradient(motes, c, 'colorMote', 'mote colour');
+
+  const beat = folder.addFolder('9 · The beat');
   R(beat, c, 'impactShake', 0, 2, 0.01, 'camera punch');
   R(beat, c, 'impactFlash', 0, 1, 0.01, 'flash');
   beat.addColor(c, 'colorFlash').name('flash');
@@ -1737,7 +1943,14 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
-  const bodies = folder.addFolder('7 · Bodies');
+  const after = folder.addFolder('10 · Aftershock');
+  R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
+  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
+  R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
+  R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
+  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
+
+  const bodies = folder.addFolder('11 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');
   R(bodies, c, 'hitImpulse', 0, 24, 0.1, 'impulse');
   R(bodies, c, 'hitLift', 0, 20, 0.1, 'lift');
@@ -1753,12 +1966,20 @@ export function buildEditor(gui, c, Editor) {
 `;
 }
 
-function braceCheck(src, label) {
-  const glsl = [...src.matchAll(/\/\* glsl \*\/ `([\s\S]*?)`/g)].map((m) => m[1]);
-  // The materials file uses \${noiseGLSL} inside template strings, so the
-  // generator's own templates are escaped. Check the written file, not this.
-  void glsl;
-  void label;
+/** Every `c.<key>` the generated code reads must exist in the spell's config. */
+function checkSettings(spell, config, code) {
+  const known = new Set([...config.matchAll(/^\s{4}([A-Za-z0-9]+):/gm)].map((m) => m[1]));
+  const read = new Set([...code.matchAll(/\bc\.([A-Za-z0-9]+)/g)].map((m) => m[1]));
+  for (const key of read) {
+    if (!known.has(key)) throw new Error(`${spell.id}: code reads settings.${key} but the config has no such key`);
+  }
+  // Gradients are read as `colorDustA..D` and edited as `colorDust`.
+  const editor = [...code.matchAll(/Editor\.gradient\([^,]+, c, '([A-Za-z]+)'/g)].map((m) => m[1]);
+  for (const base of editor) {
+    for (const suffix of ['A', 'B', 'C', 'D']) {
+      if (!known.has(base + suffix)) throw new Error(`${spell.id}: gradient ${base}${suffix} missing`);
+    }
+  }
 }
 
 function main() {
@@ -1773,6 +1994,7 @@ function main() {
   for (const spell of SPELLS) {
     const ability = abilitySource(spell);
     const materials = materialsSource(spell);
+    const config = configSource(spell);
     const aLines = ability.split('\n').length;
     const mLines = materials.split('\n').length;
     minAbility = Math.min(minAbility, aLines);
@@ -1788,9 +2010,10 @@ function main() {
     if (frags.has(fh)) throw new Error(`fragment collision ${spell.id} == ${frags.get(fh)}`);
     frags.set(fh, spell.id);
     verts.set(vh + ':' + spell.id, true);
+    checkSettings(spell, config, ability + materials);
+    writeFileSync(path.join(configDir, `${spell.id}.js`), config);
     writeFileSync(path.join(abilityDir, `${spell.cls}Ability.js`), ability);
     writeFileSync(path.join(materialDir, `${spell.cls}Materials.js`), materials);
-    braceCheck(materials, spell.id);
   }
   const uniqueVerts = new Set([...verts.keys()].map((k) => k.split(':')[0])).size;
   console.log(`sculpted ${SPELLS.length} abilities, shortest ${minAbility} lines, ${frags.size} unique fragments, ${uniqueVerts} unique body vertices`);
