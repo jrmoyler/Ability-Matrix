@@ -4,6 +4,25 @@
 
 Open the matrix, pick any ability, cast it, tune it, and copy its settings as a preset for your own Three.js games. Walk the caster around the arena while you do it.
 
+## Install it as an app
+
+The hosted matrix is a PWA: it installs on phones, tablets and desktops and can run with no connection.
+
+- **First visit** opens a short guide (reopen it any time from **Guide**) that covers casting, moving, presets, and installing.
+- **Install.** Chrome, Edge and Android show **Install app** in the header. On iPhone and iPad use Share, then Add to Home Screen. Safari on macOS uses File, then Add to Dock. Firefox on desktop cannot install web apps.
+- **Offline.** The guide's last step has **Download for offline** (about 65 MB: every model, texture and preset). The page, catalog and anything you have already cast are also cached as you use them. The download is resumable.
+- **Updates.** Each deploy is a new release. Installed copies notice it, keep only the files that changed, and show a **Reload** bar so a new version never lands mid-cast.
+
+How it fits together:
+
+| File | Role |
+|------|------|
+| `manifest.webmanifest`, `icons/` | name, colours and icons (`node tools/make-icons.mjs` regenerates the PNGs; the output is committed) |
+| `sw.js` | precaches the shell per release, caches `packs/` and `presets/` on use, keeps big files across releases when their hash is unchanged |
+| `tools/make-precache.mjs` | run by `stage-site.sh`: writes `site/precache.json` (hash and size per file) and stamps the release into `site/sw.js` |
+
+An unstamped `sw.js` (a source checkout, `vite` dev) is a pass-through, so local work never serves stale files. Service workers need HTTPS or `localhost`; test the real thing with `npm run build && npx serve site`.
+
 ## One sandbox
 
 `packs/sandbox` is the single page that runs everything. The matrix (`index.html`) embeds it and acts as its picker.
