@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { SPELLS } from './pure-spells.mjs';
+import { sculptVertex, geometryModuleSource, SCULPTS } from './pure-geometry.mjs';
 import { PROFILE, configSource } from './pure-settings.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -746,8 +747,9 @@ const ID = '${id}';
  */
 
 const BODY_VERTEX = /* glsl */ \`
-${VERT_HEAD}
+${VERT_HEAD.replace('position.x + 0.5', 'uv.x').replace('position.y + 0.5', 'uv.y')}
 ${VERTEX[SCORE[id].twist]}
+${sculptVertex(spell)}
 ${VERT_TAIL}
 \`;
 
@@ -1226,6 +1228,7 @@ function abilitySource(spell) {
   return `import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
+import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import {
   create${cls}BodyMaterial,
   create${cls}LensMaterial,
@@ -1301,7 +1304,7 @@ export class ${cls}Ability extends Ability {
   }
 
   createShaders() {
-    this.bodyGeometry = new PlaneGeometry(1, 1, 72, 28);
+    this.bodyGeometry = createSpellBodyGeometry(ID);
     this.voiceGeometry = new PlaneGeometry(1, 1, 64, 8);
     this.groundGeometry = new PlaneGeometry(1, 1, 1, 1);
     this.bodyMaterial = create${cls}BodyMaterial();
@@ -1983,13 +1986,14 @@ function checkSettings(spell, config, code) {
 }
 
 function main() {
+  writeFileSync(path.join(abilityDir, 'PureBodyGeometries.js'), geometryModuleSource());
   const missing = SPELLS.filter((s) => !SCORE[s.id]);
   if (missing.length) throw new Error('no score for ' + missing.map((s) => s.id).join(','));
   const extra = Object.keys(SCORE).filter((id) => !SPELLS.some((s) => s.id === id));
   if (extra.length) throw new Error('score without spell ' + extra.join(','));
 
   const frags = new Map();
-  const verts = new Map();
+
   let minAbility = Infinity;
   for (const spell of SPELLS) {
     const ability = abilitySource(spell);
@@ -2006,17 +2010,15 @@ function main() {
     const vert = (materials.match(/const BODY_VERTEX = \/\* glsl \*\/ `([\s\S]*?)`;/) ?? [])[1];
     if (!frag || !vert) throw new Error(`${spell.id} shader extract failed`);
     const fh = createHash('sha256').update(frag).digest('hex');
-    const vh = createHash('sha256').update(vert).digest('hex');
     if (frags.has(fh)) throw new Error(`fragment collision ${spell.id} == ${frags.get(fh)}`);
     frags.set(fh, spell.id);
-    verts.set(vh + ':' + spell.id, true);
+    if (!SCULPTS[spell.id]) throw new Error(`missing body surface ${spell.id}`);
     checkSettings(spell, config, ability + materials);
     writeFileSync(path.join(configDir, `${spell.id}.js`), config);
     writeFileSync(path.join(abilityDir, `${spell.cls}Ability.js`), ability);
     writeFileSync(path.join(materialDir, `${spell.cls}Materials.js`), materials);
   }
-  const uniqueVerts = new Set([...verts.keys()].map((k) => k.split(':')[0])).size;
-  console.log(`sculpted ${SPELLS.length} abilities, shortest ${minAbility} lines, ${frags.size} unique fragments, ${uniqueVerts} unique body vertices`);
+  console.log(`sculpted ${SPELLS.length} abilities, shortest ${minAbility} lines, ${frags.size} unique fragments, ${Object.keys(SCULPTS).length} authored body surfaces`);
 }
 
 main();

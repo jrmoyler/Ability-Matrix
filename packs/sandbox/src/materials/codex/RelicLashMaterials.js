@@ -41,8 +41,8 @@ const BODY_VERTEX = /* glsl */ `
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
-    float u = position.x + 0.5;
-    float v = position.y + 0.5;
+    float u = uv.x;
+    float v = uv.y;
     vec3 p = vec3(0.0);
     float local = u;
 
@@ -53,6 +53,16 @@ const BODY_VERTEX = /* glsl */ `
     p.y = v * uHeight * (0.28 + 0.72 * uGrow);
     local = s;
   
+
+    // interlocked chain folds
+    vec3 sculptForward = uDir;
+    vec3 sculptSide = uSide;
+    float sculptWidth = max(uThickness, 0.08);
+    float sculptRise = max(uHeight * 0.22, 0.08) * uGrow;
+    p += sculptSide * position.x * sculptWidth;
+    p.y += position.y * sculptRise;
+    p += sculptForward * position.z * sculptWidth;
+
 
     vUv = vec2(u, v);
     vLocal = local;
