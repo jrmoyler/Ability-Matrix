@@ -5,7 +5,7 @@
   "id": "orbitlock",
   "slot": 53,
   "kind": "ability",
-  "element": "cosmic",
+  "element": "gravity",
   "label": "Orbit Lock",
   "hint": "Cosmic — a star bursts into planets on tilted orbits above the circle; the orbits lock into one ring and it slams down",
   "key": "",

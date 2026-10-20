@@ -17,7 +17,7 @@ export default {
     label: 'Prism Lie',
     accent: '#d5dbff',
     key: '',
-    element: 'arcane',
+    element: 'illusion',
     hint: 'Arcane — three prisms braid down the line; two are lies, one shatters on the target',
     cast: 'line',
     glyph: '<path d="M50 10L60 26V74L50 90L40 74V26Z"/><path d="M24 30L30 40V66L24 76L18 66V40Z"/><path d="M76 30L82 40V66L76 76L70 66V40Z"/>'

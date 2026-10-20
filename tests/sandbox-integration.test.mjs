@@ -62,10 +62,10 @@ test('every native sandbox ability is catalogued with a preset', async () => {
   }
 });
 
-test('the sandbox hosts 150 castable abilities with unique uids', () => {
+test('the sandbox hosts 230 castable abilities with unique uids', () => {
   const castable = catalog.abilities.filter((a) => a.status === 'live' && ['ability', 'summon', 'buff'].includes(a.kind));
-  assert.equal(castable.length, 150);
-  assert.equal(catalog.abilities.filter((a) => a.pack === 'codex').length, 72);
+  assert.equal(castable.length, 230);
+  assert.equal(catalog.abilities.filter((a) => a.pack === 'codex').length, 152);
   assert.equal(new Set(catalog.abilities.map((a) => a.uid)).size, catalog.abilities.length);
   assert.equal(catalog.abilities.filter((a) => a.status === 'archived').length, 7);
 });

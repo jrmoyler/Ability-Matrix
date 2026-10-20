@@ -16,7 +16,7 @@ export default {
     label: 'Mind Lattice',
     accent: '#dfe4ff',
     key: '',
-    element: 'arcane',
+    element: 'illusion',
     hint: 'Arcane — a turning tesseract of thought hangs over the circle and cages it in bars of light',
     cast: 'zone',
     glyph: '<path d="M26 30H64V68H26Z"/><path d="M38 20H76V58H38Z"/><path d="M26 30L38 20M64 30L76 20M64 68L76 58M26 68L38 58"/>'

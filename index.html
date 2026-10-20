@@ -71,11 +71,15 @@ button { cursor: pointer; }
 .now { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .now .sigil { width: 46px; height: 46px; flex: none; color: var(--a, var(--accent)); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: var(--panel); }
 .now .sigil svg { width: 30px; height: 30px; }
-.now h2 { margin: 0; font: 800 22px/1.05 var(--display); letter-spacing: 0.03em; text-transform: uppercase; text-wrap: balance; }
-.now p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.now h2 { margin: 0; font: 650 14px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; cursor: pointer; }
+.now p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+body:not(.name-open) .now p { display: none; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px; font: 11px var(--mono); }
 .facts span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
 .facts b { color: var(--fg); font-weight: 600; }
+.chip.quiet { color: var(--muted); font-weight: 500; opacity: 0.7; }
+body:not(.advanced) #packChips { display: none; }
+body:not(.advanced) #groupPack { display: none; }
 .controls { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 7px 12px; font-weight: 600; font-size: 13px; }
 .btn:hover { border-color: var(--a, var(--accent)); }
@@ -150,7 +154,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
     overflow: auto;
     overscroll-behavior: contain;
   }
-  .now h2 { font-size: 18px; }
+  .now h2 { font-size: 13px; }
   .now .sigil { width: 34px; height: 34px; }
   .now p, .stage .note { display: none; }
   .filters-toggle { display: inline-block; }
@@ -247,8 +251,8 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       </div>
     </div>
     <div class="screen">
-      <div class="loading" id="loading">Booting pack &mdash; compiling shaders&hellip;</div>
-      <iframe id="stage" title="Live ability pack" allow="autoplay; fullscreen"></iframe>
+      <div class="loading" id="loading">Preparing the range &mdash; compiling shaders&hellip;</div>
+      <iframe id="stage" title="Casting range" allow="autoplay; fullscreen"></iframe>
     </div>
     <div class="stage-dock">
     <div class="now" id="now">
@@ -278,7 +282,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
     <div class="controls" id="moves"></div>
     <p class="note">Click the stage, then <b>W A S D</b> to walk, <b>Shift</b> to run, <b>Space</b> to dash. On a phone use the stick, drag the right side to look, and tap to cast. The full scene renders on every screen — nothing is stripped.</p>
     <div class="preset" id="preset">
-      <p class="note" id="presetHelp">The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with the pack's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.</p>
+      <p class="note" id="presetHelp">The live settings for this ability, including anything you changed in the VFX editor.</p>
       <textarea id="presetText" readonly></textarea>
       <div class="controls">
         <button class="btn" id="copyPreset">Copy preset</button>
@@ -304,7 +308,8 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       <span class="count" id="count"></span>
       <div class="chips">
         <button class="chip" id="groupElement" aria-pressed="true">By element</button>
-        <button class="chip" id="groupPack" aria-pressed="false">By pack</button>
+        <button class="chip quiet" id="groupPack" aria-pressed="false">By pack</button>
+        <button class="chip quiet" id="advancedBtn" aria-pressed="false" title="Show source packs and extra facts">Advanced</button>
         <button class="chip" id="viewCards" aria-pressed="true">Cards</button>
         <button class="chip" id="viewTable" aria-pressed="false">Matrix</button>
       </div>
@@ -325,7 +330,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
     <section class="guide-step on" data-step="0">
       <div class="eyebrow">Welcome</div>
       <h2 id="guideTitle">One sandbox, every ability</h2>
-      <p><b id="gCount">150</b> castable abilities sorted into <b id="gElements">14</b> elements, all running in a single scene with one character and a set of target dummies.</p>
+      <p><b id="gCount">230</b> castable abilities sorted into <b id="gElements">23</b> elements, all running in a single scene with one character and a set of target dummies.</p>
       <p>Pick one, cast it, tune it in the VFX editor, then copy its settings as a preset for your own Three.js game.</p>
       <p class="small">This quick tour takes under a minute. You can reopen it any time from <b>Guide</b>.</p>
     </section>
@@ -335,7 +340,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       <ul>
         <li><b>Spellbook</b><span>Every ability is a card in the spellbook (below the stage on a phone). Tapping one selects it and casts straight away.</span></li>
         <li><b>Step through</b><span><span class="kbd">&lsaquo; Prev</span> and <span class="kbd">Next &rsaquo;</span> walk the current filter. On a keyboard use <span class="kbd">[</span> and <span class="kbd">]</span>.</span></li>
-        <li><b>Search &amp; filter</b><span>Search by name or idea, filter by element, type, aim or pack, and switch between cards and the full table.</span></li>
+        <li><b>Search &amp; filter</b><span>Search by name or idea, filter by element, type or aim, and switch between cards and the full table. Grouping stays by element.</span></li>
         <li><b>Progress</b><span>A green dot marks every ability you have tried. The header keeps the tally.</span></li>
       </ul>
     </section>
@@ -355,7 +360,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       <ul>
         <li><b>VFX editor</b><span>Opens a live panel for colours, timing, particles and more. Changes show on the next cast.</span></li>
         <li><b>Preset JSON</b><span>Shows the full settings block for the selected ability, including your edits. <b style="color:var(--fg)">Copy preset</b> puts it on your clipboard.</span></li>
-        <li><b>In your game</b><span>Apply it with the engine's <code>applySettings({ &lt;id&gt;: preset.settings })</code>. You can also paste edited JSON back here and apply it.</span></li>
+        <li><b>In your game</b><span>Copy the preset JSON and apply it with <code>applySettings({ <id>: preset.settings })</code>. You can also paste edited JSON back here.</li>
         <li><b>Start over</b><span><b style="color:var(--fg)">Reset to shipped defaults</b> undoes every edit for that ability.</span></li>
       </ul>
     </section>
@@ -401,6 +406,9 @@ let catalog = null, packs = {}, current = null, livePack = null, ready = false, 
 let autoOn = false, gauntlet = null, paused = false;
 const tried = new Set(store.get('tried', []));
 const filters = { q: '', kind: new Set(['ability', 'summon', 'buff']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
+let advanced = store.get('advanced', false);
+if (!advanced && filters.group === 'pack') filters.group = 'element';
+document.body.classList.toggle('advanced', advanced);
 let ELEMENTS = [], elements = {};
 const groupOf = (a) => filters.group === 'element' ? (a.element || (a.pack === 'moves' ? 'moves' : 'other')) : a.pack;
 
@@ -478,7 +486,7 @@ function markTried(a) { tried.add(a.uid); store.set('tried', [...tried]); docume
 /* ---------- selection ---------- */
 function select(a, { cast = false, scroll = false } = {}) {
   current = a;
-  $('presetHelp').innerHTML = "The live settings block for this ability, including anything you changed in the VFX editor. Apply it in a game with its engine's <code>applySettings({ &lt;id&gt;: preset.settings })</code>.";
+  $('presetHelp').textContent = 'The live settings for this ability, including anything you changed in the VFX editor.';
   document.documentElement.style.setProperty('--a', a.accent || 'var(--accent)');
   $('nowSigil').innerHTML = svg(a);
   $('nowName').textContent = a.label;
@@ -486,15 +494,15 @@ function select(a, { cast = false, scroll = false } = {}) {
   const pk = packs[a.pack];
   const f = [];
   if (a.element && elements[a.element]) f.push(`<span>element <b>${elements[a.element].label}</b></span>`);
-  f.push(`<span>pack <b>${pk.title}</b></span>`);
-  if (a.key) f.push(`<span>key <b>${a.key}</b></span>`);
+  if (advanced && pk) f.push(`<span>pack <b>${pk.title}</b></span>`);
+  if (advanced && a.key) f.push(`<span>key <b>${a.key}</b></span>`);
   if (a.cast) f.push(`<span>aim <b>${a.cast}</b></span>`);
-  if (a.castAnim) f.push(`<span>gesture <b>${a.castAnim}</b></span>`);
+  if (advanced && a.castAnim) f.push(`<span>gesture <b>${a.castAnim}</b></span>`);
   if (a.range != null) f.push(`<span>range <b>${a.minRange ?? 0}\u2013${a.range} m</b></span>`);
-  if (a.zoneRadius != null) f.push(`<span>circle <b>${a.zoneRadius} m</b></span>`);
+  if (a.zoneRadius) f.push(`<span>circle <b>${a.zoneRadius} m</b></span>`);
   if (a.cooldown != null) f.push(`<span>cooldown <b>${a.cooldown} s</b></span>`);
-  if (a.controls) f.push(`<span>live controls <b>${a.controls}</b></span>`);
-  if (a.status === 'archived') f.push(`<span>source <b>${a.file}</b></span>`);
+  if (advanced && a.controls) f.push(`<span>live controls <b>${a.controls}</b></span>`);
+  if (advanced && a.status === 'archived') f.push(`<span>source <b>${a.file}</b></span>`);
   $('facts').innerHTML = f.join('');
   document.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel'));
   document.querySelectorAll(`[data-uid="${CSS.escape(a.uid)}"]`).forEach((n) => n.classList.add('sel'));
@@ -641,8 +649,8 @@ function render() {
   const list = $('list');
   if (!items.length) { list.innerHTML = `<p class="note">${emptyCopy()}</p>`; return; }
   if (filters.view === 'table') {
-    list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Element</th><th>Pack</th><th>Key</th><th>Aim</th><th>Gesture</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Controls</th><th>Tried</th></tr></thead><tbody>${
-      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</td><td>${elements[a.element]?.label ?? ''}</td><td>${a.pack}</td><td>${a.key || ''}</td><td>${a.cast || ''}</td><td>${a.castAnim || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius ?? ''}</td><td>${a.cooldown ?? ''}</td><td>${a.controls ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
+    list.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Ability</th><th>Element</th>${advanced ? '<th>Pack</th>' : ''}<th>Aim</th><th>Range m</th><th>Circle m</th><th>CD s</th><th>Tried</th></tr></thead><tbody>${
+      items.map((a) => `<tr data-uid="${a.uid}" style="--a:${a.accent || 'var(--accent)'}"><td><span class="sw" style="background:${a.accent || '#555'}"></span>${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</td><td>${elements[a.element]?.label ?? ''}</td>${advanced ? `<td>${a.pack}</td>` : ''}<td>${a.cast || ''}</td><td>${a.range != null ? (a.minRange ?? 0) + '\u2013' + a.range : ''}</td><td>${a.zoneRadius || ''}</td><td>${a.cooldown ?? ''}</td><td><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span></td></tr>`).join('')
     }</tbody></table></div>`;
   } else {
     // Grouped by element (what it is) or by pack (where it came from).
@@ -660,7 +668,7 @@ function render() {
         link = pk.repo.includes('/') && !pk.repo.includes('new') ? `<a href="https://github.com/${pk.repo}" target="_blank" rel="noopener">${pk.repo.split('/')[1]}</a>` : (g === 'moves' ? `<a>one shared caster</a>` : `<a>${pk.count} new \u00b7 Collective AI</a>`);
       }
       return `<div class="pack-head"><span>${title}</span>${link}</div><div class="cards">${
-        members.map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}${filters.group === 'element' ? ` \u00b7 ${a.pack}` : ''}</span></button>`).join('')
+        members.map((a) => `<button class="card ${a.status === 'archived' ? 'archived' : ''}" data-uid="${a.uid}" style="--a:${a.accent || 'var(--muted)'}"><span class="g">${svg(a)}</span><span class="n">${a.label}${a.pack === 'codex' ? ' <span class="tag-new">new</span>' : ''}</span><span class="m"><span class="dot ${tried.has(a.uid) ? 'done' : ''}"></span>${a.key ? `<span class="kbd">${a.key}</span>` : ''}${a.kind === 'ability' ? a.cast : a.kind}${advanced && filters.group === 'element' ? ` \u00b7 ${a.pack}` : ''}</span></button>`).join('')
       }</div>`;
     }).join('');
   }
@@ -683,6 +691,19 @@ $('viewTable').onclick = () => { filters.view = 'table'; store.set('view', 'tabl
 function setGroup(g) { filters.group = g; store.set('group', g); $('groupElement').setAttribute('aria-pressed', g === 'element'); $('groupPack').setAttribute('aria-pressed', g === 'pack'); sortCatalog(); render(); }
 $('groupElement').onclick = () => setGroup('element');
 $('groupPack').onclick = () => setGroup('pack');
+$('advancedBtn').onclick = () => {
+  advanced = !advanced;
+  store.set('advanced', advanced);
+  document.body.classList.toggle('advanced', advanced);
+  $('advancedBtn').setAttribute('aria-pressed', advanced ? 'true' : 'false');
+  if (!advanced && filters.group === 'pack') setGroup('element');
+  else if (current) select(current);
+  else render();
+};
+$('now').addEventListener('click', (e) => {
+  if (e.target.closest('button')) return;
+  document.body.classList.toggle('name-open');
+});
 $('filtersToggle').onclick = () => {
   const open = document.body.classList.toggle('filters-open');
   $('filtersToggle').setAttribute('aria-expanded', open ? 'true' : 'false');

@@ -14,7 +14,7 @@ export default {
     label: 'Orbit Lock',
     accent: '#e7deff',
     key: '',
-    element: 'cosmic',
+    element: 'gravity',
     hint: 'Cosmic — a star bursts into planets on tilted orbits above the circle; the orbits lock into one ring and it slams down',
     cast: 'zone',
     glyph: `<circle cx="50" cy="50" r="30"/><ellipse cx="50" cy="50" rx="34" ry="12" transform="rotate(-25 50 50)"/><circle cx="80" cy="50" r="5"/><circle cx="26" cy="64" r="4"/><circle cx="50" cy="50" r="4"/>`

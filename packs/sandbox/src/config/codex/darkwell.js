@@ -15,7 +15,7 @@ export default {
     label: 'Dark Matter Well',
     accent: '#1c1030',
     key: '',
-    element: 'cosmic',
+    element: 'gravity',
     hint: 'Cosmic — the floor sags into a gravity well and a wall of dark matter closes from the rim, swallowing everything inside',
     cast: 'zone',
     glyph: `<circle cx="50" cy="50" r="34"/><ellipse cx="50" cy="50" rx="34" ry="10"/><path d="M16 50C30 52 40 58 46 84M84 50C70 52 60 58 54 84"/><circle cx="50" cy="50" r="5"/>`
