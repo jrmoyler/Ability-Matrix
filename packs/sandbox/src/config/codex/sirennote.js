@@ -15,7 +15,7 @@ export default {
     label: 'Siren Note',
     accent: '#e9fff8',
     key: '',
-    element: 'wind',
+    element: 'sound',
     hint: 'Wind — a single held note cuts the line as a shivering sheet of air, sorting the dust into nodal lines, and screams apart at the end',
     cast: 'line',
     glyph: `<path d="M10 50C22 34 34 66 46 50C58 34 70 66 82 50"/><path d="M10 38H34M10 62H34"/><path d="M86 30C94 42 94 58 86 70"/><path d="M78 36C84 44 84 56 78 64"/>`

@@ -5,7 +5,7 @@
   "id": "voidbloom",
   "slot": 55,
   "kind": "ability",
-  "element": "shadow",
+  "element": "void",
   "label": "Void Bloom",
   "hint": "Shadow — a black flower bursts from the floor and opens; its throat pulls the circle in, then the petals snap shut and sink",
   "key": "",

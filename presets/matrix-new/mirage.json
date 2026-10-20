@@ -5,7 +5,7 @@
   "id": "mirage",
   "slot": 5,
   "kind": "ability",
-  "element": "arcane",
+  "element": "illusion",
   "label": "Mirage Construct",
   "hint": "Illusion — a spectral copy of you stands in the circle, flickers, then bursts into light",
   "key": "X",

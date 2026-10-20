@@ -5,7 +5,7 @@
   "id": "darkwell",
   "slot": 51,
   "kind": "ability",
-  "element": "cosmic",
+  "element": "gravity",
   "label": "Dark Matter Well",
   "hint": "Cosmic — the floor sags into a gravity well and a wall of dark matter closes from the rim, swallowing everything inside",
   "key": "",

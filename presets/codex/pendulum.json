@@ -5,7 +5,7 @@
   "id": "pendulum",
   "slot": 70,
   "kind": "ability",
-  "element": "time",
+  "element": "motion",
   "label": "Pendulum Cleaver",
   "hint": "Time — a crescent pendulum swings down the line, slower every pass, stalls, then cleaves",
   "key": "",

@@ -12,7 +12,7 @@ const materialDir = path.join(root, 'packs/sandbox/src/materials/codex');
 
 test('every codex ability is bespoke: its own class, shaders and full editor', async () => {
   const files = readdirSync(abilityDir).filter((name) => name.endsWith('Ability.js'));
-  assert.equal(files.length, 72);
+  assert.equal(files.length, 152);
   const materials = new Set(readdirSync(materialDir));
   for (const name of files) {
     const src = readFileSync(path.join(abilityDir, name), 'utf8');

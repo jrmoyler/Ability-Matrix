@@ -14,7 +14,7 @@ export default {
     label: 'Void Bloom',
     accent: '#6a5cff',
     key: '',
-    element: 'shadow',
+    element: 'void',
     hint: 'Shadow — a black flower bursts from the floor and opens; its throat pulls the circle in, then the petals snap shut and sink',
     cast: 'zone',
     glyph: `<path d="M50 82C34 64 30 40 50 18C70 40 66 64 50 82Z"/><path d="M50 82C30 76 14 58 16 40C34 44 46 60 50 82Z"/><path d="M50 82C70 76 86 58 84 40C66 44 54 60 50 82Z"/><circle cx="50" cy="82" r="4"/>`

@@ -5,7 +5,7 @@
   "id": "voidstep",
   "slot": 10,
   "kind": "ability",
-  "element": "shadow",
+  "element": "void",
   "label": "Voidstep Rift",
   "hint": "Void — tear two rifts, step through one and out of the other; the exit snaps shut with a pulse",
   "key": "Y",

@@ -5,7 +5,7 @@
   "id": "sonic",
   "slot": 6,
   "kind": "ability",
-  "element": "wind",
+  "element": "sound",
   "label": "Resonance Pulse",
   "hint": "Sound — a train of pressure rings that ends in a boom",
   "key": "B",

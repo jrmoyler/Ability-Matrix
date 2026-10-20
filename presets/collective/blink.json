@@ -5,7 +5,7 @@
   "id": "blink",
   "slot": 5,
   "kind": "ability",
-  "element": "time",
+  "element": "motion",
   "label": "Blink Step",
   "hint": "Movement — dissolve, streak and reform at the target",
   "key": "X",

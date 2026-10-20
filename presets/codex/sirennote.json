@@ -5,7 +5,7 @@
   "id": "sirennote",
   "slot": 33,
   "kind": "ability",
-  "element": "wind",
+  "element": "sound",
   "label": "Siren Note",
   "hint": "Wind — a single held note cuts the line as a shivering sheet of air, sorting the dust into nodal lines, and screams apart at the end",
   "key": "",
