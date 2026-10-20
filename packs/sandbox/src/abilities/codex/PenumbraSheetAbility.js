@@ -323,7 +323,7 @@ export class PenumbraSheetAbility extends Ability {
       this._fillEmit(_end, ZONE ? c.zoneRadius * 0.35 : 0.3, _dir, c.dustSpeed, 0.45, 0.45, c.dustLife, 0.4);
       for (let i = 0; i < dustN; i++) {
         const ang = this._spin + i * 0.7;
-        const pull = 0.6; _dir.set((fx - Math.cos(ang)) * pull, 0.15, (fz - Math.sin(ang)) * pull);
+        const pull = 0.6; _dir.set((Math.cos(this._spin) - Math.cos(ang)) * pull, 0.15, (Math.sin(this._spin) - Math.sin(ang)) * pull);
         _emit.direction = _dir;
         this.dust.emit(1, _emit);
       }

@@ -38,6 +38,7 @@ test('generated code has no placeholder hacks and uses the detail layer', () => 
   for (const spell of SPELLS) {
     const ability = src('abilities', `${spell.cls}Ability.js`);
     const materials = src('materials', `${spell.cls}Materials.js`);
+    assert.ok(!/\b(fx|fz)\b/.test(ability), `${spell.id} reads a variable that is never declared`);
     assert.ok(!/\bvoid \w+;/.test(ability), `${spell.id} ability discards a value`);
     assert.ok(!/\* 0\.0;/.test(materials), `${spell.id} shader multiplies a varying by zero`);
     assert.match(ability, /new DetailLayer\(KIND, this\.detailMaterial\)/, `${spell.id} detail layer`);

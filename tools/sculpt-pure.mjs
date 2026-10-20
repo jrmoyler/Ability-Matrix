@@ -582,7 +582,7 @@ const SHED = {
   holy: [`_dir.set(Math.cos(ang) * 0.35, 0.9, Math.sin(ang) * 0.35);`, `_dir.set((Math.random() - 0.5) * 0.2, 1.2, (Math.random() - 0.5) * 0.2);`],
   cosmic: [`_dir.copy(this.direction).setY(0.35 + Math.random() * 0.4);`, `_dir.copy(this.direction).multiplyScalar(-0.4).setY(0.8);`],
   gravity: [`_dir.set(Math.cos(ang) * 0.4, -0.2, Math.sin(ang) * 0.4);`, `_dir.set(Math.random() - 0.5, -0.6, Math.random() - 0.5);`],
-  shadow: [`const pull = 0.6; _dir.set((fx - Math.cos(ang)) * pull, 0.15, (fz - Math.sin(ang)) * pull);`, `_dir.set(-Math.cos(ang), 0.25, -Math.sin(ang));`],
+  shadow: [`const pull = 0.6; _dir.set((Math.cos(this._spin) - Math.cos(ang)) * pull, 0.15, (Math.sin(this._spin) - Math.sin(ang)) * pull);`, `_dir.set(-Math.cos(ang), 0.25, -Math.sin(ang));`],
   void: [`_dir.set(-Math.cos(ang), 0.05, -Math.sin(ang));`, `_dir.set((Math.random() - 0.5) * 0.2, -0.15, (Math.random() - 0.5) * 0.2);`],
   arcane: [`_dir.set(Math.cos(ang + 1.2), 0.7, Math.sin(ang + 1.2));`, `_dir.set(Math.cos(-ang), 1.0, Math.sin(-ang));`],
   illusion: [`_dir.copy(this.side).multiplyScalar(1.2).setY(0.3);`, `_dir.copy(this.side).multiplyScalar(-0.8).setY(0.5);`],
