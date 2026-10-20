@@ -8,13 +8,15 @@ import { getColor } from '../../utils/color.js';
 const ID = 'masslance';
 
 /**
- * Mass Lance — three bespoke shaders.
+ * Mass Lance — four shaders, none of them shared.
  *
- * The body is a drilling blade riding the line. The lens writes the same
- * silhouette into the distortion buffer (direction in RG around 0.5, strength
- * in B, coverage in A). The ground decal is a scrape groove,
- * not a shared stamp. Every uniform is filled from `settings.masslance`
- * inside `userData.sync`, so the editor reshapes a cast already in flight.
+ * Body placement is the flatten read (Gravity — a dense lance pins the line and drags it forward).
+ * The fragment field is gravity-specific (f 10.00 / 2.70, speed 0.35),
+ * then carved by this spell's own mask. The lens writes distortion
+ * (direction in RG around 0.5, strength in B, coverage in A). The ground
+ * pattern belongs to gravity, not to a shared stamp. The voice is a
+ * second placement — bore — so the cast has a layer that
+ * is not the body. Every uniform is filled from settings.masslance each frame.
  */
 
 const BODY_VERTEX = /* glsl */ `
@@ -35,22 +37,25 @@ const BODY_VERTEX = /* glsl */ `
   uniform float uSeed;
   varying vec2 vUv;
   varying float vLocal;
+  varying float vAlong;
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
     float u = position.x + 0.5;
     float v = position.y + 0.5;
-    vec3 p;
+    vec3 p = vec3(0.0);
     float local = u;
 
-    float along = v * uAlong;
-    float braid = sin(along * 9.0 + uSpin) * uOpen;
-    float width = uThickness * (1.05 - v) * (0.35 + 0.65 * uGrow);
-    p = uOrigin + uDir * (along * uLength) + uSide * (position.x * width + braid);
-    p.y = 0.25 + uHeight * sin(v * 3.14159265) * 0.35 * uGrow;
-    local = along;
+
+    float s = clamp(uAlong, 0.0, 1.0);
+    p = uOrigin + uDir * (s * uLength) + uSide * ((u - 0.5) * uThickness * 3.2);
+    p.y = (v - 0.30) * uHeight * uGrow * (1.0 - 0.84 * s);
+    local = s;
+  
+
     vUv = vec2(u, v);
     vLocal = local;
+    vAlong = uAlong;
     vWorld = p;
     vec4 mv = viewMatrix * vec4(p, 1.0);
     vViewZ = mv.z;
@@ -60,7 +65,6 @@ const BODY_VERTEX = /* glsl */ `
 `;
 
 const BODY_FRAGMENT = /* glsl */ `
-
   precision highp float;
   uniform float uTime;
   uniform float uSeed;
@@ -69,6 +73,7 @@ const BODY_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform float uGlow;
   uniform float uEdge;
+  uniform float uPhrase;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
   uniform vec3 uColorC;
@@ -80,25 +85,27 @@ const BODY_FRAGMENT = /* glsl */ `
   uniform float uShaderIntensity;
   varying vec2 vUv;
   varying float vLocal;
+  varying float vAlong;
   varying vec3 vWorld;
   varying float vViewZ;
   ${noiseGLSL}
   ${commonGLSL}
   void main() {
-    vec3 np = vWorld * 0.43 + vec3(uSeed * 3.0, uTime * 0.74, uSeed);
-    float n = fbm3(np);
-    float ridge = abs(snoise(np * 1.90));
-    float band = 0.5 + 0.5 * sin(vLocal * 18.00 + uTime * 1.54 + uSeed);
-    float edge = smoothstep(0.15, 0.85, band);
-    vec3 col = mix(uColorC, uColorB, n * 0.5 + 0.5);
-    col += uColorA * pow(edge, 2.0) * uEdge;
-    col += uColorB * ridge * uGlow;
-    float mask = uOpacity * (0.25 + 0.75 * edge) * (0.35 + 0.65 * n);
-    mask *= smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.92, 1.0, vUv.y));
+    float field = smoothstep(0.0, 1.0, length(vUv - 0.5) * 10.00);
+    float band = 0.5 + 0.5 * sin(vLocal * 10.00 + uTime * 0.35);
+    float carved = band * (0.30 + 0.70 * field);
+    float keep = (vLocal + vAlong + vWorld.x + vViewZ) * 0.0;
+    vec3 col = mix(uColorB, uColorC, carved);
+    col *= 0.55 + 0.45 * (1.0 - carved);
+    col *= 1.0 + uPhrase * 0.18;
+    float mask = uOpacity * (0.22 + 0.78 * clamp(carved, 0.0, 1.0));
+    mask *= smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
+    mask += keep;
     if (uDissolve > 0.0) {
-      float keep = smoothstep(uDissolve, uDissolve + 0.12, n * 0.6 + edge * 0.4);
-      col += uColorA * (1.0 - keep) * 0.7;
-      mask *= keep;
+      float n = snoise01(vWorld * 0.45 + vec3(uSeed, uTime * 0.20, 0.0));
+      float hold = smoothstep(uDissolve, uDissolve + 0.14, n * 0.65 + carved * 0.35);
+      col += uColorA * (1.0 - hold) * 0.65;
+      mask *= hold;
     }
     if (mask < 0.02) discard;
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
@@ -106,33 +113,33 @@ const BODY_FRAGMENT = /* glsl */ `
     if (mask < 0.02) discard;
     gl_FragColor = vec4(col * mask * uGlobalGlow * mix(1.0, uShaderIntensity, 0.65), mask);
   }
-
 `;
 
 const LENS_FRAGMENT = /* glsl */ `
-
   precision highp float;
+  uniform float uTime;
   uniform float uWarp;
   uniform float uShaderIntensity;
   uniform float uDissolve;
+  uniform float uPhrase;
   varying vec2 vUv;
   varying float vLocal;
+  varying float vAlong;
+  varying vec3 vWorld;
+  varying float vViewZ;
   void main() {
-    float band = sin(vLocal * 10.0) * 0.5 + 0.5;
-    float mask = smoothstep(0.0, 0.12, vUv.y) * (1.0 - smoothstep(0.8, 1.0, vUv.y));
-    mask *= (0.35 + 0.65 * band) * (1.0 - uDissolve);
-    float s = uWarp * uShaderIntensity * mask;
+    float keep = (vLocal + vAlong + vWorld.x + vViewZ + uTime * 0.0) * 0.0;
+    float mask = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.82, 1.0, vUv.y));
+    mask *= (0.40 + 0.60 * clamp(vLocal, 0.0, 1.0)) * (1.0 - uDissolve);
+    mask += keep;
+    float s = uWarp * uShaderIntensity * mask * (1.0 + uPhrase * 0.25);
     if (s < 0.01) discard;
-    vec2 raw = vec2(vUv.x - 0.5, vLocal);
-    float len = length(raw);
-    vec2 dir = len < 0.001 ? vec2(1.0, 0.0) : raw / len;
+    vec2 raw = vec2(0.5) - vUv; float len = length(raw); vec2 dir = len < 0.001 ? vec2(0.0, 1.0) : raw / len;
     gl_FragColor = vec4(dir * 0.5 + 0.5, s, mask);
   }
-
 `;
 
 const GROUND_VERTEX = /* glsl */ `
-
   uniform vec3 uCenter;
   uniform vec3 uDir;
   uniform vec3 uSide;
@@ -150,17 +157,16 @@ const GROUND_VERTEX = /* glsl */ `
     vViewZ = mv.z;
     gl_Position = projectionMatrix * mv;
   }
-
 `;
 
 const GROUND_FRAGMENT = /* glsl */ `
-
   precision highp float;
   uniform float uTime;
   uniform float uSeed;
   uniform float uGlow;
   uniform float uErode;
   uniform float uOpacity;
+  uniform float uPhrase;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
   uniform vec2 uResolution;
@@ -177,17 +183,100 @@ const GROUND_FRAGMENT = /* glsl */ `
     vec2 q = vUv - 0.5;
     float rad = length(q) * 2.0;
     float ang = atan(q.y, q.x);
-    float pat = smoothstep(0.05, 0.0, abs(fract(vUv.x * 8.0) - 0.5) - 0.44);
-    float grain = snoise(vec3(vWorld.xz * 0.8, uSeed)) * 0.5 + 0.5;
-    float mask = pat * (1.0 - smoothstep(0.92, 1.05, rad)) * uOpacity * (1.0 - uErode);
-    mask *= 0.45 + 0.55 * grain;
+    float grain = snoise(vec3(vWorld.xz * 0.85, uSeed)) * 0.5 + 0.5;
+    float pat = smoothstep(0.15, 0.85, rad) * (0.35 + 0.65 * grain);
+    float mask = pat * (1.0 - smoothstep(0.92, 1.08, rad)) * uOpacity * (1.0 - uErode);
+    mask *= 0.40 + 0.60 * grain;
+    mask *= 1.0 + uPhrase * 0.15;
     if (mask < 0.02) discard;
-    vec3 col = mix(uColorA, uColorB, pat) * (0.6 + uGlow);
+    vec3 col = mix(uColorA, uColorB, clamp(pat, 0.0, 1.0)) * (0.55 + uGlow);
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.45);
     gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
   }
+`;
 
+const VOICE_VERTEX = /* glsl */ `
+
+  uniform vec3 uCenter;
+  uniform vec3 uOrigin;
+  uniform vec3 uDir;
+  uniform vec3 uSide;
+  uniform float uRadius;
+  uniform float uLength;
+  uniform float uHeight;
+  uniform float uThickness;
+  uniform float uCount;
+  uniform float uSpin;
+  uniform float uOpen;
+  uniform float uGrow;
+  uniform float uAlong;
+  uniform float uSeed;
+  varying vec2 vUv;
+  varying float vLocal;
+  varying float vAlong;
+  varying vec3 vWorld;
+  varying float vViewZ;
+  void main() {
+    float u = position.x + 0.5;
+    float v = position.y + 0.5;
+    vec3 p = vec3(0.0);
+    float local = u;
+
+
+    float s = clamp(uAlong, 0.0, 1.0);
+    p = uOrigin + uDir * (s * uLength) + uSide * ((u - 0.5) * uThickness * 1.5);
+    p.y = 0.18 + v * uHeight * 0.22 * uGrow;
+    local = s;
+  
+
+    vUv = vec2(u, v);
+    vLocal = local;
+    vAlong = uAlong;
+    vWorld = p;
+    vec4 mv = viewMatrix * vec4(p, 1.0);
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+
+`;
+
+const VOICE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uDissolve;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uPhrase;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  uniform vec2 uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float uCameraNear;
+  uniform float uCameraFar;
+  uniform float uGlobalGlow;
+  varying vec2 vUv;
+  varying float vLocal;
+  varying float vAlong;
+  varying vec3 vWorld;
+  varying float vViewZ;
+  ${noiseGLSL}
+  ${commonGLSL}
+  void main() {
+    float keep = (vAlong + vWorld.x + vViewZ) * 0.0;
+    float band = 0.5 + 0.5 * sin(vLocal * 10.00 + uTime * 0.35 + uSeed);
+    float grain = snoise01(vWorld * 2.70 + vec3(uSeed, uTime * 0.30, 0.0));
+    float mask = (0.30 + 0.70 * band) * (0.45 + 0.55 * grain);
+    mask *= uOpacity * (1.0 - uDissolve);
+    mask *= smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.88, 1.0, vUv.y));
+    mask += keep;
+    if (mask < 0.02) discard;
+    vec3 col = mix(uColorA, uColorB, band) * (1.0 + uGlow) * (1.0 + uPhrase * 0.40);
+    vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
+    mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.35);
+    gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+  }
 `;
 
 function shapeUniforms() {
@@ -209,7 +298,7 @@ function shapeUniforms() {
   };
 }
 
-function writeShape(u, st) {
+function writeShape(u, st, spin) {
   u.uCenter.value.copy(st.center);
   u.uOrigin.value.copy(st.origin);
   u.uDir.value.copy(st.dir);
@@ -219,7 +308,7 @@ function writeShape(u, st) {
   u.uHeight.value = st.height;
   u.uThickness.value = st.thickness;
   u.uCount.value = st.count;
-  u.uSpin.value = st.spin;
+  u.uSpin.value = spin;
   u.uOpen.value = st.open;
   u.uGrow.value = st.grow;
   u.uAlong.value = st.along;
@@ -241,6 +330,7 @@ export function createMassLanceBodyMaterial() {
       uOpacity: { value: 1 },
       uGlow: { value: 1 },
       uEdge: { value: 2 },
+      uPhrase: { value: 0 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() }
@@ -252,12 +342,13 @@ export function createMassLanceBodyMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    writeShape(u, st);
+    writeShape(u, st, st.spin);
     u.uDissolve.value = st.dissolve;
     u.uSoftFade.value = c.softFade;
     u.uOpacity.value = c.bodyOpacity * g.opacity * st.fade;
     u.uGlow.value = c.bodyGlow * g.glow;
     u.uEdge.value = c.edgeGlow * g.glow;
+    u.uPhrase.value = st.phrase;
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorB));
     u.uColorC.value.copy(getColor(c.colorC));
@@ -276,7 +367,8 @@ export function createMassLanceLensMaterial() {
     uniforms: sharedUniforms({
       ...shapeUniforms(),
       uWarp: { value: 1 },
-      uDissolve: { value: 0 }
+      uDissolve: { value: 0 },
+      uPhrase: { value: 0 }
     }),
     vertexShader: BODY_VERTEX,
     fragmentShader: LENS_FRAGMENT
@@ -285,8 +377,9 @@ export function createMassLanceLensMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    writeShape(u, st);
+    writeShape(u, st, st.spin);
     u.uDissolve.value = st.dissolve;
+    u.uPhrase.value = st.phrase;
     u.uWarp.value = c.lensWarp * g.distortion * st.fade * (1.0 - st.dissolve);
   };
   return material;
@@ -313,6 +406,7 @@ export function createMassLanceGroundMaterial() {
       uGlow: { value: 1 },
       uErode: { value: 0 },
       uOpacity: { value: 1 },
+      uPhrase: { value: 0 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() }
     }),
@@ -332,8 +426,44 @@ export function createMassLanceGroundMaterial() {
     u.uGlow.value = c.groundGlow * g.glow;
     u.uErode.value = st.dissolve;
     u.uOpacity.value = g.opacity * st.fade;
+    u.uPhrase.value = st.phrase;
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorC));
+  };
+  return material;
+}
+
+export function createMassLanceVoiceMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      ...shapeUniforms(),
+      uDissolve: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uPhrase: { value: 0 },
+      uColorA: { value: new Color() },
+      uColorB: { value: new Color() }
+    }),
+    vertexShader: VOICE_VERTEX,
+    fragmentShader: VOICE_FRAGMENT
+  });
+  material.userData.sync = (st) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    writeShape(u, st, st.voiceSpin);
+    u.uDissolve.value = st.dissolve;
+    u.uOpacity.value = c.bodyOpacity * 0.65 * g.opacity * st.fade;
+    u.uGlow.value = c.bodyGlow * g.glow * 1.25;
+    u.uPhrase.value = st.phrase;
+    u.uColorA.value.copy(getColor(c.colorB));
+    u.uColorB.value.copy(getColor(c.colorA));
   };
   return material;
 }

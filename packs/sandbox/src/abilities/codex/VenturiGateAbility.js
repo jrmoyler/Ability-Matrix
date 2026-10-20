@@ -3,7 +3,8 @@ import { Ability } from '../Ability.js';
 import {
   createVenturiGateBodyMaterial,
   createVenturiGateLensMaterial,
-  createVenturiGateGroundMaterial
+  createVenturiGateGroundMaterial,
+  createVenturiGateVoiceMaterial
 } from '../../materials/codex/VenturiGateMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -17,14 +18,16 @@ import { saturate, lerp, Easing } from '../../utils/math.js';
 
 export const ID = 'venturi';
 
-const CAST = 'zone';
-const ARCH = 'cage';
-const VARIANT = 0;
 const HIT = 'in';
 const CARRY = 'in';
-const DECAL = DecalType.SHOCKWAVE;
-const BURST = BurstMode.AIR;
-const PRIMARY = ParticleShape.STREAK;
+const WHEN = 'echo';
+const ECHO = 'out';
+const OFFSET = false;
+const DISSOLVE_TRAVEL = false;
+const COUNTER = false;
+const ZONE = true;
+const LIFT = 1;
+const SLICE = false;
 
 const _emit = {};
 const _pos = new Vector3();
@@ -37,29 +40,24 @@ const _focus = new Vector3();
  *
  * Wind — a venturi of air bars squeezes the circle, then coughs it out.
  *
- * The silhouette is bars that drop in a ring and then move. Variant 0 decides the
- * commitment: hit `in`, then carry `in`. It is not a recolour of the
- * other wind castables — the motion, the hit direction and the
- * shader's cage placement are this spell's own.
+ * The bars squeeze first. The cough is a second beat that throws outward after the squeeze.
  *
- * ## Layers (each a folder in the editor)
+ * The read is `crush`. Hit timing is `echo`, blow `in`, carry `in`.
+ * A second beat (out) fires once the fade has started, for whoever the first beat missed.
+ * 
+ * 
  *
- *   1. **the body** — a subdivided quad placed in the vertex stage as
- *      bars that drop in a ring and then move. Additive, with a ridged fbm body and a bright edge.
- *   2. **the lens** — the same placement on `LAYER.DISTORTION`, so the
- *      world bends with the cast instead of merely glowing.
- *   3. **the ground** — a crack fan
- *      written under the footprint and eroded on the way out.
- *   4. **the shed** — a RateEmitter of STREAK plus dust and chips,
- *      rates read live so a slider never snaps the count.
- *   5. **the hit** — `handlesOwnHits`. Bodies are thrown inward, toward the centre. What is already down is carried by the field until the cast ends.
- *   6. **the beat** — impact burst (AIR), decal (SHOCKWAVE),
- *      screen flash and a camera punch, then a light that decays on its own.
+ * ## Layers
  *
- * ## The editor rule
+ *   1. **body** — the crush placement, in its own shader.
+ *   2. **lens** — the same placement into the distortion buffer.
+ *   3. **ground** — a wind pattern under the footprint, not a shared stamp.
+ *   4. **voice** — a chord riding alongside the body, spun with the cast.
+ *   5. **shed** — dust, streaks and chips on RateEmitters, rates read live.
+ *   6. **bodies** — `handlesOwnHits`. The bars squeeze first. The cough is a second beat that throws outward after the squeeze.
  *
- * A cast captures a seed and an integrated spin. Every metre, rate and colour
- * is read from `settings.venturi` each frame.
+ * Every metre, rate and colour is read from `settings.venturi` each frame.
+ * A cast only captures a seed and an integrated spin.
  */
 export class VenturiGateAbility extends Ability {
   constructor(ctx) {
@@ -75,12 +73,15 @@ export class VenturiGateAbility extends Ability {
   }
 
   createShaders() {
-    this.bodyGeometry = new PlaneGeometry(1, 1, 72, 20);
+    this.bodyGeometry = new PlaneGeometry(1, 1, 72, 28);
+    this.voiceGeometry = new PlaneGeometry(1, 1, 64, 8);
     this.groundGeometry = new PlaneGeometry(1, 1, 1, 1);
     this.bodyMaterial = createVenturiGateBodyMaterial();
     this.lensMaterial = createVenturiGateLensMaterial();
     this.groundMaterial = createVenturiGateGroundMaterial();
+    this.voiceMaterial = createVenturiGateVoiceMaterial();
     this.body = this._mesh(this.bodyGeometry, this.bodyMaterial, LAYER.VFX, 12);
+    this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
     this._state = {
@@ -94,21 +95,24 @@ export class VenturiGateAbility extends Ability {
       thickness: 0.3,
       count: 6,
       spin: 0,
+      voiceSpin: 0,
       open: 1,
       grow: 1,
       along: 0,
       seed: 0,
       fade: 1,
       dissolve: 0,
+      phrase: 0,
       foot: 1,
       footWidth: 1
     };
     this._seed = 0;
     this._spin = 0;
     this._hits = 0;
+    this._echoed = false;
     this._struck = [];
     this._carried = [];
-    this._boltsHit = new Set();
+    this._parts = Array.from({ length: 12 }, () => ({ armed: true }));
     this._force = { impulse: 0, lift: 0, spin: 0 };
     this._flow = { vx: 0, vy: 0, vz: 0 };
     this._field = (x, y, z, out) => out.set(this._flow.vx, this._flow.vy, this._flow.vz);
@@ -136,7 +140,7 @@ export class VenturiGateAbility extends Ability {
     });
     this.streaks = particles.get('venturi.streak', {
       capacity: 1200,
-      shape: PRIMARY,
+      shape: ParticleShape.STREAK,
       additive: true,
       stretch: true,
       softFade: 0.2
@@ -163,30 +167,55 @@ export class VenturiGateAbility extends Ability {
 
   lightShimmer() {
     const f = settings[ID].lightFlicker;
-    return 1 - f + f * Math.sin(this.age * (6 + VARIANT));
+    return 1 - f + f * Math.sin(this.age * 7.00);
   }
 
   onSpawn() {
     this._seed = Math.random() * 10;
     this._spin = Math.random() * Math.PI * 2;
     this._hits = 0;
+    this._echoed = false;
     this._struck.length = 0;
     this._carried.length = 0;
-    this._boltsHit.clear();
+    for (let i = 0; i < this._parts.length; i++) this._parts[i].armed = true;
     this.dustEmitter.reset();
     this.streakEmitter.reset();
     this.chipEmitter.reset();
     this.body.visible = false;
+    this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    if (ZONE) this._telegraph();
   }
 
   _focusPoint(out) {
-    if (CAST === 'zone') return this.pointAt(1, out);
+    if (ZONE) return this.pointAt(1, out);
     return this.pointAt(this.u, out);
   }
 
-  _writeFrame(open, grow, along, dissolve, fade) {
+  _aim(out) {
+    this._focusPoint(out);
+    if (OFFSET) out.addScaledVector(this.side, settings[ID].thickness * 4);
+    return out;
+  }
+
+  _pose(committed, fadeT) {
+    const u = this.u;
+    const rise = committed ? 1 : Easing.outCubic(saturate(u));
+    const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;
+    let grow = rise;
+    let open = beat;
+    let along = u;
+    along = 1; grow = rise; open = beat;
+    let dissolve = 0;
+    if (committed && fadeT >= 1) dissolve = saturate((fadeT - 1) * 1.15);
+    else if (DISSOLVE_TRAVEL && !committed) dissolve = saturate(u * 0.55);
+    const fade = committed && fadeT >= 1 ? 1 - (fadeT - 1) : 1;
+    const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
+    this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+  _write(open, grow, along, dissolve, fade, phrase) {
     const c = settings[ID];
     const g = settings.global;
     const st = this._state;
@@ -195,26 +224,30 @@ export class VenturiGateAbility extends Ability {
     st.origin.copy(this.origin);
     st.dir.copy(this.direction);
     st.side.copy(this.side);
-    st.radius = CAST === 'zone' ? Math.max(0.2, c.zoneRadius) : Math.max(0.2, c.sweep);
+    st.radius = ZONE ? Math.max(0.2, c.zoneRadius) : Math.max(0.2, c.sweep);
     st.length = Math.max(0.2, this.length);
     st.height = c.height * g.shaderIntensity;
     st.thickness = c.thickness;
     st.count = Math.max(1, c.count);
     st.spin = this._spin;
-    st.open = open;
+    st.voiceSpin = this._spin * (COUNTER ? -1.35 : 1);
+    st.open = open * (0.35 + Math.max(0, c.lean));
     st.grow = grow;
     st.along = along;
     st.seed = this._seed;
     st.fade = fade;
     st.dissolve = dissolve;
-    st.foot = CAST === 'zone' ? c.zoneRadius * 2 : Math.max(0.4, this.front);
-    st.footWidth = CAST === 'zone' ? c.zoneRadius * 2 : c.groundWidth;
+    st.phrase = phrase;
+    st.foot = ZONE ? c.zoneRadius * 2 : Math.max(0.4, this.front);
+    st.footWidth = ZONE ? c.zoneRadius * 2 : c.groundWidth;
     this.bodyMaterial.userData.sync(st);
     this.lensMaterial.userData.sync(st);
     this.groundMaterial.userData.sync(st);
-    const show = fade > 0.02 && grow > 0.02;
+    this.voiceMaterial.userData.sync(st);
+    const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
     this.body.visible = show;
-    this.lens.visible = show;
+    this.voice.visible = show;
+    this.lens.visible = show && c.lensWarp > 0.01;
     this.ground.visible = fade > 0.02;
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
@@ -261,34 +294,40 @@ export class VenturiGateAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._focusPoint(_end);
+    const fx = Math.cos(this._spin);
+    const fz = Math.sin(this._spin);
     const dustN = Math.round(this.dustEmitter.tick(dt, c.dustRate * strength) * g.particleCount);
     if (dustN > 0) {
-      this._fillEmit(_end, 0.35, _dir, c.dustSpeed, 0.5, 0.45, c.dustLife, 0.4);
+      this._fillEmit(_end, ZONE ? c.zoneRadius * 0.35 : 0.3, _dir, c.dustSpeed, 0.45, 0.45, c.dustLife, 0.4);
       for (let i = 0; i < dustN; i++) {
-        _dir.copy(this.direction).addScaledVector(this.side, Math.random() - 0.5).setY(0.6);
+        const ang = this._spin + i * 0.7;
+        _dir.copy(this.direction).addScaledVector(this.side, Math.random() - 0.5).setY(0.15);
         _emit.direction = _dir;
         this.dust.emit(1, _emit);
       }
     }
     const streakN = Math.round(this.streakEmitter.tick(dt, c.streakRate * strength) * g.particleCount);
     if (streakN > 0) {
-      this._fillEmit(_end, 0.2, _dir, c.streakSpeed, 0.25, 0.08, c.streakLife, 2);
+      this._fillEmit(_end, 0.2, _dir, c.streakSpeed, 0.22, 0.08, c.streakLife, 2);
       for (let i = 0; i < streakN; i++) {
-        const ang = this._spin + i;
-        _dir.set(Math.cos(ang), 0.35, Math.sin(ang));
+        const ang = this._spin * 1.7 + i;
+        _dir.copy(this.side).multiplyScalar(Math.random() < 0.5 ? -1.4 : 1.4).setY(0.05);
         _emit.direction = _dir;
         this.streaks.emit(1, _emit);
       }
     }
     const chipN = Math.round(this.chipEmitter.tick(dt, c.chipRate * strength) * g.particleCount);
     if (chipN > 0) {
-      this._fillEmit(_end, 0.15, _dir, c.chipSpeed, 0.45, 0.08, c.chipLife, 8);
+      this._fillEmit(_end, 0.16, _dir, c.chipSpeed, 0.4, 0.08, c.chipLife, 6);
       for (let i = 0; i < chipN; i++) {
-        _dir.copy(this.side).multiplyScalar(Math.random() < 0.5 ? -1 : 1).setY(0.8);
+        const ang = this._spin + i * 1.3;
+        _dir.set(Math.cos(ang), 0.7, Math.sin(ang));
         _emit.direction = _dir;
         this.chips.emit(1, _emit);
       }
     }
+    void fx;
+    void fz;
   }
 
   _already(dummy) {
@@ -303,86 +342,99 @@ export class VenturiGateAbility extends Ability {
   }
 
 
+  _killDir(dummy) {
+    this._aim(_focus);
+    _dir.set(dummy.position.x - _focus.x, 0, dummy.position.z - _focus.z);
+    if (_dir.lengthSq() < 1e-4) _dir.copy(this.direction);
+    else _dir.normalize();
+    _dir.multiplyScalar(-1);
+    
+  }
+
   _blow(dummy, mode) {
     const c = settings[ID];
     const g = settings.global;
-    this._focusPoint(_focus);
-    if (mode === 'out' || mode === 'in' || mode === 'tangent' || mode === 'ring') {
-      _dir.set(dummy.position.x - _focus.x, 0, dummy.position.z - _focus.z);
-      if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
-      else _dir.normalize();
-      if (mode === 'in') _dir.multiplyScalar(-1);
-      if (mode === 'tangent') {
-        const x = _dir.x;
-        _dir.set(-_dir.z, 0, x);
-      }
-    } else if (mode === 'side') {
-      const lateral = (dummy.position.x - _focus.x) * this.side.x + (dummy.position.z - _focus.z) * this.side.z;
-      _dir.copy(this.side).multiplyScalar(lateral < 0 ? -1 : 1);
-    } else if (mode === 'up') {
-      _dir.copy(this.direction).multiplyScalar(0.25);
-    } else if (mode === 'swing') {
-      const ang = lerp(-c.sweep, c.sweep, saturate(this.u));
-      _dir.copy(this.direction).multiplyScalar(Math.cos(ang)).addScaledVector(this.side, Math.sin(ang));
-    } else {
-      _dir.copy(this.direction);
-    }
+    if (mode && mode !== HIT) this._killEcho(dummy, mode);
+    else this._killDir(dummy);
     this._force.impulse = c.hitImpulse * g.explosionIntensity;
-    this._force.lift = c.hitLift * g.explosionIntensity * (mode === 'up' ? 1.4 : 1);
+    this._force.lift = c.hitLift * g.explosionIntensity * LIFT;
+    if (mode === 'up') this._force.lift *= 1.4;
     this._force.spin = c.hitSpin;
-    const slice = mode === 'slice' || mode === 'swing';
-    if (dummy.kill(_dir.x, _dir.z, this._force, slice)) this._remember(dummy);
+    if (dummy.kill(_dir.x, _dir.z, this._force, SLICE || mode === 'swing')) this._remember(dummy);
   }
 
-  _gather(x, z, radius) {
+  _killEcho(dummy, mode) {
+    this._aim(_focus);
+    if (mode === 'up') {
+      _dir.copy(this.direction).multiplyScalar(0.2);
+      return;
+    }
+    _dir.set(dummy.position.x - _focus.x, 0, dummy.position.z - _focus.z);
+    if (_dir.lengthSq() < 1e-4) _dir.copy(this.direction);
+    else _dir.normalize();
+    if (mode === 'in') _dir.multiplyScalar(-1);
+    if (mode === 'tangent') {
+      const x = _dir.x;
+      _dir.set(-_dir.z, 0, x);
+    }
+  }
+
+  _gather(x, z, radius, mode) {
     const field = this.ctx.dummies;
     if (!field?.findTargets) return;
     const found = field.findTargets(x, z, radius, this._found);
     for (let i = 0; i < found.length; i++) {
       const dummy = found[i];
       if (this._already(dummy)) continue;
-      this._blow(dummy, HIT === 'ring' ? 'out' : HIT);
+      this._blow(dummy, mode);
     }
     this._found.length = 0;
   }
 
-  _strikeTravel() {
-    const c = settings[ID];
-    if (CAST === 'zone' && (ARCH === 'spire' || ARCH === 'cage' || ARCH === 'halo' || ARCH === 'well')) return;
-    if (ARCH === 'volley') {
-      this._strikeBolts(false);
-      return;
-    }
-    if (ARCH === 'pendulum' || ARCH === 'lance' || ARCH === 'whip') {
-      this._focusPoint(_end);
-      this._gather(_end.x, _end.z, Math.max(0.3, c.hitRadius));
-    }
+
+  _head(i, n) {
+    return saturate(this.u * n - i);
   }
 
-  _strikeBolts(forceAll) {
+  _partPoint(i, n, out) {
     const c = settings[ID];
-    const n = Math.max(1, Math.round(c.count));
+    const lane = ((i + 0.5) / n - 0.5) * 2 * c.sweep;
+    const s = (i + 0.5) / n;
+    return this.pointAt(s, out).addScaledVector(this.side, lane);
+  }
+
+  _strikeParts(forceAll) {
+    const c = settings[ID];
+    const n = Math.max(1, Math.min(12, Math.round(c.count)));
     for (let i = 0; i < n; i++) {
-      const head = saturate(this.u * n - i);
-      if (!forceAll && head < 0.98) continue;
-      if (this._boltsHit.has(i)) continue;
-      this._boltsHit.add(i);
-      const lane = ((i + 0.5) / n - 0.5) * 2 * c.sweep;
-      const s = VARIANT === 2 ? 1 - i / n : (i + 0.5) / n;
-      this.pointAt(s, _end).addScaledVector(this.side, lane);
-      this._gather(_end.x, _end.z, Math.max(0.4, c.thickness * 4 + 0.6));
+      if (!forceAll && this._head(i, n) < 0.98) continue;
+      if (!this._parts[i].armed) continue;
+      this._parts[i].armed = false;
+      this._partPoint(i, n, _end);
+      this._gather(_end.x, _end.z, Math.max(0.45, c.thickness * 4 + 0.5));
     }
   }
 
-  _commit() {
+  _strike(forceAll) {
     const c = settings[ID];
-    this._focusPoint(_end);
-    if (ARCH === 'volley') {
-      this._strikeBolts(true);
+    if (WHEN === 'part') {
+      this._strikeParts(forceAll);
       return;
     }
-    const reach = CAST === 'zone' ? Math.max(c.zoneRadius, c.hitRadius) : Math.max(0.4, c.hitRadius);
+    if (WHEN === 'late' && this.u < 0.42 && !forceAll) return;
+    this._aim(_end);
+    const reach = ZONE ? Math.max(c.zoneRadius, c.hitRadius) : Math.max(0.35, c.hitRadius);
     this._gather(_end.x, _end.z, reach);
+  }
+
+  _echo() {
+    if (!ECHO) return;
+    const c = settings[ID];
+    this._aim(_end);
+    const reach = (ZONE ? Math.max(c.zoneRadius, c.hitRadius) : c.hitRadius) * 1.15;
+    this._gather(_end.x, _end.z, reach, ECHO);
+    this.ctx.flash.trigger(getColor(c.colorFlash), c.impactFlash * 0.45 * settings.global.explosionIntensity);
+    this.ctx.shake.add(c.impactShake * 0.4 * settings.global.cameraShake, 6, 16);
   }
 
   _drag(dt, fade) {
@@ -402,9 +454,9 @@ export class VenturiGateAbility extends Ability {
       const dx = _focus.x - at.x;
       const dz = _focus.z - at.z;
       const d = Math.max(0.2, Math.hypot(dx, dz));
-      const inward = CARRY === 'in' ? 1 : CARRY === 'out' ? -1 : 0.2;
-      const spin = CARRY === 'orbit' ? 4 : 1.1;
-      const lift = CARRY === 'up' ? 7 : 1.4;
+      const inward = CARRY === 'in' ? 1 : CARRY === 'out' ? -1 : 0.25;
+      const spin = CARRY === 'orbit' ? 4.2 : 1.15;
+      const lift = CARRY === 'up' ? 7 : 1.3;
       this._flow.vx = (dx / d) * inward * 6 * c.sweep + (-dz / d) * spin;
       this._flow.vz = (dz / d) * inward * 6 * c.sweep + (dx / d) * spin;
       this._flow.vy = lift * fade;
@@ -412,33 +464,29 @@ export class VenturiGateAbility extends Ability {
     }
   }
 
-  _step(dt, dissolve, fade, committed) {
+  _telegraph() {
     const c = settings[ID];
-    const t = committed ? saturate(this.impactTime / Math.max(0.05, this.impactDuration)) : this.u;
-    let grow = 1;
-    let open = 1;
-    if (committed) { grow = 1; open = lerp(1.15, 0.18, Easing.inCubic(saturate(t))); }
-    else { grow = Easing.outCubic(saturate(this.u)); open = 1.15; }
-    const along = ARCH === 'pendulum' && VARIANT === 2
-      ? this.u
-      : (ARCH === 'pendulum' || ARCH === 'lance' || ARCH === 'whip' || ARCH === 'volley' ? (committed ? 1 : this.u) : 1);
-    this._writeFrame(open, grow, along, dissolve, fade);
-    this._palette();
-    this._shed(dt, fade * (0.35 + 0.65 * grow));
-    if (!committed) this._strikeTravel();
-    void c;
+    this.pointAt(1, _end);
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+      radius: Math.max(0.4, c.zoneRadius) * 0.85,
+      life: Math.max(0.4, c.shockLife),
+      width: 0.05,
+      intensity: 0.45,
+      colorA: getColor(c.colorShockA),
+      colorB: getColor(c.colorShockB),
+      height: 0.02
+    });
   }
-
 
   _beat() {
     const c = settings[ID];
     const g = settings.global;
     const power = g.explosionIntensity;
-    this._focusPoint(_end);
+    this._aim(_end);
     this.ctx.shake.add(c.impactShake * power * g.cameraShake, 4, 18);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.impactFlash * power);
     this.lightBoost = c.impactLight * power;
-    this.ctx.bursts.spawn(BURST, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.4)), {
+    this.ctx.bursts.spawn(BurstMode.AIR, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.35)), {
       radius: 0.35,
       endRadius: c.burstRadius * power,
       life: c.burstLife,
@@ -449,8 +497,8 @@ export class VenturiGateAbility extends Ability {
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
     });
-    this.ctx.decals.spawn(DECAL, _end, {
-      radius: c.shockRadius * (CAST === 'zone' ? 1 : 0.65) * power,
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+      radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
       life: c.shockLife,
       width: 0.08,
       intensity: 1,
@@ -459,32 +507,45 @@ export class VenturiGateAbility extends Ability {
       height: 0.03
     });
     this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
-      radius: c.shockRadius * 0.85,
-      life: c.shockLife * 0.8,
+      radius: c.shockRadius * 0.8,
+      life: c.shockLife * 0.75,
       width: 0.05,
-      intensity: 0.9,
+      intensity: 0.85,
       colorA: getColor(c.colorShockB),
       colorB: getColor(c.colorShockA),
-      height: 0.035
+      height: 0.03
     });
   }
 
   onTravel(dt) {
-    this._spin += dt * settings[ID].spinSpeed * settings.global.animationSpeed;
-    this._step(dt, 0, 1, false);
-    this.ctx.shake.rumble(0.04 * settings[ID].impactShake * settings.global.cameraShake, dt);
+    const c = settings[ID];
+    const g = settings.global;
+    this._spin += dt * c.spinSpeed * g.animationSpeed;
+    this._pose(false, 0);
+    this._palette();
+    this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
 
   onImpact() {
     this._beat();
-    this._commit();
+    if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
   onFade(dt, t) {
+    const c = settings[ID];
+    const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
-    const dissolve = t < 1 ? 0 : saturate((t - 1) * 1.15);
-    this._spin += dt * settings[ID].spinSpeed * settings.global.animationSpeed * 0.35;
-    this._step(dt, dissolve, fade, true);
+    this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
+    this._pose(true, t);
+    this._palette();
+    this._shed(dt, fade * 0.7);
+    if (WHEN === 'return') this._strike(false);
+    if (ECHO && !this._echoed && t > 1.08) {
+      this._echoed = true;
+      this._echo();
+    }
     this._drag(dt, fade);
   }
 
@@ -492,16 +553,19 @@ export class VenturiGateAbility extends Ability {
     for (let i = 0; i < this._carried.length; i++) this._carried[i].release?.();
     this._carried.length = 0;
     this.body.visible = false;
+    this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
   }
 
   dispose() {
     this.bodyGeometry.dispose();
+    this.voiceGeometry.dispose();
     this.groundGeometry.dispose();
     this.bodyMaterial.dispose();
     this.lensMaterial.dispose();
     this.groundMaterial.dispose();
+    this.voiceMaterial.dispose();
     super.dispose();
   }
 }
@@ -517,21 +581,21 @@ export function buildEditor(gui, c, Editor) {
   R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
   R(cast, c, 'impactTime', 0.05, 3, 0.01, 'impact (s)');
   R(cast, c, 'fadeTime', 0.05, 4, 0.01, 'fade (s)');
-  if (CAST === 'zone') R(cast, c, 'zoneRadius', 0.5, 12, 0.05, 'circle (m)');
+  R(cast, c, 'zoneRadius', 0.5, 12, 0.05, 'circle (m)');
   Editor.castAnimation(cast, c);
 
-  const shape = folder.addFolder('1 · Shape');
-  R(shape, c, 'count', 1, 16, 1, 'bars');
-  R(shape, c, 'height', 0.2, 10, 0.05, 'bar height (m)');
+  const shape = folder.addFolder('1 · crush');
+  R(shape, c, 'count', 1, 16, 1, 'count');
+  R(shape, c, 'height', 0.2, 10, 0.05, 'height (m)');
   R(shape, c, 'thickness', 0.02, 2, 0.01, 'thickness (m)');
-  R(shape, c, 'sweep', 0, 8, 0.05, 'travel');
+  R(shape, c, 'sweep', 0, 8, 0.05, 'reach');
   R(shape, c, 'lean', 0, 3, 0.01, 'lean');
 
-  const motion = folder.addFolder('2 · Motion');
-  R(motion, c, 'spinSpeed', -20, 20, 0.1, 'bar spin (rad/s)');
+  const motion = folder.addFolder('2 · Timing');
+  R(motion, c, 'spinSpeed', -20, 20, 0.1, 'spin (rad/s)');
   R(motion, c, 'lifetime', 0.1, 5, 0.05, 'hold (s)');
 
-  const look = folder.addFolder('3 · Look');
+  const look = folder.addFolder('3 · Body');
   R(look, c, 'bodyOpacity', 0, 2, 0.01, 'opacity');
   R(look, c, 'bodyGlow', 0, 4, 0.01, 'body glow');
   R(look, c, 'edgeGlow', 0, 10, 0.05, 'edge glow');
@@ -546,7 +610,7 @@ export function buildEditor(gui, c, Editor) {
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
   R(floor, c, 'groundLife', 0.1, 4, 0.05, 'life');
 
-  const parts = folder.addFolder('5 · Particles');
+  const parts = folder.addFolder('5 · Shed');
   R(parts, c, 'dustRate', 0, 400, 1, 'dust / s');
   R(parts, c, 'dustSize', 0.02, 2, 0.01, 'dust size');
   R(parts, c, 'dustSpeed', 0, 20, 0.1, 'dust speed');
