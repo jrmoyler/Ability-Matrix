@@ -8,9 +8,11 @@ import { createHash } from 'node:crypto';
 import { SPELLS } from './pure-spells.mjs';
 import { sculptVertex, geometryModuleSource, SCULPTS } from './pure-geometry.mjs';
 import { PROFILE, configSource } from './pure-settings.mjs';
+import { RIGS, rigModuleSource, missingRigs } from './pure-rigs.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const abilityDir = path.join(root, 'packs/sandbox/src/abilities/codex');
+const assetDir = path.join(root, 'packs/sandbox/src/assets/codex');
 const configDir = path.join(root, 'packs/sandbox/src/config/codex');
 const materialDir = path.join(root, 'packs/sandbox/src/materials/codex');
 
@@ -163,6 +165,18 @@ const COLOR = {
     col += uColorB * carved * uGlow;`,
   force: `vec3 col = mix(uColorC, uColorB, carved);
     col += uColorA * (1.0 - carved) * uEdge * 0.4;`
+};
+
+/** How the hero rig is stood for each archetype (see RigHero.js). */
+const HERO_STAND = {
+  spire: 'thrust up through the floor, then left to lean and topple',
+  halo: 'held flat on the ground, turning, pulsing on the beat',
+  well: 'sunk low while it inhales, then stretched up the exhale',
+  cage: 'dropped from above, then closed inward',
+  lance: 'riding the head of the line, rolling about its own axis',
+  whip: 'riding the head, swept sideways as it travels',
+  volley: 'riding a ballistic arc, pitched along it',
+  pendulum: 'hinged at the hand, swung across the cast'
 };
 
 const DETAIL_PATTERN = {
@@ -922,21 +936,50 @@ const VOICE_FRAGMENT = /* glsl */ \`
 
 const DETAIL_VERTEX = /* glsl */ \`
   attribute float aSeed;
+  attribute vec3 aEdge;
+  attribute vec4 aInfo;
+  attribute vec3 aStyle;
+  attribute vec3 aPivot;
+  attribute vec4 aHinge;
+  uniform float uGrowArt;
+  uniform float uOpenArt;
+  uniform float uSwing;
   varying vec3 vWorld;
   varying vec3 vNormalW;
   varying float vSeed;
   varying float vSpan;
   varying float vViewZ;
+  varying vec3 vEdge;
+  varying vec4 vInfo;
+  varying vec2 vStyle;
+  vec3 rotAxis(vec3 v, vec3 k, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
+  }
   void main() {
+    // Each authored part folds about its own pivot: aInfo.w picks whether it
+    // follows the rise (0) or the beat (1), aInfo.z delays it within that.
+    float art = mix(uGrowArt, uOpenArt, aInfo.w);
+    float fold = smoothstep(aInfo.z, aInfo.z + 0.5, art) * aHinge.w * uSwing;
+    vec3 p = position;
+    vec3 n = normal;
+    if (abs(fold) > 1e-4 && dot(aHinge.xyz, aHinge.xyz) > 0.5) {
+      p = aPivot + rotAxis(position - aPivot, aHinge.xyz, fold);
+      n = rotAxis(normal, aHinge.xyz, fold);
+    }
     mat4 model = modelMatrix;
     #ifdef USE_INSTANCING
       model = modelMatrix * instanceMatrix;
     #endif
-    vec4 wp = model * vec4(position, 1.0);
+    vec4 wp = model * vec4(p, 1.0);
     vWorld = wp.xyz;
-    vNormalW = normalize(mat3(model) * normal);
+    vNormalW = normalize(mat3(model) * n);
     vSeed = aSeed;
-    vSpan = position.y + 0.5;
+    vSpan = aStyle.z;
+    vEdge = aEdge;
+    vInfo = aInfo;
+    vStyle = aStyle.xy;
     vec4 mv = viewMatrix * wp;
     vViewZ = mv.z;
     gl_Position = projectionMatrix * mv;
@@ -948,6 +991,7 @@ const DETAIL_FRAGMENT = /* glsl */ \`
   uniform float uTime;
   uniform float uOpacity;
   uniform float uGlow;
+  uniform float uEdge;
   uniform float uDissolve;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
@@ -963,17 +1007,33 @@ const DETAIL_FRAGMENT = /* glsl */ \`
   varying float vSeed;
   varying float vSpan;
   varying float vViewZ;
+  varying vec3 vEdge;
+  varying vec4 vInfo;
+  varying vec2 vStyle;
   \${noiseGLSL}
   \${commonGLSL}
   void main() {
     vec3 n = normalize(vNormalW);
+    if (!gl_FrontFacing) n = -n;
     vec3 view = normalize(cameraPosition - vWorld);
     float rim = pow(1.0 - abs(dot(n, view)), 2.2);
     float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
     float pat = ${DETAIL_PATTERN[spell.element]};
-    vec3 col = mix(uColorC, uColorA, lit * 0.8);
-    col = mix(col, uColorB, clamp(pat, 0.0, 1.0) * 0.35);
-    col += uColorB * rim * uGlow * 0.6;
+    // The body of the solid stays below white so its form reads; the bright
+    // terms (hot cores, arrises, rim) ride on top of it and feed the bloom.
+    vec3 col = mix(uColorC * 0.7, uColorA * 0.9, pow(lit, 1.6));
+    // Face and part tint: no two faces of an authored solid read the same.
+    col *= 0.84 + 0.3 * fract(vInfo.y * 0.61803 + vInfo.x * 0.37);
+    col = mix(col, uColorB * 0.85, clamp(pat, 0.0, 1.0) * 0.3);
+    // Hot core parts (glow weight) breathe.
+    col += uColorB * vStyle.y * (0.55 + 0.35 * sin(uTime * 3.0 + vInfo.x * 1.7));
+    // Arrises: distance to the nearest real edge, a hairline whatever the size
+    // on screen, dropped once a triangle is too small to carry one.
+    float edge = min(min(vEdge.x, vEdge.y), vEdge.z);
+    float slope = fwidth(edge) + 1e-4;
+    float line = (1.0 - smoothstep(slope * 0.6, slope * 1.7, edge)) * (1.0 - smoothstep(0.14, 0.3, slope)) * vStyle.x;
+    col += uColorA * line * uEdge * 0.55 * (0.5 + 0.5 * lit);
+    col += uColorB * rim * uGlow * 0.35;
     col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
     float mask = uOpacity;
     if (uDissolve > 0.0) {
@@ -1177,7 +1237,8 @@ export function create${cls}VoiceMaterial() {
   return material;
 }
 
-export function create${cls}DetailMaterial() {
+/** \`rig\` true builds the hero rig's material: the same shader, its own look. */
+export function create${cls}DetailMaterial(rig = false) {
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: ${PROFILE[spell.element].solid},
@@ -1188,7 +1249,11 @@ export function create${cls}DetailMaterial() {
     uniforms: sharedUniforms({
       uOpacity: { value: 1 },
       uGlow: { value: 1 },
+      uEdge: { value: 1 },
       uDissolve: { value: 0 },
+      uGrowArt: { value: 0 },
+      uOpenArt: { value: 0 },
+      uSwing: { value: 1 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() }
@@ -1200,12 +1265,18 @@ export function create${cls}DetailMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    u.uOpacity.value = c.detailOpacity * g.opacity * st.fade;
-    u.uGlow.value = c.detailGlow * g.glow * st.pulse;
+    const k = rig ? 'hero' : 'detail';
+    const K = rig ? 'Hero' : 'Detail';
+    u.uOpacity.value = c[k + 'Opacity'] * g.opacity * st.fade;
+    u.uGlow.value = c[k + 'Glow'] * g.glow * st.pulse;
+    u.uEdge.value = c[k + 'Edge'];
+    u.uSwing.value = c[k + 'Swing'];
+    u.uGrowArt.value = Math.min(1, Math.max(0, st.grow));
+    u.uOpenArt.value = Math.min(1, Math.max(0, st.beat));
     u.uDissolve.value = st.dissolve * 0.6;
-    u.uColorA.value.copy(getColor(c.colorDetailA));
-    u.uColorB.value.copy(getColor(c.colorDetailB));
-    u.uColorC.value.copy(getColor(c.colorDetailC));
+    u.uColorA.value.copy(getColor(c['color' + K + 'A']));
+    u.uColorB.value.copy(getColor(c['color' + K + 'B']));
+    u.uColorC.value.copy(getColor(c['color' + K + 'C']));
   };
   return material;
 }
@@ -1228,7 +1299,9 @@ function abilitySource(spell) {
   return `import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
+import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
+import { create${cls}PieceGeometry, create${cls}HeroGeometry } from '../../assets/codex/${cls}Geometry.js';
 import {
   create${cls}BodyMaterial,
   create${cls}LensMaterial,
@@ -1249,7 +1322,7 @@ import { saturate, ${hit === 'swing' ? 'lerp, ' : ''}Easing } from '../../utils/
 export const ID = '${spell.id}';
 
 const TWIST = '${score.twist}';
-const KIND = '${PROFILE[spell.element].kind}';
+const ARCH = '${spell.archetype}';
 const HIT = '${hit}';
 const CARRY = '${carry}';
 const WHEN = '${hitWhen}';
@@ -1282,10 +1355,11 @@ const _focus = new Vector3();
  *   2. **lens** — the same placement into the distortion buffer.
  *   3. **ground** — a ${spell.element} pattern under the footprint.
  *   4. **voice** — a ${VOICE[score.twist]} riding alongside the body, spun ${score.counter ? 'the other way' : 'with the cast'}.
- *   5. **detail** — an InstancedMesh of ${PROFILE[spell.element].kind} pieces that build, hit and settle with the cast.
- *   6. **shed** — dust, streaks, chips and motes on RateEmitters.
- *   7. **aftershock** — a second, smaller beat when the fade starts.
- *   8. **bodies** — \`handlesOwnHits\`: ${score.note.charAt(0).toLowerCase()}${score.note.slice(1)}
+ *   5. **detail** — an InstancedMesh of the cast's own authored piece (\`create${cls}PieceGeometry\`); each piece folds part by part as the cast rises and beats.
+ *   6. **hero** — one larger authored rig (\`create${cls}HeroGeometry\`), stood by its archetype (${spell.archetype}): ${HERO_STAND[spell.archetype]}.
+ *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
+ *   8. **aftershock** — a second, smaller beat when the fade starts.
+ *   9. **bodies** — \`handlesOwnHits\`: ${score.note.charAt(0).toLowerCase()}${score.note.slice(1)}
  *
  * Every metre, rate and colour is read from \`settings.${spell.id}\` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -1312,8 +1386,11 @@ export class ${cls}Ability extends Ability {
     this.groundMaterial = create${cls}GroundMaterial();
     this.voiceMaterial = create${cls}VoiceMaterial();
     this.detailMaterial = create${cls}DetailMaterial();
-    this.detail = new DetailLayer(KIND, this.detailMaterial);
+    this.heroMaterial = create${cls}DetailMaterial(true);
+    this.detail = new DetailLayer(create${cls}PieceGeometry(), this.detailMaterial);
     this.group.add(this.detail.mesh);
+    this.rig = new RigHero(create${cls}HeroGeometry(), this.heroMaterial, ARCH, ZONE);
+    this.group.add(this.rig.mesh);
     this.body = this._mesh(this.bodyGeometry, this.bodyMaterial, LAYER.VFX, 12);
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
@@ -1331,6 +1408,7 @@ export class ${cls}Ability extends Ability {
       spin: 0,
       voiceSpin: 0,
       open: 1,
+      beat: 0,
       grow: 1,
       along: 0,
       seed: 0,
@@ -1428,6 +1506,7 @@ export class ${cls}Ability extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.detail.hide();
+    this.rig.hide();
     this.body.visible = false;
     this.voice.visible = false;
     this.lens.visible = false;
@@ -1479,6 +1558,7 @@ export class ${cls}Ability extends Ability {
     st.spin = this._spin;
     st.voiceSpin = this._spin * (COUNTER ? -1.35 : 1);
     st.open = open * (0.35 + Math.max(0, c.lean));
+    st.beat = open;
     st.grow = grow;
     st.along = along;
     st.seed = this._seed;
@@ -1493,7 +1573,9 @@ export class ${cls}Ability extends Ability {
     this.groundMaterial.userData.sync(st);
     this.voiceMaterial.userData.sync(st);
     this.detailMaterial.userData.sync(st);
+    this.heroMaterial.userData.sync(st);
     this.detail.update(TWIST, ZONE, st, c, this.age);
+    this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
     this.body.visible = show;
     this.voice.visible = show;
@@ -1827,11 +1909,14 @@ ${partMethods(score.twist)}
     this.lens.visible = false;
     this.ground.visible = false;
     this.detail.hide();
+    this.rig.hide();
   }
 
   dispose() {
     this.detail.dispose();
+    this.rig.dispose();
     this.detailMaterial.dispose();
+    this.heroMaterial.dispose();
     this.bodyGeometry.dispose();
     this.voiceGeometry.dispose();
     this.groundGeometry.dispose();
@@ -1902,11 +1987,26 @@ export function buildEditor(gui, c, Editor) {
   R(pieces, c, 'detailSpin', -4, 4, 0.05, 'orbit');
   R(pieces, c, 'detailGlow', 0, 6, 0.05, 'rim glow');
   R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
+  R(pieces, c, 'detailSwing', 0, 2.5, 0.01, 'fold');
+  R(pieces, c, 'detailEdge', 0, 4, 0.05, 'arris light');
   pieces.addColor(c, 'colorDetailA').name('rim');
   pieces.addColor(c, 'colorDetailB').name('lit');
   pieces.addColor(c, 'colorDetailC').name('shade');
 
-  const parts = folder.addFolder('7 · Shed');
+  const hero = folder.addFolder('7 · Hero rig');
+  R(hero, c, 'heroSize', 0.2, 8, 0.05, 'size (m)');
+  R(hero, c, 'heroReach', 0.1, 1.4, 0.01, 'ring fit');
+  R(hero, c, 'heroLift', 0, 8, 0.05, 'travel (m)');
+  R(hero, c, 'heroSpin', -4, 4, 0.05, 'turn');
+  R(hero, c, 'heroSwing', 0, 2.5, 0.01, 'fold');
+  R(hero, c, 'heroGlow', 0, 6, 0.05, 'rim glow');
+  R(hero, c, 'heroEdge', 0, 4, 0.05, 'arris light');
+  R(hero, c, 'heroOpacity', 0, 1.5, 0.01, 'opacity');
+  hero.addColor(c, 'colorHeroA').name('rim');
+  hero.addColor(c, 'colorHeroB').name('lit');
+  hero.addColor(c, 'colorHeroC').name('shade');
+
+  const parts = folder.addFolder('8 · Shed');
   R(parts, c, 'dustRate', 0, 400, 1, 'dust / s');
   R(parts, c, 'dustSize', 0.02, 2, 0.01, 'dust size');
   R(parts, c, 'dustSpeed', 0, 20, 0.1, 'dust speed');
@@ -1925,14 +2025,14 @@ export function buildEditor(gui, c, Editor) {
   R(parts, c, 'chipLife', 0.05, 3, 0.01, 'chip life');
   Editor.gradient(parts, c, 'colorChip', 'chip colour');
 
-  const motes = folder.addFolder('8 · Motes');
+  const motes = folder.addFolder('9 · Motes');
   R(motes, c, 'moteRate', 0, 200, 1, 'motes / s');
   R(motes, c, 'moteSize', 0.01, 0.4, 0.005, 'size');
   R(motes, c, 'moteSpeed', 0, 10, 0.1, 'speed');
   R(motes, c, 'moteLife', 0.1, 4, 0.05, 'life');
   Editor.gradient(motes, c, 'colorMote', 'mote colour');
 
-  const beat = folder.addFolder('9 · The beat');
+  const beat = folder.addFolder('10 · The beat');
   R(beat, c, 'impactShake', 0, 2, 0.01, 'camera punch');
   R(beat, c, 'impactFlash', 0, 1, 0.01, 'flash');
   beat.addColor(c, 'colorFlash').name('flash');
@@ -1946,14 +2046,14 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
-  const after = folder.addFolder('10 · Aftershock');
+  const after = folder.addFolder('11 · Aftershock');
   R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
   R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
   R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
   R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
   R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
 
-  const bodies = folder.addFolder('11 · Bodies');
+  const bodies = folder.addFolder('12 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');
   R(bodies, c, 'hitImpulse', 0, 24, 0.1, 'impulse');
   R(bodies, c, 'hitLift', 0, 20, 0.1, 'lift');
@@ -1987,6 +2087,12 @@ function checkSettings(spell, config, code) {
 
 function main() {
   writeFileSync(path.join(abilityDir, 'PureBodyGeometries.js'), geometryModuleSource());
+  // RIGS_PARTIAL=1 regenerates only the casts that have a rig yet (authoring aid).
+  const partial = process.env.RIGS_PARTIAL === '1';
+  const unrigged = missingRigs();
+  if (unrigged.length && !partial) throw new Error('no rig for ' + unrigged.join(','));
+  const strayRigs = Object.keys(RIGS).filter((id) => !SPELLS.some((s) => s.id === id));
+  if (strayRigs.length) throw new Error('rig without spell ' + strayRigs.join(','));
   const missing = SPELLS.filter((s) => !SCORE[s.id]);
   if (missing.length) throw new Error('no score for ' + missing.map((s) => s.id).join(','));
   const extra = Object.keys(SCORE).filter((id) => !SPELLS.some((s) => s.id === id));
@@ -1996,6 +2102,7 @@ function main() {
 
   let minAbility = Infinity;
   for (const spell of SPELLS) {
+    if (partial && !RIGS[spell.id]) continue;
     const ability = abilitySource(spell);
     const materials = materialsSource(spell);
     const config = configSource(spell);
@@ -2017,8 +2124,9 @@ function main() {
     writeFileSync(path.join(configDir, `${spell.id}.js`), config);
     writeFileSync(path.join(abilityDir, `${spell.cls}Ability.js`), ability);
     writeFileSync(path.join(materialDir, `${spell.cls}Materials.js`), materials);
+    writeFileSync(path.join(assetDir, `${spell.cls}Geometry.js`), rigModuleSource(spell));
   }
-  console.log(`sculpted ${SPELLS.length} abilities, shortest ${minAbility} lines, ${frags.size} unique fragments, ${Object.keys(SCULPTS).length} authored body surfaces`);
+  console.log(`sculpted ${SPELLS.length} abilities, shortest ${minAbility} lines, ${frags.size} unique fragments, ${Object.keys(SCULPTS).length} authored body surfaces, ${Object.keys(RIGS).length} rigs`);
 }
 
 main();

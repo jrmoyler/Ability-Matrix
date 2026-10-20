@@ -285,21 +285,50 @@ const VOICE_FRAGMENT = /* glsl */ `
 
 const DETAIL_VERTEX = /* glsl */ `
   attribute float aSeed;
+  attribute vec3 aEdge;
+  attribute vec4 aInfo;
+  attribute vec3 aStyle;
+  attribute vec3 aPivot;
+  attribute vec4 aHinge;
+  uniform float uGrowArt;
+  uniform float uOpenArt;
+  uniform float uSwing;
   varying vec3 vWorld;
   varying vec3 vNormalW;
   varying float vSeed;
   varying float vSpan;
   varying float vViewZ;
+  varying vec3 vEdge;
+  varying vec4 vInfo;
+  varying vec2 vStyle;
+  vec3 rotAxis(vec3 v, vec3 k, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
+  }
   void main() {
+    // Each authored part folds about its own pivot: aInfo.w picks whether it
+    // follows the rise (0) or the beat (1), aInfo.z delays it within that.
+    float art = mix(uGrowArt, uOpenArt, aInfo.w);
+    float fold = smoothstep(aInfo.z, aInfo.z + 0.5, art) * aHinge.w * uSwing;
+    vec3 p = position;
+    vec3 n = normal;
+    if (abs(fold) > 1e-4 && dot(aHinge.xyz, aHinge.xyz) > 0.5) {
+      p = aPivot + rotAxis(position - aPivot, aHinge.xyz, fold);
+      n = rotAxis(normal, aHinge.xyz, fold);
+    }
     mat4 model = modelMatrix;
     #ifdef USE_INSTANCING
       model = modelMatrix * instanceMatrix;
     #endif
-    vec4 wp = model * vec4(position, 1.0);
+    vec4 wp = model * vec4(p, 1.0);
     vWorld = wp.xyz;
-    vNormalW = normalize(mat3(model) * normal);
+    vNormalW = normalize(mat3(model) * n);
     vSeed = aSeed;
-    vSpan = position.y + 0.5;
+    vSpan = aStyle.z;
+    vEdge = aEdge;
+    vInfo = aInfo;
+    vStyle = aStyle.xy;
     vec4 mv = viewMatrix * wp;
     vViewZ = mv.z;
     gl_Position = projectionMatrix * mv;
@@ -311,6 +340,7 @@ const DETAIL_FRAGMENT = /* glsl */ `
   uniform float uTime;
   uniform float uOpacity;
   uniform float uGlow;
+  uniform float uEdge;
   uniform float uDissolve;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
@@ -326,17 +356,33 @@ const DETAIL_FRAGMENT = /* glsl */ `
   varying float vSeed;
   varying float vSpan;
   varying float vViewZ;
+  varying vec3 vEdge;
+  varying vec4 vInfo;
+  varying vec2 vStyle;
   ${noiseGLSL}
   ${commonGLSL}
   void main() {
     vec3 n = normalize(vNormalW);
+    if (!gl_FrontFacing) n = -n;
     vec3 view = normalize(cameraPosition - vWorld);
     float rim = pow(1.0 - abs(dot(n, view)), 2.2);
     float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
     float pat = smoothstep(0.2, 0.9, snoise01(vWorld * 2.4 + vSeed * 6.0));
-    vec3 col = mix(uColorC, uColorA, lit * 0.8);
-    col = mix(col, uColorB, clamp(pat, 0.0, 1.0) * 0.35);
-    col += uColorB * rim * uGlow * 0.6;
+    // The body of the solid stays below white so its form reads; the bright
+    // terms (hot cores, arrises, rim) ride on top of it and feed the bloom.
+    vec3 col = mix(uColorC * 0.7, uColorA * 0.9, pow(lit, 1.6));
+    // Face and part tint: no two faces of an authored solid read the same.
+    col *= 0.84 + 0.3 * fract(vInfo.y * 0.61803 + vInfo.x * 0.37);
+    col = mix(col, uColorB * 0.85, clamp(pat, 0.0, 1.0) * 0.3);
+    // Hot core parts (glow weight) breathe.
+    col += uColorB * vStyle.y * (0.55 + 0.35 * sin(uTime * 3.0 + vInfo.x * 1.7));
+    // Arrises: distance to the nearest real edge, a hairline whatever the size
+    // on screen, dropped once a triangle is too small to carry one.
+    float edge = min(min(vEdge.x, vEdge.y), vEdge.z);
+    float slope = fwidth(edge) + 1e-4;
+    float line = (1.0 - smoothstep(slope * 0.6, slope * 1.7, edge)) * (1.0 - smoothstep(0.14, 0.3, slope)) * vStyle.x;
+    col += uColorA * line * uEdge * 0.55 * (0.5 + 0.5 * lit);
+    col += uColorB * rim * uGlow * 0.35;
     col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
     float mask = uOpacity;
     if (uDissolve > 0.0) {
@@ -540,7 +586,8 @@ export function createMassLanceVoiceMaterial() {
   return material;
 }
 
-export function createMassLanceDetailMaterial() {
+/** `rig` true builds the hero rig's material: the same shader, its own look. */
+export function createMassLanceDetailMaterial(rig = false) {
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: true,
@@ -551,7 +598,11 @@ export function createMassLanceDetailMaterial() {
     uniforms: sharedUniforms({
       uOpacity: { value: 1 },
       uGlow: { value: 1 },
+      uEdge: { value: 1 },
       uDissolve: { value: 0 },
+      uGrowArt: { value: 0 },
+      uOpenArt: { value: 0 },
+      uSwing: { value: 1 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() }
@@ -563,12 +614,18 @@ export function createMassLanceDetailMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    u.uOpacity.value = c.detailOpacity * g.opacity * st.fade;
-    u.uGlow.value = c.detailGlow * g.glow * st.pulse;
+    const k = rig ? 'hero' : 'detail';
+    const K = rig ? 'Hero' : 'Detail';
+    u.uOpacity.value = c[k + 'Opacity'] * g.opacity * st.fade;
+    u.uGlow.value = c[k + 'Glow'] * g.glow * st.pulse;
+    u.uEdge.value = c[k + 'Edge'];
+    u.uSwing.value = c[k + 'Swing'];
+    u.uGrowArt.value = Math.min(1, Math.max(0, st.grow));
+    u.uOpenArt.value = Math.min(1, Math.max(0, st.beat));
     u.uDissolve.value = st.dissolve * 0.6;
-    u.uColorA.value.copy(getColor(c.colorDetailA));
-    u.uColorB.value.copy(getColor(c.colorDetailB));
-    u.uColorC.value.copy(getColor(c.colorDetailC));
+    u.uColorA.value.copy(getColor(c['color' + K + 'A']));
+    u.uColorB.value.copy(getColor(c['color' + K + 'B']));
+    u.uColorC.value.copy(getColor(c['color' + K + 'C']));
   };
   return material;
 }

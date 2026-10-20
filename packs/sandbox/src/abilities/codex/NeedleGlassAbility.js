@@ -1,7 +1,9 @@
 import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
+import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
+import { createNeedleGlassPieceGeometry, createNeedleGlassHeroGeometry } from '../../assets/codex/NeedleGlassGeometry.js';
 import {
   createNeedleGlassBodyMaterial,
   createNeedleGlassLensMaterial,
@@ -22,7 +24,7 @@ import { saturate, lerp, Easing } from '../../utils/math.js';
 export const ID = 'needleglass';
 
 const TWIST = 'hinge';
-const KIND = 'shard';
+const ARCH = 'pendulum';
 const HIT = 'swing';
 const CARRY = 'none';
 const WHEN = 'travel';
@@ -55,10 +57,11 @@ const _focus = new Vector3();
  *   2. **lens** — the same placement into the distortion buffer.
  *   3. **ground** — a crystal pattern under the footprint.
  *   4. **voice** — a bore riding alongside the body, spun with the cast.
- *   5. **detail** — an InstancedMesh of shard pieces that build, hit and settle with the cast.
- *   6. **shed** — dust, streaks, chips and motes on RateEmitters.
- *   7. **aftershock** — a second, smaller beat when the fade starts.
- *   8. **bodies** — `handlesOwnHits`: the needle is hinged at the hand and shatters at the far stop, not on the way through.
+ *   5. **detail** — an InstancedMesh of the cast's own authored piece (`createNeedleGlassPieceGeometry`); each piece folds part by part as the cast rises and beats.
+ *   6. **hero** — one larger authored rig (`createNeedleGlassHeroGeometry`), stood by its archetype (pendulum): hinged at the hand, swung across the cast.
+ *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
+ *   8. **aftershock** — a second, smaller beat when the fade starts.
+ *   9. **bodies** — `handlesOwnHits`: the needle is hinged at the hand and shatters at the far stop, not on the way through.
  *
  * Every metre, rate and colour is read from `settings.needleglass` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -85,8 +88,11 @@ export class NeedleGlassAbility extends Ability {
     this.groundMaterial = createNeedleGlassGroundMaterial();
     this.voiceMaterial = createNeedleGlassVoiceMaterial();
     this.detailMaterial = createNeedleGlassDetailMaterial();
-    this.detail = new DetailLayer(KIND, this.detailMaterial);
+    this.heroMaterial = createNeedleGlassDetailMaterial(true);
+    this.detail = new DetailLayer(createNeedleGlassPieceGeometry(), this.detailMaterial);
     this.group.add(this.detail.mesh);
+    this.rig = new RigHero(createNeedleGlassHeroGeometry(), this.heroMaterial, ARCH, ZONE);
+    this.group.add(this.rig.mesh);
     this.body = this._mesh(this.bodyGeometry, this.bodyMaterial, LAYER.VFX, 12);
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
@@ -104,6 +110,7 @@ export class NeedleGlassAbility extends Ability {
       spin: 0,
       voiceSpin: 0,
       open: 1,
+      beat: 0,
       grow: 1,
       along: 0,
       seed: 0,
@@ -201,6 +208,7 @@ export class NeedleGlassAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.detail.hide();
+    this.rig.hide();
     this.body.visible = false;
     this.voice.visible = false;
     this.lens.visible = false;
@@ -252,6 +260,7 @@ export class NeedleGlassAbility extends Ability {
     st.spin = this._spin;
     st.voiceSpin = this._spin * (COUNTER ? -1.35 : 1);
     st.open = open * (0.35 + Math.max(0, c.lean));
+    st.beat = open;
     st.grow = grow;
     st.along = along;
     st.seed = this._seed;
@@ -266,7 +275,9 @@ export class NeedleGlassAbility extends Ability {
     this.groundMaterial.userData.sync(st);
     this.voiceMaterial.userData.sync(st);
     this.detailMaterial.userData.sync(st);
+    this.heroMaterial.userData.sync(st);
     this.detail.update(TWIST, ZONE, st, c, this.age);
+    this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
     this.body.visible = show;
     this.voice.visible = show;
@@ -614,11 +625,14 @@ export class NeedleGlassAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this.detail.hide();
+    this.rig.hide();
   }
 
   dispose() {
     this.detail.dispose();
+    this.rig.dispose();
     this.detailMaterial.dispose();
+    this.heroMaterial.dispose();
     this.bodyGeometry.dispose();
     this.voiceGeometry.dispose();
     this.groundGeometry.dispose();
@@ -689,11 +703,26 @@ export function buildEditor(gui, c, Editor) {
   R(pieces, c, 'detailSpin', -4, 4, 0.05, 'orbit');
   R(pieces, c, 'detailGlow', 0, 6, 0.05, 'rim glow');
   R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
+  R(pieces, c, 'detailSwing', 0, 2.5, 0.01, 'fold');
+  R(pieces, c, 'detailEdge', 0, 4, 0.05, 'arris light');
   pieces.addColor(c, 'colorDetailA').name('rim');
   pieces.addColor(c, 'colorDetailB').name('lit');
   pieces.addColor(c, 'colorDetailC').name('shade');
 
-  const parts = folder.addFolder('7 · Shed');
+  const hero = folder.addFolder('7 · Hero rig');
+  R(hero, c, 'heroSize', 0.2, 8, 0.05, 'size (m)');
+  R(hero, c, 'heroReach', 0.1, 1.4, 0.01, 'ring fit');
+  R(hero, c, 'heroLift', 0, 8, 0.05, 'travel (m)');
+  R(hero, c, 'heroSpin', -4, 4, 0.05, 'turn');
+  R(hero, c, 'heroSwing', 0, 2.5, 0.01, 'fold');
+  R(hero, c, 'heroGlow', 0, 6, 0.05, 'rim glow');
+  R(hero, c, 'heroEdge', 0, 4, 0.05, 'arris light');
+  R(hero, c, 'heroOpacity', 0, 1.5, 0.01, 'opacity');
+  hero.addColor(c, 'colorHeroA').name('rim');
+  hero.addColor(c, 'colorHeroB').name('lit');
+  hero.addColor(c, 'colorHeroC').name('shade');
+
+  const parts = folder.addFolder('8 · Shed');
   R(parts, c, 'dustRate', 0, 400, 1, 'dust / s');
   R(parts, c, 'dustSize', 0.02, 2, 0.01, 'dust size');
   R(parts, c, 'dustSpeed', 0, 20, 0.1, 'dust speed');
@@ -712,14 +741,14 @@ export function buildEditor(gui, c, Editor) {
   R(parts, c, 'chipLife', 0.05, 3, 0.01, 'chip life');
   Editor.gradient(parts, c, 'colorChip', 'chip colour');
 
-  const motes = folder.addFolder('8 · Motes');
+  const motes = folder.addFolder('9 · Motes');
   R(motes, c, 'moteRate', 0, 200, 1, 'motes / s');
   R(motes, c, 'moteSize', 0.01, 0.4, 0.005, 'size');
   R(motes, c, 'moteSpeed', 0, 10, 0.1, 'speed');
   R(motes, c, 'moteLife', 0.1, 4, 0.05, 'life');
   Editor.gradient(motes, c, 'colorMote', 'mote colour');
 
-  const beat = folder.addFolder('9 · The beat');
+  const beat = folder.addFolder('10 · The beat');
   R(beat, c, 'impactShake', 0, 2, 0.01, 'camera punch');
   R(beat, c, 'impactFlash', 0, 1, 0.01, 'flash');
   beat.addColor(c, 'colorFlash').name('flash');
@@ -733,14 +762,14 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
-  const after = folder.addFolder('10 · Aftershock');
+  const after = folder.addFolder('11 · Aftershock');
   R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
   R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
   R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
   R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
   R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
 
-  const bodies = folder.addFolder('11 · Bodies');
+  const bodies = folder.addFolder('12 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');
   R(bodies, c, 'hitImpulse', 0, 24, 0.1, 'impulse');
   R(bodies, c, 'hitLift', 0, 20, 0.1, 'lift');

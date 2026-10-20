@@ -45,10 +45,10 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.7,
-    edgeGlow: 2.5,
+    bodyOpacity: 0.5,
+    edgeGlow: 1.85,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
-    bodyGlow: 0.42,
+    bodyGlow: 0.32,
     bodyPulse: 0.12, // breathing in brightness, 0..1
     bodyPulseRate: 5, // breaths per second (radians)
     colorA: '#ffc8a4',
@@ -57,7 +57,7 @@ export default {
     lensWarp: 0.94, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.65, // strength of the second placement
+    voiceOpacity: 0.5, // strength of the second placement
     colorVoiceA: '#fff4ea',
     colorVoiceB: '#ffc8a4',
 
@@ -78,11 +78,26 @@ export default {
     detailSpin: 1, // how fast the pieces orbit, × body spin
     detailGlow: 1.2, // rim light on the pieces
     detailOpacity: 0.8, // how solid the pieces are
+    detailSwing: 1, // how far each piece folds its parts, × authored swing
+    detailEdge: 1, // light along the piece arrises
     colorDetailA: '#ffc8a4',
     colorDetailB: '#fff4ea',
     colorDetailC: '#d86a30',
 
-    /* --- 5 · shed --- */
+    /* --- 5 · hero rig --- */
+    heroSize: 1.6, // scale of the hero rig, metres per authored unit
+    heroReach: 0.85, // ring rigs: share of the circle radius they span
+    heroLift: 2.4, // how far the rig rises, drops or arcs, metres
+    heroSpin: 0.4, // how fast the rig turns, × body spin
+    heroSwing: 1, // how far the rig folds its parts, × authored swing
+    heroGlow: 1.1, // rim light on the rig
+    heroEdge: 1.2, // light along the rig arrises
+    heroOpacity: 0.85, // how solid the rig is
+    colorHeroA: '#ffc8a4',
+    colorHeroB: '#fff4ea',
+    colorHeroC: '#d86a30',
+
+    /* --- 6 · shed --- */
     dustRate: 72, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
@@ -110,7 +125,7 @@ export default {
     colorChipC: '#fff4ea',
     colorChipD: '#2a241c',
 
-    /* --- 6 · motes --- */
+    /* --- 7 · motes --- */
     moteRate: 26, // motes per second off the pieces
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
@@ -120,7 +135,7 @@ export default {
     colorMoteC: '#d86a30',
     colorMoteD: '#ffffff',
 
-    /* --- 7 · the beat --- */
+    /* --- 8 · the beat --- */
     impactShake: 0.5, // camera punch on the beat
     impactFlash: 0.21, // screen flash on the beat
     colorFlash: '#fff4ea',
@@ -134,14 +149,14 @@ export default {
     colorShockA: '#ffc8a4',
     colorShockB: '#fff4ea',
 
-    /* --- 8 · the aftershock --- */
+    /* --- 9 · the aftershock --- */
     aftershockAt: 1.06, // fade progress the aftershock lands at (1 = fade start)
     aftershockRadius: 5, // aftershock ring size, metres
     aftershockShake: 0.2, // camera punch of the aftershock
     aftershockLight: 5.6, // light punch of the aftershock
     aftershockLife: 0.9, // seconds the aftershock ring lingers
 
-    /* --- 9 · bodies --- */
+    /* --- 10 · bodies --- */
     hitRadius: 4.4, // reach of the blow, metres
     hitImpulse: 9.35, // how hard bodies are thrown
     hitLift: 2.56, // how high they are thrown

@@ -25,9 +25,10 @@ import { saturate, lerp, Easing } from '../../utils/math.js';
  * planes cannot. The pieces are one InstancedMesh, laid out each frame from
  * the same pose the shaders read, so they build, hit and settle with the cast.
  *
- * A cast supplies three things: which piece it throws (`kind`, picked by
- * element), how they move (`verb`, picked by the cast's twist), and a block of
- * live settings (`detail*`). Nothing here is cached from settings.
+ * A cast supplies three things: which piece it throws (its own authored
+ * geometry, or one of the stock `kind`s), how they move (`verb`, picked by the
+ * cast's twist), and a block of live settings (`detail*`). Nothing here is
+ * cached from settings.
  */
 
 /** Longest axis of every piece is +Y, so a single orientation rule fits all. */
@@ -100,19 +101,20 @@ function ease(x) {
 
 export class DetailLayer {
   /**
-   * @param {string} kind     one of `DETAIL_KINDS`
+   * @param {string|import('three').BufferGeometry} kind  one of `DETAIL_KINDS`, or
+   *   an authored piece (`create<Cast>PieceGeometry`), which the layer then owns
    * @param {import('three').Material} material
    * @param {number} [max]    instance budget, at most `DETAIL_MAX`
    */
   constructor(kind, material, max = DETAIL_MAX) {
     this.max = Math.min(DETAIL_MAX, max);
-    this.geometry = (BUILDERS[kind] ?? BUILDERS.chunk)();
+    this.geometry = kind?.isBufferGeometry ? kind : (BUILDERS[kind] ?? BUILDERS.chunk)();
     this.seedAttr = new InstancedBufferAttribute(new Float32Array(this.max), 1);
     this.geometry.setAttribute('aSeed', this.seedAttr);
     this.mesh = new InstancedMesh(this.geometry, material, this.max);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.layers.set(LAYER.VFX);
-    this.mesh.renderOrder = 11;
+    this.mesh.renderOrder = 14;
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
     this.seed = 0;
