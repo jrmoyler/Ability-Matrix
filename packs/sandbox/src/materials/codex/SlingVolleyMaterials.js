@@ -41,8 +41,8 @@ const BODY_VERTEX = /* glsl */ `
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
-    float u = position.x + 0.5;
-    float v = position.y + 0.5;
+    float u = uv.x;
+    float v = uv.y;
     vec3 p = vec3(0.0);
     float local = u;
 
@@ -57,6 +57,16 @@ const BODY_VERTEX = /* glsl */ `
     p.y = arc * uGrow + v * 0.12;
     local = head;
   
+
+    // spinning sling discs
+    vec3 sculptForward = uDir;
+    vec3 sculptSide = uSide;
+    float sculptWidth = max(uThickness, 0.08);
+    float sculptRise = max(uHeight * 0.22, 0.08) * uGrow;
+    p += sculptSide * position.x * sculptWidth;
+    p.y += position.y * sculptRise;
+    p += sculptForward * position.z * sculptWidth;
+
 
     vUv = vec2(u, v);
     vLocal = local;
@@ -98,13 +108,11 @@ const BODY_FRAGMENT = /* glsl */ `
   void main() {
     float field = abs(fract(vAlong * 4.0 - vLocal * 10.00 + uTime * 4.25) - 0.5);
     float carved = pow(clamp(field, 0.0, 1.0), 1.70);
-    float keep = (vLocal + vAlong + vWorld.x + vViewZ) * 0.0;
     vec3 col = mix(uColorC, uColorA, vAlong);
     col += uColorB * carved * uEdge * 0.5;
     col *= 1.0 + uPhrase * 0.18;
     float mask = uOpacity * (0.22 + 0.78 * clamp(carved, 0.0, 1.0));
     mask *= smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
-    mask += keep;
     if (uDissolve > 0.0) {
       float n = snoise01(vWorld * 0.45 + vec3(uSeed, uTime * 0.20, 0.0));
       float hold = smoothstep(uDissolve, uDissolve + 0.14, n * 0.65 + carved * 0.35);
@@ -132,10 +140,8 @@ const LENS_FRAGMENT = /* glsl */ `
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
-    float keep = (vLocal + vAlong + vWorld.x + vViewZ + uTime * 0.0) * 0.0;
     float mask = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.82, 1.0, vUv.y));
     mask *= (0.40 + 0.60 * clamp(vLocal, 0.0, 1.0)) * (1.0 - uDissolve);
-    mask += keep;
     float s = uWarp * uShaderIntensity * mask * (1.0 + uPhrase * 0.25);
     if (s < 0.01) discard;
     vec2 dir = vec2(vAlong - 0.5, 0.0); dir = length(dir) < 0.001 ? vec2(1.0, 0.0) : normalize(dir);
@@ -268,17 +274,83 @@ const VOICE_FRAGMENT = /* glsl */ `
   ${noiseGLSL}
   ${commonGLSL}
   void main() {
-    float keep = (vAlong + vWorld.x + vViewZ) * 0.0;
     float band = 0.5 + 0.5 * sin(vLocal * 10.00 + uTime * 1.01 + uSeed);
     float grain = snoise01(vWorld * 4.25 + vec3(uSeed, uTime * 0.30, 0.0));
     float mask = (0.30 + 0.70 * band) * (0.45 + 0.55 * grain);
     mask *= uOpacity * (1.0 - uDissolve);
     mask *= smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.88, 1.0, vUv.y));
-    mask += keep;
     if (mask < 0.02) discard;
     vec3 col = mix(uColorA, uColorB, band) * (1.0 + uGlow) * (1.0 + uPhrase * 0.40);
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.35);
+    gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+  }
+`;
+
+const DETAIL_VERTEX = /* glsl */ `
+  attribute float aSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSeed;
+  varying float vSpan;
+  varying float vViewZ;
+  void main() {
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 wp = model * vec4(position, 1.0);
+    vWorld = wp.xyz;
+    vNormalW = normalize(mat3(model) * normal);
+    vSeed = aSeed;
+    vSpan = position.y + 0.5;
+    vec4 mv = viewMatrix * wp;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const DETAIL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uDissolve;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  uniform vec3 uColorC;
+  uniform vec3 uLightDir;
+  uniform vec2 uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float uCameraNear;
+  uniform float uCameraFar;
+  uniform float uGlobalGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSeed;
+  varying float vSpan;
+  varying float vViewZ;
+  ${noiseGLSL}
+  ${commonGLSL}
+  void main() {
+    vec3 n = normalize(vNormalW);
+    vec3 view = normalize(cameraPosition - vWorld);
+    float rim = pow(1.0 - abs(dot(n, view)), 2.2);
+    float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
+    float pat = abs(fract(vSpan * 5.0 - uTime * 3.0) - 0.5) * 2.0;
+    vec3 col = mix(uColorC, uColorA, lit * 0.8);
+    col = mix(col, uColorB, clamp(pat, 0.0, 1.0) * 0.35);
+    col += uColorB * rim * uGlow * 0.6;
+    col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
+    float mask = uOpacity;
+    if (uDissolve > 0.0) {
+      float cut = snoise01(vWorld * 1.7 + vec3(vSeed * 9.0, uTime * 0.2, 0.0));
+      mask *= smoothstep(uDissolve, uDissolve + 0.12, cut);
+    }
+    if (mask < 0.02) discard;
+    vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
+    mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.3);
+    if (mask < 0.02) discard;
     gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
   }
 `;
@@ -350,8 +422,8 @@ export function createSlingVolleyBodyMaterial() {
     u.uDissolve.value = st.dissolve;
     u.uSoftFade.value = c.softFade;
     u.uOpacity.value = c.bodyOpacity * g.opacity * st.fade;
-    u.uGlow.value = c.bodyGlow * g.glow;
-    u.uEdge.value = c.edgeGlow * g.glow;
+    u.uGlow.value = c.bodyGlow * g.glow * st.pulse;
+    u.uEdge.value = c.edgeGlow * g.glow * st.pulse;
     u.uPhrase.value = st.phrase;
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorB));
@@ -429,10 +501,10 @@ export function createSlingVolleyGroundMaterial() {
     u.uSeed.value = st.seed;
     u.uGlow.value = c.groundGlow * g.glow;
     u.uErode.value = st.dissolve;
-    u.uOpacity.value = g.opacity * st.fade;
+    u.uOpacity.value = c.groundOpacity * g.opacity * st.fade;
     u.uPhrase.value = st.phrase;
-    u.uColorA.value.copy(getColor(c.colorA));
-    u.uColorB.value.copy(getColor(c.colorC));
+    u.uColorA.value.copy(getColor(c.colorGroundA));
+    u.uColorB.value.copy(getColor(c.colorGroundB));
   };
   return material;
 }
@@ -463,11 +535,44 @@ export function createSlingVolleyVoiceMaterial() {
     const u = material.uniforms;
     writeShape(u, st, st.voiceSpin);
     u.uDissolve.value = st.dissolve;
-    u.uOpacity.value = c.bodyOpacity * 0.65 * g.opacity * st.fade;
-    u.uGlow.value = c.bodyGlow * g.glow * 1.25;
+    u.uOpacity.value = c.bodyOpacity * c.voiceOpacity * g.opacity * st.fade;
+    u.uGlow.value = c.bodyGlow * g.glow * 1.25 * st.pulse;
     u.uPhrase.value = st.phrase;
-    u.uColorA.value.copy(getColor(c.colorB));
-    u.uColorB.value.copy(getColor(c.colorA));
+    u.uColorA.value.copy(getColor(c.colorVoiceA));
+    u.uColorB.value.copy(getColor(c.colorVoiceB));
+  };
+  return material;
+}
+
+export function createSlingVolleyDetailMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uDissolve: { value: 0 },
+      uColorA: { value: new Color() },
+      uColorB: { value: new Color() },
+      uColorC: { value: new Color() }
+    }),
+    vertexShader: DETAIL_VERTEX,
+    fragmentShader: DETAIL_FRAGMENT
+  });
+  material.userData.sync = (st) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpacity.value = c.detailOpacity * g.opacity * st.fade;
+    u.uGlow.value = c.detailGlow * g.glow * st.pulse;
+    u.uDissolve.value = st.dissolve * 0.6;
+    u.uColorA.value.copy(getColor(c.colorDetailA));
+    u.uColorB.value.copy(getColor(c.colorDetailB));
+    u.uColorC.value.copy(getColor(c.colorDetailC));
   };
   return material;
 }

@@ -1,9 +1,12 @@
-// Splits combined elements into pure ones and writes the shortfall as Codex castables.
-// Run: node tools/gen-pure.mjs
+// Bootstrap for the pure-element split: reassigns elements, patches the Codex
+// indexes and writes first-draft castables. It is not the source of truth any
+// more. Run `node tools/sculpt-pure.mjs` afterwards: that overwrites the
+// ability and materials files and owns the configs (via pure-settings.mjs).
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SPELLS, REASSIGN, PURE_GROUPS } from './pure-spells.mjs';
+import { configSource } from './pure-settings.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configDir = path.join(root, 'packs/sandbox/src/config/codex');
@@ -70,109 +73,6 @@ const ARCH = {
 };
 
 const GROUND = { spire: 0, lance: 2, well: 1, whip: 2, cage: 0, volley: 3, pendulum: 2, halo: 1 };
-
-function settingsFor(spell) {
-  const v = spell.variant;
-  const zone = spell.cast === 'zone';
-  return {
-    range: 18,
-    minRange: 2,
-    speed: zone ? 20 + v * 2 : 24 + v * 3,
-    lifetime: 1.35 + v * 0.15,
-    cooldown: 0.55,
-    castAnim: ['cast1', 'cast2', 'cast3'][v],
-    impactTime: 0.7 + v * 0.08,
-    fadeTime: 0.95,
-    zoneRadius: zone ? 4.2 + v * 0.25 : 0,
-    spinSpeed: 1.4 + v * 0.8,
-    thickness: 0.22 + v * 0.06,
-    count: [6, 7, 8][v],
-    height: 2.6 + v * 0.45,
-    sweep: 1.1 + v * 0.35,
-    lean: 0.45 + v * 0.2,
-    bodyOpacity: 0.85,
-    edgeGlow: 3.2 + v * 0.4,
-    softFade: 0.4,
-    bodyGlow: 0.55,
-    colorA: spell.colorA,
-    colorB: spell.colorB,
-    colorC: spell.colorC,
-    lensWarp: 0.7 + v * 0.15,
-    groundWidth: zone ? 9 : 2.4,
-    groundGlow: 1.4,
-    groundLife: 1.5,
-    dustRate: 80,
-    dustSize: 0.22,
-    dustSpeed: 3.5,
-    dustLife: 0.8,
-    dustOpacity: 0.55,
-    colorDustA: spell.colorA,
-    colorDustB: spell.colorB,
-    colorDustC: spell.colorC,
-    colorDustD: '#1a140e',
-    streakRate: 90,
-    streakSize: 0.045,
-    streakSpeed: 8,
-    streakLife: 0.35,
-    streakStretch: 1.4,
-    colorStreakA: spell.colorB,
-    colorStreakB: spell.colorA,
-    colorStreakC: spell.colorC,
-    colorStreakD: '#ffffff',
-    chipRate: 36,
-    chipSize: 0.08,
-    chipSpeed: 6,
-    chipLife: 0.7,
-    colorChipA: spell.colorC,
-    colorChipB: spell.colorA,
-    colorChipC: spell.colorB,
-    colorChipD: '#2a241c',
-    impactShake: 0.55,
-    impactFlash: 0.42,
-    colorFlash: spell.colorB,
-    burstRadius: 3.4 + v * 0.3,
-    burstLife: 0.7,
-    colorBurstA: spell.colorB,
-    colorBurstB: spell.colorA,
-    colorBurstC: spell.colorC,
-    shockRadius: zone ? 6.5 : 3.2,
-    shockLife: 0.85,
-    colorShockA: spell.colorA,
-    colorShockB: spell.colorB,
-    hitRadius: zone ? 4.4 : 1.15,
-    hitImpulse: 7.5 + v,
-    hitLift: spell.archetype === 'well' ? 9 : 3.2,
-    hitSpin: 2.4,
-    lightColor: spell.colorB,
-    lightIntensity: 8,
-    lightRadius: 11,
-    lightFlicker: 0.28,
-    impactLight: 16
-  };
-}
-
-function configSource(spell) {
-  const spec = {
-    id: spell.id,
-    meta: {
-      label: spell.label,
-      accent: spell.colorA,
-      key: '',
-      element: spell.element,
-      hint: spell.hint,
-      cast: spell.cast,
-      glyph: spell.glyph
-    },
-    settings: settingsFor(spell)
-  };
-  return `/**
- * ${spell.label} — ${spell.element} — ${ARCH[spell.archetype].shape}.
- * Live settings for ${spell.cls}Ability. Plain data, no imports.
- * Dragging any field re-shapes a cast that is already in the air.
- */
-export default ${JSON.stringify(spec, null, 2)};
-`;
-}
 
 function vertexGlsl(spell) {
   const a = spell.archetype;

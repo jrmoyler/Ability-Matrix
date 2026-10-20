@@ -1,92 +1,150 @@
 /**
  * Afterimage Swing — illusion — a blade hinged at the hand.
- * Live settings for AfterimageSwingAbility. Plain data, no imports.
- * Dragging any field re-shapes a cast that is already in the air.
+ *
+ * Illusion — the swing is the decoy; the blade arrives on the way back.
+ *
+ * Elemental Codex data block: presentation (`meta`) and the live settings the
+ * ability and its editor folder read. Plain data, no imports, so
+ * `settings.js` can pull it in without a cycle. Dragging any field re-shapes
+ * a cast that is already in the air.
  */
 export default {
-  "id": "afterimage",
-  "meta": {
-    "label": "Afterimage Swing",
-    "accent": "#ffd4ee",
-    "key": "",
-    "element": "illusion",
-    "hint": "Illusion — the swing is the decoy; the blade arrives on the way back",
-    "cast": "line",
-    "glyph": "<path d=\"M50 16V28\"/><path d=\"M18 78L50 28L82 70\"/><circle cx=\"50\" cy=\"18\" r=\"5\"/><path d=\"M30 50H70\"/>"
+  id: 'afterimage',
+  meta: {
+    label: 'Afterimage Swing',
+    accent: '#ffd4ee',
+    key: '',
+    element: 'illusion',
+    hint: 'Illusion — the swing is the decoy; the blade arrives on the way back',
+    cast: 'line',
+    glyph: '<path d="M50 16V28"/><path d="M18 78L50 28L82 70"/><circle cx="50" cy="18" r="5"/><path d="M30 50H70"/><path d="M66 72Q78 60 90 72Q78 84 66 72Z"/><circle cx="78" cy="72" r="3"/>'
   },
-  "settings": {
-    "range": 18,
-    "minRange": 2,
-    "speed": 27,
-    "lifetime": 1.5,
-    "cooldown": 0.55,
-    "castAnim": "cast2",
-    "impactTime": 0.7799999999999999,
-    "fadeTime": 0.95,
-    "zoneRadius": 0,
-    "spinSpeed": 2.2,
-    "thickness": 0.28,
-    "count": 7,
-    "height": 3.0500000000000003,
-    "sweep": 1.4500000000000002,
-    "lean": 0.65,
-    "bodyOpacity": 0.85,
-    "edgeGlow": 3.6,
-    "softFade": 0.4,
-    "bodyGlow": 0.55,
-    "colorA": "#ffd4ee",
-    "colorB": "#ffffff",
-    "colorC": "#ff9ad0",
-    "lensWarp": 0.85,
-    "groundWidth": 2.4,
-    "groundGlow": 1.4,
-    "groundLife": 1.5,
-    "dustRate": 80,
-    "dustSize": 0.22,
-    "dustSpeed": 3.5,
-    "dustLife": 0.8,
-    "dustOpacity": 0.55,
-    "colorDustA": "#ffd4ee",
-    "colorDustB": "#ffffff",
-    "colorDustC": "#ff9ad0",
-    "colorDustD": "#1a140e",
-    "streakRate": 90,
-    "streakSize": 0.045,
-    "streakSpeed": 8,
-    "streakLife": 0.35,
-    "streakStretch": 1.4,
-    "colorStreakA": "#ffffff",
-    "colorStreakB": "#ffd4ee",
-    "colorStreakC": "#ff9ad0",
-    "colorStreakD": "#ffffff",
-    "chipRate": 36,
-    "chipSize": 0.08,
-    "chipSpeed": 6,
-    "chipLife": 0.7,
-    "colorChipA": "#ff9ad0",
-    "colorChipB": "#ffd4ee",
-    "colorChipC": "#ffffff",
-    "colorChipD": "#2a241c",
-    "impactShake": 0.55,
-    "impactFlash": 0.42,
-    "colorFlash": "#ffffff",
-    "burstRadius": 3.6999999999999997,
-    "burstLife": 0.7,
-    "colorBurstA": "#ffffff",
-    "colorBurstB": "#ffd4ee",
-    "colorBurstC": "#ff9ad0",
-    "shockRadius": 3.2,
-    "shockLife": 0.85,
-    "colorShockA": "#ffd4ee",
-    "colorShockB": "#ffffff",
-    "hitRadius": 1.15,
-    "hitImpulse": 8.5,
-    "hitLift": 3.2,
-    "hitSpin": 2.4,
-    "lightColor": "#ffffff",
-    "lightIntensity": 8,
-    "lightRadius": 11,
-    "lightFlicker": 0.28,
-    "impactLight": 16
+  settings: {
+    /* --- the cast itself --- */
+    range: 18, // maximum cast distance, metres
+    minRange: 2, // closer than this and the cast is refused
+    speed: 32.4, // metres/second the front travels
+    lifetime: 1.5, // seconds the cast is held before it is released
+    cooldown: 0.55, // seconds before it can be armed again
+    castAnim: 'cast2', // which clip the body throws
+    impactTime: 0.78, // impact phase length, × global lifetime
+    fadeTime: 0.95, // fade phase length, × global lifetime
+    zoneRadius: 0, // circle radius for zone casts, metres
+
+    /* --- light --- */
+    lightColor: '#ffffff',
+    lightIntensity: 8.8, // the glow riding the cast
+    lightRadius: 11,
+    lightFlicker: 0.6, // 0..1 how much it shimmers
+    impactLight: 12.1, // extra light on the beat, decays on its own
+
+    /* --- 1 · the body --- */
+    spinSpeed: 2.42, // radians/second the body turns
+    thickness: 0.28, // width of a single body part, metres
+    count: 7, // parts in the body (max 12)
+    height: 3.05, // how tall the body stands, metres
+    sweep: 1.45, // lateral reach, metres
+    lean: 0.65, // how far the body opens on the beat
+    bodyOpacity: 0.7,
+    edgeGlow: 2.75,
+    softFade: 0.4, // soft intersection with the floor and bodies, metres
+    bodyGlow: 0.46,
+    bodyPulse: 0.12, // breathing in brightness, 0..1
+    bodyPulseRate: 5, // breaths per second (radians)
+    colorA: '#ffd4ee',
+    colorB: '#ffffff',
+    colorC: '#ff9ad0',
+    lensWarp: 1.19, // strength of the distortion it writes
+
+    /* --- 2 · the voice --- */
+    voiceOpacity: 0.65, // strength of the second placement
+    colorVoiceA: '#ffffff',
+    colorVoiceB: '#ffd4ee',
+
+    /* --- 3 · the ground --- */
+    groundWidth: 2.4, // footprint width, metres
+    groundGlow: 1.4,
+    groundLife: 1.5, // seconds the stamp lingers
+    groundOpacity: 1, // strength of the stamp
+    colorGroundA: '#ffd4ee',
+    colorGroundB: '#ff9ad0',
+
+    /* --- 4 · detail pieces --- */
+    detailCount: 14, // pieces thrown (max 48)
+    detailSize: 0.6, // mean piece size, metres
+    detailSizeJitter: 0.35, // ± fraction of that
+    detailSpread: 0.8, // reach of the pieces, × the cast reach
+    detailLift: 1.6, // how high the pieces climb, metres
+    detailSpin: 1, // how fast the pieces orbit, × body spin
+    detailGlow: 1.32, // rim light on the pieces
+    detailOpacity: 0.8, // how solid the pieces are
+    colorDetailA: '#ffd4ee',
+    colorDetailB: '#ffffff',
+    colorDetailC: '#ff9ad0',
+
+    /* --- 5 · shed --- */
+    dustRate: 32, // puffs per second
+    dustSize: 0.22,
+    dustSpeed: 3.5,
+    dustLife: 0.8,
+    dustOpacity: 0.55,
+    colorDustA: '#ffd4ee',
+    colorDustB: '#ffffff',
+    colorDustC: '#ff9ad0',
+    colorDustD: '#1a140e',
+    streakRate: 99, // sparks per second
+    streakSize: 0.045,
+    streakSpeed: 8,
+    streakLife: 0.35,
+    streakStretch: 1.4,
+    colorStreakA: '#ffffff',
+    colorStreakB: '#ffd4ee',
+    colorStreakC: '#ff9ad0',
+    colorStreakD: '#ffffff',
+    chipRate: 10.8, // fragments per second
+    chipSize: 0.08,
+    chipSpeed: 6,
+    chipLife: 0.7,
+    colorChipA: '#ff9ad0',
+    colorChipB: '#ffd4ee',
+    colorChipC: '#ffffff',
+    colorChipD: '#2a241c',
+
+    /* --- 6 · motes --- */
+    moteRate: 26, // motes per second off the pieces
+    moteSize: 0.06,
+    moteSpeed: 1.6, // metres/second they drift at
+    moteLife: 1.1,
+    colorMoteA: '#ffffff',
+    colorMoteB: '#ffd4ee',
+    colorMoteC: '#ff9ad0',
+    colorMoteD: '#ffffff',
+
+    /* --- 7 · the beat --- */
+    impactShake: 0.33, // camera punch on the beat
+    impactFlash: 0.29, // screen flash on the beat
+    colorFlash: '#ffffff',
+    burstRadius: 3.7, // burst size, metres
+    burstLife: 0.7,
+    colorBurstA: '#ffffff',
+    colorBurstB: '#ffd4ee',
+    colorBurstC: '#ff9ad0',
+    shockRadius: 3.2, // decal size, metres
+    shockLife: 0.85,
+    colorShockA: '#ffd4ee',
+    colorShockB: '#ffffff',
+
+    /* --- 8 · the aftershock --- */
+    aftershockAt: 1.06, // fade progress the aftershock lands at (1 = fade start)
+    aftershockRadius: 2.4, // aftershock ring size, metres
+    aftershockShake: 0.13, // camera punch of the aftershock
+    aftershockLight: 7.7, // light punch of the aftershock
+    aftershockLife: 0.9, // seconds the aftershock ring lingers
+
+    /* --- 9 · bodies --- */
+    hitRadius: 1.15, // reach of the blow, metres
+    hitImpulse: 6.8, // how hard bodies are thrown
+    hitLift: 3.2, // how high they are thrown
+    hitSpin: 2.4 // how fast they tumble
   }
 };
