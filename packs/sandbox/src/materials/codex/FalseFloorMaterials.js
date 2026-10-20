@@ -41,8 +41,8 @@ const BODY_VERTEX = /* glsl */ `
   varying vec3 vWorld;
   varying float vViewZ;
   void main() {
-    float u = position.x + 0.5;
-    float v = position.y + 0.5;
+    float u = uv.x;
+    float v = uv.y;
     vec3 p = vec3(0.0);
     float local = u;
 
@@ -53,6 +53,16 @@ const BODY_VERTEX = /* glsl */ `
     p.y = (1.0 - uOpen) * v * uHeight * 0.25 * uGrow;
     local = fract(ang * 0.1591549);
   
+
+    // stepped folding false tiles
+    vec3 sculptForward = vec3(cos(u*6.2831853+uSpin),0.0,sin(u*6.2831853+uSpin));
+    vec3 sculptSide = vec3(-sculptForward.z,0.0,sculptForward.x);
+    float sculptWidth = max(uThickness, 0.08);
+    float sculptRise = max(uHeight * 0.22, 0.08) * uGrow;
+    p += sculptSide * position.x * sculptWidth;
+    p.y += position.y * sculptRise;
+    p += sculptForward * position.z * sculptWidth;
+
 
     vUv = vec2(u, v);
     vLocal = local;

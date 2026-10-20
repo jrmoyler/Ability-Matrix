@@ -1,6 +1,7 @@
 import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
+import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import {
   createPressCageBodyMaterial,
   createPressCageLensMaterial,
@@ -76,7 +77,7 @@ export class PressCageAbility extends Ability {
   }
 
   createShaders() {
-    this.bodyGeometry = new PlaneGeometry(1, 1, 72, 28);
+    this.bodyGeometry = createSpellBodyGeometry(ID);
     this.voiceGeometry = new PlaneGeometry(1, 1, 64, 8);
     this.groundGeometry = new PlaneGeometry(1, 1, 1, 1);
     this.bodyMaterial = createPressCageBodyMaterial();
