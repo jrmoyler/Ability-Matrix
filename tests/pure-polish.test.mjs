@@ -40,7 +40,8 @@ test('generated code has no placeholder hacks and uses the detail layer', () => 
     const materials = src('materials', `${spell.cls}Materials.js`);
     assert.ok(!/\bvoid \w+;/.test(ability), `${spell.id} ability discards a value`);
     assert.ok(!/\* 0\.0;/.test(materials), `${spell.id} shader multiplies a varying by zero`);
-    assert.match(ability, /new DetailLayer\(KIND, this\.detailMaterial\)/, `${spell.id} detail layer`);
+    assert.match(ability, new RegExp(`new DetailLayer\\(create${spell.cls}PieceGeometry\\(\\), this\\.detailMaterial\\)`), `${spell.id} detail layer`);
+    assert.match(ability, new RegExp(`new RigHero\\(create${spell.cls}HeroGeometry\\(\\), this\\.heroMaterial`), `${spell.id} hero rig`);
     assert.match(ability, /_aftershock\(\)/, `${spell.id} aftershock`);
     assert.match(materials, new RegExp(`export function create${spell.cls}DetailMaterial`), `${spell.id} detail material`);
     assert.ok((ability.match(/\.addFolder\(/g) ?? []).length >= 14, `${spell.id} editor folders`);

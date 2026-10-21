@@ -1,0 +1,111 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rig contact sheet</title>
+<style>
+  html, body { margin: 0; background: #0b0d12; color: #9fb0c8; font: 11px/1.2 ui-monospace, monospace; }
+  #wrap { position: relative; }
+  canvas { display: block; }
+  .tag { position: absolute; padding: 2px 4px; pointer-events: none; }
+  .tag b { color: #fff; font-weight: 600; }
+</style>
+<div id="wrap"></div>
+<script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// Dev-only contact sheet: draws each spell's hero at rest and fully articulated,
+// plus its piece, with a plain lit shader that reads the same attributes as the
+// production detail shader. Run: node tools/rig-sheet.mjs [ids...]
+import * as THREE from 'three';
+const params = new URLSearchParams(location.search);
+const ids = (params.get('ids') || '').split(',').filter(Boolean);
+const cols = Number(params.get('cols') || 4);
+const cell = Number(params.get('cell') || 360);
+const manifest = await (await fetch('/tools/rig-manifest.json')).json();
+const list = ids.length ? manifest.filter((m) => ids.includes(m.id)) : manifest;
+const rows = Math.ceil(list.length / cols);
+const W = cols * cell, H = rows * cell;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.setScissorTest(true);
+renderer.setClearColor(0x0b0d12, 1);
+document.getElementById('wrap').appendChild(renderer.domElement);
+
+const vertex = /* glsl */ `
+  attribute vec3 aEdge; attribute vec4 aInfo; attribute vec3 aStyle; attribute vec3 aPivot; attribute vec4 aHinge;
+  uniform float uArt;
+  varying vec3 vN; varying vec3 vEdge; varying vec4 vInfo; varying vec3 vStyle; varying vec3 vP;
+  vec3 rotAxis(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
+  void main() {
+    float t = smoothstep(aInfo.z, aInfo.z + 0.5, uArt);
+    float ang = aHinge.w * t;
+    vec3 p = position; vec3 n = normal;
+    if (abs(ang) > 1e-4) { p = aPivot + rotAxis(position - aPivot, aHinge.xyz, ang); n = rotAxis(normal, aHinge.xyz, ang); }
+    vN = normalMatrix * n; vEdge = aEdge; vInfo = aInfo; vStyle = aStyle; vP = p;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }`;
+const fragment = /* glsl */ `
+  varying vec3 vN; varying vec3 vEdge; varying vec4 vInfo; varying vec3 vStyle; varying vec3 vP;
+  vec3 hue(float h) { return clamp(abs(fract(h + vec3(0.0, 0.6667, 0.3333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0); }
+  void main() {
+    vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+    float lit = clamp(dot(n, normalize(vec3(0.4, 0.8, 0.5))) * 0.5 + 0.5, 0.0, 1.0);
+    vec3 base = mix(vec3(0.55), hue(vInfo.x * 0.13 + 0.05) , 0.55);
+    base *= 0.85 + 0.25 * fract(vInfo.y * 0.618 + vInfo.x * 0.37);
+    vec3 col = base * (0.25 + 0.85 * lit);
+    col += vec3(1.0, 0.85, 0.5) * vStyle.y * 0.45;
+    float e = min(min(vEdge.x, vEdge.y), vEdge.z);
+    float aa = fwidth(e) * 1.5 + 0.002;
+    float line = (1.0 - smoothstep(aa * 0.6, aa * 2.4 + 0.015, e)) * vStyle.x;
+    col = mix(col, vec3(1.0), line * 0.85);
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+const material = new THREE.ShaderMaterial({ vertexShader: vertex, fragmentShader: fragment, side: THREE.DoubleSide, uniforms: { uArt: { value: 0 } } });
+const wrap = document.getElementById('wrap');
+
+function frameOf(geometry) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.62 + 1e-3;
+  return { centre, radius };
+}
+function draw(geometry, art, x, y, w, h, line) {
+  const { centre, radius } = frameOf(geometry);
+  const cam = new THREE.PerspectiveCamera(32, w / h, 0.01, 100);
+  const az = line ? 0.9 : 0.6;
+  cam.position.set(centre.x + Math.sin(az) * radius * 3.1, centre.y + radius * 1.6, centre.z + Math.cos(az) * radius * 3.1);
+  cam.lookAt(centre);
+  const scene = new THREE.Scene();
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+  material.uniforms.uArt.value = art;
+  renderer.setViewport(x, H - y - h, w, h);
+  renderer.setScissor(x, H - y - h, w, h);
+  renderer.render(scene, cam);
+}
+
+for (const [i, m] of list.entries()) {
+  const col = i % cols, row = Math.floor(i / cols);
+  const x = col * cell, y = row * cell;
+  const mod = await import(m.module);
+  const hero = mod[m.hero]();
+  const piece = mod[m.piece]();
+  const line = m.cast === 'line';
+  const half = cell / 2;
+  renderer.setClearColor(0x0b0d12, 1);
+  renderer.setViewport(x, H - y - cell, cell, cell);
+  renderer.setScissor(x, H - y - cell, cell, cell);
+  renderer.clear();
+  draw(hero, 0.0, x + 2, y + 2, half - 4, cell * 0.62, line);
+  draw(hero, 1.0, x + half + 2, y + 2, half - 4, cell * 0.62, line);
+  draw(piece, 0.0, x + 2, y + cell * 0.62 + 4, half - 4, cell * 0.38 - 6, false);
+  draw(piece, 1.0, x + half + 2, y + cell * 0.62 + 4, half - 4, cell * 0.38 - 6, false);
+  const tag = document.createElement('div');
+  tag.className = 'tag';
+  tag.style.left = x + 'px'; tag.style.top = y + 'px';
+  tag.innerHTML = `<b>${m.id}</b> ${m.cast}/${m.archetype} hero ${hero.userData.triangles}t ${hero.userData.parts}p · piece ${piece.userData.triangles}t ${piece.userData.parts}p`;
+  wrap.appendChild(tag);
+}
+window.__done = true;
+</script>

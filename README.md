@@ -64,6 +64,7 @@ index.html                 the matrix: picker + the embedded sandbox
 packs/sandbox/             the one sandbox (Vite app)
   src/config/{collective,matrix-new,atlas,codex}/   native ability settings
   src/abilities/{collective,matrix-new,atlas,codex}/ native ability code
+  src/assets/codex/        each pure-element cast's own geometry module (<Cast>Geometry.js) and RigKit.js, the toolkit they share
   src/config/elements.js   every castable's element
   src/sandbox/Locomotion.js walking, running, dashing
   src/vendor/<pack>/       the five source packs, verbatim
@@ -73,7 +74,7 @@ packs/atlas/               the asset-free Atlas prototype (presets/runtime.js)
 presets/catalog.json       every ability, buff, summon, move and archived effect, with its element
 presets/<group>/<id>.json  one preset per ability (full default settings block)
 presets/library.json       every preset in one file
-tools/                     build-all.sh · stage-site.sh · extract-presets.mjs
+tools/                     build-all.sh · stage-site.sh · extract-presets.mjs · sculpt-pure.mjs · pure-rigs.mjs · rigs/ · rig-sheet.mjs
 tests/                     npm test
 ```
 
@@ -116,6 +117,21 @@ The caster walks, runs and dashes around the arena:
 - The caster walks round the dummies rather than through them, and stays inside `arenaRadius`. The dummies re-form round wherever you stand.
 - Steering stands down while a summon is out, and while Blink Step, Voidstep Rift, Parallax Blink or Chrono Recall is moving the body.
 - Every value (speeds, dash, every gait angle) is in `settings.move` and the editor's **Movement** folder, and ships in each group's `_shared.json`. The bridge takes `move('dash')`.
+
+## Procedural rigs
+
+Each of the 80 pure-element casts (the ten castables per element that split the combined elements) owns two authored solids, written in Three.js geometry rather than drawn by a shader alone:
+
+- a **piece**, about one unit across, thrown through the cast's `InstancedMesh` (up to 48 of them), and
+- a **hero**, a larger rig that stands, drops or rides at the heart of the cast: a hexagram of glyph stones, a gimbal of three rings, an hourglass that flips, a chain of fourteen links.
+
+Both are built in `packs/sandbox/src/assets/codex/<Cast>Geometry.js` from `RigKit.js`: lathes, lofts, polygon prisms (concave outlines are ear-clipped), tubes along curves, ribbons, blades and faceted crystals, placed with a transform stack. The recipes are authored in `tools/rigs/*.mjs` and written out by `node tools/sculpt-pure.mjs`.
+
+Every solid is split into **parts**. A part carries a pivot, a hinge axis, a swing angle, a delay and a stage (rise or beat), and the detail vertex shader folds it about its pivot as the cast progresses, so a cage closes, a lotus opens and a pendulum's satellites run round their orbit with no per-frame CPU work. The same attributes drive the fragment shader: `aEdge` for anti-aliased arrises, `aInfo` for per-part and per-face tint, and `aStyle` for hot core parts.
+
+The hero is stood by its archetype (`abilities/codex/RigHero.js`): a spire thrusts up through the floor, a cage drops and closes, a well sinks and then stretches, a pendulum is hinged at the hand. Everything is live in the editor under **Hero rig** (`heroSize`, `heroReach`, `heroLift`, `heroSpin`, `heroSwing`, `heroGlow`, `heroEdge`, `heroOpacity` and a palette) and **Detail pieces** (`detailSwing`, `detailEdge`).
+
+To see the rigs without running the app: `node tools/rig-sheet.mjs sheet.png [id ...]` renders a contact sheet (each hero at rest and fully folded, with its piece) through Playwright.
 
 ## Using an ability as a preset
 

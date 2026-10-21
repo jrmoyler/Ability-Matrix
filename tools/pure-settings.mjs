@@ -21,7 +21,8 @@ export const SHAPE = {
 
 /**
  * How each element behaves. Multipliers are against a neutral 1.0.
- * `kind` is the piece the detail layer throws (see DetailLayer.js).
+ * `kind` is the stock piece DetailLayer falls back to (see DetailLayer.js); every cast now
+ * throws its own authored piece (tools/rigs), so only a missing rig would use it.
  */
 export const PROFILE = {
   earth: { speed: 0.85, impulse: 1.25, lift: 0.9, shake: 1.3, flash: 0.8, dust: 1.3, streak: 0.6, chip: 1.5, spin: 0.6, glow: 0.8, flicker: 0.12, lens: 0.6, kind: 'chunk', size: 0.55, solid: true, mote: 'dust' },
@@ -40,6 +41,22 @@ export const PROFILE = {
   motion: { speed: 1.5, impulse: 1.1, lift: 0.8, shake: 0.9, flash: 0.8, dust: 0.9, streak: 1.7, chip: 0.7, spin: 1.4, glow: 1.0, flicker: 0.3, lens: 1.1, kind: 'bar', size: 0.5, solid: false, mote: 'glint' },
   tech: { speed: 1.2, impulse: 1.0, lift: 0.9, shake: 0.8, flash: 1.0, dust: 0.5, streak: 1.3, chip: 1.0, spin: 1.0, glow: 1.1, flicker: 0.4, lens: 0.8, kind: 'block', size: 0.45, solid: true, mote: 'glint' },
   force: { speed: 1.1, impulse: 1.4, lift: 1.0, shake: 1.3, flash: 0.9, dust: 0.9, streak: 1.0, chip: 1.0, spin: 0.9, glow: 1.0, flicker: 0.2, lens: 1.2, kind: 'wedge', size: 0.6, solid: true, mote: 'dust' }
+};
+
+/**
+ * Hero rig defaults by archetype: [size m, ring fit, travel m, turn, fold].
+ * Size scales the whole rig, ring fit is the share of a circle's radius a ring
+ * rig spans, travel is how far it rises, drops or arcs, turn is its spin.
+ */
+const HERO = {
+  spire: [2.4, 0.8, 2, 0.35, 1],
+  lance: [1.8, 1, 0.9, 1, 1],
+  well: [2, 0.7, 1.5, 0.5, 1],
+  whip: [2, 1, 0.8, 1, 1],
+  cage: [1.6, 0.85, 3, 0.4, 1],
+  volley: [1.4, 1, 2.2, 1.5, 1],
+  pendulum: [3, 1, 0.9, 1, 1],
+  halo: [1.4, 0.85, 0.6, 1.2, 1]
 };
 
 /** Detail layer defaults by archetype: [count, lift in metres]. */
@@ -84,6 +101,7 @@ export function settingsFor(spell) {
   const zone = spell.cast === 'zone';
   const p = PROFILE[spell.element];
   const [detailCount, detailLift] = DETAIL[spell.archetype];
+  const [heroSize, heroReach, heroLift, heroSpin, heroSwing] = HERO[spell.archetype];
   const well = spell.archetype === 'well';
   return {
     // the cast
@@ -111,10 +129,10 @@ export function settingsFor(spell) {
     height: 2.6 + v * 0.45,
     sweep: 1.1 + v * 0.35,
     lean: 0.45 + v * 0.2,
-    bodyOpacity: 0.7,
-    edgeGlow: (2.2 + v * 0.3) * p.glow,
+    bodyOpacity: 0.5,
+    edgeGlow: (1.6 + v * 0.25) * p.glow,
     softFade: 0.4,
-    bodyGlow: 0.42 * p.glow,
+    bodyGlow: 0.32 * p.glow,
     bodyPulse: 0.12,
     bodyPulseRate: 4 + v,
     colorA: spell.colorA,
@@ -123,7 +141,7 @@ export function settingsFor(spell) {
     lensWarp: (0.7 + v * 0.15) * p.lens,
 
     // voice
-    voiceOpacity: 0.65,
+    voiceOpacity: 0.5,
     colorVoiceA: spell.colorB,
     colorVoiceB: spell.colorA,
 
@@ -144,9 +162,24 @@ export function settingsFor(spell) {
     detailSpin: 1,
     detailGlow: 1.2 * p.glow,
     detailOpacity: p.solid ? 0.95 : 0.8,
+    detailSwing: 1,
+    detailEdge: 1,
     colorDetailA: spell.colorA,
     colorDetailB: spell.colorB,
     colorDetailC: spell.colorC,
+
+    // hero rig
+    heroSize,
+    heroReach,
+    heroLift: heroLift * p.lift,
+    heroSpin,
+    heroSwing,
+    heroGlow: 1.1 * p.glow,
+    heroEdge: 1.2,
+    heroOpacity: p.solid ? 0.95 : 0.85,
+    colorHeroA: spell.colorA,
+    colorHeroB: spell.colorB,
+    colorHeroC: spell.colorC,
 
     // shed
     dustRate: 80 * p.dust,
@@ -221,12 +254,13 @@ const GROUPS = [
   ['1 · the body', ['spinSpeed', 'thickness', 'count', 'height', 'sweep', 'lean', 'bodyOpacity', 'edgeGlow', 'softFade', 'bodyGlow', 'bodyPulse', 'bodyPulseRate', 'colorA', 'colorB', 'colorC', 'lensWarp']],
   ['2 · the voice', ['voiceOpacity', 'colorVoiceA', 'colorVoiceB']],
   ['3 · the ground', ['groundWidth', 'groundGlow', 'groundLife', 'groundOpacity', 'colorGroundA', 'colorGroundB']],
-  ['4 · detail pieces', ['detailCount', 'detailSize', 'detailSizeJitter', 'detailSpread', 'detailLift', 'detailSpin', 'detailGlow', 'detailOpacity', 'colorDetailA', 'colorDetailB', 'colorDetailC']],
-  ['5 · shed', ['dustRate', 'dustSize', 'dustSpeed', 'dustLife', 'dustOpacity', 'colorDustA', 'colorDustB', 'colorDustC', 'colorDustD', 'streakRate', 'streakSize', 'streakSpeed', 'streakLife', 'streakStretch', 'colorStreakA', 'colorStreakB', 'colorStreakC', 'colorStreakD', 'chipRate', 'chipSize', 'chipSpeed', 'chipLife', 'colorChipA', 'colorChipB', 'colorChipC', 'colorChipD']],
-  ['6 · motes', ['moteRate', 'moteSize', 'moteSpeed', 'moteLife', 'colorMoteA', 'colorMoteB', 'colorMoteC', 'colorMoteD']],
-  ['7 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'colorShockA', 'colorShockB']],
-  ['8 · the aftershock', ['aftershockAt', 'aftershockRadius', 'aftershockShake', 'aftershockLight', 'aftershockLife']],
-  ['9 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']]
+  ['4 · detail pieces', ['detailCount', 'detailSize', 'detailSizeJitter', 'detailSpread', 'detailLift', 'detailSpin', 'detailGlow', 'detailOpacity', 'detailSwing', 'detailEdge', 'colorDetailA', 'colorDetailB', 'colorDetailC']],
+  ['5 · hero rig', ['heroSize', 'heroReach', 'heroLift', 'heroSpin', 'heroSwing', 'heroGlow', 'heroEdge', 'heroOpacity', 'colorHeroA', 'colorHeroB', 'colorHeroC']],
+  ['6 · shed', ['dustRate', 'dustSize', 'dustSpeed', 'dustLife', 'dustOpacity', 'colorDustA', 'colorDustB', 'colorDustC', 'colorDustD', 'streakRate', 'streakSize', 'streakSpeed', 'streakLife', 'streakStretch', 'colorStreakA', 'colorStreakB', 'colorStreakC', 'colorStreakD', 'chipRate', 'chipSize', 'chipSpeed', 'chipLife', 'colorChipA', 'colorChipB', 'colorChipC', 'colorChipD']],
+  ['7 · motes', ['moteRate', 'moteSize', 'moteSpeed', 'moteLife', 'colorMoteA', 'colorMoteB', 'colorMoteC', 'colorMoteD']],
+  ['8 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'colorShockA', 'colorShockB']],
+  ['9 · the aftershock', ['aftershockAt', 'aftershockRadius', 'aftershockShake', 'aftershockLight', 'aftershockLife']],
+  ['10 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']]
 ];
 
 const NOTE = {
@@ -264,6 +298,16 @@ const NOTE = {
   detailSpin: 'how fast the pieces orbit, × body spin',
   detailGlow: 'rim light on the pieces',
   detailOpacity: 'how solid the pieces are',
+  detailSwing: 'how far each piece folds its parts, × authored swing',
+  detailEdge: 'light along the piece arrises',
+  heroSize: 'scale of the hero rig, metres per authored unit',
+  heroReach: 'ring rigs: share of the circle radius they span',
+  heroLift: 'how far the rig rises, drops or arcs, metres',
+  heroSpin: 'how fast the rig turns, × body spin',
+  heroSwing: 'how far the rig folds its parts, × authored swing',
+  heroGlow: 'rim light on the rig',
+  heroEdge: 'light along the rig arrises',
+  heroOpacity: 'how solid the rig is',
   dustRate: 'puffs per second',
   streakRate: 'sparks per second',
   chipRate: 'fragments per second',
