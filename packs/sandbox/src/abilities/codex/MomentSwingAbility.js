@@ -3,13 +3,16 @@ import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
+import { LineTrail } from './LineTrail.js';
 import { createMomentSwingPieceGeometry, createMomentSwingHeroGeometry } from '../../assets/codex/MomentSwingGeometry.js';
 import {
   createMomentSwingBodyMaterial,
   createMomentSwingLensMaterial,
   createMomentSwingGroundMaterial,
   createMomentSwingVoiceMaterial,
-  createMomentSwingDetailMaterial
+  createMomentSwingDetailMaterial,
+  createMomentSwingTrailMaterial,
+  createMomentSwingScarMaterial
 } from '../../materials/codex/MomentSwingMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -145,6 +148,11 @@ export class MomentSwingAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this.trailMaterial = createMomentSwingTrailMaterial();
+    this.scarMaterial = createMomentSwingScarMaterial();
+    this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
+    this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
+    this.group.add(this.trail.scarMesh, this.trail.trailMesh);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -219,6 +227,7 @@ export class MomentSwingAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this.trail.reset();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -322,6 +331,9 @@ export class MomentSwingAbility extends Ability {
     this.voiceMaterial.userData.sync(st);
     this.detailMaterial.userData.sync(st);
     this.heroMaterial.userData.sync(st);
+    this.trailMaterial.userData.sync(st, this.trail, this._travelTime());
+    this.scarMaterial.userData.sync(st, this.trail, this._travelTime());
+    this.trail.show(this.isActive);
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
@@ -625,8 +637,8 @@ export class MomentSwingAbility extends Ability {
       endRadius: c.burstRadius * power,
       life: c.burstLife,
       intensity: 0.85,
-      opacity: 0.55 * g.opacity,
-      squash: 0.7,
+      opacity: 0.4 * g.opacity,
+      squash: 0.38,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
@@ -670,6 +682,32 @@ export class MomentSwingAbility extends Ability {
     });
   }
 
+  /** Seconds the head takes over the whole line — the trail's clock. */
+  _travelTime() {
+    return Math.max(0.05, this.length / Math.max(1, settings[ID].speed * settings.global.speed));
+  }
+
+  /** Where the head crosses each `wakeSpacing` metre: a crack decal and a few chips. */
+  _wake(point, lane, s) {
+    const c = settings[ID];
+    const g = settings.global;
+    _pos.copy(point).setY(0);
+    this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+      radius: c.wakeRadius * (0.8 + 0.4 * Math.random()),
+      life: c.wakeLife * g.lifetime,
+      width: 0.08,
+      intensity: 0.75,
+      colorA: getColor(c.colorScarA),
+      colorB: getColor(c.colorB),
+      height: 0.03
+    });
+    const chips = Math.round(c.wakeChips * g.particleCount);
+    if (chips > 0) {
+      this._fillEmit(_pos.setY(0.1), 0.25, _up, c.chipSpeed * 0.6, 0.8, c.chipSize, c.chipLife, 3);
+      this.chips.emit(chips, _emit);
+    }
+  }
+
   onTravel(dt) {
     const c = settings[ID];
     const g = settings.global;
@@ -677,6 +715,7 @@ export class MomentSwingAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -695,6 +734,7 @@ export class MomentSwingAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -718,9 +758,13 @@ export class MomentSwingAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.trail.hide();
   }
 
   dispose() {
+    this.trail.dispose();
+    this.trailMaterial.dispose();
+    this.scarMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -886,6 +930,24 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const trail = folder.addFolder('14 · Trail');
+  R(trail, c, 'trailWidth', 0, 3, 0.01, 'ribbon width (m)');
+  R(trail, c, 'trailLife', 0.05, 6, 0.05, 'ribbon life (s)');
+  R(trail, c, 'trailOpacity', 0, 2, 0.01, 'ribbon opacity');
+  R(trail, c, 'trailGlow', 0, 4, 0.01, 'ribbon glow');
+  R(trail, c, 'trailCore', 0, 1, 0.01, 'white core');
+  R(trail, c, 'trailBreakup', 0, 3, 0.01, 'break-up');
+  R(trail, c, 'scarWidth', 0, 4, 0.01, 'scar width (m)');
+  R(trail, c, 'scarLife', 0.05, 8, 0.05, 'scar life (s)');
+  R(trail, c, 'scarOpacity', 0, 1, 0.01, 'scar opacity');
+  R(trail, c, 'scarGlow', 0, 6, 0.05, 'seam glow');
+  trail.addColor(c, 'colorScarA').name('seam');
+  trail.addColor(c, 'colorScarB').name('bed');
+  R(trail, c, 'wakeSpacing', 0, 6, 0.05, 'wake every (m)');
+  R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
+  R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
+  R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

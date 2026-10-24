@@ -726,6 +726,8 @@ export class App {
     this.dummies.update(dt, this.character.position);
     this.dummies.applyHits(this.abilities.active);
     for (const runtime of this.runtimes.values()) runtime.afterBodies(dt, this.elapsed);
+    // Every hit is in by now: the combat state steps and issues its reactions.
+    this.combat?.update(dt);
     this.particles.flush();
     this.decals.update(dt);
     this.bursts.update(dt);
