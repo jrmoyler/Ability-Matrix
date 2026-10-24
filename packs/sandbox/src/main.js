@@ -1,6 +1,7 @@
 import { App } from './core/App.js';
 import { installMatrixBridge } from './bridge/MatrixBridge.js';
 import { LoadingScreen } from './ui/HUD.js';
+import { PackAdapter } from './combat/ucsm/PackAdapter.js';
 
 /**
  * Entry point.
@@ -17,7 +18,11 @@ async function boot() {
 
     // Handy for poking at the scene from the console.
     window.app = app;
+    // Every cast, from every pack, reports into one combat state (combat/ucsm).
+    app.combat = new PackAdapter(app);
+    app.combat.buildEditor(app.editor.gui);
     installMatrixBridge(app, 'sandbox');
+    window.matrix.combat = app.combat.api();
   } catch (error) {
     console.error('[boot] failed to start', error);
     new LoadingScreen().fail(
