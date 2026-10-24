@@ -16,7 +16,7 @@
   "range": 18,
   "minRange": 2,
   "zoneRadius": 4.45,
-  "controls": 118,
+  "controls": 134,
   "status": "live",
   "settings": {
     "range": 18,
@@ -33,6 +33,12 @@
     "lightRadius": 11,
     "lightFlicker": 0.45,
     "impactLight": 11,
+    "handForward": 0.55,
+    "handSide": 0.22,
+    "handHeight": 1.35,
+    "handFlare": 0.5,
+    "handSparks": 28.6,
+    "handMotes": 12,
     "spinSpeed": 2.86,
     "thickness": 0.28,
     "count": 7,
@@ -136,6 +142,16 @@
     "hitRadius": 4.4,
     "hitImpulse": 8.07,
     "hitLift": 3.52,
-    "hitSpin": 2.4
+    "hitSpin": 2.4,
+    "markAmount": 0.75,
+    "markTime": 0.35,
+    "markLife": 2.2,
+    "markMotes": 18,
+    "colorMarkBody": "#24143a",
+    "colorMarkRim": "#c9d2ff",
+    "markRimGlow": 2.08,
+    "colorMarkEdge": "#ffffff",
+    "markEdgeGlow": 3.38,
+    "markEdgeWidth": 0.05
   }
 }

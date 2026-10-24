@@ -41,6 +41,11 @@ const _pos = new Vector3();
 const _dir = new Vector3();
 const _end = new Vector3();
 const _focus = new Vector3();
+const _body = new Vector3();
+const _up = new Vector3(0, 1, 0);
+
+/** Felled bodies one cast can keep marked at once. */
+const MAX_MARKS = 12;
 
 /**
  * PLUMB SWING — gravity, line cast.
@@ -62,6 +67,10 @@ const _focus = new Vector3();
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: the weight is at the tip. It craters at the far stop and barely cuts on the way.
+ *  10. **mark** — a felled body is turned to lead: `corrode` stains it toward the
+ *      element's look over `markTime` and it sheds motes for `markLife`.
+ *
+ * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
  *
  * Every metre, rate and colour is read from `settings.plumbswing` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -133,6 +142,9 @@ export class PlumbSwingAbility extends Ability {
     this._flow = { vx: 0, vy: 0, vz: 0 };
     this._field = (x, y, z, out) => out.set(this._flow.vx, this._flow.vy, this._flow.vz);
     this._found = [];
+    this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
+    this._markCount = 0;
+    this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
   }
 
   _mesh(geometry, material, layer, order) {
@@ -213,7 +225,41 @@ export class PlumbSwingAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._releaseMarks();
+    this._palette();
+    this._hand();
     if (ZONE) this._telegraph();
+  }
+
+  /** The cast leaves the fist: a small flare, a spray of sparks along the aim, motes left hanging. */
+  _hand() {
+    const c = settings[ID];
+    const g = settings.global;
+    _pos.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _pos.y = c.handHeight;
+    if (c.handFlare > 0.01) {
+      this.ctx.bursts.spawn(BurstMode.EARTH, _pos, {
+        radius: 0.05,
+        endRadius: c.handFlare,
+        life: 0.22,
+        intensity: 0.6,
+        opacity: 0.4 * g.opacity,
+        squash: 1,
+        colorA: getColor(c.colorBurstA),
+        colorB: getColor(c.colorBurstB),
+        colorC: getColor(c.colorBurstC)
+      });
+    }
+    const sparks = Math.round(c.handSparks * g.particleCount);
+    if (sparks > 0) {
+      this._fillEmit(_pos, 0.08, this.direction, c.streakSpeed * 1.2, 0.5, 0.06, c.streakLife * 0.8, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const motes = Math.round(c.handMotes * g.particleCount);
+    if (motes > 0) {
+      this._fillEmit(_pos, 0.15, _up, c.moteSpeed * 0.5, 0.9, 0.08, c.moteLife, 1);
+      this.motes.emit(motes, _emit);
+    }
   }
 
   _focusPoint(out) {
@@ -388,6 +434,49 @@ export class PlumbSwingAbility extends Ability {
     if (this._struck.length < 24) this._struck.push(dummy);
     if (CARRY !== 'none' && this._carried.length < 16) this._carried.push(dummy);
     this._hits++;
+    this._mark(dummy);
+  }
+
+  /** Start a felled body wearing the element. */
+  _mark(dummy) {
+    if (this._markCount >= MAX_MARKS) return;
+    const slot = this._marks[this._markCount++];
+    slot.dummy = dummy;
+    slot.time = 0;
+    slot.emitter.reset();
+  }
+
+  /** Stain the marked bodies toward the element's look and keep them shedding. */
+  _updateMarks(dt) {
+    if (this._markCount === 0) return;
+    const c = settings[ID];
+    const g = settings.global;
+    const look = this._look;
+    look.color = c.colorMarkBody;
+    look.rimColor = c.colorMarkRim;
+    look.rimEmissive = c.markRimGlow;
+    look.edgeColor = c.colorMarkEdge;
+    look.edgeEmissive = c.markEdgeGlow;
+    look.edgeWidth = c.markEdgeWidth;
+    for (let i = 0; i < this._markCount; i++) {
+      const slot = this._marks[i];
+      const dummy = slot.dummy;
+      if (!dummy || dummy.finished) continue;
+      slot.time += dt;
+      dummy.corrode(saturate(slot.time / Math.max(0.02, c.markTime)) * c.markAmount, look);
+      const left = 1 - saturate(slot.time / Math.max(0.05, c.markLife * g.lifetime));
+      if (left <= 0) continue;
+      const n = Math.round(slot.emitter.tick(dt, c.markMotes * left) * g.particleCount);
+      if (n <= 0) continue;
+      const at = dummy.bodyPoint?.(_body) ?? _body.copy(dummy.position).setY(0.9);
+      this._fillEmit(at, 0.3, _up, c.moteSpeed, 0.7, 0.08, c.moteLife, 1);
+      this.motes.emit(n, _emit);
+    }
+  }
+
+  _releaseMarks() {
+    for (let i = 0; i < this._markCount; i++) this._marks[i].dummy = null;
+    this._markCount = 0;
   }
 
 
@@ -589,6 +678,7 @@ export class PlumbSwingAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
 
@@ -615,9 +705,11 @@ export class PlumbSwingAbility extends Ability {
       this._echo();
     }
     this._drag(dt, fade);
+    this._updateMarks(dt);
   }
 
   onDestroy() {
+    this._releaseMarks();
     for (let i = 0; i < this._carried.length; i++) this._carried[i].release?.();
     this._carried.length = 0;
     this.body.visible = false;
@@ -657,6 +749,14 @@ export function buildEditor(gui, c, Editor) {
   R(cast, c, 'fadeTime', 0.05, 4, 0.01, 'fade (s)');
   
   Editor.castAnimation(cast, c);
+
+  const hand = folder.addFolder('0 · Hand');
+  R(hand, c, 'handForward', -0.5, 2, 0.01, 'forward (m)');
+  R(hand, c, 'handSide', -1, 1, 0.01, 'side (m)');
+  R(hand, c, 'handHeight', 0.2, 2.5, 0.01, 'height (m)');
+  R(hand, c, 'handFlare', 0, 3, 0.01, 'flare (m)');
+  R(hand, c, 'handSparks', 0, 120, 1, 'sparks');
+  R(hand, c, 'handMotes', 0, 80, 1, 'motes');
 
   const shape = folder.addFolder('1 · Shape — hinge');
   R(shape, c, 'count', 1, 16, 1, 'count');
@@ -774,6 +874,18 @@ export function buildEditor(gui, c, Editor) {
   R(bodies, c, 'hitImpulse', 0, 24, 0.1, 'impulse');
   R(bodies, c, 'hitLift', 0, 20, 0.1, 'lift');
   R(bodies, c, 'hitSpin', 0, 8, 0.05, 'spin');
+
+  const mark = folder.addFolder('13 · Mark — turned to lead');
+  R(mark, c, 'markAmount', 0, 1, 0.01, 'stain');
+  R(mark, c, 'markTime', 0.02, 3, 0.01, 'sets in (s)');
+  R(mark, c, 'markLife', 0, 8, 0.05, 'sheds for (s)');
+  R(mark, c, 'markMotes', 0, 120, 1, 'motes / s');
+  mark.addColor(c, 'colorMarkBody').name('body');
+  mark.addColor(c, 'colorMarkRim').name('rim');
+  R(mark, c, 'markRimGlow', 0, 6, 0.05, 'rim glow');
+  mark.addColor(c, 'colorMarkEdge').name('edge');
+  R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
+  R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

@@ -71,6 +71,31 @@ const DETAIL = {
   halo: [16, 0.9]
 };
 
+/**
+ * What a felled body wears afterwards, by element — the older Codex casts char,
+ * frost, salt or anoint the bodies they hit, and these do too. `body` is the
+ * diffuse the body is stained toward, `amount` how far (0..1), `time` the
+ * seconds it takes to set in. Rim and edge take the spell's own colours.
+ */
+export const MARK = {
+  earth: { verb: 'caked in dust', body: '#3a2a1a', amount: 0.7, time: 0.5 },
+  crystal: { verb: 'glassed over', body: '#2a2440', amount: 0.75, time: 0.35 },
+  wind: { verb: 'scoured pale', body: '#3a4a46', amount: 0.5, time: 0.25 },
+  sound: { verb: 'left ringing', body: '#2c3420', amount: 0.55, time: 0.2 },
+  light: { verb: 'seared white', body: '#3a3020', amount: 0.8, time: 0.2 },
+  holy: { verb: 'anointed in gold', body: '#3a2e14', amount: 0.75, time: 0.4 },
+  cosmic: { verb: 'starred through', body: '#141a3a', amount: 0.8, time: 0.4 },
+  gravity: { verb: 'turned to lead', body: '#1a1a20', amount: 0.85, time: 0.5 },
+  shadow: { verb: 'shrouded', body: '#08080c', amount: 0.9, time: 0.6 },
+  void: { verb: 'hollowed out', body: '#050308', amount: 0.95, time: 0.5 },
+  arcane: { verb: 'inscribed', body: '#24143a', amount: 0.75, time: 0.35 },
+  illusion: { verb: 'glamoured', body: '#3a1a34', amount: 0.6, time: 0.3 },
+  time: { verb: 'aged to sepia', body: '#3a3024', amount: 0.85, time: 0.9 },
+  motion: { verb: 'smeared', body: '#2a2a30', amount: 0.5, time: 0.2 },
+  tech: { verb: 'shorted out', body: '#101820', amount: 0.7, time: 0.15 },
+  force: { verb: 'bruised', body: '#2a1410', amount: 0.7, time: 0.3 }
+};
+
 /** A small emblem per element, laid over the archetype mark on the card. */
 export const ELEMENT_MARK = {
   earth: '<path d="M70 82L78 66L86 82Z"/>',
@@ -103,6 +128,7 @@ export function settingsFor(spell) {
   const [detailCount, detailLift] = DETAIL[spell.archetype];
   const [heroSize, heroReach, heroLift, heroSpin, heroSwing] = HERO[spell.archetype];
   const well = spell.archetype === 'well';
+  const mark = MARK[spell.element];
   return {
     // the cast
     range: 18,
@@ -121,6 +147,14 @@ export function settingsFor(spell) {
     lightRadius: 11,
     lightFlicker: p.flicker,
     impactLight: 11 * p.flash,
+
+    // the hand
+    handForward: 0.55,
+    handSide: 0.22,
+    handHeight: 1.35,
+    handFlare: 0.4 + v * 0.1,
+    handSparks: 22 * p.streak,
+    handMotes: 12,
 
     // body
     spinSpeed: (1.4 + v * 0.8) * p.spin,
@@ -244,13 +278,26 @@ export function settingsFor(spell) {
     hitRadius: zone ? 4.4 : 1.15,
     hitImpulse: (7.5 + v) * p.impulse,
     hitLift: (well ? 9 : 3.2) * p.lift,
-    hitSpin: 2.4
+    hitSpin: 2.4,
+
+    // the mark a felled body wears
+    markAmount: mark.amount,
+    markTime: mark.time,
+    markLife: 2.2,
+    markMotes: 18 * (PROFILE[spell.element].mote === 'dust' ? 1.3 : 1),
+    colorMarkBody: mark.body,
+    colorMarkRim: spell.colorA,
+    markRimGlow: 1.6 * p.glow,
+    colorMarkEdge: spell.colorB,
+    markEdgeGlow: 2.6 * p.glow,
+    markEdgeWidth: 0.05
   };
 }
 
 const GROUPS = [
   ['the cast itself', ['range', 'minRange', 'speed', 'lifetime', 'cooldown', 'castAnim', 'impactTime', 'fadeTime', 'zoneRadius']],
   ['light', ['lightColor', 'lightIntensity', 'lightRadius', 'lightFlicker', 'impactLight']],
+  ['0 · the hand', ['handForward', 'handSide', 'handHeight', 'handFlare', 'handSparks', 'handMotes']],
   ['1 · the body', ['spinSpeed', 'thickness', 'count', 'height', 'sweep', 'lean', 'bodyOpacity', 'edgeGlow', 'softFade', 'bodyGlow', 'bodyPulse', 'bodyPulseRate', 'colorA', 'colorB', 'colorC', 'lensWarp']],
   ['2 · the voice', ['voiceOpacity', 'colorVoiceA', 'colorVoiceB']],
   ['3 · the ground', ['groundWidth', 'groundGlow', 'groundLife', 'groundOpacity', 'colorGroundA', 'colorGroundB']],
@@ -260,7 +307,8 @@ const GROUPS = [
   ['7 · motes', ['moteRate', 'moteSize', 'moteSpeed', 'moteLife', 'colorMoteA', 'colorMoteB', 'colorMoteC', 'colorMoteD']],
   ['8 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'colorShockA', 'colorShockB']],
   ['9 · the aftershock', ['aftershockAt', 'aftershockRadius', 'aftershockShake', 'aftershockLight', 'aftershockLife']],
-  ['10 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']]
+  ['10 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']],
+  ['11 · the mark', ['markAmount', 'markTime', 'markLife', 'markMotes', 'colorMarkBody', 'colorMarkRim', 'markRimGlow', 'colorMarkEdge', 'markEdgeGlow', 'markEdgeWidth']]
 ];
 
 const NOTE = {
@@ -325,7 +373,21 @@ const NOTE = {
   hitRadius: 'reach of the blow, metres',
   hitImpulse: 'how hard bodies are thrown',
   hitLift: 'how high they are thrown',
-  hitSpin: 'how fast they tumble'
+  hitSpin: 'how fast they tumble',
+  handForward: 'metres in front of the caster the hand is',
+  handSide: 'metres to the right of the caster',
+  handHeight: 'metres off the floor',
+  handFlare: 'size of the flare round the fist as the cast leaves it, metres',
+  handSparks: 'sparks thrown off the hand at release',
+  handMotes: 'motes left hanging at the hand',
+  markAmount: '0..1 how far a felled body is stained',
+  markTime: 'seconds the stain takes to set in',
+  markLife: 'seconds a marked body keeps shedding motes, × global lifetime',
+  markMotes: 'motes per second off a freshly marked body',
+  colorMarkBody: 'what the body is stained toward',
+  markRimGlow: 'rim light on a marked body',
+  markEdgeGlow: 'brightness of the marked edge',
+  markEdgeWidth: 'width of the marked edge'
 };
 
 /** 2 decimals for most things, enough for small sizes; never float noise. */

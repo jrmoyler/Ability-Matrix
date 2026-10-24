@@ -72,3 +72,46 @@ test('the detail layer lays every kind out without NaN, for circles and lines', 
     layer.dispose();
   }
 });
+
+test('every pure castable marks the bodies it fells, like the older Codex casts', async () => {
+  const { MARK } = await import('../tools/pure-settings.mjs');
+  const marks = new Set();
+  for (const spell of SPELLS) {
+    const spec = (await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/codex', `${spell.id}.js`)).href)).default;
+    const c = spec.settings;
+    assert.equal(c.colorMarkBody, MARK[spell.element].body, `${spell.id} wears its element`);
+    marks.add(spell.element + c.colorMarkBody);
+    const mod = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/abilities/codex', `${spell.cls}Ability.js`)).href);
+    // Just the mark's own state, on a bare instance: no scene, no GPU.
+    const cast = Object.create(mod[`${spell.cls}Ability`].prototype);
+    cast._struck = [];
+    cast._carried = [];
+    cast._hits = 0;
+    cast._markCount = 0;
+    cast._marks = Array.from({ length: 12 }, () => ({ dummy: null, time: 0, emitter: { reset() {}, tick: (dt, rate) => dt * rate } }));
+    cast._look = {};
+    let emitted = 0;
+    cast.motes = { emit: (n) => { emitted += n; } };
+    const seen = [];
+    const dummy = {
+      finished: false,
+      position: new Vector3(1, 0, 2),
+      bodyPoint: (out) => out.set(1, 0.9, 2),
+      corrode: (amount, look) => seen.push([amount, look.color])
+    };
+    cast._remember(dummy);
+    for (let i = 0; i < 40; i++) cast._updateMarks(0.05);
+    assert.equal(cast._hits, 1);
+    assert.ok(seen.length > 0, `${spell.id} stains the body`);
+    const last = seen.at(-1);
+    assert.ok(Math.abs(last[0] - c.markAmount) < 1e-9, `${spell.id} stains to markAmount`);
+    assert.equal(last[1], c.colorMarkBody);
+    for (let i = 1; i < seen.length; i++) assert.ok(seen[i][0] >= seen[i - 1][0], `${spell.id} stain never heals`);
+    assert.ok(emitted > 0, `${spell.id} sheds off the marked body`);
+    cast._releaseMarks();
+    assert.equal(cast._markCount, 0);
+    const ability = src('abilities', `${spell.cls}Ability.js`);
+    assert.match(ability, /_hand\(\);/, `${spell.id} flares at the hand`);
+  }
+  assert.equal(marks.size, new Set(SPELLS.map((s) => s.element)).size, 'one look per element');
+});
