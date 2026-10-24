@@ -180,6 +180,24 @@ export default {
     markRimGlow: 1.12, // rim light on a marked body
     colorMarkEdge: '#b0a4e8',
     markEdgeGlow: 1.82, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 12 · the trail --- */
+    trailWidth: 0.34, // ribbon width at the head, metres
+    trailLife: 0.9, // seconds a point of ribbon lasts after the head crosses it
+    trailOpacity: 0.55, // strength of the ribbon
+    trailGlow: 0.77, // brightness of the ribbon
+    trailCore: 0.4, // 0..1 how white the fresh middle of the ribbon runs
+    trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
+    scarWidth: 0.6, // width of the scar on the floor, metres
+    scarLife: 2.6, // seconds the scar takes to cool and go
+    scarOpacity: 0.7, // strength of the scar
+    scarGlow: 1.12, // brightness of its hot seam
+    colorScarA: '#583be3',
+    colorScarB: '#070416',
+    wakeSpacing: 1.8, // metres between wake decals along the path (0 = none)
+    wakeRadius: 0.7, // size of each wake decal, metres
+    wakeLife: 1.6, // seconds each wake decal lingers
+    wakeChips: 1.6 // fragments thrown at each wake
   }
 };

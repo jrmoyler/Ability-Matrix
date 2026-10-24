@@ -16,7 +16,7 @@
   "range": 18,
   "minRange": 2,
   "zoneRadius": 0,
-  "controls": 134,
+  "controls": 150,
   "status": "live",
   "settings": {
     "range": 18,
@@ -152,6 +152,22 @@
     "markRimGlow": 1.6,
     "colorMarkEdge": "#ffe4cc",
     "markEdgeGlow": 2.6,
-    "markEdgeWidth": 0.05
+    "markEdgeWidth": 0.05,
+    "trailWidth": 0.3,
+    "trailLife": 0.9,
+    "trailOpacity": 0.55,
+    "trailGlow": 1.1,
+    "trailCore": 0.4,
+    "trailBreakup": 1.25,
+    "scarWidth": 0.6,
+    "scarLife": 2.6,
+    "scarOpacity": 0.85,
+    "scarGlow": 1.6,
+    "colorScarA": "#f46b25",
+    "colorScarB": "#471c06",
+    "wakeSpacing": 1.8,
+    "wakeRadius": 0.7,
+    "wakeLife": 1.6,
+    "wakeChips": 4
   }
 }

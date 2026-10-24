@@ -365,7 +365,40 @@ export function settingsFor(spell) {
     markRimGlow: 1.6 * p.glow,
     colorMarkEdge: light,
     markEdgeGlow: 2.6 * p.glow,
-    markEdgeWidth: 0.05
+    markEdgeWidth: 0.05,
+
+    // the trail a line cast leaves (abilities/codex/LineTrail.js); zone casts have none
+    ...(zone ? {} : trailFor(spell, p, body, deep))
+  };
+}
+
+/** Trail widths, lives and wake spacing by line archetype: [width, life, scar width, wake m, wake r]. */
+const TRAIL = {
+  lance: [0.38, 1.6, 0.9, 1.6, 0.9],
+  whip: [0.6, 1.3, 1.4, 2, 1],
+  volley: [0.18, 1.1, 0.35, 2.5, 0.6],
+  pendulum: [0.26, 0.9, 0.6, 1.8, 0.7]
+};
+
+function trailFor(spell, p, body, deep) {
+  const [width, life, scar, spacing, wake] = TRAIL[spell.archetype];
+  return {
+    trailWidth: width + spell.variant * 0.04,
+    trailLife: life,
+    trailOpacity: spell.archetype === 'pendulum' ? 0.55 : 0.85,
+    trailGlow: 1.1 * p.glow,
+    trailCore: spell.archetype === 'pendulum' ? 0.4 : 0.8,
+    trailBreakup: 1.25,
+    scarWidth: scar,
+    scarLife: 2.6,
+    scarOpacity: p.solid ? 0.85 : 0.7,
+    scarGlow: 1.6 * p.glow,
+    colorScarA: body,
+    colorScarB: deep,
+    wakeSpacing: spacing,
+    wakeRadius: wake,
+    wakeLife: 1.6,
+    wakeChips: 4 * p.chip
   };
 }
 
@@ -383,7 +416,8 @@ const GROUPS = [
   ['8 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'colorShockA', 'colorShockB']],
   ['9 · the aftershock', ['aftershockAt', 'aftershockRadius', 'aftershockShake', 'aftershockLight', 'aftershockLife']],
   ['10 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']],
-  ['11 · the mark', ['markAmount', 'markTime', 'markLife', 'markMotes', 'colorMarkBody', 'colorMarkRim', 'markRimGlow', 'colorMarkEdge', 'markEdgeGlow', 'markEdgeWidth']]
+  ['11 · the mark', ['markAmount', 'markTime', 'markLife', 'markMotes', 'colorMarkBody', 'colorMarkRim', 'markRimGlow', 'colorMarkEdge', 'markEdgeGlow', 'markEdgeWidth']],
+  ['12 · the trail', ['trailWidth', 'trailLife', 'trailOpacity', 'trailGlow', 'trailCore', 'trailBreakup', 'scarWidth', 'scarLife', 'scarOpacity', 'scarGlow', 'colorScarA', 'colorScarB', 'wakeSpacing', 'wakeRadius', 'wakeLife', 'wakeChips'], 'line']
 ];
 
 const NOTE = {
@@ -439,6 +473,20 @@ const NOTE = {
   impactShake: 'camera punch on the beat',
   impactFlash: 'screen flash on the beat',
   burstRadius: 'burst size, metres',
+  trailWidth: 'ribbon width at the head, metres',
+  trailLife: 'seconds a point of ribbon lasts after the head crosses it',
+  trailOpacity: 'strength of the ribbon',
+  trailGlow: 'brightness of the ribbon',
+  trailCore: '0..1 how white the fresh middle of the ribbon runs',
+  trailBreakup: 'how hard the ribbon breaks up as it ages',
+  scarWidth: 'width of the scar on the floor, metres',
+  scarLife: 'seconds the scar takes to cool and go',
+  scarOpacity: 'strength of the scar',
+  scarGlow: 'brightness of its hot seam',
+  wakeSpacing: 'metres between wake decals along the path (0 = none)',
+  wakeRadius: 'size of each wake decal, metres',
+  wakeLife: 'seconds each wake decal lingers',
+  wakeChips: 'fragments thrown at each wake',
   shockRadius: 'decal size, metres',
   aftershockAt: 'fade progress the aftershock lands at (1 = fade start)',
   aftershockRadius: 'aftershock ring size, metres',
@@ -486,9 +534,11 @@ export function configSource(spell) {
   const flat = new Set(GROUPS.flatMap(([, keys]) => keys));
   const missing = Object.keys(s).filter((k) => !flat.has(k));
   if (missing.length) throw new Error(`${spell.id}: settings without a group: ${missing.join(', ')}`);
-  const last = GROUPS[GROUPS.length - 1][1].at(-1);
+  // A group tagged 'line' only exists on line casts.
+  const groups = GROUPS.filter(([, , only]) => !only || only === spell.cast);
+  const last = groups[groups.length - 1][1].at(-1);
   const lines = [];
-  for (const [title, keys] of GROUPS) {
+  for (const [title, keys] of groups) {
     if (lines.length) lines.push('');
     lines.push(`    /* --- ${title} --- */`);
     for (const key of keys) {
