@@ -116,6 +116,80 @@ export const ELEMENT_MARK = {
   force: '<path d="M66 72H90M82 64L90 72L82 80"/>'
 };
 
+/**
+ * How each element turns a spell's hue into a ramp, the way the older Codex
+ * casts are coloured: a pale light, a saturated body and a dark deep. The
+ * spell table only gives pastels (lightness 0.8–0.97), and seven elements share
+ * the same gold, so without this every cast blends into a white blob.
+ * [hue shift°, body saturation, body lightness, deep saturation, deep lightness]
+ */
+export const TONE = {
+  earth: [-8, 0.62, 0.46, 0.55, 0.13],
+  crystal: [0, 0.85, 0.68, 0.8, 0.2],
+  wind: [0, 0.72, 0.58, 0.75, 0.15],
+  sound: [0, 0.75, 0.56, 0.8, 0.14],
+  light: [4, 1, 0.62, 0.95, 0.3],
+  holy: [-2, 0.9, 0.56, 0.8, 0.2],
+  cosmic: [0, 0.85, 0.64, 0.9, 0.16],
+  gravity: [-4, 0.32, 0.5, 0.42, 0.1],
+  shadow: [0, 0.7, 0.56, 0.6, 0.08],
+  void: [0, 0.75, 0.56, 0.7, 0.05],
+  arcane: [0, 0.85, 0.66, 0.85, 0.18],
+  illusion: [0, 0.85, 0.66, 0.8, 0.2],
+  time: [-6, 0.85, 0.54, 0.75, 0.17],
+  motion: [-12, 0.95, 0.6, 0.85, 0.2],
+  tech: [0, 0.9, 0.55, 0.9, 0.14],
+  force: [-6, 0.9, 0.55, 0.85, 0.15]
+};
+
+const hslOf = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const l = (mx + mn) / 2;
+  const d = mx - mn;
+  if (!d) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+};
+
+const hexOf = (h, s, l) => {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return '#' + [f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * A spell's ramp: `hot` (its white core), `light` (its own pastel), `body`
+ * (saturated) and `deep` (dark). The hue is taken from whichever of its three
+ * colours carries the most chroma.
+ */
+export function paletteFor(spell) {
+  const [shift, bs, bl, ds, dl] = TONE[spell.element];
+  let hue = 0;
+  let best = -1;
+  for (const hex of [spell.colorA, spell.colorB, spell.colorC]) {
+    const [h, s, l] = hslOf(hex);
+    const chroma = s * (1 - Math.abs(2 * l - 1));
+    if (chroma > best) {
+      best = chroma;
+      hue = h;
+    }
+  }
+  hue = (hue + shift + 360) % 360;
+  return {
+    hot: spell.colorB,
+    light: spell.colorA,
+    body: hexOf(hue, bs, bl),
+    deep: hexOf(hue, ds, dl)
+  };
+}
+
 export function glyphFor(spell) {
   return spell.glyph + (ELEMENT_MARK[spell.element] ?? '');
 }
@@ -129,20 +203,21 @@ export function settingsFor(spell) {
   const [heroSize, heroReach, heroLift, heroSpin, heroSwing] = HERO[spell.archetype];
   const well = spell.archetype === 'well';
   const mark = MARK[spell.element];
+  const { hot, light, body, deep } = paletteFor(spell);
   return {
     // the cast
     range: 18,
     minRange: 2,
     speed: (zone ? 20 + v * 2 : 24 + v * 3) * p.speed,
-    lifetime: 1.35 + v * 0.15,
+    lifetime: 1.8 + v * 0.2,
     cooldown: 0.55,
     castAnim: ['cast1', 'cast2', 'cast3'][v],
-    impactTime: 0.7 + v * 0.08,
-    fadeTime: 0.95,
+    impactTime: 1.05 + v * 0.1,
+    fadeTime: 1.25,
     zoneRadius: zone ? 4.2 + v * 0.25 : 0,
 
     // light
-    lightColor: spell.colorB,
+    lightColor: body,
     lightIntensity: 8 * p.glow,
     lightRadius: 11,
     lightFlicker: p.flicker,
@@ -152,7 +227,7 @@ export function settingsFor(spell) {
     handForward: 0.55,
     handSide: 0.22,
     handHeight: 1.35,
-    handFlare: 0.4 + v * 0.1,
+    handFlare: 0.22 + v * 0.05,
     handSparks: 22 * p.streak,
     handMotes: 12,
 
@@ -163,29 +238,29 @@ export function settingsFor(spell) {
     height: 2.6 + v * 0.45,
     sweep: 1.1 + v * 0.35,
     lean: 0.45 + v * 0.2,
-    bodyOpacity: 0.5,
-    edgeGlow: (1.6 + v * 0.25) * p.glow,
+    bodyOpacity: zone ? 0.2 : 0.5,
+    edgeGlow: (1.6 + v * 0.25) * p.glow * (zone ? 0.55 : 1),
     softFade: 0.4,
     bodyGlow: 0.32 * p.glow,
     bodyPulse: 0.12,
     bodyPulseRate: 4 + v,
-    colorA: spell.colorA,
-    colorB: spell.colorB,
-    colorC: spell.colorC,
+    colorA: body,
+    colorB: hot,
+    colorC: deep,
     lensWarp: (0.7 + v * 0.15) * p.lens,
 
     // voice
     voiceOpacity: 0.5,
-    colorVoiceA: spell.colorB,
-    colorVoiceB: spell.colorA,
+    colorVoiceA: body,
+    colorVoiceB: hot,
 
     // ground
     groundWidth: zone ? 9 : 2.4,
     groundGlow: 1.4,
-    groundLife: 1.5,
+    groundLife: 2.2,
     groundOpacity: 1,
-    colorGroundA: spell.colorA,
-    colorGroundB: spell.colorC,
+    colorGroundA: body,
+    colorGroundB: deep,
 
     // detail pieces
     detailCount,
@@ -198,9 +273,9 @@ export function settingsFor(spell) {
     detailOpacity: p.solid ? 0.95 : 0.8,
     detailSwing: 1,
     detailEdge: 1,
-    colorDetailA: spell.colorA,
-    colorDetailB: spell.colorB,
-    colorDetailC: spell.colorC,
+    colorDetailA: light,
+    colorDetailB: body,
+    colorDetailC: deep,
 
     // hero rig
     heroSize,
@@ -211,9 +286,9 @@ export function settingsFor(spell) {
     heroGlow: 1.1 * p.glow,
     heroEdge: 1.2,
     heroOpacity: p.solid ? 0.95 : 0.85,
-    colorHeroA: spell.colorA,
-    colorHeroB: spell.colorB,
-    colorHeroC: spell.colorC,
+    colorHeroA: light,
+    colorHeroB: body,
+    colorHeroC: deep,
 
     // shed
     dustRate: 80 * p.dust,
@@ -221,26 +296,26 @@ export function settingsFor(spell) {
     dustSpeed: 3.5,
     dustLife: 0.8,
     dustOpacity: 0.55,
-    colorDustA: spell.colorA,
-    colorDustB: spell.colorB,
-    colorDustC: spell.colorC,
+    colorDustA: light,
+    colorDustB: body,
+    colorDustC: deep,
     colorDustD: '#1a140e',
     streakRate: 90 * p.streak,
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
     streakStretch: 1.4,
-    colorStreakA: spell.colorB,
-    colorStreakB: spell.colorA,
-    colorStreakC: spell.colorC,
-    colorStreakD: '#ffffff',
+    colorStreakA: hot,
+    colorStreakB: light,
+    colorStreakC: body,
+    colorStreakD: body,
     chipRate: 36 * p.chip,
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
-    colorChipA: spell.colorC,
-    colorChipB: spell.colorA,
-    colorChipC: spell.colorB,
+    colorChipA: body,
+    colorChipB: light,
+    colorChipC: deep,
     colorChipD: '#2a241c',
 
     // motes thrown off the detail pieces
@@ -248,24 +323,24 @@ export function settingsFor(spell) {
     moteSize: 0.06,
     moteSpeed: 1.6,
     moteLife: 1.1,
-    colorMoteA: spell.colorB,
-    colorMoteB: spell.colorA,
-    colorMoteC: spell.colorC,
-    colorMoteD: '#ffffff',
+    colorMoteA: hot,
+    colorMoteB: light,
+    colorMoteC: body,
+    colorMoteD: body,
 
     // the beat
     impactShake: 0.55 * p.shake,
-    impactFlash: 0.26 * p.flash,
-    colorFlash: spell.colorB,
-    burstRadius: 3.4 + v * 0.3,
+    impactFlash: 0.16 * p.flash,
+    colorFlash: light,
+    burstRadius: (zone ? 3.2 : 2) + v * 0.3,
     burstLife: 0.7,
-    colorBurstA: spell.colorB,
-    colorBurstB: spell.colorA,
-    colorBurstC: spell.colorC,
+    colorBurstA: hot,
+    colorBurstB: body,
+    colorBurstC: deep,
     shockRadius: zone ? 6.5 : 3.2,
     shockLife: 0.85,
-    colorShockA: spell.colorA,
-    colorShockB: spell.colorB,
+    colorShockA: body,
+    colorShockB: hot,
 
     // the aftershock, once the fade starts
     aftershockAt: 1.06,
@@ -286,9 +361,9 @@ export function settingsFor(spell) {
     markLife: 2.2,
     markMotes: 18 * (PROFILE[spell.element].mote === 'dust' ? 1.3 : 1),
     colorMarkBody: mark.body,
-    colorMarkRim: spell.colorA,
+    colorMarkRim: body,
     markRimGlow: 1.6 * p.glow,
-    colorMarkEdge: spell.colorB,
+    colorMarkEdge: light,
     markEdgeGlow: 2.6 * p.glow,
     markEdgeWidth: 0.05
   };

@@ -135,6 +135,7 @@ Like the older Codex casts, each of the 80 also marks the bodies it fells and le
 
 - **The mark.** A felled body is stained with its element through `Dummy#corrode`: caked in dust (earth), glassed over (crystal), seared white (light), turned to lead (gravity), aged to sepia (time) and so on, one look per element (`MARK` in `tools/pure-settings.mjs`). The stain sets in over `markTime` and the body sheds motes for `markLife`. It is in the editor under **Mark**.
 - **The hand.** The cast leaves the fist in a small flare with a spray of sparks along the aim and a few motes left hanging (`handFlare`, `handSparks`, `handMotes`, under **Hand**).
+- **The colour.** Like the older casts, every layer is coloured from a ramp rather than three pastels: the spell's white core, its own pale tint, a saturated body and a dark deep, all on the spell's hue. `TONE` in `tools/pure-settings.mjs` sets, per element, how saturated and how dark the body and the deep go and nudges the hue, so earth, gravity, light, holy, time, motion and force no longer share one gold. Rigs and pieces are shaded light to body to deep, and the burst, ground, dust and chips take the deep tone.
 
 To see the rigs without running the app: `node tools/rig-sheet.mjs sheet.png [id ...]` renders a contact sheet (each hero at rest and fully folded, with its piece) through Playwright.
 

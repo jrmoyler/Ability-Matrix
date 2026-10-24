@@ -24,15 +24,15 @@ export default {
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
     speed: 21.6, // metres/second the front travels
-    lifetime: 1.5, // seconds the cast is held before it is released
+    lifetime: 2, // seconds the cast is held before it is released
     cooldown: 0.55, // seconds before it can be armed again
     castAnim: 'cast2', // which clip the body throws
-    impactTime: 0.78, // impact phase length, × global lifetime
-    fadeTime: 0.95, // fade phase length, × global lifetime
+    impactTime: 1.15, // impact phase length, × global lifetime
+    fadeTime: 1.25, // fade phase length, × global lifetime
     zoneRadius: 0, // circle radius for zone casts, metres
 
     /* --- light --- */
-    lightColor: '#ffffff',
+    lightColor: '#a87d57',
     lightIntensity: 7.2, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.1, // 0..1 how much it shimmers
@@ -42,7 +42,7 @@ export default {
     handForward: 0.55, // metres in front of the caster the hand is
     handSide: 0.22, // metres to the right of the caster
     handHeight: 1.35, // metres off the floor
-    handFlare: 0.5, // size of the flare round the fist as the cast leaves it, metres
+    handFlare: 0.27, // size of the flare round the fist as the cast leaves it, metres
     handSparks: 11, // sparks thrown off the hand at release
     handMotes: 12, // motes left hanging at the hand
 
@@ -59,23 +59,23 @@ export default {
     bodyGlow: 0.29,
     bodyPulse: 0.12, // breathing in brightness, 0..1
     bodyPulseRate: 5, // breaths per second (radians)
-    colorA: '#e8dcc8',
+    colorA: '#a87d57',
     colorB: '#ffffff',
-    colorC: '#b89a78',
+    colorC: '#24190f',
     lensWarp: 1.27, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
     voiceOpacity: 0.5, // strength of the second placement
-    colorVoiceA: '#ffffff',
-    colorVoiceB: '#e8dcc8',
+    colorVoiceA: '#a87d57',
+    colorVoiceB: '#ffffff',
 
     /* --- 3 · the ground --- */
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
-    groundLife: 1.5, // seconds the stamp lingers
+    groundLife: 2.2, // seconds the stamp lingers
     groundOpacity: 1, // strength of the stamp
-    colorGroundA: '#e8dcc8',
-    colorGroundB: '#b89a78',
+    colorGroundA: '#a87d57',
+    colorGroundB: '#24190f',
 
     /* --- 4 · detail pieces --- */
     detailCount: 12, // pieces thrown (max 48)
@@ -89,8 +89,8 @@ export default {
     detailSwing: 1, // how far each piece folds its parts, × authored swing
     detailEdge: 1, // light along the piece arrises
     colorDetailA: '#e8dcc8',
-    colorDetailB: '#ffffff',
-    colorDetailC: '#b89a78',
+    colorDetailB: '#a87d57',
+    colorDetailC: '#24190f',
 
     /* --- 5 · hero rig --- */
     heroSize: 1.4, // scale of the hero rig, metres per authored unit
@@ -102,8 +102,8 @@ export default {
     heroEdge: 1.2, // light along the rig arrises
     heroOpacity: 0.95, // how solid the rig is
     colorHeroA: '#e8dcc8',
-    colorHeroB: '#ffffff',
-    colorHeroC: '#b89a78',
+    colorHeroB: '#a87d57',
+    colorHeroC: '#24190f',
 
     /* --- 6 · shed --- */
     dustRate: 80, // puffs per second
@@ -112,8 +112,8 @@ export default {
     dustLife: 0.8,
     dustOpacity: 0.55,
     colorDustA: '#e8dcc8',
-    colorDustB: '#ffffff',
-    colorDustC: '#b89a78',
+    colorDustB: '#a87d57',
+    colorDustC: '#24190f',
     colorDustD: '#1a140e',
     streakRate: 45, // sparks per second
     streakSize: 0.045,
@@ -122,15 +122,15 @@ export default {
     streakStretch: 1.4,
     colorStreakA: '#ffffff',
     colorStreakB: '#e8dcc8',
-    colorStreakC: '#b89a78',
-    colorStreakD: '#ffffff',
+    colorStreakC: '#a87d57',
+    colorStreakD: '#a87d57',
     chipRate: 43.2, // fragments per second
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
-    colorChipA: '#b89a78',
+    colorChipA: '#a87d57',
     colorChipB: '#e8dcc8',
-    colorChipC: '#ffffff',
+    colorChipC: '#24190f',
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
@@ -140,21 +140,21 @@ export default {
     moteLife: 1.1,
     colorMoteA: '#ffffff',
     colorMoteB: '#e8dcc8',
-    colorMoteC: '#b89a78',
-    colorMoteD: '#ffffff',
+    colorMoteC: '#a87d57',
+    colorMoteD: '#a87d57',
 
     /* --- 8 · the beat --- */
     impactShake: 0.77, // camera punch on the beat
-    impactFlash: 0.21, // screen flash on the beat
-    colorFlash: '#ffffff',
-    burstRadius: 3.7, // burst size, metres
+    impactFlash: 0.13, // screen flash on the beat
+    colorFlash: '#e8dcc8',
+    burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
     colorBurstA: '#ffffff',
-    colorBurstB: '#e8dcc8',
-    colorBurstC: '#b89a78',
+    colorBurstB: '#a87d57',
+    colorBurstC: '#24190f',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    colorShockA: '#e8dcc8',
+    colorShockA: '#a87d57',
     colorShockB: '#ffffff',
 
     /* --- 9 · the aftershock --- */
@@ -176,9 +176,9 @@ export default {
     markLife: 2.2, // seconds a marked body keeps shedding motes, × global lifetime
     markMotes: 23.4, // motes per second off a freshly marked body
     colorMarkBody: '#1a1a20', // what the body is stained toward
-    colorMarkRim: '#e8dcc8',
+    colorMarkRim: '#a87d57',
     markRimGlow: 1.44, // rim light on a marked body
-    colorMarkEdge: '#ffffff',
+    colorMarkEdge: '#e8dcc8',
     markEdgeGlow: 2.34, // brightness of the marked edge
     markEdgeWidth: 0.05 // width of the marked edge
   }

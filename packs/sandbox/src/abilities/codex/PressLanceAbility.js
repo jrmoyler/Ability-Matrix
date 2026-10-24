@@ -624,8 +624,8 @@ export class PressLanceAbility extends Ability {
       endRadius: c.burstRadius * power,
       life: c.burstLife,
       intensity: 0.85,
-      opacity: 0.55 * g.opacity,
-      squash: 0.7,
+      opacity: 0.4 * g.opacity,
+      squash: 0.38,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
