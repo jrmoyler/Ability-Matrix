@@ -38,6 +38,14 @@ export default {
     lightFlicker: 0.2, // 0..1 how much it shimmers
     impactLight: 9.9, // extra light on the beat, decays on its own
 
+    /* --- 0 · the hand --- */
+    handForward: 0.55, // metres in front of the caster the hand is
+    handSide: 0.22, // metres to the right of the caster
+    handHeight: 1.35, // metres off the floor
+    handFlare: 0.5, // size of the flare round the fist as the cast leaves it, metres
+    handSparks: 22, // sparks thrown off the hand at release
+    handMotes: 12, // motes left hanging at the hand
+
     /* --- 1 · the body --- */
     spinSpeed: 1.98, // radians/second the body turns
     thickness: 0.28, // width of a single body part, metres
@@ -160,6 +168,18 @@ export default {
     hitRadius: 1.15, // reach of the blow, metres
     hitImpulse: 11.9, // how hard bodies are thrown
     hitLift: 3.2, // how high they are thrown
-    hitSpin: 2.4 // how fast they tumble
+    hitSpin: 2.4, // how fast they tumble
+
+    /* --- 11 · the mark --- */
+    markAmount: 0.7, // 0..1 how far a felled body is stained
+    markTime: 0.3, // seconds the stain takes to set in
+    markLife: 2.2, // seconds a marked body keeps shedding motes, × global lifetime
+    markMotes: 23.4, // motes per second off a freshly marked body
+    colorMarkBody: '#2a1410', // what the body is stained toward
+    colorMarkRim: '#ffe4cc',
+    markRimGlow: 1.6, // rim light on a marked body
+    colorMarkEdge: '#ffffff',
+    markEdgeGlow: 2.6, // brightness of the marked edge
+    markEdgeWidth: 0.05 // width of the marked edge
   }
 };
