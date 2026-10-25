@@ -1,0 +1,241 @@
+import { Raycaster, Plane, Vector2, Vector3 } from 'three';
+import { MechanicSystems } from './MechanicSystems.js';
+import { MechanicPresentation } from './MechanicPresentation.js';
+import { MechanicControls } from './MechanicControls.js';
+import { MECHANIC_PRESETS as P } from './presets.js';
+import { shapeContains } from '../CombatStateManager.js';
+
+/** Sandbox glue. All gameplay runs in UCSM; this owns input, audio and scene lifetime. */
+export class MechanicHost {
+  constructor(adapter) {
+    this.adapter = adapter;
+    this.app = adapter.app;
+    this.systems = new MechanicSystems(adapter.manager);
+    this.presentation = new MechanicPresentation(this.app.scene, this.systems);
+    this.selected = null;
+    this.drill = false;
+    this.sound = false;
+    this.nextThreat = 0;
+    this.threats = [];
+    this.threatSequence = 0;
+    this.controls = new MechanicControls(this);
+    this.ray = new Raycaster();
+    this.plane = new Plane(new Vector3(0, 1, 0), 0);
+    this.pointer = new Vector2();
+    this.target = new Vector3();
+    this.onPointer = (e) => {
+      if (!this.selected || e.button !== 0) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      const rect = this.app.canvas.getBoundingClientRect();
+      this.pointer.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        1 - ((e.clientY - rect.top) / rect.height) * 2
+      );
+      this.ray.setFromCamera(this.pointer, this.app.camera);
+      if (!this.ray.ray.intersectPlane(this.plane, this.target)) return;
+      const c = this.app.character.position,
+        f = this.selected,
+        p = P[f];
+      const direction = this.target.clone().sub(c).setY(0);
+      const length = direction.length();
+      if (length < 0.001) direction.set(0, 0, 1);
+      else direction.normalize();
+      const at = c.clone().addScaledVector(direction, Math.min(p.range, length));
+      this.cast(f, ['stance', 'counter'].includes(f) ? [c.x, c.y, c.z] : [at.x, 0, at.z], [
+        direction.x,
+        0,
+        direction.z
+      ]);
+    };
+    this.preview = this.presentation.build('anticipation', { family: 'worldshape' });
+    this.preview.name = 'MechanicAim';
+    this.preview.visible = false;
+    this.app.scene.add(this.preview);
+    this.onMove = (e) => {
+      const rect = this.app.canvas.getBoundingClientRect();
+      this.pointer.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        1 - ((e.clientY - rect.top) / rect.height) * 2
+      );
+    };
+    this.app.canvas.addEventListener('pointermove', this.onMove);
+    this.app.canvas.addEventListener('pointerdown', this.onPointer, true);
+  }
+  select(family) {
+    if (!P[family]) return false;
+    if (this.app.paused || !this.adapter.enabled) return false;
+    if (family === 'stance' && this.systems.stance.active.has('caster')) {
+      return this.cast(family, null, [0, 0, 1], 'finish');
+    }
+    this.app.activeAim.cancel();
+    this.selected = family;
+    this.app.hud.showToast(`${P[family].name} · click arena to cast`, 2200);
+    return true;
+  }
+  cast(family, position, direction = [0, 0, 1], action = 'cast') {
+    if (this.app.paused || !this.adapter.enabled) return { ok: false, reason: 'combat paused or disabled' };
+    const result = this.systems.command({ family, position: position ?? undefined, direction, action });
+    if (result.ok) {
+      this.app._throwBody(Math.atan2(direction[0], direction[2]), P[family].castAnim);
+      if (family !== 'weave') this.selected = null;
+    } else this.app.hud.showToast(result.reason);
+    return result;
+  }
+  // Called immediately before movement, keeping shared settings unmodified.
+  movement(from, to) {
+    return this.systems.worldshape.move(from, to);
+  }
+  beforeStep() {
+    const m = this.systems.m;
+    if (!this.drill) {
+      for (const t of this.threats) this.presentation.remove(t.id);
+      this.threats = [];
+      return;
+    }
+    if (!m.entities.get('caster')?.alive) {
+      // Practice reset is explicit to the opt-in drill; normal hosts retain their death policy.
+      m.setAlive('caster', true);
+      this.systems.cancel('caster');
+      this.app.hud.showToast('Drill reset — dodge, block or counter the next strike');
+    }
+    if (m.tick >= this.nextThreat) {
+      this.nextThreat = m.tick + m.ticksFor(3);
+      const caster = m.entities.get('caster');
+      const candidates = [...m.entities.values()]
+        .filter((e) => e.id.startsWith('dummy:') && e.alive)
+        .sort((a, b) => a.id.localeCompare(b.id));
+      const source = candidates.find((e) => !this.systems.worldshape.blocked(e.position, caster.position));
+      if (source) {
+        const anchor = [...m.anchors.values()].sort((a, b) => a.id.localeCompare(b.id))[0];
+        const attackAnchor = anchor && this.threatSequence % 2 === 1;
+        const t = {
+          id: `drill:${this.threatSequence++}`,
+          ownerId: source.id,
+          position: [...source.position],
+          end: [...(attackAnchor ? anchor.position : caster.position)],
+          targetAnchorId: attackAnchor ? anchor.id : null,
+          start: m.tick,
+          impact: m.tick + m.ticksFor(1.2)
+        };
+        this.threats.push(t);
+        this.presentation.add(t.id, 'threat', t);
+        this.app.hud.showToast(
+          t.targetAnchorId
+            ? 'Incoming · your anchor is under attack'
+            : 'Incoming · guard as the ember reaches you',
+          1200
+        );
+      }
+    }
+    this.threats = this.threats.filter((t) => {
+      const u = Math.min(1, (m.tick - t.start) / Math.max(1, t.impact - t.start));
+      const item = this.presentation.items.get(t.id);
+      if (item)
+        item.g.position.set(
+          t.position[0] + (t.end[0] - t.position[0]) * u,
+          0,
+          t.position[2] + (t.end[2] - t.position[2]) * u
+        );
+      if (m.tick < t.impact) return true;
+      this.presentation.remove(t.id);
+      if (!m.entities.get(t.ownerId)?.alive || this.systems.worldshape.blocked(t.position, t.end))
+        return false;
+      const target = m.entities.get('caster'),
+        shape = { kind: 'disc', x: t.end[0], z: t.end[2], r: 0.9 };
+      if (t.targetAnchorId) {
+        m.submit({
+          eventId: t.id,
+          type: 'terrain-impact',
+          ownerId: t.ownerId,
+          teamId: 'targets',
+          abilityUid: 'practice/anchor-breaker',
+          element: 'force',
+          position: t.end,
+          shape,
+          intensity: 1
+        });
+        return false;
+      }
+      if (shapeContains(shape, target.position[0], target.position[2]))
+        m.submit({
+          eventId: t.id,
+          type: 'hit',
+          ownerId: t.ownerId,
+          teamId: 'targets',
+          abilityUid: 'practice/telegraphed-strike',
+          element: 'fire',
+          targetIds: ['caster'],
+          position: t.position,
+          shape,
+          damage: 0.3,
+          tags: ['projectile']
+        });
+      return false;
+    });
+  }
+  cue(c) {
+    this.presentation.cue(c);
+    if (c.kind === 'mechanic' && c.phase === 'refused') this.app.hud.showToast(c.reason, 2000);
+    if (
+      !this.sound ||
+      c.kind !== 'mechanic' ||
+      !['anticipation', 'reversal', 'finisher', 'convergence', 'block'].includes(c.phase)
+    )
+      return;
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return;
+    this.audio ??= new Audio();
+    if (this.audio.state === 'suspended') void this.audio.resume();
+    const osc = this.audio.createOscillator(),
+      gain = this.audio.createGain(),
+      now = this.audio.currentTime;
+    const freq = { weave: 160, stance: 100, counter: 730, worldshape: 65, convergence: 330 }[c.family] ?? 220;
+    osc.type = c.family === 'worldshape' ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.45, now + 0.25);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    osc.connect(gain);
+    gain.connect(this.audio.destination);
+    osc.start(now);
+    osc.stop(now + 0.32);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+  }
+  update() {
+    this.presentation.update();
+    this.controls.update();
+    this.preview.visible = !!this.selected;
+    if (this.selected) {
+      this.ray.setFromCamera(this.pointer, this.app.camera);
+      if (this.ray.ray.intersectPlane(this.plane, this.target)) {
+        const p = P[this.selected],
+          origin = this.app.character.position;
+        const delta = this.target.clone().sub(origin).setY(0);
+        delta.clampLength(0, p.range);
+        this.preview.position.copy(origin).add(delta).setY(0.06);
+        if (['stance', 'counter'].includes(this.selected)) this.preview.position.copy(origin);
+        this.preview.scale.setScalar(p.radius ?? 0.7);
+      }
+    }
+  }
+  clear() {
+    this.systems.reset();
+    this.presentation.clear();
+    this.threats = [];
+    this.selected = null;
+  }
+  dispose() {
+    this.clear();
+    this.controls.dispose();
+    this.presentation.dispose();
+    this.app.scene.remove(this.preview);
+    this.app.canvas.removeEventListener('pointermove', this.onMove);
+    this.app.canvas.removeEventListener('pointerdown', this.onPointer, true);
+    void this.audio?.close();
+  }
+}

@@ -12,7 +12,7 @@ const load = (p) => import(pathToFileURL(path.join(root, 'packs/sandbox/src/comb
 const { ELEMENT_IDS, CAPABILITIES, STATUS_OF } = await load('ontology.js');
 const { resolvePair, pairTable, foldElements, AUTHORED, INCOMPATIBLE, TIER } = await load('reactions.js');
 const { CombatStateManager } = await load('CombatStateManager.js');
-const { PROPOSED, PROPOSED_STANDARD, PROPOSED_MECHANICS } = await load('registry.js');
+const { PROPOSED, PROPOSED_STANDARD, PROPOSED_MECHANICS, MECHANIC_REGISTRY, EXPANSION_REGISTRY, IMPLEMENTED_MECHANICS } = await load('registry.js');
 const { ELEMENT_GROUPS, ELEMENT_OF } = await import(pathToFileURL(path.join(root, 'packs/sandbox/src/config/elements.js')).href);
 const catalog = JSON.parse(readFileSync(path.join(root, 'presets/catalog.json'), 'utf8'));
 
@@ -244,23 +244,25 @@ test('the same events give the same reactions (determinism), and history is kept
 
 /* ---- proposed content ---- */
 
-test('the proposed registry: 46 standard + 115 mechanic moves, unique uids under the spec prefixes', () => {
+test('the expansion registry: only five completed mechanics promoted; 156 proposals stay unplayable', () => {
   assert.equal(PROPOSED_STANDARD.length, 46);
-  assert.equal(PROPOSED_MECHANICS.length, 115);
-  assert.equal(PROPOSED.length, 161);
-  const uids = new Set(PROPOSED.map((p) => p.uid));
+  assert.equal(PROPOSED_MECHANICS.length, 110);
+  assert.equal(PROPOSED.length, 156);
+  assert.equal(IMPLEMENTED_MECHANICS.length, 5);
+  assert.equal(new Set(IMPLEMENTED_MECHANICS.map(p => p.mechanic)).size, 5);
+  const uids = new Set(EXPANSION_REGISTRY.map((p) => p.uid));
   assert.equal(uids.size, 161);
   const existing = new Set(catalog.abilities.map((a) => a.uid));
-  for (const p of PROPOSED) {
+  for (const p of EXPANSION_REGISTRY) {
     assert.ok(!existing.has(p.uid), `${p.uid} does not collide`);
-    assert.equal(p.status, 'proposed');
-    assert.equal(p.selectable, false);
+    assert.equal(p.status, p.selectable ? 'live' : 'proposed');
+    if (!IMPLEMENTED_MECHANICS.includes(p)) assert.equal(p.selectable, false);
     assert.ok(ELEMENT_IDS.includes(p.element), p.uid);
     assert.match(p.uid, p.mechanic === 'standard' ? /^matrix-expansion\/[a-z0-9-]+$/ : new RegExp(`^mechanics/${p.mechanic}/[a-z0-9-]+$`));
   }
   for (const element of ELEMENT_IDS) {
     assert.equal(PROPOSED_STANDARD.filter((p) => p.element === element).length, 2, element);
-    assert.equal(PROPOSED_MECHANICS.filter((p) => p.element === element).length, 5, element);
+    assert.equal(MECHANIC_REGISTRY.filter((p) => p.element === element).length, 5, element);
   }
 });
 

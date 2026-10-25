@@ -1,10 +1,11 @@
 import { ELEMENT_IDS } from './ontology.js';
+import { PLAYABLE_MECHANICS } from './mechanics/presets.js';
 
 /**
  * The spec's proposed content (Unified Combat Spec §3–4), as data.
  *
- * None of it is castable yet: there is no geometry, animation or preset for
- * any of these, so every entry is `status: 'proposed'` and `selectable: false`.
+ * Only the five explicitly implemented representatives are selectable. All
+ * other entries remain proposed; a family manager alone does not promote content.
  * It is here so the combat manager, the tests and any explorer see one
  * registry with the spec's UID rule applied — existing uids untouched, new
  * ones under `matrix-expansion/<slug>` and `mechanics/<family>/<slug>`.
@@ -76,7 +77,8 @@ export function slugOf(name) {
 }
 
 function entry(uid, element, name, mechanic, note) {
-  return Object.freeze({ uid, element, name, mechanic, note, status: 'proposed', selectable: false });
+  const selectable = PLAYABLE_MECHANICS.includes(uid);
+  return Object.freeze({ uid, element, name, mechanic, note, status: selectable ? 'live' : 'proposed', selectable });
 }
 
 /** The 46 proposed standard castables. */
@@ -87,8 +89,8 @@ export const PROPOSED_STANDARD = Object.freeze(
   })
 );
 
-/** The 115 proposed mechanic moves (5 families × 23 elements). */
-export const PROPOSED_MECHANICS = Object.freeze(
+/** All 115 design-roster mechanic moves, exactly five implemented. */
+export const MECHANIC_REGISTRY = Object.freeze(
   Object.entries(MECHANIC_MOVES).flatMap(([mechanic, { moves, family }]) =>
     moves.map((name, i) => entry(`mechanics/${mechanic}/${slugOf(name)}`, ELEMENT_IDS[i], name, mechanic, family))
   )
@@ -98,4 +100,7 @@ export const MECHANIC_FAMILIES = Object.freeze(
   Object.fromEntries(Object.entries(MECHANIC_MOVES).map(([id, { family, rule }]) => [id, { family, rule }]))
 );
 
-export const PROPOSED = Object.freeze([...PROPOSED_STANDARD, ...PROPOSED_MECHANICS]);
+export const PROPOSED_MECHANICS = Object.freeze(MECHANIC_REGISTRY.filter((p) => !p.selectable));
+export const IMPLEMENTED_MECHANICS = Object.freeze(MECHANIC_REGISTRY.filter((p) => p.selectable));
+export const EXPANSION_REGISTRY = Object.freeze([...PROPOSED_STANDARD, ...MECHANIC_REGISTRY]);
+export const PROPOSED = Object.freeze(EXPANSION_REGISTRY.filter((p) => !p.selectable));

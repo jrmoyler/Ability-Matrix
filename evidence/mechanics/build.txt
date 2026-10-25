@@ -1,0 +1,11 @@
+== linear
+== linear-ext
+== linear-extended
+== handcast
+== casting
+== collective
+== sandbox
+> vite build packs/atlas --base ./ --logLevel error
+precache 69a9947ee4: 309 files, 76.6 MB
+Final sandbox rebuild after mobile spacing correction: passed (9.57 s).
+Vite advisory: some minified chunks exceed 2000 kB.

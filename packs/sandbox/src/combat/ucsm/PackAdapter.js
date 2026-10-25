@@ -7,8 +7,9 @@ import { settings, CastShape, castShapeOf, zoneRadiusOf } from '../../config/set
 import { elementOf, ELEMENT_GROUPS } from '../../config/elements.js';
 import { CombatStateManager, DEFAULT_BUDGET } from './CombatStateManager.js';
 import { resolvePair, pairTable, foldElements } from './reactions.js';
-import { PROPOSED, MECHANIC_FAMILIES } from './registry.js';
+import { EXPANSION_REGISTRY, MECHANIC_FAMILIES } from './registry.js';
 import { CombatFeed } from './CombatFeed.js';
+import { MechanicHost } from './mechanics/MechanicHost.js';
 
 /**
  * Plugs the sandbox — every pack, all 230 castables — into the combat manager.
@@ -66,6 +67,7 @@ export class PackAdapter {
     this._nextDummy = 0;
     this.feed = new CombatFeed(document.body);
     this._install();
+    this.mechanics = new MechanicHost(this);
   }
 
   /* ------------------------------------------------------------------ */
@@ -101,8 +103,14 @@ export class PackAdapter {
       const original = Dummy.prototype[name];
       if (original.__ucsm) continue;
       const wrapped = function (...args) {
+        const current = this.__ucsmAdapter;
+        // Cover intercepts line hits before the host commits damage. Zones bypass cover.
+        if (current?.enabled && current.scope?.isLine && !current.scope.reactionId) {
+          const source = current.manager.entities.get('caster');
+          if (source && current.mechanics?.systems.worldshape.blocked(source.position, [this.position.x, 0, this.position.z])) return false;
+        }
         const fell = original.apply(this, args);
-        if (fell && adapter.enabled && adapter.scope) adapter._hit(this, adapter.scope);
+        if (fell && current?.enabled && current.scope) current._hit(this, current.scope);
         return fell;
       };
       wrapped.__ucsm = true;
@@ -154,7 +162,7 @@ export class PackAdapter {
       const uid = uidOf(ability);
       const element = elementOf(uid);
       if (!element) continue;
-      const meta = { uid, element, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
+      const meta = { uid, element, isLine: (runtime ? runtime.castShapeOf(ability.element) : castShapeOf(ability.element)) !== CastShape.ZONE, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
       this._meta.set(ability, meta);
       this._tracked.add(ability);
       this._wrapUpdate(ability);
@@ -189,6 +197,7 @@ export class PackAdapter {
   /* ------------------------------------------------------------------ */
 
   _dummyId(dummy) {
+    dummy.__ucsmAdapter = this;
     let id = this._ids.get(dummy);
     if (!id) {
       id = `dummy:${this._nextDummy++}`;
@@ -218,13 +227,18 @@ export class PackAdapter {
 
   /** Every frame, after all hits have been read. */
   update(dt) {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      if (this._wasEnabled !== false) this.mechanics.clear();
+      this._wasEnabled = false;
+      return;
+    }
+    this._wasEnabled = true;
     const app = this.app;
     for (const runtime of app.runtimes.values()) this._wrapRuntime(runtime);
 
     const m = this.manager;
     const c = app.character.position;
-    m.upsertEntity({ id: CASTER, teamId: PLAYER, position: [c.x, 0, c.z] });
+    m.upsertEntity({ id: CASTER, teamId: PLAYER, position: [c.x, c.y, c.z] });
     for (const slot of app.dummies.slots) {
       const d = slot.dummy;
       const id = this._dummyId(d);
@@ -244,10 +258,15 @@ export class PackAdapter {
       }
     }
 
+    if (dt > 0) this.mechanics.beforeStep();
     m.step(dt);
     const { effects, cues } = m.drain();
     for (const effect of effects) this._applyEffect(effect);
-    if (this.cues) for (const cue of cues) this._present(cue);
+    for (const cue of cues) {
+      this.mechanics.cue(cue);
+      if (this.cues) this._present(cue);
+    }
+    this.mechanics.update();
     this.feed.update(dt, cues);
     this.feed.badges(app.camera, app.renderer.gl.domElement, m, this._byId);
   }
@@ -269,7 +288,26 @@ export class PackAdapter {
   }
 
   _applyEffect(effect) {
+    if (effect.kind === 'damage') {
+      const dummy = this._byId.get(effect.targetId);
+      if (dummy && effect.health <= 0 && dummy.alive) {
+        const dx = dummy.position.x - effect.from[0], dz = dummy.position.z - effect.from[1];
+        const d = Math.hypot(dx, dz) || 1;
+        // UCSM has already committed this hit. Do not report it a second time.
+        const outer = this.scope; this.scope = null;
+        try { dummy.kill(dx / d, dz / d, settings.dummies.hit); } finally { this.scope = outer; }
+      }
+      if (effect.targetId === 'caster') this.app.hud.showToast(`Hit · ${Math.round(effect.health * 100)}% health`, 800);
+      return;
+    }
     if (effect.kind !== 'kill') return;
+    if (effect.targetId === CASTER) {
+      const caster = this.manager.entities.get(CASTER);
+      caster.health = 0; this.manager.setAlive(CASTER, false);
+      this.mechanics.systems.cancel(CASTER);
+      this.manager.settle(effect.effectId, CASTER);
+      return;
+    }
     const dummy = this._byId.get(effect.targetId);
     if (!dummy || !dummy.alive) {
       this.manager.settle(effect.effectId, effect.targetId);
@@ -321,16 +359,20 @@ export class PackAdapter {
     const m = this.manager;
     return {
       manager: m,
+      mechanics: this.mechanics.systems,
+      castMechanic: (family, position, direction, action) => this.mechanics.cast(family, position, direction, action),
       preview: (a, b) => resolvePair(a, b),
       fold: (order) => foldElements(order),
       pairs: () => pairTable(),
-      registry: PROPOSED,
+      registry: EXPANSION_REGISTRY,
       families: MECHANIC_FAMILIES,
       budget: m.budget,
       stats: () => ({ ...m.stats, tick: m.tick, regions: m.regions.size }),
       log: () => m.log.map((r) => ({ kind: r.kind, tier: r.tier, elements: r.elements, depth: r.depth, intensity: r.intensity }))
     };
   }
+
+  dispose() { for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter; this.mechanics.dispose(); this.feed.root?.remove(); this.feed.layer?.remove(); }
 
   /** Editor folder: switches and the budget. */
   buildEditor(gui) {

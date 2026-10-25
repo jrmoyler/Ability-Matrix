@@ -31,9 +31,7 @@ import { resolvePair, TIER } from './reactions.js';
  *  7. commit   — statuses, purges, regions (as next-tick events, so chains
  *                are bounded by depth), kills to the outbox, cues for VFX/HUD.
  *
- * Stances, weave anchors and counter windows have their maps in the snapshot
- * but no manager yet: those are the spec's mechanic families, and they plug
- * into this same state.
+ * Optional MechanicSystems executes on these same ticks and state maps.
  */
 
 export const DEFAULT_BUDGET = Object.freeze({
@@ -175,7 +173,7 @@ export class CombatStateManager {
       if (alive !== undefined) this.setAlive(id, alive);
       return existing;
     }
-    const entity = { id, kind, teamId, position: position.map(snap), health, shields, statuses: [], tags: [...tags], resistances: {}, alive: alive ?? true };
+    const entity = { id, kind, teamId, position: position.map(snap), health, maxHealth: health, shields, statuses: [], tags: [...tags], resistances: {}, alive: alive ?? true };
     this.entities.set(id, entity);
     return entity;
   }
@@ -192,6 +190,7 @@ export class CombatStateManager {
     if (alive && !e.alive) {
       e.statuses.length = 0;
       e.pendingKill = false;
+      e.health = e.maxHealth;
     }
     e.alive = alive;
   }
@@ -234,7 +233,9 @@ export class CombatStateManager {
       intensity: event.intensity ?? 1,
       durationTicks: event.durationTicks ?? 0,
       parentReactionId: event.parentReactionId ?? null,
-      depth: event.depth ?? 0
+      depth: event.depth ?? 0,
+      damage: Number.isFinite(event.damage) ? Math.max(0, Math.min(10, event.damage)) : null,
+      consumeRegions: [...(event.consumeRegions ?? [])]
     };
     if (this.queue.length >= this.budget.maxQueue) {
       this._reject(out, 'queue full');
@@ -290,6 +291,8 @@ export class CombatStateManager {
     this._tickReactions = 0;
     this._entityReactions = new Map();
 
+    this.mechanics?.beforeTick();
+
     // 1. ingest, in (tick, sequence) order
     this.queue.sort((a, b) => a.tick - b.tick || a.sequence - b.sequence);
     const due = [];
@@ -309,12 +312,28 @@ export class CombatStateManager {
       this.recentEvents.push(event);
       if (this.recentEvents.length > 64) this.recentEvents.shift();
       // 4–7, per event
+      this.mechanics?.beforeEvent(event);
       const contacts = this._apply(event, tick);
+      this._damage(event);
       for (const contact of contacts) this._react(event, contact, tick);
+      this.mechanics?.afterEvent(event);
     }
 
     this._record(tick);
     this.tick++;
+  }
+
+  _damage(event) {
+    if (event.type !== 'hit' || event.damage === null) return;
+    for (const id of event.targetIds) {
+      const e = this.entities.get(id);
+      if (!e?.alive || e.teamId === event.teamId) continue;
+      const amount = event.damageByTarget?.[id] ?? event.damage;
+      const shield = Math.min(e.shields, amount);
+      e.shields -= shield; e.health = Math.max(0, e.health - (amount - shield));
+      if (e.health === 0) e.alive = false;
+      this.effects.push({ kind: 'damage', effectId: `damage:${event.eventId}:${id}`, targetId: id, amount, health: e.health, from: [event.position[0], event.position[2]], element: event.element, abilityUid: event.abilityUid });
+    }
   }
 
   _validate(event) {
@@ -325,7 +344,7 @@ export class CombatStateManager {
     if (!event.ownerId) return 'no owner';
     if (this._seen.has(event.eventId)) return 'replayed eventId';
     if (event.depth > this.budget.maxDepth) return 'past the reaction depth cap';
-    event.targetIds = event.targetIds.filter((id) => this.entities.has(id)).sort();
+    event.targetIds = [...new Set(event.targetIds.filter((id) => this.entities.has(id)))].sort();
     if ((event.type === 'hit' || event.type === 'status') && event.targetIds.length === 0) return `${event.type} with no known target`;
     if ((event.type === 'terrain-impact' || event.type === 'spawn') && !event.shape) return 'impact with no footprint';
     return null;
@@ -390,7 +409,7 @@ export class CombatStateManager {
           if (r.sourceEventId === event.eventId) continue;
           if (shapeContains(r.shape, entity.position[0], entity.position[2])) contacts.push({ kind: 'region', element: r.element, sourceEventId: r.sourceEventId, sourceUid: r.sourceUid, entityId: id, at: [entity.position[0], entity.position[2]], radius: this.budget.contactRadius, area: r.shape });
         }
-        this._addStatus(entity, tag, event, this.ticksFor(this.budget.exposure), event.intensity);
+        this._addStatus(entity, tag, event, this.ticksFor(this.budget.exposure), event.intensityByTarget?.[id] ?? event.intensity);
       }
       return contacts;
     }
@@ -398,6 +417,7 @@ export class CombatStateManager {
       const shape = { ...event.shape };
       for (const rid of [...this.regions.keys()].sort()) {
         const r = this.regions.get(rid);
+        if (event.consumeRegions.length && !event.consumeRegions.includes(r.id)) continue;
         if (!shapesOverlap(r.shape, shape)) continue;
         // The reaction runs through what was already there: the standing water conducts, the brush burns.
         contacts.push({ kind: 'region', element: r.element, sourceEventId: r.sourceEventId, sourceUid: r.sourceUid, entityId: null, at: meetingPoint(r.shape, shape), radius: Math.max(1.2, Math.min(shapeRadius(r.shape), shapeRadius(shape))), area: r.shape });
@@ -454,7 +474,7 @@ export class CombatStateManager {
     const spot = `${r.name}@${Math.round(contact.at[0])},${Math.round(contact.at[1])}`;
     const window = this.ticksFor(this.budget.diminishWindow);
     const recent = (this._recent.get(spot) ?? []).filter((t) => tick - t < window);
-    const intensity = Math.min(this.budget.maxIntensity, (event.intensity * r.intensity) / (1 + this.budget.diminish * recent.length));
+    const intensity = Math.min(this.budget.maxIntensity, ((event.intensityByTarget?.[contact.entityId] ?? event.intensity) * r.intensity) / (1 + this.budget.diminish * recent.length));
     recent.push(tick);
     this._recent.set(spot, recent);
 

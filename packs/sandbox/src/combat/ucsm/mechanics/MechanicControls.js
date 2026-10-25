@@ -1,0 +1,89 @@
+import { MECHANIC_PRESETS as P } from './presets.js';
+import './mechanics.css';
+const families = Object.keys(P);
+const hints = {
+  weave: 'Aim and place 3 anchors. Crossings ignite; hostile attacks break them.',
+  stance: 'Armor slows movement, banks impact. Press again to release the wave.',
+  counter: 'Time the frost guard just before a telegraphed strike lands.',
+  worldshape: 'Aim at clear ground. Ridges block movement and line attacks for 10 s.',
+  convergence: 'Cast onto a live compatible region, such as water, to consume and fuse it.'
+};
+export class MechanicControls {
+  constructor(host) {
+    this.host = host;
+    this.buttons = [];
+    this.root = document.createElement('details');
+    this.root.className = 'mechanic-controls';
+    this.root.open = innerWidth > 600;
+    const title = document.createElement('summary');
+    title.textContent = 'Combat mechanics';
+    this.root.append(title);
+    this.status = document.createElement('p');
+    this.status.setAttribute('aria-live', 'polite');
+    this.root.append(this.status);
+    for (const [i, f] of families.entries()) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.mechanic = f;
+      b.title = hints[f];
+      b.addEventListener('click', () => host.select(f));
+      this.root.append(b);
+      this.buttons.push(b);
+    }
+    this.hint = document.createElement('p');
+    this.hint.textContent = 'Alt+Z/X/C/V/B select · click arena to cast · Esc cancel';
+    this.root.append(this.hint);
+    const drill = document.createElement('button');
+    drill.textContent = 'Incoming attack drill: off';
+    drill.dataset.drill = 'toggle';
+    drill.onclick = () => {
+      host.drill = !host.drill;
+      drill.textContent = `Incoming attack drill: ${host.drill ? 'on' : 'off'}`;
+    };
+    this.root.append(drill);
+    const sound = document.createElement('button');
+    sound.textContent = 'Mechanic sound: off';
+    sound.onclick = () => {
+      host.sound = !host.sound;
+      sound.textContent = `Mechanic sound: ${host.sound ? 'on' : 'off'}`;
+    };
+    this.root.append(sound);
+    this.key = (e) => {
+      if (e.repeat || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey) return;
+      const i = ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB'].indexOf(e.code);
+      if (i >= 0 && e.altKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        host.select(families[i]);
+      }
+      if (e.code === 'Escape') host.selected = null;
+    };
+    window.addEventListener('keydown', this.key, true);
+    document.body.append(this.root);
+    this.lastText = '';
+  }
+  update() {
+    const h = this.host,
+      s = h.systems,
+      a = s.actor('caster'),
+      e = s.m.entities.get('caster');
+    const outcome = s.results.at(-1);
+    const text = `Sovereignty ${Math.floor(a.energy)} · Health ${Math.round((e?.health ?? 1) * 100)}%${outcome?.reason ? ` · ${outcome.reason}` : ''}`;
+    if (text !== this.lastText) {
+      this.status.textContent = text;
+      this.lastText = text;
+    }
+    families.forEach((f, i) => {
+      const cooldown = Math.max(0, ((a.cooldowns[f] ?? 0) - s.m.tick) / s.m.budget.tickRate);
+      const label = `Alt+${['Z', 'X', 'C', 'V', 'B'][i]} · ${P[f].name}${cooldown > 0 ? ` · ${cooldown.toFixed(1)}s` : ''}`;
+      if (this.buttons[i].textContent !== label) this.buttons[i].textContent = label;
+      this.buttons[i].setAttribute('aria-pressed', String(h.selected === f));
+    });
+    const hint = h.selected ? hints[h.selected] : 'Alt+Z/X/C/V/B select · click arena to cast · Esc cancel';
+    if (this.hint.textContent !== hint) this.hint.textContent = hint;
+  }
+  dispose() {
+    window.removeEventListener('keydown', this.key, true);
+    this.root.remove();
+  }
+}

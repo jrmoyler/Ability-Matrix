@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/worldshape/continental-uprising",
+  "family": "worldshape",
+  "name": "Continental Uprising",
+  "element": "earth",
+  "range": 18,
+  "cost": 25,
+  "cooldown": 14,
+  "anticipation": 0.7,
+  "recovery": 0.5,
+  "castAnim": "cast3",
+  "life": 10,
+  "radius": 4.2,
+  "ridgeRadius": 1.1,
+  "height": 0.65
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/stance/aegis-exemplar",
+  "family": "stance",
+  "name": "Aegis Exemplar",
+  "element": "force",
+  "range": 18,
+  "cost": 12,
+  "cooldown": 18,
+  "anticipation": 0.5,
+  "recovery": 0.5,
+  "castAnim": "cast3",
+  "life": 15,
+  "drain": 5,
+  "speed": 0.75,
+  "reduction": 0.65,
+  "bankCap": 3,
+  "finisherRadius": 5,
+  "damage": 1
+}
