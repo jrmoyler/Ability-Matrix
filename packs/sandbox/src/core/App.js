@@ -361,6 +361,7 @@ export class App {
     this.hud.showToast(`Loading the ${VENDOR_PACKS[pack]?.title ?? pack} engine…`, 4000);
     const job = loadVendorRuntime(pack, this._vendorHost).then((runtime) => {
       this.runtimes.set(pack, runtime);
+      this.combat?._wrapRuntime(runtime);
       this._runtimeLoads.delete(pack);
       runtime.aim.on('cast', (origin, direction, distance) => this._castVendor(runtime, origin, direction, distance));
       runtime.aim.on('reject', () => this.hud.showToast('Too close — aim further out'));
@@ -388,6 +389,7 @@ export class App {
    * in the right aim indicator.
    */
   async select(uid, options = {}) {
+    if (this.combat) this.combat.mechanics.selected = null;
     const ref = this.parse(uid);
     const previous = this.activeAim;
 
@@ -435,6 +437,7 @@ export class App {
 
   /** Select an ability and arm it, unless it is still cooling down. */
   async arm(uid = this.slot?.uid) {
+    if (this.combat) this.combat.mechanics.selected = null;
     if (!uid) return false;
     if (uid !== this.slot?.uid) await this.select(uid);
     if ((this.cooldowns.get(uid) ?? 0) > 0) {
@@ -502,6 +505,7 @@ export class App {
   }
 
   clearEffects() {
+    this.combat?.mechanics.clear();
     this.aim.cancel();
     this.abilities.clear();
     for (const runtime of this.runtimes.values()) runtime.clear();
@@ -695,11 +699,17 @@ export class App {
     // Walk first, so the aim and the ring below are anchored on where the
     // caster is *this* frame. A summon out owns WASD and Space instead.
     const aim = this.activeAim;
+    const moveFrom = this.character.position.toArray();
     this.locomotion.update(dt, {
+      speedMultiplier: this.combat?.enabled ? this.combat.mechanics.systems.speed('caster') : 1,
       aiming: aim.isArmed,
       locked: this._summonOut(),
       abilities: this.abilities.active
     });
+
+    if (this.combat?.enabled && dt > 0) {
+      this.character.position.fromArray(this.combat.mechanics.movement(moveFrom, this.character.position.toArray()));
+    }
 
     // Targeting runs on *real* time so the arrow keeps sweeping and animating
     // while the sandbox is paused — pausing freezes the effects, not the UI.
@@ -710,6 +720,7 @@ export class App {
       this.character.turnToward(aim.facing, settings.character.turnRate, raw);
     }
     this.character.update(dt);
+    if (this.combat?.enabled) this.character.position.y = this.combat.mechanics.systems.worldshape.heightAt(this.character.position.toArray());
 
     for (const [element, remaining] of this.cooldowns) {
       if (remaining > 0) this.cooldowns.set(element, Math.max(0, remaining - raw));
@@ -769,6 +780,7 @@ export class App {
 
   dispose() {
     this.stop();
+    this.combat?.dispose();
     this.input.dispose();
     this.aim.dispose();
     this.abilities.dispose();

@@ -1,0 +1,401 @@
+import {
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  CylinderGeometry,
+  ConeGeometry,
+  TorusGeometry,
+  OctahedronGeometry,
+  BoxGeometry,
+  SphereGeometry,
+  Shape,
+  ExtrudeGeometry,
+  BufferGeometry,
+  Float32BufferAttribute,
+  Vector3
+} from 'three';
+import { MECHANIC_PRESETS as P } from './presets.js';
+const TAU = Math.PI * 2;
+const up = new Vector3(0, 1, 0);
+
+/** Solid geometry first, emissive detail second. Shared immutable resources; bounded live objects. */
+export class MechanicPresentation {
+  constructor(scene, systems) {
+    this.scene = scene;
+    this.s = systems;
+    this.items = new Map();
+    this.effects = [];
+    this.resources = [];
+    this.reducedMotion =
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.mat = {};
+    const material = (name, color, emissive = 0, metalness = 0.5) => {
+      const m = new MeshStandardMaterial({
+        color,
+        emissive,
+        emissiveIntensity: 1.4,
+        roughness: 0.36,
+        metalness
+      });
+      this.mat[name] = m;
+      this.resources.push(m);
+    };
+    material('iron', 0x202835);
+    material('bronze', 0x87603b);
+    material('fire', 0xff942c, 0xeb4207);
+    material('steel', 0x9ba8b6);
+    material('gold', 0xf0c571, 0x4a2806);
+    material('force', 0x87d9ec, 0x186c8b);
+    material('ice', 0xa6e8ff, 0x1a719b, 0.15);
+    material('rock', 0x66594e, 0, 0.05);
+    material('strata', 0x958069, 0, 0.05);
+    material('storm', 0xd9c5ff, 0x6949b7);
+    material('water', 0x279acb, 0x08425a, 0.2);
+    this.geo = {};
+    const geo = (name, g) => {
+      this.geo[name] = g;
+      this.resources.push(g);
+    };
+    geo('shaft', new CylinderGeometry(0.13, 0.22, 1, 8));
+    geo('base', new CylinderGeometry(0.65, 0.8, 0.22, 8));
+    geo('ring', new TorusGeometry(1, 0.045, 6, 48));
+    geo('shard', new OctahedronGeometry(1, 0));
+    geo('box', new BoxGeometry(1, 1, 1));
+    geo('sphere', new SphereGeometry(1, 16, 10));
+    // Sculpted radial strata, bounded by the same 1.1m collision cylinder.
+    const positions = [],
+      indices = [],
+      segments = 48,
+      layers = 12;
+    for (let j = 0; j <= layers; j++)
+      for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * TAU,
+          t = j / layers;
+        const chip = 0.05 * Math.sin(i * 3.1 + j * 1.7) + 0.025 * Math.sin(i * 7.3 - j * 2.5);
+        const radius = Math.min(1.1, (1.06 - 0.4 * t) * (1 + chip));
+        positions.push(Math.cos(a) * radius, (t - 0.5) * 2.4, Math.sin(a) * radius);
+        if (j < layers && i < segments) {
+          const n = j * (segments + 1) + i;
+          indices.push(n, n + segments + 1, n + 1, n + 1, n + segments + 1, n + segments + 2);
+        }
+      }
+    positions.push(0, 1.2, 0);
+    const cap = positions.length / 3 - 1;
+    for (let i = 0; i < segments; i++)
+      indices.push(cap, layers * (segments + 1) + i + 1, layers * (segments + 1) + i);
+    const ridge = new BufferGeometry();
+    ridge.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    ridge.setIndex(indices);
+    ridge.computeVertexNormals();
+    geo('ridge', ridge);
+    for (const name of ['rock', 'strata']) {
+      this.mat[name].roughness = 0.95;
+      this.mat[name].onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vStrata;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStrata = position;');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vStrata;')
+          .replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+          float grain = sin(dot(vStrata, vec3(47.1, 79.2, 31.7))) * sin(dot(vStrata,vec3(137.0,61.0,113.0)));
+          float band = sin(vStrata.y*27.0 + sin(vStrata.x*4.0)*0.8 + sin(vStrata.z*3.0));
+          diffuseColor.rgb *= 0.83 + grain*0.075 + band*0.16;`
+          );
+      };
+      this.mat[name].customProgramCacheKey = () => 'mechanic-strata-v1';
+    }
+    geo('ramp', new ConeGeometry(P.worldshape.radius, P.worldshape.height, 64, 4));
+    const shield = new Shape();
+    shield.moveTo(-0.34, 0.48);
+    shield.lineTo(0.34, 0.48);
+    shield.lineTo(0.43, -0.12);
+    shield.lineTo(0, -0.65);
+    shield.lineTo(-0.43, -0.12);
+    shield.closePath();
+    geo(
+      'shield',
+      new ExtrudeGeometry(shield, {
+        depth: 0.1,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.035,
+        bevelThickness: 0.035
+      })
+    );
+  }
+  mesh(g, m, parent, x = 0, y = 0, z = 0, sx = 1, sy = sx, sz = sx) {
+    const o = new Mesh(this.geo[g], this.mat[m]);
+    o.position.set(x, y, z);
+    o.scale.set(sx, sy, sz);
+    o.castShadow = true;
+    o.receiveShadow = true;
+    parent.add(o);
+    return o;
+  }
+  ring(parent, material, r, y = 0) {
+    const o = this.mesh('ring', material, parent, 0, y, 0, r);
+    o.rotation.x = Math.PI / 2;
+    return o;
+  }
+  build(kind, data) {
+    const g = new Group();
+    g.name = `mechanic:${kind}`;
+    if (kind === 'anchor') {
+      this.mesh('base', 'iron', g);
+      this.ring(g, 'bronze', 0.54, 0.16);
+      this.mesh('shaft', 'bronze', g, 0, 0.8, 0, 1, 1.3, 1);
+      for (let i = 0; i < 3; i++) {
+        const joint = new Group();
+        joint.rotation.y = (i * TAU) / 3;
+        joint.userData.hinge = i;
+        g.add(joint);
+        this.mesh('box', 'iron', joint, 0.3, 1.1, 0, 0.15, 0.7, 0.18).rotation.z = -0.4;
+        this.mesh('shard', 'fire', joint, 0.35, 1.65, 0, 0.1, 0.36, 0.1);
+      }
+      this.mesh('shard', 'fire', g, 0, 1.2, 0, 0.22, 0.48, 0.22);
+    } else if (kind === 'link') {
+      // Conduit's glow is deliberately narrower than its damaging capsule.
+      const a = new Vector3(data.shape.ax, 0.65, data.shape.az),
+        b = new Vector3(data.shape.bx, 0.65, data.shape.bz);
+      const length = a.distanceTo(b),
+        mid = a.clone().add(b).multiplyScalar(0.5);
+      this.mesh('shaft', 'fire', g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
+        up,
+        b.sub(a).normalize()
+      );
+      for (let i = 0; i < 7; i++)
+        this.mesh(
+          'shard',
+          'bronze',
+          g,
+          data.shape.ax + ((data.shape.bx - data.shape.ax) * i) / 6,
+          0.65,
+          data.shape.az + ((data.shape.bz - data.shape.az) * i) / 6,
+          0.07,
+          0.13,
+          0.07
+        );
+    } else if (kind === 'stance') {
+      for (let i = 0; i < 6; i++) {
+        const a = (i * TAU) / 6,
+          p = this.mesh(
+            'shield',
+            i % 2 ? 'steel' : 'gold',
+            g,
+            Math.sin(a) * 0.82,
+            1.25,
+            Math.cos(a) * 0.82,
+            0.8,
+            0.85,
+            0.8
+          );
+        p.rotation.y = a;
+        this.mesh('shard', 'force', p, 0, 0.18, 0.16, 0.06, 0.22, 0.06);
+        this.mesh('box', 'iron', p, 0, -0.1, 0.12, 0.045, 0.7, 0.045);
+        this.mesh('box', 'bronze', p, 0, 0.37, 0.13, 0.57, 0.04, 0.06);
+        for (const side of [-1, 1]) this.mesh('sphere', 'bronze', p, side * 0.26, 0.3, 0.16, 0.045);
+      }
+      this.ring(g, 'gold', 0.9, 0.12);
+      this.ring(g, 'force', 0.48, 2.05);
+    } else if (kind === 'counter') {
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 8 - 0.5) * Math.PI * 0.9;
+        const shard = this.mesh(
+          'shard',
+          'ice',
+          g,
+          Math.sin(a) * 1.15,
+          1.25 + Math.cos(a) * 0.35,
+          Math.cos(a) * 1.15,
+          0.1,
+          0.45,
+          0.1
+        );
+        shard.rotation.z = -a;
+      }
+      this.mesh('shield', 'steel', g, 0, 1.3, 1.1, 0.65, 0.7, 0.5);
+    } else if (kind === 'worldshape') {
+      this.mesh('ramp', 'strata', g, 0, P.worldshape.height / 2, 0);
+      const [dx, , dz] = data.direction;
+      for (let i = 0; i < 3; i++) {
+        const n = (i - 1) * 2.6,
+          x = dz * n,
+          z = -dx * n;
+        const ridge = this.mesh('ridge', 'rock', g, x, 1.2, z);
+        ridge.rotation.y = i * 0.7;
+        for (let layer = 0; layer < 3; layer++)
+          this.mesh(
+            'ridge',
+            'strata',
+            g,
+            x,
+            0.35 + layer * 0.65,
+            z,
+            0.91 - layer * 0.12,
+            0.035,
+            0.91 - layer * 0.12
+          ).rotation.y = i * 0.7;
+        for (let k = 0; k < 3; k++)
+          this.mesh(
+            'shard',
+            'rock',
+            g,
+            x + Math.sin(k * 2.1) * 0.85,
+            0.25,
+            z + Math.cos(k * 2.1) * 0.85,
+            0.3,
+            0.4,
+            0.3
+          );
+      }
+    } else if (kind === 'convergence') {
+      this.mesh('base', 'iron', g, 0, 0.4, 0, 0.7);
+      this.mesh('shaft', 'steel', g, 0, 1.3, 0, 1, 2, 1);
+      for (let i = 0; i < 3; i++) {
+        const a = (i * TAU) / 3;
+        this.mesh('shard', 'storm', g, Math.sin(a) * 0.7, 1.7, Math.cos(a) * 0.7, 0.18, 0.75, 0.18);
+        const ring = this.ring(g, 'water', 1 + i * 0.5, 0.2 + i * 0.4);
+        ring.rotation.z = (i - 1) * 0.3;
+      }
+      this.mesh('sphere', 'storm', g, 0, 2.1, 0, 0.3);
+      for (let i = 0; i < 12; i++) {
+        const a = (i * TAU) / 12,
+          r = 1.2 + (i % 3) * 0.8;
+        this.mesh('shaft', 'storm', g, Math.sin(a) * r, 0.12, Math.cos(a) * r, 0.2, 1.3, 0.2).rotation.z =
+          Math.PI / 2;
+      }
+    } else if (kind === 'reversal') {
+      for (let i = 0; i < 16; i++) {
+        const a = (i * TAU) / 16;
+        const shard = this.mesh(
+          'shard',
+          'ice',
+          g,
+          Math.sin(a) * 0.9,
+          1.2 + Math.cos(a) * 0.6,
+          Math.cos(a) * 0.5,
+          0.1,
+          0.45,
+          0.15
+        );
+        shard.rotation.z = a;
+      }
+    } else if (kind === 'threat') {
+      this.mesh('shard', 'fire', g, 0, 1.1, 0, 0.15, 0.45, 0.15).rotation.x = Math.PI / 2;
+      this.ring(g, 'fire', 0.6, 0.08);
+    } else if (kind === 'finisher') {
+      for (let i = 0; i < 12; i++) {
+        const a = (i * TAU) / 12;
+        const m = this.mesh('shield', 'force', g, Math.sin(a), 0.5, Math.cos(a), 0.5);
+        m.rotation.y = a;
+      }
+    } else {
+      this.ring(
+        g,
+        data.family === 'counter' ? 'ice' : data.family === 'worldshape' ? 'gold' : 'force',
+        0.9,
+        0.05
+      );
+      for (let i = 0; i < 4; i++) {
+        const a = (i * TAU) / 4;
+        this.mesh('shard', 'gold', g, Math.sin(a), 0.1, Math.cos(a), 0.1, 0.04, 0.1);
+      }
+    }
+    return g;
+  }
+  add(id, kind, data, life = null) {
+    const g = this.build(kind, data);
+    g.position.fromArray(data.position ?? [0, 0, 0]);
+    if (kind === 'link') g.position.set(0, 0, 0);
+    this.scene.add(g);
+    const item = { id, kind, data, g, start: this.s.m.tick, life };
+    this.items.set(id, item);
+    return item;
+  }
+  cue(c) {
+    if (c.kind !== 'mechanic') return;
+    const durations = {
+      anticipation: P[c.family]?.anticipation ?? 0.4,
+      reversal: 0.7,
+      finisher: 0.65,
+      convergence: P.convergence.life,
+      block: 0.25,
+      partial: 0.3,
+      'anchor-break': 0.5
+    };
+    if (!(c.phase in durations)) return;
+    if (this.effects.length >= 32) this.remove(this.effects.shift());
+    const id = `vfx:${c.id}:${c.phase}:${c.tick}`;
+    this.add(id, c.phase, c, durations[c.phase]);
+    this.effects.push(id);
+  }
+  remove(id) {
+    const i = this.items.get(id);
+    if (i) {
+      this.scene.remove(i.g);
+      this.items.delete(id);
+    }
+  }
+  update() {
+    const s = this.s,
+      wanted = new Set();
+    this.mat.fire.emissiveIntensity =
+      1.15 + 0.3 * Math.sin(s.m.seconds * 13) + 0.15 * Math.sin(s.m.seconds * 23);
+    this.mat.force.emissiveIntensity = 1.1 + 0.25 * Math.sin(s.m.seconds * 4);
+    const sync = (id, kind, data) => {
+      wanted.add(id);
+      let item = this.items.get(id);
+      if (!item) item = this.add(id, kind, data);
+      item.data = data;
+      return item;
+    };
+    for (const a of s.weave.anchors.values()) sync(a.id, 'anchor', a);
+    for (const a of s.weave.links) sync(a.id, 'link', a);
+    for (const a of s.stance.active.values()) sync(a.id, 'stance', a);
+    for (const a of s.counter.windows.values()) sync(a.id, 'counter', a);
+    for (const a of s.worldshape.regions.values()) sync(a.id, 'worldshape', a);
+    for (const [id, i] of this.items) {
+      const age = (s.m.tick - i.start) / s.m.budget.tickRate;
+      if (i.life !== null) {
+        if (age >= i.life) {
+          this.remove(id);
+          continue;
+        }
+      } else if (!wanted.has(id) && i.kind !== 'threat') {
+        this.remove(id);
+        continue;
+      }
+      let scale = i.kind === 'counter' ? 1 : Math.min(1, Math.max(0.01, age / 0.18));
+      if (i.life) scale *= Math.min(1, Math.max(0.01, (i.life - age) / 0.18));
+      i.g.scale.setScalar(scale);
+      if (['stance', 'counter'].includes(i.kind)) {
+        const e = s.m.entities.get(i.data.ownerId);
+        if (e) i.g.position.fromArray(e.position);
+        i.g.rotation.y = Math.atan2(i.data.direction[0], i.data.direction[2]);
+      }
+      if (i.kind === 'anchor')
+        i.g.traverse((n) => {
+          if (n.userData.hinge !== undefined)
+            n.rotation.z =
+              (1 - scale) * 0.7 + (!this.reducedMotion ? 0.035 * Math.sin(age * 3 + n.userData.hinge) : 0);
+        });
+      if (i.kind === 'stance' && !this.reducedMotion) i.g.rotation.y += Math.sin(age * 1.5) * 0.08;
+      if (i.kind === 'convergence' && !this.reducedMotion) i.g.rotation.y = age * 1.8;
+      if (i.kind === 'finisher') i.g.scale.setScalar(1 + age * 7);
+      if (i.kind === 'reversal') i.g.scale.setScalar(0.5 + age * 2);
+      if (i.kind === 'worldshape') i.g.scale.set(1, Math.min(1, age / 0.35), 1);
+    }
+    this.effects = this.effects.filter((id) => this.items.has(id));
+  }
+  clear() {
+    for (const id of [...this.items.keys()]) this.remove(id);
+    this.effects = [];
+  }
+  dispose() {
+    this.clear();
+    for (const r of this.resources) r.dispose();
+  }
+}

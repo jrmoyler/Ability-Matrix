@@ -1,0 +1,58 @@
+{
+  "checks": [
+    {
+      "name": "startup",
+      "passed": true
+    },
+    {
+      "name": "three anchors and live links via pointer",
+      "anchors": 3,
+      "links": 3,
+      "passed": true
+    },
+    {
+      "name": "stance movement and finisher through controls",
+      "passed": true
+    },
+    {
+      "name": "terrain rendered with matching collision/height",
+      "blocked": true,
+      "height": 0.65,
+      "passed": true
+    },
+    {
+      "name": "counter input, active geometry and whiff cleanup",
+      "passed": true
+    },
+    {
+      "name": "Storm Catalyst with real Maelstrom region",
+      "passed": true
+    },
+    {
+      "name": "incoming drill executes",
+      "passed": true,
+      "health": 1
+    },
+    {
+      "name": "mobile panel fits viewport",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "telemetry": {
+    "renderer": {
+      "frame": 2999,
+      "calls": 94,
+      "triangles": 359528,
+      "points": 2600,
+      "lines": 0
+    },
+    "memory": {
+      "geometries": 31,
+      "textures": 32
+    },
+    "mechanicObjects": 0,
+    "tick": 286
+  },
+  "renderer": "Chromium SwiftShader, 0.75 DPR, 1024 shadow map, fixed 30Hz App.frame; sampled frames rendered; not target-device FPS certification"
+}

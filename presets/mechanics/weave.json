@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/weave/infernal-circuit",
+  "family": "weave",
+  "name": "Infernal Circuit",
+  "element": "fire",
+  "range": 18,
+  "cost": 10,
+  "cooldown": 20,
+  "anticipation": 0.4,
+  "recovery": 0.5,
+  "castAnim": "cast1",
+  "life": 12,
+  "maxAnchors": 3,
+  "maxLink": 14,
+  "width": 0.32,
+  "anchorHealth": 2,
+  "pulse": 0.6,
+  "damage": 1
+}
