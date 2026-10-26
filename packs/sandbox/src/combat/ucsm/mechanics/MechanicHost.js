@@ -190,9 +190,13 @@ export class MechanicHost {
     if (
       !this.sound ||
       c.kind !== 'mechanic' ||
-      !['anticipation', 'reversal', 'finisher', 'convergence', 'block'].includes(c.phase)
+      !['anticipation', 'reversal', 'finisher', 'convergence', 'block', 'terrain-pulse'].includes(c.phase)
     )
       return;
+    if (c.phase === 'terrain-pulse') {
+      if (this.lastTerrainAudio !== undefined && c.tick - this.lastTerrainAudio < this.systems.m.ticksFor(0.25)) return;
+      this.lastTerrainAudio = c.tick;
+    }
     const Audio = window.AudioContext || window.webkitAudioContext;
     if (!Audio) return;
     this.audio ??= new Audio();
@@ -200,7 +204,10 @@ export class MechanicHost {
     const osc = this.audio.createOscillator(),
       gain = this.audio.createGain(),
       now = this.audio.currentTime;
-    const freq = { weave: 160, stance: 100, counter: 730, worldshape: 65, convergence: 330 }[c.family] ?? 220;
+    const element = MECHANIC_VARIANTS[c.uid]?.element;
+    const freq = c.phase === 'terrain-pulse'
+      ? ({ fire: 105, frost: 480, storm: 215, water: 150, crystal: 620 }[element] ?? 180)
+      : ({ weave: 160, stance: 100, counter: 730, worldshape: 65, convergence: 330 }[c.family] ?? 220);
     osc.type = c.family === 'worldshape' ? 'triangle' : 'sine';
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(freq * 0.45, now + 0.25);

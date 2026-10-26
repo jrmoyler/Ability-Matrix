@@ -74,7 +74,7 @@ export class WeavingManager {
           if (p.behavior === 'shatter' && this.s.alive(a.ownerId)) {
             const c = { ...a, id: `${a.id}:shatter:${this.s.m.tick}` };
             this.s.area(c, disc(a.position, p.shatterRadius), p.shatterDamage);
-            this.s.cue('weave-burst', c);
+            this.s.cue('weave-burst', { ...c, weaveEffect: 'shatter', radius: p.shatterRadius });
           }
         }
       }
@@ -83,7 +83,10 @@ export class WeavingManager {
   update() {
     const s = this.s;
     for (const a of sorted(this.anchors))
-      if (a.expiresTick <= s.m.tick || !s.alive(a.ownerId)) this.anchors.delete(a.id);
+      if (a.expiresTick <= s.m.tick || !s.alive(a.ownerId)) {
+        this.anchors.delete(a.id);
+        s.cue('anchor-expire', a);
+      }
     this.links = [];
     this.floodCasts.clear();
     for (const [id, until] of this.hitCooldowns) if (until <= s.m.tick) this.hitCooldowns.delete(id);
@@ -121,16 +124,17 @@ export class WeavingManager {
                 const until = s.m.tick + s.t(profile.pulse);
                 for (const id of near) this.hitCooldowns.set(weaveCooldownKey(a.ownerId, id), until);
                 link.reservations.push({ eventId: `${chain.id}:hit`, targets: near, until, processed: false });
-                s.cue('weave-burst', chain);
+                s.cue('weave-burst', { ...chain, weaveEffect: 'chain', arcTargets: near.map((id) => [...s.m.entities.get(id).position]) });
               }
             }
           }
+          if (profile.behavior === 'draft') s.cue('weave-burst', { ...c, position: [...s.m.entities.get(ids[0]).position], weaveEffect: 'draft', radius: profile.width });
           if (profile.behavior === 'quake') {
             const origin = s.m.entities.get(ids[0]).position;
             const c2 = { ...c, id: `${c.id}:quake`, position: [...origin] };
             const others = s.targets(c2, disc(origin, profile.quakeRadius)).filter((id) => !ids.includes(id));
             if (others.length) s.emit(c2, { type: 'hit', targetIds: others, shape: disc(origin, profile.quakeRadius), damage: profile.quakeDamage });
-            s.cue('weave-burst', c2);
+            s.cue('weave-burst', { ...c2, weaveEffect: 'quake', radius: profile.quakeRadius });
           }
         }
         if (s.m.tick % s.t(profile.pulse) === 0)
@@ -155,7 +159,7 @@ export class WeavingManager {
         if (s.emit(c, { type: 'hit', targetIds: ids, damage: p.floodDamage })) {
           this.floodCasts.set(owner, c.id);
           this.floodCooldowns.set(owner, s.m.tick + s.t(p.floodPulse));
-          s.cue('weave-burst', c);
+          s.cue('weave-burst', { ...c, weaveEffect: 'flood', triangle: a.map((anchor) => [...anchor.position]) });
         }
       }
     }
@@ -219,7 +223,7 @@ export class StanceManager {
       intensity: 1 + a.bank
     });
     this.active.delete(ownerId);
-    s.cue('finisher', c);
+    s.cue('finisher', { ...c, visualRadius: p.finisherRadius });
     return true;
   }
   modify(e) {
@@ -293,7 +297,7 @@ export class StanceManager {
       if (a.pendingBursts > 0) {
         const c = stanceCast(a, `${a.id}:combo:${a.burstSequence}`, owner.position);
         if (!s.area(c, disc(c.position, p.passive === 'tide' ? 4 : 3), p.passive === 'ember' ? 0.7 : 0.5)) break;
-        a.pendingBursts--; a.burstSequence++; s.cue('finisher', c);
+        a.pendingBursts--; a.burstSequence++; s.cue('finisher', { ...c, visualRadius: p.passive === 'tide' ? 4 : 3 });
       } else if (a.pendingArcs.length) {
         const { c, targetId } = a.pendingArcs[0], target = s.m.entities.get(targetId);
         if (!target?.alive || target.teamId === owner.teamId || dist(c.position, target.position) > 4 ||
@@ -310,7 +314,7 @@ export class StanceManager {
       } else if (p.passive === 'quakes' && a.pendingQuakes > 0) {
         const c = stanceCast(a, `${a.id}:quake:${a.quakeSequence}`, owner.position);
         if (!s.area(c, disc(c.position, 3.5), 0.5)) break;
-        a.pendingQuakes--; a.quakeSequence++; s.cue('finisher', c);
+        a.pendingQuakes--; a.quakeSequence++; s.cue('finisher', { ...c, visualRadius: 3.5 });
       } else break;
     }
   }

@@ -1,4 +1,5 @@
-import { Vector3 } from 'three';
+import { Group, Vector3 } from 'three';
+import { CONVERGENCE_VARIANTS, convergenceStrikeShapes } from './ConvergenceVariants.js';
 /** Authored silhouettes for the five convergence variants. All meshes use the
  * presentation's shared, centrally disposed material/geometry pool. */
 export function drawConvergenceArt(v, g, uid) {
@@ -62,5 +63,54 @@ export function drawConvergenceArt(v, g, uid) {
       m('shard','ice',g,x*6,0.8,z*6,0.25,0.8,0.25).rotation.z=a;
     }
   } else return false;
+  // Strike boundaries derive from the same deterministic shapes as gameplay.
+  // A separate impact layer blooms vertically without growing beyond that area.
+  const p = CONVERGENCE_VARIANTS.find((entry) => entry.uid === uid);
+  const impact = new Group();
+  impact.name = 'convergence-impact';
+  impact.userData.convergenceLayer = 'impact';
+  g.add(impact);
+  const mat = `convergenceOverlay-${p.element}`;
+  for (const [i, shape] of convergenceStrikeShapes(p, {position:[0,0,0],direction:[0,0,1]}).entries()) {
+    if (shape.kind === 'disc') {
+      const halo = ring(impact,mat,shape.r,0.09);
+      halo.name=`impact-disc-${i}`;
+      halo.position.x=shape.x; halo.position.z=shape.z;
+      for (let j=0;j<6;j++) {
+        const a=j*TAU/6;
+        m('shard',mat,impact,shape.x+Math.sin(a)*shape.r*0.82,0.16,shape.z+Math.cos(a)*shape.r*0.82,0.08,0.20,0.08);
+      }
+    } else {
+      const dx=shape.bx-shape.ax,dz=shape.bz-shape.az,len=Math.hypot(dx,dz);
+      const ux=dx/len,uz=dz/len,px=-uz,pz=ux;
+      for (const [end, point] of [[shape.ax,shape.az],[shape.bx,shape.bz]].entries()) {
+        const halo=ring(impact,mat,shape.r,0.09); halo.name=`impact-cap-${i}-${end}`; halo.position.x=point[0]; halo.position.z=point[1];
+      }
+      for (const side of [-1,1]) {
+        const rail=m('shaft',mat,impact,(shape.ax+shape.bx)/2+px*shape.r*side,0.10,(shape.az+shape.bz)/2+pz*shape.r*side,0.26,len,0.26);
+        rail.name=`impact-rail-${i}-${side}`;
+        rail.quaternion.setFromUnitVectors(new Vector3(0,1,0),new Vector3(ux,0,uz));
+      }
+    }
+  }
+  impact.traverse((n) => { if (n.isMesh) { n.renderOrder=100; n.castShadow=false; n.receiveShadow=false; } });
+  return true;
+}
+
+/** A restrained pre-impact charge, shown during the actual anticipation tick. */
+export function drawConvergenceCharge(v, g, uid) {
+  const p = CONVERGENCE_VARIANTS.find((entry) => entry.uid === uid);
+  if (!p) return false;
+  const material = `convergenceOverlay-${p.element}`;
+  const charge = new Group();
+  charge.name='convergence-charge'; charge.userData.convergenceLayer='charge'; g.add(charge);
+  v.ring(charge,material,p.radius,0.08);
+  v.ring(charge,'convergenceOverlay-gold',p.radius*0.48,0.1);
+  for(let i=0;i<8;i++) {
+    const a=i*Math.PI/4;
+    const piece=v.mesh('shard',material,charge,Math.sin(a)*p.radius*0.75,0.18,Math.cos(a)*p.radius*0.75,0.08,0.3,0.08);
+    piece.rotation.z=-a;
+  }
+  charge.traverse((n) => { if (n.isMesh) { n.renderOrder=100; n.castShadow=false; n.receiveShadow=false; } });
   return true;
 }

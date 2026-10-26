@@ -134,3 +134,81 @@ test('ingredient examples are actually compatible and each telegraph outlines it
     assert.equal(disposed,g.children.length);
   }
 });
+
+test('convergence charge and impact layers follow their gameplay strike ranges',()=>{
+  for (const p of CONVERGENCE_VARIANTS) {
+    const {s}=setup(), v=new MechanicPresentation(new Scene(),s);
+    const charge=v.build('anticipation',{uid:p.uid,family:'convergence',direction:[1,0,0]});
+    assert.ok(charge.getObjectByName('convergence-charge'),p.name);
+    const effect=v.build('convergence',{uid:p.uid,family:'convergence',direction:[1,0,0]});
+    const impact=effect.getObjectByName('convergence-impact');
+    assert.ok(impact,p.name);
+    const shapes=convergenceStrikeShapes(p,{position:[0,0,0],direction:[0,0,1]});
+    for (const [i,shape] of shapes.entries()) {
+      if (shape.kind==='disc') {
+        const ring=impact.getObjectByName(`impact-disc-${i}`);
+        assert.ok(ring,p.name); assert.equal(ring.position.x,shape.x); assert.equal(ring.position.z,shape.z);
+        assert.equal(ring.scale.x,shape.r);
+      } else {
+        for (const [j,point] of [[shape.ax,shape.az],[shape.bx,shape.bz]].entries()) {
+          const ring=impact.getObjectByName(`impact-cap-${i}-${j}`);
+          assert.ok(ring,p.name); assert.equal(ring.position.x,point[0]); assert.equal(ring.position.z,point[1]);
+          assert.equal(ring.scale.x,shape.r);
+        }
+        assert.ok(impact.getObjectByName(`impact-rail-${i}--1`));
+        assert.ok(impact.getObjectByName(`impact-rail-${i}-1`));
+      }
+    }
+    v.dispose();
+  }
+});
+
+test('directional convergence is aligned at every motion preference and visual effects are bounded',()=>{
+  for (const reduced of [false,true]) for (const p of CONVERGENCE_VARIANTS) {
+    const {m,s}=setup(), scene=new Scene(), v=new MechanicPresentation(scene,s);
+    v.reducedMotion=reduced;
+    const base={kind:'mechanic',id:'cast',uid:p.uid,family:'convergence',tick:0,position:[0,0,0],direction:[1,0,0]};
+    v.cue({...base,phase:'anticipation'}); v.cue({...base,phase:'convergence'});
+    for(const item of v.items.values()) assert.ok(Math.abs(item.g.rotation.y-Math.PI/2)<1e-9,p.name);
+    m.tick=3; v.update();
+    for(const item of v.items.values()) assert.ok(Math.abs(item.g.rotation.y-Math.PI/2)<1e-9,p.name);
+    const impact=[...v.items.values()].find(item=>item.kind==='convergence').g.getObjectByName('convergence-impact');
+    assert.equal(impact.visible,true,p.name);
+    m.tick=18; v.update();
+    assert.equal(impact.visible,false,`${p.name} impact is not a persistent damage zone`);
+    for(let i=0;i<80;i++) v.cue({...base,id:`burst-${i}`,tick:m.tick,phase:'convergence'});
+    assert.ok(v.effects.length <= 32); assert.ok(v.items.size <= 32);
+    v.clear(); assert.equal(scene.children.length,0);
+    let disposed=0; for(const r of v.resources) r.addEventListener('dispose',()=>disposed++);
+    v.dispose(); assert.equal(disposed,v.resources.length);
+  }
+});
+
+test('charge and hit boundary overlays remain readable over raised terrain at full first-frame range',()=>{
+  for(const p of CONVERGENCE_VARIANTS) for(const reduced of [false,true]) {
+    const {m,s}=setup(), v=new MechanicPresentation(new Scene(),s);
+    v.reducedMotion=reduced;
+    const base={kind:'mechanic',id:'cast',uid:p.uid,family:'convergence',tick:0,position:[0,0,0],direction:[1,0,0]};
+    v.cue({...base,phase:'anticipation'}); v.cue({...base,phase:'convergence'});
+    m.tick=0; v.update();
+    const items=[...v.items.values()];
+    const charge=items.find(x=>x.kind==='anticipation').g.getObjectByName('convergence-charge');
+    const impactItem=items.find(x=>x.kind==='convergence');
+    const impact=impactItem.g.getObjectByName('convergence-impact');
+    assert.ok(charge && impact,p.name);
+    for(const layer of [charge,impact]) layer.traverse(n=>{
+      if(!n.isMesh) return;
+      assert.equal(n.material.depthTest,false,p.name);
+      assert.equal(n.material.depthWrite,false,p.name);
+      assert.ok(n.renderOrder>=100,p.name);
+      assert.equal(n.castShadow,false,p.name);
+    });
+    assert.equal(impactItem.g.scale.x,1,`${p.name} full damage range on impact frame`);
+    assert.equal(impact.scale.x,1); assert.equal(impact.scale.z,1);
+    const central=[];
+    impactItem.g.traverse(n=>{if(n.isMesh && !impact.children.includes(n)) central.push(n);});
+    assert.ok(central.some(n=>n.material.depthTest),`${p.name} sculpture still respects scene depth`);
+    let disposed=0; for(const r of v.resources) r.addEventListener('dispose',()=>disposed++);
+    v.dispose(); assert.equal(disposed,v.resources.length);
+  }
+});

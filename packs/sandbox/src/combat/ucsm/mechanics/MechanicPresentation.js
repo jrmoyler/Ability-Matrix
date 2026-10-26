@@ -1,7 +1,9 @@
-import { drawConvergenceArt } from './ConvergenceArt.js';
+import { buildCounterGuard, buildCounterReversal, animateCounterVisual } from './CounterVisuals.js';
+import { drawConvergenceArt, drawConvergenceCharge } from './ConvergenceArt.js';
 import {
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   CylinderGeometry,
   ConeGeometry,
@@ -16,9 +18,9 @@ import {
   Vector3
 } from 'three';
 import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
-import { buildStanceRig } from './stance-presentation.js';
-import { buildWeaveAnchor, weaveMaterial } from './WeavePresentation.js';
-import { buildWorldshapeVariant } from './worldshapeVisuals.js';
+import { buildStanceRig, buildStancePhase, initStanceResources } from './stance-presentation.js';
+import { buildWeaveAnchor, buildWeaveLink, buildWeaveCue, weaveMaterial } from './WeavePresentation.js';
+import { buildWorldshapeVariant, buildWorldshapePulse, animateWorldshape } from './worldshapeVisuals.js';
 const TAU = Math.PI * 2;
 const up = new Vector3(0, 1, 0);
 
@@ -26,6 +28,8 @@ const up = new Vector3(0, 1, 0);
 export class MechanicPresentation {
   constructor(scene, systems) {
     this.scene = scene;
+    this.up = up;
+    this.vector = (x, y, z) => new Vector3(x, y, z);
     this.s = systems;
     this.items = new Map();
     this.effects = [];
@@ -55,8 +59,38 @@ export class MechanicPresentation {
     material('strata', 0x958069, 0, 0.05);
     material('storm', 0xd9c5ff, 0x6949b7);
     material('water', 0x279acb, 0x08425a, 0.2);
+    // Footprint overlays use their own pooled materials. They must remain
+    // visible over raised terrain without changing the depth behavior of the
+    // central sculptures or any of the other mechanic families.
+    for (const [element, base] of Object.entries({fire:'fire',frost:'ice',water:'water',earth:'strata',crystal:'ice',gold:'gold'})) {
+      const overlay = new MeshBasicMaterial({
+        color: this.mat[base].color.clone(), transparent: true, opacity: 0.82,
+        depthTest: false, depthWrite: false
+      });
+      this.mat[`convergenceOverlay-${element}`] = overlay;
+      this.resources.push(overlay);
+    }
     material('crystal', 0xe1bfff, 0x844ed0, 0.25);
     material('wind', 0xb8fff1, 0x399b9c, 0.15);
+    // Terrain-only materials keep this layer independent of the established 230 castables.
+    this.terrainTime = { value: 0 };
+    for (const [name, color, glow, metal] of [
+      ['terrainFire', 0x513024, 0x9d2506, 0.08], ['terrainIce', 0x91c9dc, 0x0b4d77, 0.1],
+      ['terrainStorm', 0x9e9cc8, 0x473996, 0.45], ['terrainWater', 0x145b78, 0x053b55, 0.22],
+      ['terrainGlass', 0xc0b5eb, 0x593080, 0.3]
+    ]) {
+      material(name, color, glow, metal);
+      const mat = this.mat[name];
+      mat.roughness = name === 'terrainWater' || name === 'terrainGlass' ? 0.2 : 0.53;
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.terrainClock = this.terrainTime;
+        shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTerrainLocal;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTerrainLocal = position;');
+        shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTerrainLocal;\nuniform float terrainClock;')
+          .replace('#include <color_fragment>', `#include <color_fragment>\nfloat detail = sin(vTerrainLocal.x * 31.0 + sin(vTerrainLocal.z * 13.0) * 2.0 + terrainClock * ${name === 'terrainWater' ? '1.5' : '0.18'}) * sin(vTerrainLocal.z * 29.0 - vTerrainLocal.y * 11.0);\nfloat strata = sin(vTerrainLocal.y * 48.0 + vTerrainLocal.x * 8.0 + vTerrainLocal.z * 5.0);\ndiffuseColor.rgb *= 0.85 + 0.11 * detail + 0.07 * strata;`);
+      };
+      mat.customProgramCacheKey = () => `worldshape-detail-${name}-v1`;
+    }
     this.geo = {};
     const geo = (name, g) => {
       this.geo[name] = g;
@@ -68,6 +102,7 @@ export class MechanicPresentation {
     geo('shard', new OctahedronGeometry(1, 0));
     geo('box', new BoxGeometry(1, 1, 1));
     geo('sphere', new SphereGeometry(1, 16, 10));
+    geo('terrainFloor', new CylinderGeometry(1, 1, 0.06, 64));
     // Sculpted radial strata, bounded by the same 1.1m collision cylinder.
     const positions = [],
       indices = [],
@@ -131,6 +166,7 @@ export class MechanicPresentation {
         bevelThickness: 0.035
       })
     );
+    initStanceResources(this);
   }
   mesh(g, m, parent, x = 0, y = 0, z = 0, sx = 1, sy = sx, sz = sx) {
     const o = new Mesh(this.geo[g], this.mat[m]);
@@ -150,7 +186,12 @@ export class MechanicPresentation {
     const g = new Group();
     g.name = `mechanic:${kind}`;
     const frostWeave = data.uid === 'mechanics/weave/cryostasis-mesh';
-    if (kind === 'anchor' && buildWeaveAnchor(this, g, data)) {
+    if (data.family === 'stance' && ['anticipation', 'block', 'reversal', 'finisher'].includes(kind)) {
+      const p = this.s.preset(data);
+      g.userData.stancePhase = kind;
+      g.userData.stanceRadius = data.visualRadius ?? p.finisherRadius;
+      buildStancePhase(this, g, kind, p.element);
+    } else if (kind === 'anchor' && buildWeaveAnchor(this, g, data)) {
       // Built by the variant-specific sculptor.
     } else if (kind === 'anchor' && frostWeave) {
       this.mesh('base', 'steel', g, 0, 0, 0, 0.8, 0.7, 0.8);
@@ -179,28 +220,8 @@ export class MechanicPresentation {
         this.mesh('shard', 'fire', joint, 0.35, 1.65, 0, 0.1, 0.36, 0.1);
       }
       this.mesh('shard', 'fire', g, 0, 1.2, 0, 0.22, 0.48, 0.22);
-    } else if (kind === 'link') {
-      // Conduit's glow is deliberately narrower than its damaging capsule.
-      const a = new Vector3(data.shape.ax, 0.65, data.shape.az),
-        b = new Vector3(data.shape.bx, 0.65, data.shape.bz);
-      const length = a.distanceTo(b),
-        mid = a.clone().add(b).multiplyScalar(0.5);
-      this.mesh('shaft', weaveMaterial(data.uid) ?? (frostWeave ? 'ice' : 'fire'), g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
-        up,
-        b.sub(a).normalize()
-      );
-      for (let i = 0; i < 7; i++)
-        this.mesh(
-          'shard',
-          weaveMaterial(data.uid) ?? (frostWeave ? 'ice' : 'bronze'),
-          g,
-          data.shape.ax + ((data.shape.bx - data.shape.ax) * i) / 6,
-          0.65,
-          data.shape.az + ((data.shape.bz - data.shape.az) * i) / 6,
-          0.07,
-          0.13,
-          0.07
-        );
+    } else if (kind === 'link' && buildWeaveLink(this, g, data)) {
+      // A variant-specific bounded link is built in world coordinates.
     } else if (kind === 'stance' && data.uid && data.uid !== P.stance.uid && buildStanceRig(this, g, this.s.preset(data).element)) {
       // Element-specific stance rig was built by the presentation module.
     } else if (kind === 'stance') {
@@ -225,48 +246,10 @@ export class MechanicPresentation {
       }
       this.ring(g, 'gold', 0.9, 0.12);
       this.ring(g, 'force', 0.48, 2.05);
-    } else if ((kind === 'counter' || kind === 'reversal') && data.uid?.startsWith('mechanics/counter/') && data.uid !== P.counter.uid) {
-      const name = data.uid.split('/').at(-1);
-      if (name === 'backdraft-reprisal') {
-        for (let i = 0; i < 11; i++) {
-          const a = (i / 10 - 0.5) * Math.PI;
-          const flame = this.mesh('shard', i % 2 ? 'gold' : 'fire', g, Math.sin(a) * 1.05, 0.85 + 0.45 * Math.cos(a), Math.cos(a) * 1.05, 0.14, 0.55 + (i % 3) * 0.1, 0.14);
-          flame.rotation.z = -a * 0.5;
-        }
-        this.ring(g, 'fire', 1.05, 0.12);
-      } else if (name === 'feedback-execution') {
-        for (let i = 0; i < 7; i++) {
-          const a = (i / 6 - 0.5) * Math.PI * 0.9;
-          const bolt = this.mesh('box', 'storm', g, Math.sin(a) * 1.05, 1.1, Math.cos(a) * 1.05, 0.1, 1.1, 0.1);
-          bolt.rotation.z = (i % 2 ? 1 : -1) * 0.45;
-          this.mesh('shard', 'storm', g, Math.sin(a) * 1.05, 1.75, Math.cos(a) * 1.05, 0.1, 0.22, 0.1);
-        }
-        this.ring(g, 'storm', 0.8, 0.12);
-      } else if (name === 'undertow-reversal') {
-        for (let i = 0; i < 4; i++) {
-          const ring = this.ring(g, 'water', 0.55 + i * 0.2, 0.45 + i * 0.35);
-          ring.rotation.y = i * 0.36;
-        }
-        for (let i = 0; i < 8; i++) {
-          const a = i * TAU / 8;
-          this.mesh('sphere', 'water', g, Math.sin(a) * 0.9, 0.8 + (i % 3) * 0.4, Math.cos(a) * 0.9, 0.13);
-        }
-      } else if (name === 'faultline-retort') {
-        for (let i = 0; i < 7; i++) {
-          const a = (i / 6 - 0.5) * Math.PI;
-          const rock = this.mesh('ridge', i % 2 ? 'strata' : 'rock', g, Math.sin(a) * 1.1, 0.5, Math.cos(a) * 1.1, 0.35, 0.42, 0.35);
-          rock.rotation.y = i * 0.65;
-          this.mesh('shard', 'gold', g, Math.sin(a) * 1.05, 0.8, Math.cos(a) * 1.05, 0.06, 0.35, 0.06);
-        }
-      } else if (name === 'facet-reprisal') {
-        for (let i = 0; i < 9; i++) {
-          const a = (i / 8 - 0.5) * Math.PI;
-          const facet = this.mesh('shard', i % 2 ? 'ice' : 'steel', g, Math.sin(a) * 1.05, 1.2, Math.cos(a) * 1.05, 0.23, 0.6, 0.12);
-          facet.rotation.y = a;
-        }
-        this.ring(g, 'ice', 0.7, 0.2);
-        this.ring(g, 'steel', 1.1, 0.15);
-      }
+    } else if (kind === 'counter' && buildCounterGuard(this, g, data.uid)) {
+      // Element-specific guard rig.
+    } else if (kind === 'reversal' && buildCounterReversal(this, g, data, MECHANIC_VARIANTS[data.uid])) {
+      // The path and impact use the counter's attributed positions.
     } else if (kind === 'counter') {
       for (let i = 0; i < 9; i++) {
         const a = (i / 8 - 0.5) * Math.PI * 0.9;
@@ -320,6 +303,8 @@ export class MechanicPresentation {
             0.3
           );
       }
+    } else if (kind === 'anticipation' && data.family === 'convergence' && data.uid && drawConvergenceCharge(this, g, data.uid)) {
+      // Distinct pre-impact charge uses the variant's elemental material.
     } else if (kind === 'convergence' && data.uid && drawConvergenceArt(this, g, data.uid)) {
       // The authored rig was built above.
     } else if (kind === 'convergence') {
@@ -340,13 +325,7 @@ export class MechanicPresentation {
       }
     } else if (kind === 'terrain-pulse') {
       const spec = MECHANIC_VARIANTS[data.uid];
-      const mat = { fire: 'fire', frost: 'ice', storm: 'storm', water: 'water', crystal: 'ice' }[spec?.element] ?? 'gold';
-      this.ring(g, mat, spec?.radius ?? 4, 0.12);
-      this.ring(g, mat, (spec?.radius ?? 4) * 0.74, 0.1);
-      for (let i = 0; i < 10; i++) {
-        const a = i * TAU / 10, r = (spec?.radius ?? 4) * 0.8;
-        this.mesh('shard', mat, g, Math.sin(a) * r, 0.23, Math.cos(a) * r, 0.08, 0.22, 0.08);
-      }
+      buildWorldshapePulse(this, g, data, spec);
     } else if (kind === 'reversal') {
       for (let i = 0; i < 16; i++) {
         const a = (i * TAU) / 16;
@@ -363,6 +342,8 @@ export class MechanicPresentation {
         );
         shard.rotation.z = a;
       }
+    } else if (['weave-burst', 'anchor-break', 'anchor-expire'].includes(kind) && buildWeaveCue(this, g, data, kind)) {
+      // Cue geometry uses the resolved gameplay positions.
     } else if (kind === 'weave-burst') {
       const material = weaveMaterial(data.uid) ?? 'ice';
       for (let i = 0; i < 12; i++) {
@@ -397,6 +378,8 @@ export class MechanicPresentation {
   add(id, kind, data, life = null) {
     const g = this.build(kind, data);
     g.position.fromArray(data.position ?? [0, 0, 0]);
+    if ((kind === 'convergence' || (kind === 'anticipation' && data.family === 'convergence')) && data.direction)
+      g.rotation.y = Math.atan2(data.direction[0], data.direction[2]);
     if (kind === 'link') g.position.set(0, 0, 0);
     this.scene.add(g);
     const item = { id, kind, data, g, start: this.s.m.tick, life };
@@ -413,6 +396,7 @@ export class MechanicPresentation {
       block: 0.25,
       partial: 0.3,
       'anchor-break': 0.5,
+      'anchor-expire': 0.45,
       'weave-burst': 0.6,
       'terrain-pulse': 0.35
     };
@@ -432,9 +416,10 @@ export class MechanicPresentation {
   update() {
     const s = this.s,
       wanted = new Set();
-    this.mat.fire.emissiveIntensity =
+    this.terrainTime.value = this.reducedMotion ? 0 : s.m.seconds;
+    this.mat.fire.emissiveIntensity = this.reducedMotion ? 1.15 :
       1.15 + 0.3 * Math.sin(s.m.seconds * 13) + 0.15 * Math.sin(s.m.seconds * 23);
-    this.mat.force.emissiveIntensity = 1.1 + 0.25 * Math.sin(s.m.seconds * 4);
+    this.mat.force.emissiveIntensity = this.reducedMotion ? 1.1 : 1.1 + 0.25 * Math.sin(s.m.seconds * 4);
     const sync = (id, kind, data) => {
       wanted.add(id);
       let item = this.items.get(id);
@@ -455,17 +440,36 @@ export class MechanicPresentation {
           continue;
         }
       } else if (!wanted.has(id) && i.kind !== 'threat') {
-        this.remove(id);
-        continue;
+        if (i.kind !== 'worldshape') { this.remove(id); continue; }
+        if (this.reducedMotion) { this.remove(id); continue; }
+        i.exitStart ??= s.m.tick;
+        if ((s.m.tick - i.exitStart) / s.m.budget.tickRate >= 0.3) { this.remove(id); continue; }
       }
       let scale = i.kind === 'counter' ? 1 : Math.min(1, Math.max(0.01, age / 0.18));
       if (i.life) scale *= Math.min(1, Math.max(0.01, (i.life - age) / 0.18));
-      i.g.scale.setScalar(scale);
+      // Convergence damage lands immediately at the full footprint. Keep its
+      // boundary at full world scale on the first frame; animate only detail.
+      if (i.kind === 'convergence') scale = 1;
+      if (this.reducedMotion && (i.kind === 'stance' || i.g.userData.stancePhase)) scale = 1;
+      if (this.reducedMotion && i.data.family === 'convergence' && ['anticipation', 'convergence'].includes(i.kind)) scale = 1;
+      if (this.reducedMotion && ['anchor', 'link', 'weave-burst', 'anchor-break', 'anchor-expire'].includes(i.kind)) scale = 1;
+      if (this.reducedMotion && i.kind === 'terrain-pulse') scale = 1;
+      i.g.scale.setScalar(i.kind === 'link' || i.kind === 'weave-burst' ? 1 : scale);
       if (['stance', 'counter'].includes(i.kind)) {
         const e = s.m.entities.get(i.data.ownerId);
         if (e) i.g.position.fromArray(e.position);
         i.g.rotation.y = Math.atan2(i.data.direction[0], i.data.direction[2]);
       }
+      if (!this.reducedMotion && ['anchor', 'link'].includes(i.kind))
+        i.g.traverse((n) => {
+          const spin = n.userData.weaveSpin;
+          if (spin) n.rotation[spin.axis] = spin.base + age * spin.rate;
+          const slide = n.userData.weaveSlide;
+          if (slide) {
+            const t = (age * slide.speed + slide.phase) % 1;
+            n.position.set(...slide.a.map((x, k) => x + (slide.b[k] - x) * t));
+          }
+        });
       if (i.kind === 'anchor')
         i.g.traverse((n) => {
           if (n.userData.hinge !== undefined)
@@ -475,12 +479,30 @@ export class MechanicPresentation {
       if (i.kind === 'stance' && !this.reducedMotion) i.g.rotation.y += Math.sin(age * 1.5) * 0.08;
       if (i.kind === 'stance' && !this.reducedMotion)
         i.g.traverse((n) => { if (n.userData.orbit) n.rotation.z = n.userData.orbitBase + age * 0.5 * n.userData.orbit; });
-      if (i.kind === 'weave-burst') i.g.scale.setScalar(0.5 + age * 3);
-      if (i.kind === 'convergence' && !this.reducedMotion) {
+      if (!this.reducedMotion && (i.kind === 'stance' || i.g.userData.stancePhase)) {
+        i.g.traverse((n) => {
+          const motion = n.userData.stanceBeat;
+          if (motion) {
+            const wave = Math.sin(age * (motion.element === 'storm' ? 14 : 5) + motion.phase);
+            n.position.y = motion.baseY + (motion.element === 'water' ? 0.12 : 0.04) * wave;
+            n.scale.y = motion.baseScaleY * (1 + (motion.element === 'earth' ? 0.04 : 0.12) * wave);
+          }
+          if (n.userData.stanceWave) n.scale.setScalar(0.72 + 0.28 * Math.min(1, age / 0.28));
+        });
+      }
+      if (!this.reducedMotion && i.kind === 'anchor-break')
+        i.g.traverse((n) => { const p=n.userData.weavePulse; if (p) n.scale.copy(p.base).multiplyScalar(1 + p.amount * Math.sin(age * 12 + p.phase)); });
+      if (i.kind === 'convergence' || (i.kind === 'anticipation' && i.data.family === 'convergence')) {
         const direction = i.data.direction ?? [0, 0, 1];
         i.g.rotation.y = Math.atan2(direction[0], direction[2]);
-        if (!i.data.uid || i.data.uid.endsWith('/storm-catalyst')) i.g.rotation.y += age * 1.8;
+        if (!this.reducedMotion && (!i.data.uid || i.data.uid.endsWith('/storm-catalyst')) && i.kind === 'convergence') i.g.rotation.y += age * 1.8;
+        // The boundary flash marks the instantaneous hit, not a persistent
+        // damage zone. The central sculpture can continue its shorter decay.
+        i.g.traverse((n) => { if (n.userData.convergenceLayer === 'impact') n.visible = age < 0.5; });
+        if (this.reducedMotion) continue;
         i.g.traverse((n) => {
+          if (n.userData.convergenceLayer === 'charge') n.rotation.y = age * 0.7;
+          if (n.userData.convergenceLayer === 'impact') n.scale.y = Math.min(1, Math.max(0.1, age / 0.2));
           const motion = n.userData.convergenceMotion;
           if (!motion) return;
           const { kind, phase, scale, position } = motion;
@@ -491,9 +513,19 @@ export class MechanicPresentation {
           else if (kind === 'prism') n.scale.copy(scale).multiplyScalar(0.8 + 0.2 * Math.sin(age * 9 - phase));
         });
       }
-      if (i.kind === 'finisher') i.g.scale.setScalar(1 + age * 7);
-      if (i.kind === 'reversal') i.g.scale.setScalar(0.5 + age * 2);
-      if (i.kind === 'worldshape') i.g.scale.set(1, Math.min(1, age / 0.35), 1);
+      if (i.kind === 'counter' || i.g.userData.counterReversal) animateCounterVisual(i.g, age, this.reducedMotion);
+      if (i.kind === 'finisher') {
+        if (i.g.userData.stancePhase) i.g.scale.set(i.g.userData.stanceRadius, 1, i.g.userData.stanceRadius);
+        else i.g.scale.setScalar(1 + age * 7);
+      }
+      if (i.kind === 'reversal' && i.g.userData.counterReversal) i.g.scale.setScalar(1);
+      else if (i.kind === 'reversal' && !i.g.userData.stancePhase) i.g.scale.setScalar(0.5 + age * 2);
+      if (i.kind === 'worldshape') {
+        const exit = i.exitStart === undefined ? 1 : Math.max(0, 1 - (s.m.tick - i.exitStart) / s.m.budget.tickRate / 0.3);
+        const enter = this.reducedMotion ? 1 : Math.min(1, age / 0.35);
+        i.g.scale.set(exit, enter * exit, exit);
+        animateWorldshape(i.g, age, this.reducedMotion);
+      }
     }
     this.effects = this.effects.filter((id) => this.items.has(id));
   }
