@@ -11,12 +11,15 @@ import {
   Color,
   DoubleSide,
   Group,
+  InstancedMesh,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  Object3D,
   ShaderMaterial,
   Shape,
+  SphereGeometry,
   ExtrudeGeometry,
   TorusGeometry,
   TubeGeometry,
@@ -31,6 +34,7 @@ export const ID = config.id;
 const UID = 'matrix-expansion/pulse-covenant',
   TAU = Math.PI * 2;
 const clamp = (x) => Math.max(0, Math.min(1, x));
+const beadTransform = new Object3D();
 function heart() {
   const s = new Shape();
   s.moveTo(0, -0.8);
@@ -114,6 +118,7 @@ export class Ability extends BaseAbility {
     this.core.scale.setScalar(0.48);
     this.root.add(this.core);
     this.branches = [];
+    this.vesselCurves = [];
     for (let k = 0; k < 6; k++) {
       const angle = (k * TAU) / 6,
         points = [];
@@ -129,15 +134,15 @@ export class Ability extends BaseAbility {
           ),
         );
       }
-      const vein = new Mesh(
-        own(
-          new TubeGeometry(new CatmullRomCurve3(points), 48, 0.035, 7, false),
-        ),
-        this.veinMat,
-      );
+      const curve = new CatmullRomCurve3(points);
+      this.vesselCurves.push(curve);
+      const vein = new Mesh(own(new TubeGeometry(curve, 48, 0.035, 7, false)), this.veinMat);
       this.root.add(vein);
       this.branches.push(vein);
     }
+    this.vesselBeads = new InstancedMesh(own(new SphereGeometry(.055, 8, 6)), this.glow, 18);
+    this.vesselBeads.frustumCulled = false;
+    this.root.add(this.vesselBeads);
     const ringGeo = own(new TorusGeometry(1, 0.035, 8, 100));
     this.ring = new Mesh(ringGeo, this.glow);
     this.ring.rotation.x = Math.PI / 2;
@@ -166,6 +171,9 @@ export class Ability extends BaseAbility {
     this._seenOrder = [];
     this._casts = new Set();
     this._castOrder = [];
+    this._pulseLight = null;
+    this._pulseLightPosition = new Vector3();
+    this._pulseLightColor = new Color();
     routeExpansionTransparency(this.group);
     this._disposed = false;
   }
@@ -258,6 +266,7 @@ export class Ability extends BaseAbility {
       );
       this._fxPoint ??= new Vector3();
       this._fxPoint.fromArray(at);
+      if (!this._pulseLight) this._pulseLight = this.ctx.lights.acquire();
       expansionBurst(this.fx, this._fxPoint, {
         count: 48,
         size: 0.12,
@@ -269,6 +278,7 @@ export class Ability extends BaseAbility {
   }
   onTravel(dt) {
     this._pulseAge += dt;
+    this._updatePulseLight(dt);
     this._sync();
   }
   onImpact() {
@@ -276,7 +286,22 @@ export class Ability extends BaseAbility {
   }
   onFade(dt) {
     this._pulseAge += dt;
+    this._updatePulseLight(dt);
     this._sync();
+  }
+  _updatePulseLight(dt) {
+    if (!this._pulseLight) return;
+    if (this._pulseAge >= .65) {
+      this.ctx.lights.release(this._pulseLight);
+      this._pulseLight = null;
+      return;
+    }
+    const strength = 1 - clamp(this._pulseAge / .65);
+    this._pulseLightPosition.copy(this._fxPoint).setY(1);
+    this._pulseLightColor.set(this.config.bloodGlow);
+    this.ctx.lights.set(this._pulseLight, this._pulseLightPosition,
+      this._pulseLightColor, this.config.lightIntensity * strength,
+      this.config.pulseRadius * 1.5, dt);
   }
   _sync() {
     const c = this.config,
@@ -299,7 +324,16 @@ export class Ability extends BaseAbility {
     for (let i = 0; i < this.branches.length; i++) {
       const wave = .5 + .5 * Math.sin(this.age * TAU / Math.max(.1, c.beatSeconds) - i * .45);
       this.branches[i].scale.setScalar(1 + .025 * wave);
+      for (let j = 0; j < 3; j++) {
+        const progress = (this.age / Math.max(.1, c.beatSeconds) + j / 3) % 1;
+        this.vesselCurves[i].getPoint(progress, beadTransform.position);
+        const flare = this._pulseAge < .35 ? 1.8 : 1;
+        beadTransform.scale.setScalar(flare * (.65 + .35 * Math.sin(progress * Math.PI)));
+        beadTransform.updateMatrix();
+        this.vesselBeads.setMatrixAt(i * 3 + j, beadTransform.matrix);
+      }
     }
+    this.vesselBeads.instanceMatrix.needsUpdate = true;
     this.glow.color.set(c.bloodGlow);
     this.ring.scale.setScalar(.8);
     this.floor.scale.set(2.5, 2.5, 1);
@@ -318,6 +352,8 @@ export class Ability extends BaseAbility {
     this.membrane.uniforms.color.value.set(c.bloodGlow);
   }
   onDestroy() {
+    if (this._pulseLight) this.ctx.lights.release(this._pulseLight);
+    this._pulseLight = null;
     this._unsub?.();
     this._unsub = null;
     this._scope = null;

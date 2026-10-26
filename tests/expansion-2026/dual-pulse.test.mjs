@@ -46,3 +46,26 @@ test('cinder emits two bounded particle bursts, glacier emits one, and reduced m
   finally{if(prior)globalThis.matchMedia=prior;else delete globalThis.matchMedia;}
  }
 });
+
+test('authored frost lattice follows the same expanding radius used for hits',()=>{
+ const {a,hits}=fixture(GlacierBellAbility);run(a,.6);
+ assert.equal(a.phase,'impact');const expected=a.config.zoneRadius*a.impactTime/a.impactDuration;
+ assert.ok(Math.abs(a.authored.stage.scale.x-expected)<1e-7);
+ assert.deepEqual(hits.map(h=>h.i),[0]);
+ const pos=a.authored.mesh.geometry.attributes.position;
+ for(let i=0;i<pos.count;i++)assert.ok(Math.hypot(pos.getX(i),pos.getZ(i))<=1);
+ a.destroy();a.dispose();
+});
+
+test('cinder second pulse control changes both the strike and crown energy timing',()=>{
+ const original=settings[CINDER_CONFIG.id].secondPulse;settings[CINDER_CONFIG.id].secondPulse=.8;
+ try{
+  const {a,hits}=fixture(CinderCrownAbility);run(a,1.15);
+  assert.equal(hits.length,2);assert.equal(a.second,false);
+  run(a,.25);assert.equal(a.second,true);assert.equal(hits.length,4);
+  assert.ok(a.authored.mesh.material.uniforms.energy.value>0);
+  settings[CINDER_CONFIG.id].coreColor='#123456';settings[CINDER_CONFIG.id].detailHeight=1.5;a.update(1/60);
+  assert.equal(a.authored.mesh.material.uniforms.tint.value.getHexString(),'123456');assert.equal(a.authored.stage.scale.y,1.5);
+  a.destroy();a.dispose();
+ }finally{settings[CINDER_CONFIG.id].secondPulse=original;settings[CINDER_CONFIG.id].coreColor=CINDER_CONFIG.settings.coreColor;settings[CINDER_CONFIG.id].detailHeight=CINDER_CONFIG.settings.detailHeight;}
+});

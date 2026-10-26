@@ -43,6 +43,7 @@ export const CONFIG = Object.freeze({
     lift: 1.5,
     impactFlash: 0.08,
     impactShake: 0.08,
+    spectralSpread: 1,
   },
 });
 function crystalGeo() {
@@ -61,15 +62,19 @@ function crystalGeo() {
   g.computeVertexNormals();
   return g;
 }
-function prismMat() {
+function prismMat(hue = 0) {
   return new ShaderMaterial({
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
-    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uFade: { value: 1 },
+      uHue: { value: hue },
+    },
     vertexShader:
       "varying vec3 vN,vP;void main(){vP=position;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-    fragmentShader: `varying vec3 vN,vP;uniform float uTime,uFade;void main(){float rim=pow(1.-abs(vN.z),2.);float stripe=pow(max(0.,sin(vP.y*16.+uTime*4.+vP.x*9.)),8.);vec3 a=vec3(.15,.17,.55),b=vec3(.9,.5,1.),c=vec3(.5,.95,1.);vec3 col=mix(a,b,.5+.5*sin(vP.y*4.+uTime));col=mix(col,c,clamp(rim+stripe*.4,0.,1.));gl_FragColor=vec4(col*(1.+rim),uFade*(.35+rim*.5));}`,
+    fragmentShader: `varying vec3 vN,vP;uniform float uTime,uFade,uHue;void main(){float rim=pow(1.-abs(vN.z),2.);float stripe=pow(max(0.,sin(vP.y*16.+uTime*4.+vP.x*9.)),8.);vec3 a=vec3(.15,.17,.55),b=.55+.4*cos(uHue+vec3(0.,2.1,4.2)),c=vec3(.5,.95,1.);vec3 col=mix(a,b,.5+.5*sin(vP.y*4.+uTime));col=mix(col,c,clamp(rim+stripe*.4,0.,1.));gl_FragColor=vec4(col*(1.+rim),uFade*(.35+rim*.5));}`,
   });
 }
 function trailGeo() {
@@ -118,9 +123,12 @@ export class PrismChoirAbility extends Ability {
     this.primary.layers.set(LAYER.VFX);
     this.group.add(this.primary);
     this.shards = [];
+    this.shardMaterials = [];
     this.trails = [];
     for (let i = 0; i < 3; i++) {
-      const shard = new Mesh(this.geo, this.mat),
+      const material = prismMat(i * 2.1);
+      this.shardMaterials.push(material);
+      const shard = new Mesh(this.geo, material),
         trail = new Mesh(this.trailGeo, this.trailMat);
       shard.layers.set(LAYER.VFX);
       trail.layers.set(LAYER.VFX);
@@ -180,6 +188,7 @@ export class PrismChoirAbility extends Ability {
     for (const s of this.shards) s.visible = false;
     for (const t of this.trails) t.visible = false;
     this.mat.uniforms.uFade.value = 1;
+    for (const m of this.shardMaterials) m.uniforms.uFade.value = 1;
     this.trailMat.uniforms.uFade.value = 1;
     this.splinterMaterial.uniforms.uFade.value = 1;
     this.splinterMaterial.uniforms.uBurst.value = 0;
@@ -329,10 +338,16 @@ export class PrismChoirAbility extends Ability {
       this.splinterMaterial.uniforms.uBurst.value = t;
     } else {
       this.mat.uniforms.uFade.value = 2 - t;
+      for (const m of this.shardMaterials) m.uniforms.uFade.value = 2 - t;
       this.trailMat.uniforms.uFade.value = 2 - t;
       this.splinterMaterial.uniforms.uFade.value = 2 - t;
     }
     this.mat.uniforms.uTime.value = this.age;
+    for (let i = 0; i < this.shardMaterials.length; i++) {
+      this.shardMaterials[i].uniforms.uTime.value = this.age;
+      this.shardMaterials[i].uniforms.uHue.value =
+        i * 2.1 * this.config.spectralSpread;
+    }
     this.splinterMaterial.uniforms.uTime.value = this.age;
   }
   onDestroy() {
@@ -345,6 +360,7 @@ export class PrismChoirAbility extends Ability {
   dispose() {
     this.geo.dispose();
     this.mat.dispose();
+    for (const m of this.shardMaterials) m.dispose();
     this.trailGeo.dispose();
     this.trailMat.dispose();
     this.splinterGeometry.dispose();
@@ -356,6 +372,7 @@ export function buildEditor(gui, c, Editor) {
   const f = gui.addFolder("Prism Choir"),
     R = Editor.range;
   R(f, c, "size", 0.2, 2, 0.05, "crystal size");
+  R(f, c, "spectralSpread", 0, 2, 0.05, "spectral spread");
   R(f, c, "splitDistance", 1, 12, 0.1, "split reach");
   R(f, c, "splitDuration", 0.2, 3, 0.05, "split time");
   R(f, c, "reach", 0.1, 3, 0.05, "shard reach");

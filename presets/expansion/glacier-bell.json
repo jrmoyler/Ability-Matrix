@@ -33,6 +33,8 @@
     "impactShake": 0.1,
     "impactFlash": 0.08,
     "accentColor": "#9ceaff",
-    "particleCount": 32
+    "particleCount": 32,
+    "detailHeight": 1,
+    "coreColor": "#cdf6ff"
   }
 }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from 'three';
+import { Matrix4, Scene, Vector3 } from 'three';
+import { LightPool } from '../../packs/sandbox/src/effects/LightPool.js';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import config from '../../packs/sandbox/src/abilities/expansion-2026/pulse-covenant/config.js';
 import {
@@ -107,4 +108,56 @@ test('interleaved hits from an earlier cast do not count as a new beat', () => {
   assert.equal(emits.length, 2);
   a.destroy();
   a.dispose();
+});
+test('pooled vessel beads travel along the actual authored blood branches', () => {
+  const { a } = setup();
+  assert.equal(a.vesselBeads.count, 18);
+  const matrix = new Matrix4();
+  a.vesselBeads.getMatrixAt(0, matrix);
+  const before = new Vector3().setFromMatrixPosition(matrix);
+  a.update(.15);
+  a.vesselBeads.getMatrixAt(0, matrix);
+  const after = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(before.distanceTo(after) > .1);
+  assert.ok(after.length() < 3);
+  a.destroy(); a.dispose();
+});
+test('a successful secondary pulse lights its actual contact point and releases the light', () => {
+  let callback;
+  const allocated = [], released = [], updates = [];
+  const lights = {
+    acquire() { const light = {}; allocated.push(light); return light; },
+    release(light) { released.push(light); },
+    set(light, position) { updates.push({light, position:position.clone()}); },
+  };
+  const scope = {tickRate:30, on(_type, fn) { callback=fn; return {ok:true, unsubscribe(){}}; },
+    queryActors() { return {ok:true, actors:[{id:'near',alive:true}]}; },
+    emit() { return {ok:true}; }};
+  const a = new Ability({character:{position:new Vector3()}, lights, expansionCombat:{bind:()=>scope}});
+  a.spawn(new Vector3(), new Vector3(1,0,0), 1);
+  callback(hit('one',1)); callback(hit('two',19));
+  assert.equal(allocated.length, 2);
+  a.update(.1);
+  assert.ok(updates.some((update) => update.light === allocated[1] && update.position.x === 1));
+  a.update(.7);
+  assert.ok(released.includes(allocated[1]));
+  a.destroy(); a.dispose();
+});
+test('secondary impact uses and returns a real sandbox light-pool slot', () => {
+  let callback;
+  const lights = new LightPool(new Scene());
+  const scope = {tickRate:30, on(_type, fn) { callback=fn; return {ok:true, unsubscribe(){}}; },
+    queryActors() { return {ok:true, actors:[{id:'near',alive:true}]}; }, emit() { return {ok:true}; }};
+  const a = new Ability({character:{position:new Vector3()}, lights, expansionCombat:{bind:()=>scope}});
+  a.spawn(new Vector3(), new Vector3(1,0,0), 1);
+  callback(hit('one',1)); callback(hit('two',19));
+  assert.equal(lights.lights.filter((entry) => entry.inUse).length, 2);
+  a.update(.1);
+  const secondary = a._pulseLight.light;
+  assert.equal(secondary.position.x, 1);
+  a.update(.7);
+  assert.equal(lights.lights.filter((entry) => entry.inUse).length, 1);
+  a.destroy(); a.dispose();
+  assert.equal(lights.lights.filter((entry) => entry.inUse).length, 0);
+  lights.dispose();
 });

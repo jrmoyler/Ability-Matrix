@@ -34,6 +34,7 @@
     "impulse": 4,
     "lift": 1.5,
     "impactFlash": 0.08,
-    "impactShake": 0.08
+    "impactShake": 0.08,
+    "spectralSpread": 1
   }
 }

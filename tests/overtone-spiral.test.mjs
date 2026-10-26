@@ -143,3 +143,38 @@ test("sound carrier follows the cast front and hands off to the resonator", () =
   a.dispose();
   assert.equal(disposed, 2);
 });
+
+test("tone colors update live and return to saved settings on reuse", () => {
+  const a = new OvertoneSpiralAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  const original = a.config.toneB;
+  try {
+    a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+    a.update(2);
+    a.update(0.1);
+    a.config.toneB = "#ff0000";
+    a.update(0.1);
+    assert.equal(
+      a.ringMaterials[1].uniforms.uColor.value.getHexString(),
+      "ff0000",
+    );
+    a.destroy();
+    a.config.toneB = original;
+    a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+    assert.equal(
+      a.ringMaterials[1].uniforms.uColor.value.getHexString(),
+      original.slice(1),
+    );
+  } finally {
+    a.config.toneB = original;
+    a.destroy();
+    a.dispose();
+  }
+});

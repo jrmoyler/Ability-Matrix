@@ -31,6 +31,9 @@
     "pulseInterval": 0.45,
     "waveSpeed": 8,
     "impulse": 3,
-    "lift": 1.4
+    "lift": 1.4,
+    "toneA": "#a6ff85",
+    "toneB": "#54ebe6",
+    "toneC": "#e6d1ff"
   }
 }

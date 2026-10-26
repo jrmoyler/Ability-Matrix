@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   BoxGeometry,
   CylinderGeometry,
+  Color,
   DoubleSide,
   Mesh,
   Points,
@@ -42,6 +43,9 @@ export const CONFIG = Object.freeze({
     waveSpeed: 8,
     impulse: 3,
     lift: 1.4,
+    toneA: "#a6ff85",
+    toneB: "#54ebe6",
+    toneC: "#e6d1ff",
   },
 });
 const SEG = 128,
@@ -63,7 +67,7 @@ function harmonicGeometry() {
   g.setIndex(idx);
   return g;
 }
-function harmonicMaterial(color = new Vector3(0.65, 1, 0.52), frequency = 1) {
+function harmonicMaterial(color = new Color(0xa6ff85), frequency = 1) {
   return new ShaderMaterial({
     transparent: true,
     side: DoubleSide,
@@ -102,9 +106,9 @@ export class OvertoneSpiralAbility extends Ability {
     this.rings = [];
     this.ringMaterials = [];
     const colors = [
-      new Vector3(0.65, 1, 0.52),
-      new Vector3(0.33, 0.92, 0.9),
-      new Vector3(0.9, 0.82, 1),
+      new Color(0xa6ff85),
+      new Color(0x54ebe6),
+      new Color(0xe6d1ff),
     ];
     for (let i = 0; i < 3; i++) {
       const material = harmonicMaterial(colors[i], 1 + i * 0.5);
@@ -122,7 +126,7 @@ export class OvertoneSpiralAbility extends Ability {
     // A travelling carrier makes the delivery of the zone visible before the
     // resonator forms and releases its three independent fronts.
     this.carrierGeometry = new RingGeometry(0.6, 1, 64);
-    this.carrierMaterial = harmonicMaterial(new Vector3(0.48, 0.96, 0.74), 2);
+    this.carrierMaterial = harmonicMaterial(new Color(0x7af5bd), 2);
     this.carrier = new Mesh(this.carrierGeometry, this.carrierMaterial);
     this.carrier.layers.set(LAYER.VFX);
     this.carrier.rotation.x = -Math.PI / 2;
@@ -180,6 +184,7 @@ export class OvertoneSpiralAbility extends Ability {
     this.mat.uniforms.uFade.value = 1;
     for (const material of this.ringMaterials)
       material.uniforms.uFade.value = 1;
+    this._syncColors();
     this.noteMaterial.uniforms.uFade.value = 1;
     this.carrier.visible = true;
     this.carrierMaterial.uniforms.uFade.value = 1;
@@ -195,12 +200,20 @@ export class OvertoneSpiralAbility extends Ability {
     }
   }
   _drawCarrier() {
+    this._syncColors();
     this.pointAt(this.u, this.carrier.position);
     this.carrier.position.y = 0.28;
     const size = 0.35 + 0.1 * Math.sin(this.age * 12);
     this.carrier.scale.setScalar(size);
     this.carrier.rotation.z = this.age * 2;
     this.carrierMaterial.uniforms.uTime.value = this.age;
+  }
+  _syncColors() {
+    this.ringMaterials[0].uniforms.uColor.value.set(this.config.toneA);
+    this.ringMaterials[1].uniforms.uColor.value.set(this.config.toneB);
+    this.ringMaterials[2].uniforms.uColor.value.set(this.config.toneC);
+    this.mat.uniforms.uColor.value.set(this.config.toneA);
+    this.carrierMaterial.uniforms.uColor.value.set(this.config.toneA);
   }
   onTravel() {
     this._drawCarrier();
@@ -278,6 +291,7 @@ export class OvertoneSpiralAbility extends Ability {
     mesh.position.y = 0.12 + index * 0.07;
   }
   onFade(_dt, t) {
+    this._syncColors();
     if (t <= 1) {
       const elapsed = t * this.impactDuration;
       for (let i = 0; i < 3; i++) {
@@ -332,6 +346,9 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "waveSpeed", 1, 20, 0.5, "wave speed");
   R(f, c, "impulse", 0, 15, 0.1, "wave force");
   R(f, c, "lift", 0, 8, 0.1, "wave lift");
+  f.addColor(c, "toneA").name("first tone");
+  f.addColor(c, "toneB").name("second tone");
+  f.addColor(c, "toneC").name("third tone");
   f.close();
   return f;
 }

@@ -94,3 +94,35 @@ test("crystal lance and split shards point along their actual trajectories", () 
   a.destroy();
   a.dispose();
 });
+
+test("split shards have individually tuned spectra and release their materials", () => {
+  const a = new PrismChoirAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(0.1);
+  assert.equal(new Set(a.shardMaterials).size, 3);
+  assert.equal(
+    new Set(a.shardMaterials.map((m) => m.uniforms.uHue.value)).size,
+    3,
+  );
+  a.update(a.impactDuration);
+  a.update(a.fadeDuration * 0.5);
+  assert.ok(a.shardMaterials.every((m) => m.uniforms.uFade.value < 1));
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.ok(a.shardMaterials.every((m) => m.uniforms.uFade.value === 1));
+  let disposed = 0;
+  for (const material of a.shardMaterials)
+    material.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 3);
+});
