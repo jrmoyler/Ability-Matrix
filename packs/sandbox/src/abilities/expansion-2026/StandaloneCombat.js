@@ -16,25 +16,27 @@ function activeDummies(ctx){
   if(!Array.isArray(ctx.dummies?.slots))return null;
   return ctx.dummies.slots.map(slot=>slot?.dummy).filter(dummy=>dummy?.position&&typeof dummy.kill==='function');
 }
-function snapshot(world,health,dummy){
-  let hp=health.get(dummy);
+function snapshot(world,health,dummy,generation){
+  const entry=health.get(dummy);
+  let hp=entry?.generation===generation?entry.hp:undefined;
   // A real dummy which has stood up starts with full health again.
-  if(dummy.alive&&hp!==undefined&&hp<=0){hp=1;health.set(dummy,hp);}
+  if(dummy.alive&&hp!==undefined&&hp<=0){hp=1;health.set(dummy,{hp,generation});}
   return {id:idFor(world,dummy),teamId:'targets',kind:'actor',position:[dummy.position.x,0,dummy.position.z],health:hp??1,maxHealth:1,shields:0,alive:!!dummy.alive,statuses:[]};
 }
 function fallback(ctx){
   const world=worldFor(ctx),health=new WeakMap();
+  const generation=(dummy)=>ctx.dummies?.standGeneration?.(dummy)??0;
   const find=(id)=>activeDummies(ctx)?.find(dummy=>idFor(world,dummy)===id);
   return {
     queryActors({position,radius,relation='enemy'}={}){
       const dummies=activeDummies(ctx);
       if(!dummies||!Array.isArray(position)||position.length!==3||!position.every(Number.isFinite)||!Number.isFinite(radius)||radius<0||radius>48||!['enemy','ally','any'].includes(relation))return fail('standalone targets unavailable');
       for(const dummy of dummies)if(!dummy.alive)health.delete(dummy);
-      const actors=relation==='ally'?[]:dummies.filter(d=>d.alive&&Math.hypot(d.position.x-position[0],d.position.z-position[2])<=radius).map(d=>snapshot(world,health,d));
+      const actors=relation==='ally'?[]:dummies.filter(d=>d.alive&&Math.hypot(d.position.x-position[0],d.position.z-position[2])<=radius).map(d=>snapshot(world,health,d,generation(d)));
       if(relation!=='enemy'&&ctx.character?.position){const p=ctx.character.position;if(Math.hypot(p.x-position[0],p.z-position[2])<=radius)actors.push({id:'caster',teamId:'player',kind:'actor',position:[p.x,p.y,p.z],health:1,maxHealth:1,shields:0,alive:true,statuses:[]});}
       actors.sort((a,b)=>a.id.localeCompare(b.id));return {ok:true,actors:actors.slice(0,32)};
     },
-    getActor(id){if(id==='caster'&&ctx.character?.position){const p=ctx.character.position;return {ok:true,actor:{id,teamId:'player',position:[p.x,p.y,p.z],alive:true,health:1,statuses:[]}};}const dummy=find(id);return dummy?{ok:true,actor:snapshot(world,health,dummy)}:fail('unknown standalone actor');},
+    getActor(id){if(id==='caster'&&ctx.character?.position){const p=ctx.character.position;return {ok:true,actor:{id,teamId:'player',position:[p.x,p.y,p.z],alive:true,health:1,statuses:[]}};}const dummy=find(id);return dummy?{ok:true,actor:snapshot(world,health,dummy,generation(dummy))}:fail('unknown standalone actor');},
     isBlocked(){return {ok:true,blocked:false};},
     on(){return fail('status and hit subscriptions require combat');},
     emit(event){
@@ -43,10 +45,10 @@ function fallback(ctx){
       const targets=event.targetIds.map(find);if(targets.some(d=>!d||!d.alive))return fail('unknown or defeated standalone target');
       let accepted=0;
       for(const dummy of targets){
-        const prior=snapshot(world,health,dummy).health, next=Math.max(0,prior-Math.min(10,event.damage));
-        if(next>0){health.set(dummy,next);accepted++;continue;}
+        const version=generation(dummy),prior=snapshot(world,health,dummy,version).health, next=Math.max(0,prior-Math.min(10,event.damage));
+        if(next>0){health.set(dummy,{hp:next,generation:version});accepted++;continue;}
         const caster=ctx.character?.position,dx=dummy.position.x-(caster?.x??0),dz=dummy.position.z-(caster?.z??0),length=Math.hypot(dx,dz)||1;
-        if(dummy.kill(dx/length,dz/length,{impulse:3,lift:2,spin:1})){health.set(dummy,0);accepted++;}
+        if(dummy.kill(dx/length,dz/length,{impulse:3,lift:2,spin:1})){health.set(dummy,{hp:0,generation:version});accepted++;}
       }
       return accepted?{ok:true,standalone:true}:fail('standalone hit could not affect a dummy');
     }

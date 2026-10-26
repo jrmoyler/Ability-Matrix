@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
+import { readFileSync } from 'node:fs';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { Dummy } from '../packs/sandbox/src/combat/Dummy.js';
+import { DummyField } from '../packs/sandbox/src/combat/DummyField.js';
 import { bindExpansionCombat } from '../packs/sandbox/src/abilities/expansion-2026/StandaloneCombat.js';
 
 function arena(){
@@ -25,3 +29,22 @@ test('scope fails closed on a mid-cast toggle and without a dummy world',()=>{
 test('partial standalone damage does not leak into another cast or a reused dummy',()=>{const {ctx,scope}=arena(),id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);const next=bindExpansionCombat(ctx,'matrix-expansion/example');assert.equal(next.getActor(id).actor.health,1);});
 
 test('observed defeats clear partial standalone damage before a dummy respawns',()=>{const {dummy,scope}=arena(),query=()=>scope.queryActors({position:[2,0,0],radius:1}),id=query().actors[0].id;scope.emit({type:'hit',targetIds:[id],damage:.6});dummy.alive=false;assert.equal(query().actors.length,0);dummy.alive=true;assert.equal(query().actors[0].health,1);});
+
+test('resetting a real pooled dummy clears partial damage inside the same active cast',()=>{
+  const bytes=readFileSync(new URL('../packs/sandbox/public/models/dummy.fbx',import.meta.url));
+  const source=new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
+  const env={registerShadowCasterWithPatch(){}};
+  const dummy=new Dummy({source,clip:source.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});
+  dummy.root.position.set(2,0,0);dummy.root.updateWorldMatrix(true,true);
+  const field=new DummyField(env);field.slots.push({dummy,wait:0});
+  const bridge={enabled:()=>false,bind:()=>({})};
+  const scope=bindExpansionCombat({dummies:field,character:{position:new Vector3()},expansionCombat:bridge},'matrix-expansion/example');
+  const id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;
+  assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);
+  assert.ok(Math.abs(scope.getActor(id).actor.health-.4)<1e-8);
+  field.reset();
+  assert.equal(scope.getActor(id).actor.health,1,'new placement must not inherit prior partial damage');
+  assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);
+  assert.equal(dummy.alive,true,'fresh life survives one partial hit');
+  dummy.dispose();
+});
