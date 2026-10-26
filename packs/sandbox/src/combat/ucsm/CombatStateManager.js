@@ -314,6 +314,8 @@ export class CombatStateManager {
     this._cancelledEvents = new WeakSet();
     for (const event of due) {
       if (this._cancelledEvents.has(event)) continue;
+      // A listener may replace a pooled target during the same fixed tick.
+      this.expansionObserver?.filterEventTargets?.(event);
       const reason = this._validate(event);
       if (reason) {
         this._reject(event, reason);

@@ -155,3 +155,21 @@ test("two crest foam bands trail the wave in each direction and release geometry
   a.dispose();
   assert.equal(disposed, 3);
 });
+
+test('water sweep pushes along the recorded curve tangent on both passes', () => {
+  const hits = [];
+  const target = {position: new Vector3(), kill(x, z) {hits.push([x, z]); return true;}};
+  const a = new TidalMemoryAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {findTargets(_x, _z, _r, out) {out.length=0;out.push(target);return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0,0,1), 6);
+  a._point(3, target.position);
+  a._sweep(2, 4, a.hitOut);
+  a._sweep(4, 2, a.hitBack);
+  const slope = (a._path(3.01) - a._path(2.99)) / .02;
+  const tangent = new Vector3(a.side.x * slope, 0, 1 + a.side.z * slope).normalize();
+  assert.ok(new Vector3(hits[0][0],0,hits[0][1]).dot(tangent) > .999);
+  assert.ok(new Vector3(hits[1][0],0,hits[1][1]).dot(tangent) < -.999);
+  a.destroy(); a.dispose();
+});

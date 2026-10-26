@@ -758,6 +758,14 @@ export class MechanicSystems {
   }
   cancel(id) {
     this.commands = this.commands.filter((c) => c.ownerId !== id);
+    // A queued finisher or convergence can be interrupted before any of its
+    // events commits. Drop its transient cue as well, so the renderer does
+    // not play an impact for a cast whose gameplay was cancelled. Keep cues
+    // for casts that already committed at least one event in the current tick.
+    const events = [...this.m.queue, ...(this.m._dueEvents ?? [])].filter((e) => e.ownerId === id && e.mechanic !== 'standard');
+    const uncommitted = new Set(events.filter((e) => e.castId && !this.m._seen.has(e.eventId)).map((e) => e.castId));
+    for (const event of events) if (this.m._seen.has(event.eventId)) uncommitted.delete(event.castId);
+    this.m.cues = this.m.cues.filter((cue) => !(cue.kind === 'mechanic' && cue.ownerId === id && uncommitted.has(cue.id) && ['convergence', 'finisher'].includes(cue.phase)));
     this.m.cancelEvents((e) => e.ownerId === id && e.mechanic !== 'standard');
     this.pending = this.pending.filter((c) => c.ownerId !== id);
     this.stance.active.delete(id);

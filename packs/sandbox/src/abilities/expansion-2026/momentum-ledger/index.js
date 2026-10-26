@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
   routeExpansionTransparency,
@@ -218,6 +220,8 @@ export class Ability extends BaseAbility {
     this._distance = 0;
     this._trailElapsed = 0;
     this._released = false;
+    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/momentum-ledger');
+    this.failure = null;
     this._wakeHead = 0;
     this._wakeCount = 0;
     this._recordWake(p);
@@ -292,11 +296,24 @@ export class Ability extends BaseAbility {
       speed: 6,
       radius: this.config.zoneRadius * 0.35,
     });
-    const c = this.config,
-      field = this.ctx.dummies;
-    if (!field?.findTargets) return;
+    const c = this.config;
     const q = clamp(this._distance / Math.max(0.01, c.maxDistance)),
       power = settings.global.explosionIntensity;
+    if (this._scope) {
+      const source = [this._target.x, 0, this._target.z];
+      const targets = this._scope.queryActors({position:source, radius:c.zoneRadius, relation:'enemy'});
+      if (!targets.ok) { this.failure = targets.reason; return; }
+      const force = impactForce({hitImpulse:c.baseImpulse+c.bonusImpulse*q,
+        hitLift:c.lift*(0.6+0.4*q), hitSpin:c.spin}, power);
+      for (const actor of targets.actors.slice(0, MAX_TARGETS)) {
+        const sent = this._scope.emit({type:'hit',element:'motion',targetIds:[actor.id],
+          position:actor.position,sourcePosition:source,damage:1,hitForce:force,tags:['momentum-ledger']});
+        if (!sent.ok) this.failure = sent.reason;
+      }
+      return;
+    }
+    const field = this.ctx.dummies;
+    if (!field?.findTargets) return;
     this._force.impulse = (c.baseImpulse + c.bonusImpulse * q) * power;
     this._force.lift = c.lift * (0.6 + 0.4 * q) * power;
     this._force.spin = c.spin;
@@ -394,6 +411,7 @@ export class Ability extends BaseAbility {
     this.gauge.instanceMatrix.needsUpdate = true;
   }
   onDestroy() {
+    this._scope = null;
     this.root.visible = false;
     this._distance = 0;
     this._released = false;

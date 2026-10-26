@@ -345,16 +345,26 @@ export class TidalMemoryAbility extends Ability {
         continue;
       seen.add(d);
       const sign = b >= a ? 1 : -1;
+      // Follow the sampled curve rather than pushing every target along the
+      // original straight aim line. The return pass reverses the tangent.
+      const before = Math.max(0, Math.min(this.length, along - 0.01));
+      const after = Math.max(0, Math.min(this.length, along + 0.01));
+      const slope = after > before ? (this._path(after) - this._path(before)) / (after - before) : 0;
+      let pushX = this.direction.x + this.side.x * slope;
+      let pushZ = this.direction.z + this.side.z * slope;
+      const magnitude = Math.hypot(pushX, pushZ) || 1;
+      pushX = pushX / magnitude * sign;
+      pushZ = pushZ / magnitude * sign;
       if (d.alive === false)
         d.shove?.(
-          this.direction.x * sign * this.config.impulse,
+          pushX * this.config.impulse,
           this.config.lift,
-          this.direction.z * sign * this.config.impulse,
+          pushZ * this.config.impulse,
         );
       else
         d.kill?.(
-          this.direction.x * sign,
-          this.direction.z * sign,
+          pushX,
+          pushZ,
           { impulse: this.config.impulse, lift: this.config.lift, spin: 0.5 },
           false,
         );

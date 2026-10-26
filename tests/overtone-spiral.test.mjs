@@ -201,3 +201,17 @@ test("resonator strikes in sync with each wavefront and settles afterward", () =
   a.destroy();
   a.dispose();
 });
+
+test('a target at the resonator center receives a directional impulse', () => {
+  let direction;
+  const target = {position: new Vector3(0, 0, 5), alive: true, kill(x, z) {direction = new Vector3(x, 0, z); return true;}};
+  const a = new OvertoneSpiralAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {findTargets(_x, _z, _r, out) {out.length=0;out.push(target);return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a._scan(0, 0, 1);
+  assert.ok(direction.length() > .99, 'center hits need a meaningful horizontal impulse');
+  assert.ok(direction.dot(a.direction) > .99);
+  a.destroy(); a.dispose();
+});

@@ -275,17 +275,20 @@ export class OvertoneSpiralAbility extends Ability {
         r = Math.hypot(dx, dz);
       if (r > hi || r < lo - 0.25) continue;
       this.hit[index].add(d);
-      const div = r || 1;
+      // At the exact centre there is no radial direction; use the cast
+      // heading so the hit still delivers its advertised outward impulse.
+      const dirX = r > 1e-8 ? dx / r : this.direction.x;
+      const dirZ = r > 1e-8 ? dz / r : this.direction.z;
       if (d.alive === false)
         d.shove?.(
-          (dx / div) * this.config.impulse,
+          dirX * this.config.impulse,
           this.config.lift,
-          (dz / div) * this.config.impulse,
+          dirZ * this.config.impulse,
         );
       else
         d.kill?.(
-          dx / div,
-          dz / div,
+          dirX,
+          dirZ,
           { impulse: this.config.impulse, lift: this.config.lift, spin: 0.3 },
           false,
         );

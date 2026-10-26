@@ -273,26 +273,29 @@ export class FulminantRelayAbility extends Ability {
         this.config.chainRadius,
         this.found,
       ) ?? [];
-    let best = null,
-      bestD = Infinity;
-    for (const d of found) {
-      if (this.hit.has(d) || d.alive === false) continue;
-      const dx = d.position.x - this.anchor.x,
-        dz = d.position.z - this.anchor.z,
-        dist = dx * dx + dz * dz;
-      if (dist <= this.config.chainRadius ** 2 && dist < bestD) {
-        best = d;
-        bestD = dist;
+    // A target can reject a hit (for example it became untargetable since
+    // the field query). Do not spend a hop or show a successful arc for it.
+    let best = null, dirX = 0, dirZ = 0;
+    for (let attempt = 0; attempt < found.length; attempt++) {
+      let bestD = Infinity;
+      best = null;
+      for (const d of found) {
+        if (this.hit.has(d) || d.alive === false || typeof d.kill !== "function") continue;
+        const dx = d.position.x - this.anchor.x, dz = d.position.z - this.anchor.z;
+        const dist = dx * dx + dz * dz;
+        if (dist <= this.config.chainRadius ** 2 && dist < bestD) { best = d; bestD = dist; }
       }
+      if (!best) return false;
+      this.hit.add(best);
+      this.targetPoint.copy(best.position);
+      const dx = this.targetPoint.x - this.anchor.x, dz = this.targetPoint.z - this.anchor.z;
+      const len = Math.hypot(dx, dz);
+      dirX = len > 1e-5 ? dx / len : this.direction.x;
+      dirZ = len > 1e-5 ? dz / len : this.direction.z;
+      if (best.kill(dirX, dirZ, { impulse: this.config.impulse, lift: this.config.lift, spin: 0.8 }, false) !== false) break;
+      best = null;
     }
     if (!best) return false;
-    this.hit.add(best);
-    this.targetPoint.copy(best.position);
-    const dx = this.targetPoint.x - this.anchor.x,
-      dz = this.targetPoint.z - this.anchor.z,
-      len = Math.hypot(dx, dz);
-    const dirX = len > 1e-5 ? dx / len : this.direction.x,
-      dirZ = len > 1e-5 ? dz / len : this.direction.z;
     const arc = this.arcs[this.hops.length];
     this._writeArc(arc, this.anchor, this.targetPoint, this.hops.length);
     arc.visible = true;
@@ -301,12 +304,6 @@ export class FulminantRelayAbility extends Ability {
       to: this.targetPoint.clone(),
       time: this.age,
     });
-    best.kill?.(
-      dirX,
-      dirZ,
-      { impulse: this.config.impulse, lift: this.config.lift, spin: 0.8 },
-      false,
-    );
     this.anchor.copy(this.targetPoint);
     return true;
   }

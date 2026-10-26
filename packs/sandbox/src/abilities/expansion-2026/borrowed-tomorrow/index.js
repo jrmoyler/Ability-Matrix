@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
   routeExpansionTransparency,
@@ -241,6 +243,8 @@ export class Ability extends BaseAbility {
   }
   onSpawn() {
     this._released = false;
+    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/borrowed-tomorrow');
+    this.failure = null;
     this._moteTimer = 0;
     this._releaseCount = 0;
     this.root.visible = true;
@@ -292,6 +296,18 @@ export class Ability extends BaseAbility {
       radius: this.config.zoneRadius * 0.5,
     });
     const c = this.config;
+    if (this._scope) {
+      const source = [this.position.x, 0, this.position.z];
+      const targets = this._scope.queryActors({position:source, radius:c.zoneRadius, relation:'enemy'});
+      if (!targets.ok) { this.failure = targets.reason; return; }
+      for (const actor of targets.actors.slice(0, MAX_TARGETS)) {
+        const sent = this._scope.emit({type:'hit', element:'time', targetIds:[actor.id],
+          position:actor.position, sourcePosition:source, damage:1,
+          hitForce:impactForce(c, settings.global.explosionIntensity), tags:['borrowed-tomorrow']});
+        if (!sent.ok) this.failure = sent.reason;
+      }
+      return;
+    }
     const field = this.ctx.dummies;
     if (!field?.findTargets) return;
     const found = field.findTargets(
@@ -383,6 +399,7 @@ export class Ability extends BaseAbility {
     this.shards.instanceMatrix.needsUpdate = true;
   }
   onDestroy() {
+    this._scope = null;
     this.root.visible = false;
     this._released = false;
   }

@@ -95,3 +95,16 @@ test('live Nightshade mark releases when the pooled target is replaced', async()
  assert.equal(a.targetId,null);assert.equal(a.failure,'marked target was replaced');
  a.destroy();a.dispose();bridge.dispose();delete settings[spec.id];
 });
+
+test('an in-tick target replacement invalidates later extracted expansion hits', async()=>{
+ const { CombatStateManager }=await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const { ExpansionCombatAdapter }=await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const manager=new CombatStateManager();manager.upsertEntity({id:'caster',teamId:'player'});manager.upsertEntity({id:'dummy:0',teamId:'targets',position:[0,0,5]});
+ let generation=1;const adapter=new ExpansionCombatAdapter(manager,{actorGeneration:id=>id==='dummy:0'?generation:undefined});
+ const scope=adapter.bind('matrix-expansion/test');scope.on('status',()=>generation++);
+ scope.emit({type:'status',element:'fire',targetIds:['dummy:0']});scope.emit({type:'hit',element:'water',targetIds:['dummy:0'],damage:1});
+ adapter.filterQueuedTargets();manager.step(1/30);
+ assert.equal(manager.entities.get('dummy:0').health,1,'a previously extracted hit must not affect the replacement');
+ assert.equal(manager.stats.reactions,0,'a prior life cannot create a reaction on the replacement');
+ adapter.dispose();
+});

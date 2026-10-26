@@ -124,3 +124,25 @@ test('coils compress with valid banked movement and uncoil only after release', 
   assert.equal(a.coils[0].scale.z/a.coils[0].scale.x,1);
   a.destroy();a.dispose();
 });
+
+test('banked movement commits a scoped UCSM hit to enemies, not allies', async () => {
+  const {CombatStateManager}=await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+  const {ExpansionCombatAdapter}=await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+  const manager=new CombatStateManager();
+  manager.upsertEntity({id:'caster',teamId:'player',health:5});
+  manager.upsertEntity({id:'enemy',teamId:'enemy',position:[5,0,1],health:5});
+  manager.upsertEntity({id:'ally',teamId:'player',position:[5,0,0],health:5});
+  const bridge=new ExpansionCombatAdapter(manager),events=[];
+  const sub=bridge.bind('matrix-expansion/test-observer').on('hit',e=>events.push(e));
+  const character={position:new Vector3()};
+  const a=new Ability({character,lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  let committedForce;
+  for(let i=0;i<180;i++){if(i<100)character.position.x+=.08;a.update(1/60);committedForce ??= manager.queue.find(e=>e.abilityUid==='matrix-expansion/momentum-ledger')?.hitForce;if(i%2)manager.advance();}
+  assert.equal(manager.entities.get('enemy').health,4);
+  assert.equal(manager.entities.get('ally').health,5);
+  assert.equal(events.length,1);assert.equal(events[0].abilityUid,'matrix-expansion/momentum-ledger');
+  assert.equal(events[0].element,'motion');
+  assert.ok(committedForce.impulse>config.settings.baseImpulse);
+  sub.unsubscribe();a.destroy();a.dispose();bridge.dispose();
+});

@@ -123,3 +123,49 @@ test('pendulum settles exactly when the deferred strike is released and resets o
   assert.equal(ability._released,false);
   ability.destroy();ability.dispose();
 });
+
+test('delayed strike damages UCSM enemies through the attributed combat bridge', async () => {
+  const { CombatStateManager } = await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+  const { ExpansionCombatAdapter } = await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+  const manager = new CombatStateManager();
+  manager.upsertEntity({id:'caster',teamId:'player',health:5});
+  manager.upsertEntity({id:'enemy',teamId:'enemy',position:[10,0,1],health:5});
+  manager.upsertEntity({id:'ally',teamId:'player',position:[10,0,1],health:5});
+  manager.upsertEntity({id:'outside',teamId:'enemy',position:[20,0,0],health:5});
+  const bridge = new ExpansionCombatAdapter(manager);
+  const ability = new Ability({lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+  ability.spawn(new Vector3(),new Vector3(1,0,0),10);
+  const seen=[];
+  const subscription=bridge.bind('matrix-expansion/test-observer').on('hit',event=>seen.push(event));
+  for(let i=0;i<45;i++){ability.update(1/60);if(i%2)manager.advance();}
+  assert.equal(manager.entities.get('enemy').health,5, 'strike must remain delayed');
+  for(let i=0;i<120;i++){ability.update(1/60);if(i%2)manager.advance();}
+  assert.equal(manager.entities.get('enemy').health,4);
+  assert.equal(manager.entities.get('ally').health,5);
+  assert.equal(manager.entities.get('outside').health,5);
+  assert.equal(seen.length,1);
+  assert.equal(seen[0].abilityUid,'matrix-expansion/borrowed-tomorrow');
+  assert.equal(seen[0].element,'time');
+  assert.deepEqual(seen[0].targetIds,['enemy']);
+  subscription.unsubscribe();ability.destroy();ability.dispose();bridge.dispose();
+});
+
+test('standalone strike affects the fallback target once and rejects a mode change before release', async () => {
+  const { CombatStateManager } = await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+  const { ExpansionCombatAdapter } = await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+  const manager = new CombatStateManager();
+  let enabled=false, epoch=0, kills=0;
+  const dummy={alive:true,position:new Vector3(10,0,0),kill(){kills++;this.alive=false;return true;}};
+  const bridge=new ExpansionCombatAdapter(manager,{enabled:()=>enabled,modeVersion:()=>epoch});
+  const ability=new Ability({lights:{acquire:()=>({}),set(){},release(){}},character:{position:new Vector3()},dummies:{slots:[{dummy}]},expansionCombat:bridge});
+  ability.spawn(new Vector3(),new Vector3(1,0,0),10);
+  for(let i=0;i<160;i++)ability.update(1/60);
+  assert.equal(kills,1);
+  ability.destroy();dummy.alive=true;
+  ability.spawn(new Vector3(),new Vector3(1,0,0),10);
+  enabled=true;epoch++;enabled=false;epoch++;
+  for(let i=0;i<160;i++)ability.update(1/60);
+  assert.equal(kills,1);
+  assert.equal(ability.failure,'combat mode changed during cast');
+  ability.destroy();ability.dispose();bridge.dispose();
+});

@@ -256,3 +256,19 @@ test("storm branches remain visible when the first target coincides with the see
   a.destroy();
   a.dispose();
 });
+
+test('relay skips a target that refuses the hit and chains to the next target', () => {
+  let hits = 0;
+  const blocked = {position: new Vector3(1, 0, 5), alive: true, kill() {return false;}};
+  const next = {position: new Vector3(2, 0, 5), alive: true, kill() {hits++; this.alive=false; return true;}};
+  const a = new FulminantRelayAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {findTargets(_x, _z, _r, out) {out.length=0;out.push(blocked, next);return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0,0,1), 5);
+  a.anchor.set(0,0,5);
+  assert.equal(a._jump(), true);
+  assert.equal(hits, 1);
+  assert.deepEqual(a.hops[0].to.toArray(), [2,0,5]);
+  a.destroy(); a.dispose();
+});

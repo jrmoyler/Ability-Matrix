@@ -186,15 +186,17 @@ export class ExpansionCombatAdapter {
       }
     });
   }
-  /** Drop hidden/removed host targets before queued expansion events commit. */
+  /** Recheck a scoped target immediately before an event commits. */
+  filterEventTargets(event) {
+    if (typeof event.abilityUid !== 'string' || !event.abilityUid.startsWith('matrix-expansion/') || !['hit', 'status'].includes(event.type)) return;
+    const generations = this.targetGenerations.get(event);
+    event.targetIds = event.targetIds.filter((id) => this.isTargetable(id) &&
+      (!generations || generations.get(id) === this.actorGeneration(id)));
+  }
+  /** Drop hidden, removed or replaced targets before events leave the queue. */
   filterQueuedTargets() {
     const manager = this.manager;
-    for (const event of manager.queue) {
-      if (typeof event.abilityUid !== 'string' || !event.abilityUid.startsWith('matrix-expansion/') || !['hit', 'status'].includes(event.type)) continue;
-      const generations = this.targetGenerations.get(event);
-      event.targetIds = event.targetIds.filter((id) => this.isTargetable(id) &&
-        (!generations || generations.get(id) === this.actorGeneration(id)));
-    }
+    for (const event of manager.queue) this.filterEventTargets(event);
     manager.cancelEvents((event) => typeof event.abilityUid === 'string' && event.abilityUid.startsWith('matrix-expansion/') && ['hit', 'status'].includes(event.type) && event.targetIds.length === 0);
   }
   onEvent(event) {

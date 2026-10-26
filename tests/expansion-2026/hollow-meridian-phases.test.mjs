@@ -23,7 +23,7 @@ function setup(accept = true) {
     decals:{spawn(){throw new Error('generic decal must not be used');}},
   });
   a.spawn(new Vector3(), new Vector3(0,0,1), 8);
-  return {a, particles, events};
+  return {a, particles, events, scope};
 }
 function step(a, n) { for(let i=0;i<n;i++) {frame.uTime.value=i/60; a.update(1/60);} }
 
@@ -70,4 +70,20 @@ test('fracture geometry is pooled and reduced motion shows a static complete cut
   f.dispose();
   assert.equal(count,1);
   assert.equal(rig.children.length,0);
+});
+
+
+test('a temporarily unavailable cover query cannot silently consume a breach', () => {
+  const {a, particles, events, scope} = setup();
+  let available=false;
+  scope.isBlocked=()=>available?{ok:true,blocked:false}:{ok:false,reason:'terrain unavailable'};
+  while(a.phase==='travel')step(a,1);
+  step(a,21);
+  assert.equal(a.nextIndex,0);
+  assert.equal(a.failure,'terrain unavailable');
+  assert.equal(events.length,0);
+  available=true;step(a,20);
+  assert.equal(a.nextIndex,1);
+  assert.equal(events.length,1);
+  a.destroy();a.dispose();particles.dispose();
 });
