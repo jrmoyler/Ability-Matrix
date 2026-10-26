@@ -13,10 +13,14 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Group,
+  IcosahedronGeometry,
+  InstancedMesh,
   LineBasicMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
+  Object3D,
   PlaneGeometry,
   ShaderMaterial,
   TorusGeometry,
@@ -31,6 +35,7 @@ export const ID = config.id;
 const TAU = Math.PI * 2,
   clamp = (x) => Math.max(0, Math.min(1, x));
 const offset = new Vector3();
+const bladeTransform = new Object3D();
 const MAX_TARGETS = 16;
 /** Custom intersecting polygon runes, with linework authored in polar coordinates. */
 function runeGeometry() {
@@ -93,6 +98,18 @@ function footprint(kind) {
       ? `varying vec2 p;uniform vec3 color;uniform float fade,width;void main(){float disc=1.-smoothstep(.985,1.,length(p));float stripe=1.-smoothstep(width-.01,width+.01,abs(p.x));gl_FragColor=vec4(color*1.6,disc*stripe*fade*.35);}`
       : `varying vec2 p;uniform vec3 color;uniform float fade,width;void main(){float r=length(p);float band=smoothstep(1.-width-.01,1.-width+.01,r)*(1.-smoothstep(.985,1.,r));gl_FragColor=vec4(color*1.6,band*fade*.35);}`,
   });
+}
+/** Raised bevel-like runic blades orbit the armillary core. */
+function bladeGeometry() {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute([
+    0,.3,0, -.09,-.18,.05, 0,-.3,0,
+    0,.3,0, 0,-.3,0, .09,-.18,.05,
+    0,.3,0, .09,-.18,.05, -.09,-.18,.05,
+    0,-.3,0, -.09,-.18,.05, .09,-.18,.05,
+  ], 3));
+  g.computeVertexNormals();
+  return g;
 }
 /** Two independently selected attack shapes share a target but execute as separate beats. */
 export class Ability extends BaseAbility {
@@ -173,6 +190,23 @@ export class Ability extends BaseAbility {
     this.shapeRing.rotation.x = -Math.PI / 2;
     this.shapeRing.position.y = 0.12;
     this.root.add(this.shapeRing);
+    this.coreMat = own(new MeshStandardMaterial({color:0xc2bbff, emissive:0x5743ab,
+      emissiveIntensity:1.1, metalness:.65, roughness:.28}));
+    this.hero = new Group();
+    this.hero.position.y = 1.15;
+    this.core = new Mesh(own(new IcosahedronGeometry(.26, 1)), this.coreMat);
+    this.hero.add(this.core);
+    this.heroRings = [];
+    const heroRing = own(new TorusGeometry(.52, .018, 6, 64));
+    for (let i = 0; i < 3; i++) {
+      const ring = new Mesh(heroRing, this.glow);
+      this.hero.add(ring);
+      this.heroRings.push(ring);
+    }
+    this.blades = new InstancedMesh(own(bladeGeometry()), this.coreMat, 8);
+    this.blades.frustumCulled = false;
+    this.hero.add(this.blades);
+    this.root.add(this.hero);
     // Each beat owns its own fading footprint so overlapping releases remain
     // legible even when the editor changes the next shape during a cast.
     this.releases = [];
@@ -296,6 +330,29 @@ export class Ability extends BaseAbility {
     this.runeMat.opacity = 0.8 * fade;
     this.runes.scale.setScalar(r);
     this.runes.rotation.y = this.age * 0.25;
+    const speed = c.orbitSpeed ?? 1, heroScale = (c.coreSize ?? 1) * clamp(this.u * 4) * fade;
+    this.hero.scale.setScalar(Math.max(.001, heroScale));
+    this.coreMat.color.set(c.coreColor ?? '#c2bbff');
+    const lastRelease = this._beats ? this.releases[this._beats - 1] : null;
+    const flare = lastRelease?.kind ? Math.exp(-Math.max(0, this.impactTime - lastRelease.at) * 7) : 0;
+    this.coreMat.emissiveIntensity = 1.1 + flare * 1.6;
+    this.core.rotation.set(this.age * speed * .4, this.age * speed, this.age * speed * .2);
+    for (let i = 0; i < this.heroRings.length; i++) {
+      const ring = this.heroRings[i];
+      ring.rotation.set(i * Math.PI / 3 + this.age * speed * .3,
+        this.age * speed * (i % 2 ? -.7 : .7), i * Math.PI / 4);
+      ring.scale.setScalar(1 + this._beats * .12);
+    }
+    for (let i = 0; i < 8; i++) {
+      const angle = i * TAU / 8 + this.age * speed;
+      const radius = .65 + this._beats * .1;
+      bladeTransform.position.set(Math.cos(angle) * radius, Math.sin(angle * 2) * .14, Math.sin(angle) * radius);
+      bladeTransform.rotation.set(Math.sin(angle) * .3, angle, this.age * speed + i);
+      bladeTransform.scale.setScalar(.6);
+      bladeTransform.updateMatrix();
+      this.blades.setMatrixAt(i, bladeTransform.matrix);
+    }
+    this.blades.instanceMatrix.needsUpdate = true;
     for (let i = 0; i < 2; i++) {
       this.rings[i].scale.setScalar(r * (i ? 0.7 : 0.92));
       this.rings[i].rotation.z = this.age * (i ? -0.8 : 0.4);
@@ -354,6 +411,9 @@ export function buildEditor(gui, c) {
   f.addColor(c, 'inkColor').name('ink');
   f.addColor(c, 'edgeColor').name('light');
   f.addColor(c, 'etchColor').name('etching');
+  f.addColor(c, 'coreColor').name('armillary core');
+  f.add(c, 'coreSize', .3, 2, .05).name('armillary size');
+  f.add(c, 'orbitSpeed', 0, 4, .05).name('orbit speed');
   f.add(c, 'impactShake', 0, 1, 0.01).name('impact shake');
   f.add(c, 'impactFlash', 0, 1, 0.01).name('impact flash');
   return f;

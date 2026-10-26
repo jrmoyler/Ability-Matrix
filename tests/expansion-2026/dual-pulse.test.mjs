@@ -103,3 +103,19 @@ test('coal heart and frost bell are distinct finite surfaces with phase-driven l
   for(const a of [heart.a,bell.a]){a.destroy();a.dispose();}
  }
 });
+
+test('delivery follows front, maintains bounded trail, pauses cleanly, and resets on impact and reuse',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const speed=settings[c.id].speed;settings[c.id].speed=1;
+  try{
+   const {a}=fixture(C);assert.equal(a.delivery.group.visible,true);assert.equal(a.delivery.count,0);
+   for(let i=0;i<80;i++)a.update(1/60);
+   assert.ok(a.delivery.group.position.x>0&&a.delivery.group.position.x<5);
+   assert.equal(a.delivery.count,48);assert.equal(a.delivery.line.geometry.drawRange.count,48);
+   const before=a.delivery.count;a.update(0);assert.equal(a.delivery.count,before);
+   for(const x of a.delivery.mesh.geometry.attributes.position.array)assert.ok(Number.isFinite(x));
+   a.update(5);assert.equal(a.phase,'impact');assert.equal(a.delivery.group.visible,false);assert.equal(a.delivery.count,0);
+   a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.equal(a.delivery.group.visible,true);assert.equal(a.delivery.count,0);a.destroy();a.dispose();
+  }finally{settings[c.id].speed=speed;}
+ }
+});

@@ -98,7 +98,7 @@ export class CelestialCartographyAbility extends Ability {
   this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=fade*rise;this.starMat.uniforms.uColor.value.set(c.chartColor);
   this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade*rise;this.floorMat.uniforms.uColor.value.set(c.rayColor);
   if(dt>0 && this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._markedAt<0){
-   const field=this.ctx.dummies;if(field?.findTargets){const found=field.findTargets(this.position.x,this.position.z,radius,this._found);this._target=found.find(d=>d.alive)??null;if(this._target){this._markedAt=elapsed;this._targetPos.copy(this._target.position);}this._found.length=0;}
+   const field=this.ctx.dummies;if(field?.findTargets){const found=field.findTargets(this.position.x,this.position.z,radius,this._found);let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;if(this._target){this._markedAt=elapsed;this._targetPos.copy(this._target.position);}this._found.length=0;}
   }
   const charge=this._markedAt<0?0:bound((elapsed-this._markedAt)/Math.max(.01,c.strikeDelay));this.floorMat.uniforms.uCharge.value=charge;
   this.beam.visible=this._markedAt>=0 && !this._struck;

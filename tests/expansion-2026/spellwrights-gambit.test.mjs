@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import config from '../../packs/sandbox/src/abilities/expansion-2026/spellwrights-gambit/config.js';
 import {
@@ -78,4 +78,21 @@ test('shape indicators respond to live selection and all geometry is bounded and
   ability.dispose();
   ability.dispose();
   assert.equal(disposed, ability.resources.length);
+});
+test('armillary core deploys and its pooled blades orbit through both beats', () => {
+  const { ability } = setup();
+  assert.equal(ability.heroRings.length, 3);
+  assert.equal(ability.blades.count, 8);
+  const matrix = new Matrix4();
+  ability.blades.getMatrixAt(0, matrix);
+  const before = new Vector3().setFromMatrixPosition(matrix);
+  for (let i = 0; i < 70; i++) ability.update(1 / 60);
+  ability.blades.getMatrixAt(0, matrix);
+  const after = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(before.distanceTo(after) > .1);
+  assert.ok(ability.hero.scale.x > .9);
+  assert.ok(ability.coreMat.emissiveIntensity > 1.1);
+  for (let i = 0; i < 100; i++) ability.update(1 / 60);
+  assert.ok(ability.hero.scale.x < .9);
+  ability.destroy(); ability.dispose();
 });

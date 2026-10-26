@@ -33,5 +33,8 @@ export default {
     inkColor: '#646cff',
     edgeColor: '#eef0ff',
     etchColor: '#9a65ee',
+    coreColor: '#c2bbff',
+    coreSize: 1,
+    orbitSpeed: 1,
   },
 };

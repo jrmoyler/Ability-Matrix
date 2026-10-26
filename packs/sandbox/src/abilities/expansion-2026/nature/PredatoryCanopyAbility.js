@@ -192,7 +192,7 @@ export class PredatoryCanopyAbility extends Ability {
       const field=this.ctx.dummies;
       if(field?.findTargets){
         const found=field.findTargets(this.position.x,this.position.z,c.zoneRadius,this._found);
-        this._target=found.find(d=>d.alive) ?? null;
+        let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;
         if(this._target) this._triggerAt=elapsed;
         this._found.length=0;
       }
@@ -205,10 +205,10 @@ export class PredatoryCanopyAbility extends Ability {
 
     if (!this.reduceMotion && this.leafParticles && this.moteParticles && this.phase===AbilityPhase.IMPACT) {
       this._emitPosition.copy(this.position).setY(h*.85);
-      const leafCount=this.leafEmitter.tick(dt,Math.max(0,c.leafRate)*(wind>0?3.5:1)), moteCount=this.moteEmitter.tick(dt,Math.max(0,c.moteRate));
-      const params={position:this._emitPosition, radius:c.zoneRadius*.7, direction:this._emitDown, speed:.55, spread:.7, size:c.leafSize, life:1.7, spin:3, time:frame.uTime.value};
+      const leafCount=this.leafEmitter.tick(dt,Math.max(0,c.leafRate)*(wind>0?3.5:1)*settings.global.particleCount), moteCount=this.moteEmitter.tick(dt,Math.max(0,c.moteRate)*settings.global.particleCount);
+      const params={position:this._emitPosition, radius:c.zoneRadius*.7, direction:this._emitDown, speed:.55, spread:.7, size:c.leafSize*settings.global.particleSize, life:1.7, spin:3, time:frame.uTime.value};
       if(leafCount)this.leafParticles.emit(leafCount,params);
-      if(moteCount)this.moteParticles.emit(moteCount,{...params,speed:.2,size:.07,life:1.2});
+      if(moteCount)this.moteParticles.emit(moteCount,{...params,speed:.2,size:.07*settings.global.particleSize,life:1.2});
     }
     for(const thorn of this.thorns){thorn.visible=wind>0;thorn.scale.set(1,Math.max(.001,wind*(c.thornLength??1.5)),1);}
     for(let i=0;i<this.tendrils.length;i++) {

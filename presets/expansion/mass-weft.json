@@ -37,6 +37,7 @@
     "compressionDuration": 0.5,
     "collapseStrength": 0.85,
     "flowSpeed": 1,
+    "particleFlowSpeed": 0.8,
     "damage": 0.35,
     "gravityColor": "#9f8fbe",
     "coreColor": "#efe4ff"

@@ -37,6 +37,7 @@
     "detailHeight": 1,
     "monumentScale": 1.5,
     "monumentGlow": 1,
+    "deliveryScale": 1,
     "coreColor": "#cdf6ff"
   }
 }
