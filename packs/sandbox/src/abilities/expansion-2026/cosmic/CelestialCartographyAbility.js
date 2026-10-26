@@ -91,13 +91,13 @@ export class CelestialCartographyAbility extends Ability {
   for(let i=0;i<this.dust.length;i++){const a=i*2.399963,r=radius*(.18+.78*((i*37%41)/40));this.dust[i].position.set(Math.cos(a)*r,c.chartHeight+(i%7)*.03+.08*Math.sin(visualTime*2+i),Math.sin(a)*r);}
   this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=fade*rise;this.starMat.uniforms.uColor.value.set(c.chartColor);
   this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade*rise;this.floorMat.uniforms.uColor.value.set(c.rayColor);
-  if(this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._markedAt<0){
+  if(dt>0 && this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._markedAt<0){
    const field=this.ctx.dummies;if(field?.findTargets){const found=field.findTargets(this.position.x,this.position.z,radius,this._found);this._target=found.find(d=>d.alive)??null;if(this._target){this._markedAt=elapsed;this._targetPos.copy(this._target.position);}this._found.length=0;}
   }
   const charge=this._markedAt<0?0:bound((elapsed-this._markedAt)/Math.max(.01,c.strikeDelay));this.floorMat.uniforms.uCharge.value=charge;
   this.beam.visible=this._markedAt>=0 && !this._struck;
   if(this.beam.visible){this.beam.position.set(this._targetPos.x-this.position.x,0,this._targetPos.z-this.position.z);this.beam.scale.set(1,c.chartHeight*charge,1);}
-  if(this._target && !this._struck && charge>=1){this._struck=true;this._strikeAt=elapsed;const d=this._target;
+  if(dt>0 && this._target && !this._struck && charge>=1){this._struck=true;this._strikeAt=elapsed;const d=this._target;
    if(d.alive && Math.hypot(d.position.x-this._targetPos.x,d.position.z-this._targetPos.z)<=1){V.copy(this.direction);if(d.kill(V.x,V.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin})&&!this.reduceMotion){this.atmosphere.cue(this._targetPos,c.zoneRadius*.5);this.atmosphere.burst(this._targetPos,22,{radius:.4,speed:1.4,size:.08,life:.9,spread:.8});}}
   }
   const flareAge=this._strikeAt<0?-1:elapsed-this._strikeAt;this.flare.visible=flareAge>=0&&flareAge<.5;this.flare.position.set(this._targetPos.x-this.position.x,.6,this._targetPos.z-this.position.z);this.flare.scale.setScalar((c.flareScale??1)*(1+bound(flareAge/.5)*1.5));this.flareMat.uniforms.uTime.value=visualTime;this.flareMat.uniforms.uFade.value=fade*(1-bound(flareAge/.5));this.flareMat.uniforms.uColor.value.set(c.coreColor);for(let i=0;i<this.flareRings.length;i++)this.flareRings[i].rotation.set(i*TAU/3,visualTime*(i%2?-1:1),i*TAU/6);this.flareStar.rotation.y=visualTime;

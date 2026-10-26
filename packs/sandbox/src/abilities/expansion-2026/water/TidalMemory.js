@@ -80,10 +80,11 @@ function wakeMaterial() {
       uTime: { value: 0 },
       uFade: { value: 1 },
       uCoverage: { value: 0 },
+      uDirection: { value: 1 },
     },
     vertexShader:
       "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-    fragmentShader: `varying vec2 vUv;uniform float uTime,uFade,uCoverage;void main(){float x=abs(vUv.y-.5)*2.;float ripple=pow(max(0.,sin(vUv.x*60.-uTime*7.+x*6.)),12.);float a=(1.-smoothstep(.4,1.,x))*ripple*.35*uFade*(1.-smoothstep(uCoverage,uCoverage+.025,vUv.x));gl_FragColor=vec4(.08,.55,.85,a);}`,
+    fragmentShader: `varying vec2 vUv;uniform float uTime,uFade,uCoverage,uDirection;void main(){float x=abs(vUv.y-.5)*2.;float ripple=pow(max(0.,sin(vUv.x*60.-uTime*7.*uDirection+x*6.)),12.);float a=(1.-smoothstep(.4,1.,x))*ripple*.35*uFade*(1.-smoothstep(uCoverage,uCoverage+.025,vUv.x));gl_FragColor=vec4(.08,.55,.85,a);}`,
   });
 }
 export class TidalMemoryAbility extends Ability {
@@ -166,6 +167,8 @@ export class TidalMemoryAbility extends Ability {
     this.prev = 0;
     this.backDistance = this.length;
     this.coverage = 0;
+    this.returning = false;
+    this.wakeMat.uniforms.uDirection.value = 1;
     this.wakeMat.uniforms.uCoverage.value = 0;
     this.sprayMaterial.uniforms.uFade.value = 1;
     this.sprayMaterial.uniforms.uWidth.value = this.config.width;
@@ -226,7 +229,9 @@ export class TidalMemoryAbility extends Ability {
     this.wakeMat.uniforms.uTime.value = this.age;
     this.wakeMat.uniforms.uCoverage.value = this.coverage;
     this.spray.position.copy(this.frontPoint);
-    this.spray.rotation.y = Math.atan2(this.direction.x, this.direction.z);
+    this.spray.rotation.y =
+      Math.atan2(this.direction.x, this.direction.z) +
+      (this.returning ? Math.PI : 0);
     this.sprayMaterial.uniforms.uTime.value = this.age;
     this.position.copy(this.frontPoint);
   }
@@ -286,6 +291,8 @@ export class TidalMemoryAbility extends Ability {
   }
   onImpact() {
     this.backDistance = this.length;
+    this.returning = true;
+    this.wakeMat.uniforms.uDirection.value = -1;
   }
   onFade(_dt, t) {
     if (t <= 1) {

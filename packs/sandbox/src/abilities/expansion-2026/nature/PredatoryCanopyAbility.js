@@ -175,7 +175,7 @@ export class PredatoryCanopyAbility extends Ability {
     this.leafMat.uniforms.uTime.value=visualTime;this.leafMat.uniforms.uFade.value=fade;
     this.leafMat.uniforms.uColor.value.set(c.leafColor);this.leafMat.uniforms.uRim.value.set(c.leafRim);
     this.bark.color.set(c.barkColor);this.bark.opacity=fade;this.roots.uniforms.uTime.value=visualTime;this.roots.uniforms.uFade.value=fade;this.roots.uniforms.uColor.value.set(c.rootColor);
-    if(this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._triggerAt<0) {
+    if(dt>0 && this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._triggerAt<0) {
       const field=this.ctx.dummies;
       if(field?.findTargets){
         const found=field.findTargets(this.position.x,this.position.z,c.zoneRadius,this._found);
@@ -197,7 +197,7 @@ export class PredatoryCanopyAbility extends Ability {
     for(let i=0;i<this.tendrils.length;i++) {
       const v=this.tendrils[i];v.rotation.z=Math.sin(i*TAU/12)*wind*.42;v.rotation.x=Math.cos(i*TAU/12)*wind*.42;
     }
-    if(this._target && !this._struck && wind>=1){
+    if(dt>0 && this._target && !this._struck && wind>=1){
       this._struck=true;
       const d=this._target;
       if(d.alive && Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z)<=c.zoneRadius){

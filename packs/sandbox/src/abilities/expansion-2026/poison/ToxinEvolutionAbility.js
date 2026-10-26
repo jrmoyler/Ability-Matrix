@@ -67,17 +67,17 @@ export class ToxinEvolutionAbility extends Ability {
   if(!this.scope)return;
   const q=this.scope.queryActors({position:this.position.toArray(),radius:this.config.zoneRadius,relation:'enemy'});
   if(!q?.ok){this.failure=q?.reason??'query unavailable';return;}
-  this.targetId=q.actors.find(x=>x.alive)?.id??null;if(!this.targetId){this.failure='no eligible target';return;}
+  this.targetId=q.actors.filter(x=>x.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0]?.id??null;if(!this.targetId){this.failure='no eligible target';return;}
   this.effect.visible=true;this.nextStage=0;
  }
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
   const fade=t<=1?1:1-clamp(t-1),c=this.config;
   if(this.targetId && this.scope && this.phase===AbilityPhase.IMPACT){
    const actor=this.scope.getActor(this.targetId);const e=actor?.actor;
-   if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.failure='target left toxin range';}
+   if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.effect.visible=false;this.failure='target left toxin range';}
    else{
     this.effect.position.fromArray(e.position);
-    if(this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
+    if(dt>0&&this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
      const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
      if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion){this.atmosphere.cue(e.position,1+this.stage*.25);this.atmosphere.burst(e.position,8+this.stage*6,{radius:.4+this.stage*.15,speed:.45+this.stage*.15,size:.09+this.stage*.02,life:1.3});}this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
     }

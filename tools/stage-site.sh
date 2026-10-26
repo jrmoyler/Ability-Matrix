@@ -30,4 +30,5 @@ du -sh "$OUT"; find "$OUT" -type f | wc -l
 # Mirror the staged site so either output directory succeeds.
 rm -rf "$ROOT/dist"
 mkdir -p "$ROOT/dist"
-tar -C "$OUT" -cf - . | tar -C "$ROOT/dist" -xf -
+tar -C "$OUT" -cf "$ARCHIVE" .
+tar -C "$ROOT/dist" -xf "$ARCHIVE"

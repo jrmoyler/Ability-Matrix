@@ -64,3 +64,27 @@ test("wake only reveals travelled water and spray resources recycle", () => {
   a.dispose();
   assert.equal(disposed, 2);
 });
+
+test("water spray and wake reverse on the return and reset on reuse", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, 1);
+  a.update(2);
+  a.update(0.1);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, -1);
+  assert.equal(a.spray.rotation.y, Math.PI);
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, 1);
+  assert.equal(a.spray.rotation.y, 0);
+  a.destroy();
+  a.dispose();
+});

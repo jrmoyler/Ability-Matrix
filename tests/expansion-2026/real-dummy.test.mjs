@@ -7,6 +7,12 @@ import { Dummy } from '../../packs/sandbox/src/combat/Dummy.js';
 import { DummyField } from '../../packs/sandbox/src/combat/DummyField.js';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import { BATCH_C } from '../../packs/sandbox/src/abilities/expansion-2026/batch-c.js';
+import { CombatStateManager } from '../../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
+import { MechanicSystems } from '../../packs/sandbox/src/combat/ucsm/mechanics/MechanicSystems.js';
+import { ExpansionCombatAdapter } from '../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js';
+import { registerHooks } from 'node:module';
+registerHooks({ load(url, context, next) { return url.endsWith('.css') ? { format:'module', source:'', shortCircuit:true } : next(url, context); } });
+const { PackAdapter } = await import('../../packs/sandbox/src/combat/ucsm/PackAdapter.js');
 
 test('five targeted candidates strike the actual animated sandbox dummy', () => {
   const bytes = readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx', import.meta.url));
@@ -56,4 +62,64 @@ test('targets beyond the actual attack footprint survive each targeted candidate
     assert.equal(target.alive, true, `${id} must not hit an out-of-footprint sandbox actor`);
     ability.destroy(); ability.dispose(); target.dispose(); delete settings[id];
   }
+});
+
+test('fabricator damage travels through combat outbox into a real sandbox dummy', () => {
+  const bytes = readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx', import.meta.url));
+  const root = new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  const env = { registerShadowCasterWithPatch() {} };
+  const target = new Dummy({ source:root, clip:root.animations[0], scale:.01, offset:{x:0,y:0,z:0}, forwardYaw:0, environment:env });
+  target.root.position.set(0, 0, 5);
+  target.root.updateWorldMatrix(true, true);
+  const manager = new CombatStateManager();
+  manager.upsertEntity({id:'caster', teamId:'player', health:1});
+  manager.upsertEntity({id:'dummy:0', teamId:'enemy', health:1, position:[0,0,5]});
+  new MechanicSystems(manager);
+  const bridge = new ExpansionCombatAdapter(manager);
+  const { module } = BATCH_C.find(({ module }) => module.ID === 'adaptiveFabricator');
+  settings[module.ID] = structuredClone(module.config.settings);
+  const ability = new module.Ability({ expansionCombat:bridge, lights:{acquire:()=>({}), set(){}, release(){}} });
+  const host = Object.assign(Object.create(PackAdapter.prototype), { _byId:new Map([['dummy:0', target]]), scope:null, app:{} });
+  ability.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  for (let i = 0; i < 360 && target.alive; i++) {
+    ability.update(1 / 60);
+    if (i % 2 === 0) {
+      manager.advance();
+      const { effects } = manager.drain();
+      for (const effect of effects) host._applyEffect(effect);
+    }
+    target.update(1 / 60);
+  }
+  assert.equal(target.alive, false, 'committed bridge damage must reach the visible actor');
+  ability.destroy(); ability.dispose(); bridge.dispose(); target.dispose(); delete settings[module.ID];
+});
+
+test('pulse covenant secondary damage reaches a real nearby sandbox dummy', () => {
+  const bytes = readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx', import.meta.url));
+  const root = new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  const env = { registerShadowCasterWithPatch() {} };
+  const target = new Dummy({source:root, clip:root.animations[0], scale:.01, offset:{x:0,y:0,z:0}, forwardYaw:0, environment:env});
+  target.root.position.set(1, 0, 5); target.root.updateWorldMatrix(true, true);
+  const manager = new CombatStateManager();
+  manager.upsertEntity({id:'caster', teamId:'player', health:1});
+  manager.upsertEntity({id:'first', teamId:'enemy', health:1, position:[0,0,5]});
+  manager.upsertEntity({id:'dummy:0', teamId:'enemy', health:1, position:[1,0,5]});
+  new MechanicSystems(manager);
+  const bridge = new ExpansionCombatAdapter(manager);
+  const { module } = BATCH_C.find(({ module }) => module.ID === 'pulseCovenant');
+  settings[module.ID] = {...structuredClone(module.config.settings), damage:1};
+  const ability = new module.Ability({expansionCombat:bridge, character:{position:new Vector3()}, lights:{acquire:()=>({}), set(){}, release(){}}});
+  const host = Object.assign(Object.create(PackAdapter.prototype), { _byId:new Map([['dummy:0', target]]), scope:null, app:{} });
+  ability.spawn(new Vector3(), new Vector3(0,0,1), .1);
+  const hit = (id) => manager.submit({type:'hit', element:'force', abilityUid:'legacy/test', castId:id, ownerId:'caster', teamId:'player', targetIds:['first'], position:[0,0,5], damage:0});
+  hit('first-cast');
+  for (let i = 0; i < 25 && target.alive; i++) {
+    if (i === 18) hit('second-cast');
+    manager.advance();
+    const { effects } = manager.drain();
+    for (const effect of effects) host._applyEffect(effect);
+    ability.update(1 / 30);
+  }
+  assert.equal(target.alive, false, 'secondary blood damage must reach the visible nearby actor');
+  ability.destroy(); ability.dispose(); bridge.dispose(); target.dispose(); delete settings[module.ID];
 });

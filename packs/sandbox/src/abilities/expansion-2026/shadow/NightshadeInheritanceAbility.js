@@ -34,18 +34,18 @@ export class NightshadeInheritanceAbility extends Ability {
   const sub=this.scope.on('hit',e=>this.onCommittedHit(e));if(!sub?.ok){this.failure=sub?.reason??'event subscription refused';this.scope=null;return;}this.unsubscribe=sub.unsubscribe;
  }
  onTravel(){}
- onImpact(){if(!this.scope)return;const q=this.scope.queryActors({position:this.position.toArray(),radius:this.config.zoneRadius,relation:'enemy'});const actor=q?.ok?q.actors.find(a=>a.alive):null;if(!actor){this.failure=q?.reason??'no eligible target';return;}
+ onImpact(){if(!this.scope)return;const q=this.scope.queryActors({position:this.position.toArray(),radius:this.config.zoneRadius,relation:'enemy'});const actor=q?.ok?q.actors.filter(a=>a.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0]:null;if(!actor){this.failure=q?.reason??'no eligible target';return;}
   const result=this.scope.emit({type:'status',element:'shadow',targetIds:[actor.id],position:actor.position,intensity:1});if(!result?.ok){this.failure=result?.reason??'mark refused';return;}this.targetId=actor.id;this.visited.add(actor.id);this.shade.visible=true;this.shade.position.fromArray(actor.position);
  }
  onCommittedHit(event){if(!this.targetId||this.phase!==AbilityPhase.IMPACT||!event.targetIds.includes(this.targetId))return;
   const prior=this.scope.getActor(this.targetId);if(!prior?.ok||prior.actor.alive)return;
-  if(this.transfers>=Math.min(3,Math.max(0,Math.floor(this.config.maxTransfers)))){this.targetId=null;return;}
+  if(this.transfers>=Math.min(3,Math.max(0,Math.floor(this.config.maxTransfers)))){this.targetId=null;this.shade.visible=false;return;}
   const point=prior.actor.position,q=this.scope.queryActors({position:point,radius:this.config.inheritRadius,relation:'enemy'});
-  if(!q?.ok){this.failure=q?.reason??'inheritance query refused';this.targetId=null;return;}
+  if(!q?.ok){this.failure=q?.reason??'inheritance query refused';this.targetId=null;this.shade.visible=false;return;}
   const candidates=q.actors.filter(a=>a.alive&&!this.visited.has(a.id)).sort((a,b)=>Math.hypot(a.position[0]-point[0],a.position[2]-point[2])-Math.hypot(b.position[0]-point[0],b.position[2]-point[2])||a.id.localeCompare(b.id));
-  const next=candidates[0];if(!next){this.targetId=null;return;}
+  const next=candidates[0];if(!next){this.targetId=null;this.shade.visible=false;return;}
   const result=this.scope.emit({type:'status',element:'shadow',targetIds:[next.id],position:next.position,intensity:Math.min(2,1+this.transfers*.25)});
-  if(!result?.ok){this.failure=result?.reason??'inheritance refused';this.targetId=null;return;}
+  if(!result?.ok){this.failure=result?.reason??'inheritance refused';this.targetId=null;this.shade.visible=false;return;}
   const dx=next.position[0]-point[0],dz=next.position[2]-point[2];this.ribbon.position.set(point[0],.7,point[2]);this.ribbon.rotation.y=-Math.atan2(dz,dx);this.ribbon.scale.set(Math.hypot(dx,dz),this.config.trailScale??1,this.config.trailScale??1);this.transferAt=this.impactTime;
   this.targetId=next.id;this.visited.add(next.id);this.transfers++;this.shade.position.fromArray(next.position);if(!this.reduceMotion){this.atmosphere.cue(next.position,1.5);this.atmosphere.burst(next.position,12,{radius:.45,speed:.5,size:.12,life:.9,spread:.75});}
  }
