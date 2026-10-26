@@ -106,8 +106,8 @@ export class PackAdapter {
         const current = this.__ucsmAdapter;
         // Cover intercepts line hits before the host commits damage. Zones bypass cover.
         if (current?.enabled && current.scope?.isLine && !current.scope.reactionId) {
-          const source = current.manager.entities.get('caster');
-          if (source && current.mechanics?.systems.worldshape.blocked(source.position, [this.position.x, 0, this.position.z])) return false;
+          const origin = current.scope.origin;
+          if (origin && current.mechanics?.systems.worldshape.blocked(origin, [this.position.x, 0, this.position.z])) return false;
         }
         const fell = original.apply(this, args);
         if (fell && current?.enabled && current.scope) current._hit(this, current.scope);
@@ -162,7 +162,7 @@ export class PackAdapter {
       const uid = uidOf(ability);
       const element = elementOf(uid);
       if (!element) continue;
-      const meta = { uid, element, isLine: (runtime ? runtime.castShapeOf(ability.element) : castShapeOf(ability.element)) !== CastShape.ZONE, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
+      const meta = { uid, element, origin: [ability.origin.x, 0, ability.origin.z], isLine: (runtime ? runtime.castShapeOf(ability.element) : castShapeOf(ability.element)) !== CastShape.ZONE, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
       this._meta.set(ability, meta);
       this._tracked.add(ability);
       this._wrapUpdate(ability);

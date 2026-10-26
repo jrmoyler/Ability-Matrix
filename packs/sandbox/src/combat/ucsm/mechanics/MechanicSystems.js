@@ -486,7 +486,7 @@ export class MechanicSystems {
   }
   cancel(id) {
     this.commands = this.commands.filter((c) => c.ownerId !== id);
-    this.m.queue = this.m.queue.filter((e) => e.ownerId !== id || e.mechanic === 'standard');
+    this.m.cancelEvents((e) => e.ownerId === id && e.mechanic !== 'standard');
     this.pending = this.pending.filter((c) => c.ownerId !== id);
     this.stance.active.delete(id);
     this.counter.windows.delete(id);
@@ -508,6 +508,6 @@ export class MechanicSystems {
     this.m.effects = this.m.effects.filter((e) => !e.abilityUid?.startsWith('mechanics/'));
     for (const [id, r] of this.m.regions)
       if (r.sourceUid?.startsWith('mechanics/')) this.m.regions.delete(id);
-    this.m.queue = this.m.queue.filter((e) => e.mechanic === 'standard');
+    this.m.cancelEvents((e) => e.mechanic !== 'standard');
   }
 }
