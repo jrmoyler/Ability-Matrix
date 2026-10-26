@@ -125,9 +125,10 @@ export class StanceManager {
       for (const id of e.targetIds) {
         const guard = this.active.get(id);
         if (guard && e.teamId !== s.m.entities.get(id)?.teamId && e.damage > 0) {
-          const amount = e.damage * P.stance.reduction;
+          const incoming = e.damageByTarget?.[id] ?? e.damage;
+          const amount = incoming * P.stance.reduction;
           guard.bank = Math.min(P.stance.bankCap, guard.bank + amount);
-          e.damageByTarget = { ...e.damageByTarget, [id]: e.damage - amount };
+          e.damageByTarget = { ...e.damageByTarget, [id]: incoming - amount };
           s.cue('block', { ...guard, position: [...s.m.entities.get(id).position] });
         }
       }

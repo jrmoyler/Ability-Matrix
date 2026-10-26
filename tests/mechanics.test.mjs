@@ -365,6 +365,18 @@ test('perfect counter does not bank phantom stance impact', () => {
   assert.equal(s.stance.active.get('caster').bank, 0);
 });
 
+test('partial counter and stance compose their reductions and bank only absorbed damage', () => {
+  const { m, s } = arena();
+  cast(s, 'stance');
+  ticks(m, 30);
+  cast(s, 'counter');
+  ticks(m, s.t(P.counter.perfect));
+  incoming(m);
+  m.advance();
+  assert.ok(Math.abs(m.entities.get('caster').health - 0.93) < 1e-9);
+  assert.ok(Math.abs(s.stance.active.get('caster').bank - 0.13) < 1e-9);
+});
+
 test('failed terrain placement refunds reservation; shield absorbs actual damage; death restores max health', () => {
   const { m, s } = arena();
   cast(s, 'worldshape', [8, 0, 0]);
