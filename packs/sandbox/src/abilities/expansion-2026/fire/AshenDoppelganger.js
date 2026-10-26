@@ -48,6 +48,14 @@ export const CONFIG = Object.freeze({
     pulseForce: 2,
     echoOpacity: 0.84,
     emberRate: 2.4,
+    scorchAmount: 0.65,
+    scorchLook: {
+      color: "#38130c",
+      rimColor: "#ff5b20",
+      rimEmissive: 1.2,
+      edgeColor: "#ffb04b",
+      edgeEmissive: 1.6,
+    },
   },
 });
 
@@ -392,12 +400,16 @@ export class AshenDoppelgangerAbility extends Ability {
         const x = d.position.x - this.echo.position.x,
           z = d.position.z - this.echo.position.z,
           r = Math.hypot(x, z) || 1;
-        d.kill?.(
+        const struck = d.kill?.(
           x / r,
           z / r,
           { impulse: this.config.pulseForce, lift: 1.2, spin: 0.4 },
           false,
         );
+        // Like Emberveil's scorch stain, the look travels with the actual
+        // struck body rather than being a separate unattached decoration.
+        if (struck)
+          d.corrode?.(this.config.scorchAmount, this.config.scorchLook);
       }
     }
   }
@@ -450,6 +462,12 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "pulseForce", 0, 12, 0.1, "pulse force");
   R(f, c, "echoOpacity", 0, 1, 0.01, "echo opacity");
   R(f, c, "emberRate", 0, 6, 0.1, "ember drift");
+  R(f, c, "scorchAmount", 0, 1, 0.01, "scorch amount");
+  f.addColor(c.scorchLook, "color").name("scorch color");
+  f.addColor(c.scorchLook, "rimColor").name("scorch rim");
+  R(f, c.scorchLook, "rimEmissive", 0, 4, 0.05, "rim glow");
+  f.addColor(c.scorchLook, "edgeColor").name("scorch edge");
+  R(f, c.scorchLook, "edgeEmissive", 0, 4, 0.05, "edge glow");
   f.close();
   return f;
 }

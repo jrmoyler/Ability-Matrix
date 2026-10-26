@@ -178,3 +178,38 @@ test("ash echo telegraphs each pulse with a fading expanding ring", () => {
   a.destroy();
   a.dispose();
 });
+
+test("echo stains a target only after a successful pulse hit", () => {
+  let stains = 0,
+    shouldHit = false;
+  const target = {
+    position: new Vector3(0, 0, 0),
+    kill() {
+      return shouldHit;
+    },
+    corrode(amount, look) {
+      stains++;
+      assert.equal(amount, a.config.scorchAmount);
+      assert.equal(look, a.config.scorchLook);
+    },
+  };
+  const a = new AshenDoppelgangerAbility({
+    character: { position: new Vector3() },
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        out.push(target);
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 3);
+  for (let i = 0; i < 30 && a.lastPulse < 0; i++) a.update(0.05);
+  assert.equal(stains, 0);
+  shouldHit = true;
+  for (let i = 0; i < 30 && !stains; i++) a.update(0.05);
+  assert.equal(stains, 1);
+  a.destroy();
+  a.dispose();
+});

@@ -107,3 +107,20 @@ test('release waves show the strike radius and fade after the measured charge re
   assert.ok(a.releaseRings.every((ring) => !ring.visible));
   a.destroy(); a.dispose();
 });
+test('coils compress with valid banked movement and uncoil only after release', () => {
+  const character={position:new Vector3()};
+  const a=new Ability({character,lights:{acquire:()=>({}),release(){},set(){}}});
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  assert.equal(a.coils.length,4);
+  assert.ok(a.coils.every((coil)=>coil.geometry===a.coils[0].geometry));
+  for(let i=0;i<90;i++){character.position.x+=.05;a.update(1/60);}
+  const charged=a.coils[0].scale.z/a.coils[0].scale.x;
+  assert.ok(charged<.9);
+  while(!a._released&&a.age<6)a.update(1/60);
+  const atRelease=a.coils[0].scale.z/a.coils[0].scale.x;
+  for(let i=0;i<15;i++)a.update(1/60);
+  assert.ok(a.coils[0].scale.z/a.coils[0].scale.x > atRelease);
+  a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  assert.equal(a.coils[0].scale.z/a.coils[0].scale.x,1);
+  a.destroy();a.dispose();
+});

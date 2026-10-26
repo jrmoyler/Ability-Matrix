@@ -33,5 +33,7 @@ export default {
     coreColor: '#fff1d3',
     trailColor: '#a8383d',
     releaseWaveLife: 0.6,
+    springSize: 1,
+    springColor: '#d98966',
   },
 };

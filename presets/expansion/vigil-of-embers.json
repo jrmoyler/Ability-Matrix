@@ -42,6 +42,8 @@
     "waveDuration": 0.7,
     "curtainGlow": 0.55,
     "glyphGlow": 0.75,
+    "footprintGlow": 0.8,
+    "footprintDuration": 0.22,
     "glyphRise": 0.1,
     "pulseStrength": 1,
     "recedeDepth": 1.5,

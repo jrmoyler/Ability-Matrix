@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Mesh, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
 import { LAYER } from '../../../core/Layers.js';
 import { BurstMode } from '../../../effects/BurstSphere.js';
 import { DecalType } from '../../../effects/GroundDecals.js';
@@ -22,15 +22,25 @@ function pulseMaterial(){return new ShaderMaterial({transparent:true,depthWrite:
   fragmentShader:`varying vec2 vUv;uniform float uTime,uFade,uProgress;uniform vec3 uColor,uCore;void main(){vec2 p=vUv*2.-1.;float r=length(p),a=atan(p.y,p.x);float ribs=pow(max(0.,cos(a*12.+uTime*.3)),12.);float ring=exp(-abs(r-(.3+uProgress*.45))*22.);gl_FragColor=vec4(mix(uColor,uCore,clamp(ribs*.35+ring*.35,0.,1.)),(.18+ribs*.35+ring*.3)*uFade);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}`
 });}
 
+/** A brief full-radius field makes the immediate pulse footprint visible. */
+function footprintMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,
+  uniforms:{uFade:{value:0},uColor:{value:new Color('#ffe9ac')},uCore:{value:new Color('#ffffff')}},
+  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec2 vUv;uniform float uFade;uniform vec3 uColor,uCore;void main(){vec2 p=vUv*2.-1.;float r=length(p);float inside=1.-smoothstep(.9,1.,r);float edge=exp(-abs(r-.88)*35.);float center=exp(-r*3.);gl_FragColor=vec4(mix(uColor,uCore,center*.35+edge*.25),inside*(.16+edge*.35+center*.12)*uFade);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`
+});}
+
 /** Three independent pooled pulse glyphs track the expanding sanctuary curtains. */
 export class VigilPulses {
   constructor(parent,ctx,atmosphere,ownGeometry,ownMaterial){
-    this.ctx=ctx;this.atmosphere=atmosphere;this.point=new Vector3();this.primary=new Color();this.core=new Color();this.dark=new Color();this.meshes=[];this.materials=[];this.times=[-1,-1,-1];this.next=0;
-    const geometry=ownGeometry(vigilPulseGeometry());for(let i=0;i<3;i++){const mat=ownMaterial(pulseMaterial()),mesh=new Mesh(geometry,mat);mesh.visible=false;mesh.layers.set(LAYER.VFX);mesh.frustumCulled=false;parent.add(mesh);this.meshes.push(mesh);this.materials.push(mat);}
+    this.ctx=ctx;this.atmosphere=atmosphere;this.point=new Vector3();this.primary=new Color();this.core=new Color();this.dark=new Color();this.meshes=[];this.materials=[];this.footprints=[];this.footprintMaterials=[];this.times=[-1,-1,-1];this.next=0;
+    const geometry=ownGeometry(vigilPulseGeometry()),quad=ownGeometry(new PlaneGeometry(2,2));for(let i=0;i<3;i++){const mat=ownMaterial(pulseMaterial()),mesh=new Mesh(geometry,mat),flashMat=ownMaterial(footprintMaterial()),flash=new Mesh(quad,flashMat);mesh.visible=false;flash.visible=false;flash.rotation.x=-Math.PI/2;for(const part of [mesh,flash]){part.layers.set(LAYER.VFX);part.frustumCulled=false;parent.add(part);}this.meshes.push(mesh);this.materials.push(mat);this.footprints.push(flash);this.footprintMaterials.push(flashMat);}
   }
-  reset(){this.times.fill(-1);this.next=0;for(const mesh of this.meshes)mesh.visible=false;}
+  reset(){this.times.fill(-1);this.next=0;for(const mesh of this.meshes)mesh.visible=false;for(const flash of this.footprints)flash.visible=false;}
   fire(position,elapsed,c){
-    const slot=this.next;this.next=(slot+1)%this.meshes.length;this.times[slot]=elapsed;this.point.fromArray(position);this.meshes[slot].position.copy(this.point).setY(.06+slot*.008);
+    const slot=this.next;this.next=(slot+1)%this.meshes.length;this.times[slot]=elapsed;this.point.fromArray(position);this.meshes[slot].position.copy(this.point).setY(.06+slot*.008);this.footprints[slot].position.copy(this.point).setY(.045+slot*.006);
     this.primary.set(c.holyColor);this.core.set(c.coreColor);this.dark.copy(this.primary).multiplyScalar(.35);
     const radius=Math.min(8,Math.max(.2,c.zoneRadius)),glow=Math.max(0,Math.min(2,c.glyphGlow??.75));
     this.ctx.bursts?.spawn(BurstMode.AIR,this.point,{radius:.08,endRadius:radius,life:.55,intensity:glow*.55,opacity:.45,colorA:this.core,colorB:this.primary,colorC:this.dark});
@@ -39,6 +49,6 @@ export class VigilPulses {
   }
   update(elapsed,time,fade,c,reducedMotion){
     const duration=Math.max(.1,c.waveDuration??.7),radius=Math.max(.2,Math.min(8,c.zoneRadius)),glow=Math.max(0,Math.min(2,c.glyphGlow??.75));
-    for(let i=0;i<this.meshes.length;i++){const age=this.times[i]<0?-1:elapsed-this.times[i],progress=age<0?0:clamp(age/duration),mesh=this.meshes[i],mat=this.materials[i];mesh.visible=!reducedMotion&&age>=0&&progress<1;mesh.scale.setScalar(Math.max(.001,radius*progress));mesh.rotation.y=time*(i%2?-.2:.2);mesh.position.y=.06+i*.008+(c.glyphRise??.1)*progress;mat.uniforms.uTime.value=time;mat.uniforms.uProgress.value=progress;mat.uniforms.uFade.value=fade*(1-progress)*glow;mat.uniforms.uColor.value.set(c.holyColor);mat.uniforms.uCore.value.set(c.coreColor);}
+    for(let i=0;i<this.meshes.length;i++){const age=this.times[i]<0?-1:elapsed-this.times[i],progress=age<0?0:clamp(age/duration),mesh=this.meshes[i],mat=this.materials[i];mesh.visible=!reducedMotion&&age>=0&&progress<1;mesh.scale.setScalar(Math.max(.001,radius*progress));mesh.rotation.y=time*(i%2?-.2:.2);mesh.position.y=.06+i*.008+(c.glyphRise??.1)*progress;mat.uniforms.uTime.value=time;mat.uniforms.uProgress.value=progress;mat.uniforms.uFade.value=fade*(1-progress)*glow;mat.uniforms.uColor.value.set(c.holyColor);mat.uniforms.uCore.value.set(c.coreColor);const flash=this.footprints[i],flashMat=this.footprintMaterials[i],flashDuration=Math.max(.05,c.footprintDuration??.22),flashProgress=age<0?0:clamp(age/flashDuration);flash.visible=!reducedMotion&&age>=0&&flashProgress<1;flash.scale.setScalar(radius);flashMat.uniforms.uFade.value=fade*(1-flashProgress)*Math.max(0,Math.min(2,c.footprintGlow??.8));flashMat.uniforms.uColor.value.set(c.holyColor);flashMat.uniforms.uCore.value.set(c.coreColor);}
   }
 }

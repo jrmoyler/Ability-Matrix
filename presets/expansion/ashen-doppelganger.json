@@ -33,6 +33,14 @@
     "pulseRadius": 2.4,
     "pulseForce": 2,
     "echoOpacity": 0.84,
-    "emberRate": 2.4
+    "emberRate": 2.4,
+    "scorchAmount": 0.65,
+    "scorchLook": {
+      "color": "#38130c",
+      "rimColor": "#ff5b20",
+      "rimEmissive": 1.2,
+      "edgeColor": "#ffb04b",
+      "edgeEmissive": 1.6
+    }
   }
 }

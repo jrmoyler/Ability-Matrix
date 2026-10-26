@@ -193,6 +193,13 @@ test("fire, water, crystal and sound candidates reach actual sandbox actors", as
       "alive",
       `${mod.ID} reaches an actual target`,
     );
+    if (mod.ID === "ashen-doppelganger") {
+      assert.ok(
+        target._corroded > 0,
+        "actual struck body retains the scorch stain",
+      );
+      assert.equal(target._corrodeLook, a.config.scorchLook);
+    }
     a.destroy();
     a.dispose();
     target.dispose();

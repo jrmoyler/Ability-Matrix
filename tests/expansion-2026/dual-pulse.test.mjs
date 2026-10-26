@@ -170,3 +170,15 @@ test('delivery arcs follow cast progress and editor height without changing hit 
   }finally{settings[c.id].speed=originalSpeed;settings[c.id].deliveryArc=originalArc;}
  }
 });
+
+test('distinct resonance stages follow strike and wave phases and editor controls',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const {a}=fixture(C);assert.equal(a.resonance.group.visible,false);run(a,.35);
+  assert.equal(a.resonance.group.visible,true);const initial=a.resonance.mesh.material.uniforms.energy.value;run(a,.25);
+  assert.notEqual(a.resonance.mesh.material.uniforms.energy.value,initial);
+  for(const x of a.resonance.mesh.geometry.attributes.position.array)assert.ok(Number.isFinite(x));
+  settings[c.id].resonanceScale=2;settings[c.id].resonanceMotion=0;a.update(0);assert.equal(a.resonance.group.scale.x,2);
+  if(!a.fire)assert.ok(Math.abs(a.resonance.mesh.rotation.z)<1e-10);
+  a.destroy();a.dispose();settings[c.id].resonanceScale=c.settings.resonanceScale;settings[c.id].resonanceMotion=c.settings.resonanceMotion;
+ }
+});

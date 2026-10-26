@@ -8,6 +8,7 @@ import {
 import {
   AdditiveBlending,
   BufferGeometry,
+  CatmullRomCurve3,
   Color,
   DoubleSide,
   DynamicDrawUsage,
@@ -23,6 +24,7 @@ import {
   PlaneGeometry,
   ShaderMaterial,
   TorusGeometry,
+  TubeGeometry,
   Vector3,
 } from 'three';
 import { Ability as BaseAbility } from '../../Ability.js';
@@ -37,6 +39,16 @@ const delta = new Vector3(),
   scratch = new Object3D();
 const MAX_VECTORS = 32,
   MAX_TARGETS = 16;
+/** A tapered helical spring which compresses with the actually banked distance. */
+function coilGeometry() {
+  const points = [];
+  for (let i = 0; i <= 96; i++) {
+    const t = i / 96, angle = t * TAU * 4;
+    const radius = .11 * (.5 + .5 * Math.sin(Math.PI * t));
+    points.push(new Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, t * 1.5));
+  }
+  return new TubeGeometry(new CatmullRomCurve3(points), 128, .025, 6, false);
+}
 /** A cut arrowhead with a raised spine; an oriented velocity glyph, not a flat decal. */
 function vectorGeometry() {
   const g = new BufferGeometry(),
@@ -128,6 +140,16 @@ export class Ability extends BaseAbility {
       o.position.y = 0.1 + i * 0.025;
       this.root.add(o);
       this.rings.push(o);
+    }
+    this.coilMat = own(new MeshStandardMaterial({color:0xd98966, emissive:0x5b2418,
+      emissiveIntensity:.7, metalness:.75, roughness:.3}));
+    const coil = own(coilGeometry());
+    this.coils = [];
+    for (let i = 0; i < 4; i++) {
+      const mesh = new Mesh(coil, this.coilMat);
+      mesh.position.y = .4;
+      this.root.add(mesh);
+      this.coils.push(mesh);
     }
     this.releaseGlow = own(new MeshBasicMaterial({color:0xfff1d3, transparent:true,
       opacity:0, depthWrite:false, blending:AdditiveBlending}));
@@ -329,6 +351,15 @@ export class Ability extends BaseAbility {
     }
     const releaseAge = this.impactTime - c.chargeDuration + (this.phase === 'fade' ? this.fadeTime : 0);
     const waveProgress = clamp(releaseAge / Math.max(.05, c.releaseWaveLife ?? .6));
+    const coilScale = Math.max(.001, (c.springSize ?? 1) * fade * (this._released ? 1 - .8 * waveProgress : 1));
+    const compressed = 1 - .5 * q;
+    const axialScale = this._released ? compressed + (1 - compressed) * waveProgress : compressed;
+    this.coilMat.color.set(c.springColor ?? '#d98966');
+    this.coilMat.emissiveIntensity = .5 + q * .8;
+    for (let i = 0; i < this.coils.length; i++) {
+      this.coils[i].rotation.y = i * TAU / 4 + Math.atan2(this.direction.x, this.direction.z);
+      this.coils[i].scale.set(coilScale, coilScale, coilScale * axialScale);
+    }
     this.releaseGlow.color.set(c.coreColor);
     this.releaseGlow.opacity = (.35 + q * .45) * (1 - waveProgress) * fade;
     for (let i = 0; i < this.releaseRings.length; i++) {
@@ -389,6 +420,8 @@ export function buildEditor(gui, c) {
   f.addColor(c, 'accentColor').name('velocity');
   f.addColor(c, 'coreColor').name('core');
   f.addColor(c, 'trailColor').name('trail');
+  f.addColor(c, 'springColor').name('charge coils');
+  f.add(c, 'springSize', .3, 2, .05).name('coil size');
   f.add(c, 'impactShake', 0, 1, 0.01).name('impact shake');
   f.add(c, 'impactFlash', 0, 1, 0.01).name('impact flash');
   return f;
