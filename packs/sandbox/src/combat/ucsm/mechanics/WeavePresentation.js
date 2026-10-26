@@ -1,3 +1,5 @@
+import { Points } from 'three';
+import { ensureWeaveSurface, ensureWeaveMotes, weaveStyle } from './WeaveHeroGeometry.js';
 const TAU = Math.PI * 2;
 const themes = {
   'mechanics/weave/neural-thunder-grid': ['storm', 'steel', 4, 'coil'],
@@ -7,6 +9,13 @@ const themes = {
   'mechanics/weave/jetstream-loom': ['wind', 'bronze', 4, 'wind']
 };
 export const weaveMaterial = (uid) => themes[uid]?.[0];
+/** A pooled elemental hero layer accompanies each physical anchor. */
+export function buildWeaveAnchorSurface(v, g, uid) {
+  const style=weaveStyle(uid ?? ''), asset=ensureWeaveSurface(v,style,'anchor');
+  const hero=v.mesh(asset.geometry,asset.material,g,0,0,0,1,1,1);
+  hero.name=`weave-anchor-hero:${style}`;
+  hero.castShadow=false;hero.receiveShadow=false;
+}
 /** Construct a distinct silhouette for each new anchor using shared, disposed resources. */
 export function buildWeaveAnchor(v, g, data) {
   const theme = themes[data.uid];
@@ -85,6 +94,17 @@ export function buildWeaveLink(v, g, data) {
     marker.userData.weaveSlide = { a:point(0,0), b:point(1,0), phase:i/4, speed:mode==='wind'?1.1:0.65 };
     marker.position.set(...point(i/4,0));
   }
+  // A transparent authored ribbon adds continuous elemental energy while the
+  // physical strands remain the readable source of the collision width.
+  const asset=ensureWeaveSurface(v,mode,'link');
+  const hero=v.mesh(asset.geometry,asset.material,g,(shape.ax+shape.bx)/2,0.6,(shape.az+shape.bz)/2,shape.r*1.6,1,len);
+  hero.rotation.y=Math.atan2(dx,dz);hero.name=`weave-link-hero:${mode}`;
+  hero.castShadow=false;hero.receiveShadow=false;
+  const motes=ensureWeaveMotes(v,mode), sparks=new Points(v.geo[motes.geometry],v.mat[motes.material]);
+  sparks.name=`weave-link-motes:${mode}`;
+  sparks.position.set((shape.ax+shape.bx)/2,0.6,(shape.az+shape.bz)/2);
+  sparks.scale.set(shape.r*1.6,1,len);sparks.rotation.y=Math.atan2(dx,dz);
+  sparks.frustumCulled=false;g.add(sparks);
   return true;
 }
 

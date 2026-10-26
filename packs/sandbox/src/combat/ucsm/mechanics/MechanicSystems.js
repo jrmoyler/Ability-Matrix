@@ -499,9 +499,12 @@ export class WorldshapeManager {
         const p = this.s.preset(r);
         if (p.pulse && this.s.m.tick >= r.nextPulse) {
           const c = { ...r, id: `${r.id}:pulse:${this.s.m.tick}` };
-          this.s.area(c, disc(r.position, p.radius), p.damage);
-          this.s.cue('terrain-pulse', c);
-          r.nextPulse = this.s.m.tick + this.s.t(p.pulse);
+          // Keep the pulse due if the event budget is exhausted. A visual
+          // impact must not advertise damage that could not be queued.
+          if (this.s.area(c, disc(r.position, p.radius), p.damage)) {
+            this.s.cue('terrain-pulse', c);
+            r.nextPulse = this.s.m.tick + this.s.t(p.pulse);
+          }
         }
       }
   }
@@ -742,6 +745,10 @@ export class MechanicSystems {
   }
   afterEvent(e) {
     for (const id of e.consumeRegions ?? []) this.m.regions.delete(id);
+    // Damage commits before this hook. End a defeated owner's mechanics now,
+    // including events already extracted for the rest of this same tick.
+    if (e.type === 'hit') for (const id of e.targetIds)
+      if (this.actors.has(id) && !this.alive(id)) this.cancel(id);
   }
   speed(id) {
     const tags = this.m.entities.get(id)?.statuses ?? [];
@@ -758,6 +765,14 @@ export class MechanicSystems {
   }
   cancel(id) {
     this.commands = this.commands.filter((c) => c.ownerId !== id);
+    // A queued finisher or convergence can be interrupted before any of its
+    // events commits. Drop its transient cue as well, so the renderer does
+    // not play an impact for a cast whose gameplay was cancelled. Keep cues
+    // for casts that already committed at least one event in the current tick.
+    const events = [...this.m.queue, ...(this.m._dueEvents ?? [])].filter((e) => e.ownerId === id && e.mechanic !== 'standard');
+    const uncommitted = new Set(events.filter((e) => e.castId && !this.m._seen.has(e.eventId)).map((e) => e.castId));
+    for (const event of events) if (this.m._seen.has(event.eventId)) uncommitted.delete(event.castId);
+    this.m.cues = this.m.cues.filter((cue) => !(cue.kind === 'mechanic' && cue.ownerId === id && uncommitted.has(cue.id) && ['convergence', 'finisher'].includes(cue.phase)));
     this.m.cancelEvents((e) => e.ownerId === id && e.mechanic !== 'standard');
     this.pending = this.pending.filter((c) => c.ownerId !== id);
     this.stance.active.delete(id);

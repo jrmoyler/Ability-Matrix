@@ -279,6 +279,7 @@ export class App {
         // A pack whose engine is not loaded yet stands in as one entry; landing
         // on it loads the engine and takes its first (or, going back, last) ability.
         const all = ELEMENTS.map((id) => this.uidOf(id));
+        if (this.expansionLive) all.push(...this.expansionLive.byUid.keys());
         for (const pack of Object.keys(VENDOR_PACKS)) {
           const runtime = this.runtimes.get(pack);
           if (runtime) for (const id of runtime.ids) all.push(`${pack}/${id}`);
@@ -315,15 +316,16 @@ export class App {
 
   /** The uid of a native id ('tempest' → 'collective/tempest'). */
   uidOf(id) {
-    return `${this.nativePack.get(id) ?? 'native'}/${id}`;
+    return this.expansionLive?.byId.get(id)?.uid ?? `${this.nativePack.get(id) ?? 'native'}/${id}`;
   }
 
   /** Split a uid; native packs resolve to no runtime. */
   parse(uid) {
     const cut = uid.indexOf('/');
     const pack = uid.slice(0, cut);
-    const id = uid.slice(cut + 1);
-    const native = this.nativePack.get(id) === pack;
+    const expansion = this.expansionLive?.byUid.get(uid);
+    const id = expansion?.ID ?? uid.slice(cut + 1);
+    const native = !!expansion || this.nativePack.get(id) === pack;
     return { uid, pack, id, native };
   }
 
@@ -358,11 +360,10 @@ export class App {
   loadRuntime(pack) {
     if (this.runtimes.has(pack)) return Promise.resolve(this.runtimes.get(pack));
     if (this._runtimeLoads.has(pack)) return this._runtimeLoads.get(pack);
-    this.hud.showToast(`Loading the ${VENDOR_PACKS[pack]?.title ?? pack} engine…`, 4000);
+    const loadingNotice = this.hud.showToast(`Loading ${VENDOR_PACKS[pack]?.title ?? pack}…`, 4000);
     const job = loadVendorRuntime(pack, this._vendorHost).then((runtime) => {
       this.runtimes.set(pack, runtime);
       this.combat?._wrapRuntime(runtime);
-      this._runtimeLoads.delete(pack);
       runtime.aim.on('cast', (origin, direction, distance) => this._castVendor(runtime, origin, direction, distance));
       runtime.aim.on('reject', () => this.hud.showToast('Too close — aim further out'));
       // Its own editor folders, the originals, under one heading.
@@ -371,6 +372,9 @@ export class App {
       folder.foldersRecursive().forEach((f) => f.close());
       folder.close();
       return runtime;
+    }).finally(() => {
+      this._runtimeLoads.delete(pack);
+      this.hud.dismissToast(loadingNotice);
     });
     this._runtimeLoads.set(pack, job);
     return job;
@@ -379,6 +383,7 @@ export class App {
   /** Every uid currently castable (native + loaded engines). */
   get uids() {
     const out = ELEMENTS.map((id) => this.uidOf(id));
+    if (this.expansionLive) out.push(...this.expansionLive.byUid.keys());
     for (const [pack, runtime] of this.runtimes) for (const id of runtime.ids) out.push(`${pack}/${id}`);
     return out;
   }
@@ -394,7 +399,7 @@ export class App {
     const previous = this.activeAim;
 
     if (ref.native) {
-      if (!ELEMENTS.includes(ref.id)) throw new Error(`Unknown ability ${uid}`);
+      if (!this.abilities.elements.includes(ref.id)) throw new Error(`Unknown ability ${uid}`);
       this.slot = { ...ref, runtime: null };
       this.abilities.select(ref.id);
       this.aim.setElement(ref.id);
@@ -789,6 +794,8 @@ export class App {
 
   dispose() {
     this.stop();
+    this.expansionDev?.dispose();
+    this.expansionLive?.dispose();
     this.combat?.dispose();
     this.input.dispose();
     this.aim.dispose();

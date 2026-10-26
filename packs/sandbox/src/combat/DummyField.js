@@ -63,6 +63,8 @@ export class DummyField {
 
     /** One slot per standing body: the dummy, and the wait before it stands again. */
     this.slots = [];
+    // Distinguish successive placements of a pooled dummy without retaining it.
+    this._standGenerations = new WeakMap();
     /** Where the ring is centred — the caster, handed over each frame. */
     this._anchor = new Vector3();
   }
@@ -72,6 +74,11 @@ export class DummyField {
     let count = 0;
     for (const slot of this.slots) if (slot.dummy.alive) count++;
     return count;
+  }
+
+  /** Incremented whenever this field places the pooled body into a new life. */
+  standGeneration(dummy) {
+    return this._standGenerations.get(dummy) ?? 0;
   }
 
   /* ------------------------------------------------------------------ */
@@ -169,6 +176,7 @@ export class DummyField {
     // scenery — and because the fall is most legible from the front.
     const yaw = Math.atan2(this._anchor.x - _spot.x, this._anchor.z - _spot.z);
     dummy.place(_spot.x, _spot.z, yaw);
+    this._standGenerations.set(dummy, this.standGeneration(dummy) + 1);
   }
 
   _clear(spot, self, separation) {

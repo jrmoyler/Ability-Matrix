@@ -67,13 +67,14 @@ button { cursor: pointer; }
   touch-action: none;
 }
 .screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.screen .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); pointer-events: none; }
+.screen .loading { position: absolute; top: 10px; left: 10px; z-index: 1; max-width: calc(100% - 20px); padding: 5px 8px; border-radius: 6px; background: rgba(5, 6, 10, .82); color: var(--fg); font: 12px var(--mono); pointer-events: none; }
+.screen .loading[hidden] { display: none; }
 .now { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .now .sigil { width: 46px; height: 46px; flex: none; color: var(--a, var(--accent)); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: var(--panel); }
 .now .sigil svg { width: 30px; height: 30px; }
-.now h2 { margin: 0; font: 650 14px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; cursor: pointer; }
+.now h2 { margin: 0; font: 650 14px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; }
 .now p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-body:not(.name-open) .now p { display: none; }
+.now .details-toggle { border: 0; padding: 2px 0; background: transparent; color: var(--muted); font: 11px var(--mono); text-decoration: underline; text-underline-offset: 3px; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px; font: 11px var(--mono); }
 .facts span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
 .facts b { color: var(--fg); font-weight: 600; }
@@ -156,7 +157,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
   }
   .now h2 { font-size: 13px; }
   .now .sigil { width: 34px; height: 34px; }
-  .now p, .stage .note { display: none; }
+  .stage .note { display: none; }
   .filters-toggle { display: inline-block; }
   body:not(.filters-open) .extra-filters { display: none; }
   /* The spellbook scrolls as one column on a phone, and every chip group is a
@@ -251,7 +252,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       </div>
     </div>
     <div class="screen">
-      <div class="loading" id="loading">Preparing the range &mdash; compiling shaders&hellip;</div>
+      <div class="loading" id="loading" role="status">Preparing the range &mdash; compiling shaders&hellip;</div>
       <iframe id="stage" title="Casting range" allow="autoplay; fullscreen"></iframe>
     </div>
     <div class="stage-dock">
@@ -259,7 +260,8 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       <div class="sigil" id="nowSigil"></div>
       <div style="min-width:0">
         <h2 id="nowName">&mdash;</h2>
-        <p id="nowHint"></p>
+        <button type="button" class="details-toggle" id="descriptionToggle" aria-expanded="false" aria-controls="nowHint">Details</button>
+        <p id="nowHint" hidden></p>
       </div>
     </div>
     <div class="facts" id="facts"></div>
@@ -394,9 +396,9 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'moves'];
-const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex'];
-const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', move: 'Moves', archived: 'Archived' };
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'matrix-expansion', 'mechanics', 'moves'];
+const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex', 'matrix-expansion'];
+const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', mechanic: 'Combat mechanics', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('matrix.' + k, JSON.stringify(v)); } catch {} }
@@ -405,7 +407,7 @@ const store = {
 let catalog = null, packs = {}, current = null, livePack = null, ready = false, pending = [];
 let autoOn = false, gauntlet = null, paused = false;
 const tried = new Set(store.get('tried', []));
-const filters = { q: '', kind: new Set(['ability', 'summon', 'buff']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
+const filters = { q: '', kind: new Set(['ability', 'summon', 'buff', 'mechanic']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
 let advanced = store.get('advanced', false);
 if (!advanced && filters.group === 'pack') filters.group = 'element';
 document.body.classList.toggle('advanced', advanced);
@@ -512,9 +514,15 @@ function select(a, { cast = false, scroll = false } = {}) {
   }
 
   const live = a.status === 'live';
-  ['castBtn', 'autoBtn', 'presetBtn'].forEach((id) => ($(id).disabled = !live));
-  $('armBtn').disabled = !(live && a.kind === 'ability');
-  $('castBtn').textContent = a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
+  $('castBtn').disabled = !live;
+  $('autoBtn').disabled = !live || a.kind === 'mechanic';
+  $('presetBtn').disabled = !live || a.kind === 'mechanic';
+  $('armBtn').disabled = !(live && (a.kind === 'ability' || a.kind === 'mechanic'));
+  if (a.kind === 'mechanic' && $('preset').classList.contains('open')) {
+    $('preset').classList.remove('open'); $('presetBtn').classList.remove('on');
+  }
+  if (a.kind === 'mechanic' && autoOn) { autoOn = false; $('autoBtn').classList.remove('on'); send({ matrix: 'stop' }); }
+  $('castBtn').textContent = a.kind === 'mechanic' ? 'Aim mechanic' : a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
   renderMoves(a.pack);
   if (a.status === 'archived') { toast('Archived in the source repo \u2014 not wired into its live app'); return; }
   if (a.status === 'pack-only') { toast(a.hint); return; }
@@ -522,17 +530,19 @@ function select(a, { cast = false, scroll = false } = {}) {
   const first = !livePack;
   boot(first && (a.kind === 'ability' || a.kind === 'summon') ? `&ability=${encodeURIComponent(a.uid)}${cast ? '&cast=1' : ''}` : '');
   if (!first || (a.kind !== 'ability' && a.kind !== 'summon')) {
-    if (a.kind === 'ability' || a.kind === 'summon') send(cast ? { matrix: 'cast', uid: a.uid } : { matrix: 'select', uid: a.uid });
+    if (a.kind === 'mechanic') { send({ matrix: 'selectMechanic', uid: a.uid }); toast('Aim inside the stage and click to use this mechanic'); }
+    else if (a.kind === 'ability' || a.kind === 'summon') send(cast ? { matrix: 'cast', uid: a.uid } : { matrix: 'select', uid: a.uid });
     else if (cast) castCurrent();
   }
   if (autoOn && a.kind === 'ability') send({ matrix: 'auto', uid: a.uid, seconds: 5 });
-  if ($('preset').classList.contains('open') && a.kind !== 'move') send({ matrix: 'getPreset', uid: a.uid });
+  if ($('preset').classList.contains('open') && a.kind !== 'move' && a.kind !== 'mechanic') send({ matrix: 'getPreset', uid: a.uid });
   try { history.replaceState(null, '', '#' + a.uid.replace(/[^A-Za-z0-9._~-]/g, '_')); } catch {}
 }
 
 function castCurrent() {
   const a = current; if (!a) return;
-  if (a.kind === 'buff') { send({ matrix: 'runAction', packId: a.pack, action: a.action || a.id }); markTried(a); }
+  if (a.kind === 'mechanic') { send({ matrix: 'selectMechanic', uid: a.uid }); toast('Aim inside the stage and click to use this mechanic'); }
+  else if (a.kind === 'buff') { send({ matrix: 'runAction', packId: a.pack, action: a.action || a.id }); markTried(a); }
   else if (a.kind === 'move') {
     if (a.move) send({ matrix: 'move', name: a.move });
     else if (a.action) send({ matrix: 'action', action: a.action });
@@ -556,7 +566,7 @@ function renderMoves(pack) {
 
 /* ---------- controls ---------- */
 $('castBtn').onclick = () => castCurrent();
-$('armBtn').onclick = () => { send({ matrix: 'arm', uid: current.uid }); toast('Armed \u2014 aim inside the frame and click'); };
+$('armBtn').onclick = () => { send({ matrix: current.kind === 'mechanic' ? 'selectMechanic' : 'arm', uid: current.uid }); toast('Armed \u2014 aim inside the frame and click'); };
 $('autoBtn').onclick = () => {
   autoOn = !autoOn; $('autoBtn').classList.toggle('on', autoOn);
   if (autoOn && current?.kind === 'ability') send({ matrix: 'auto', uid: current.uid, seconds: 5 });
@@ -682,8 +692,9 @@ function updateTally() {
   const cast = catalog.abilities.filter(castable);
   const done = cast.filter((a) => tried.has(a.uid)).length;
   const moves = catalog.abilities.filter((a) => a.kind === 'move').length;
+  const mechanics = catalog.abilities.filter((a) => a.kind === 'mechanic').length;
   const arch = catalog.abilities.filter((a) => a.kind === 'archived').length;
-  $('tally').textContent = `${cast.length} castable \u00b7 ${ELEMENTS.length} elements \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 you've tried ${done}/${cast.length}`;
+  $('tally').textContent = `${cast.length} castable \u00b7 ${mechanics} mechanics \u00b7 ${ELEMENTS.length} elements \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 you've tried ${done}/${cast.length}`;
 }
 $('q').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
 $('viewCards').onclick = () => { filters.view = 'cards'; store.set('view', 'cards'); $('viewCards').setAttribute('aria-pressed', true); $('viewTable').setAttribute('aria-pressed', false); render(); };
@@ -700,10 +711,12 @@ $('advancedBtn').onclick = () => {
   else if (current) select(current);
   else render();
 };
-$('now').addEventListener('click', (e) => {
-  if (e.target.closest('button')) return;
-  document.body.classList.toggle('name-open');
-});
+$('descriptionToggle').onclick = () => {
+  const hint = $('nowHint');
+  hint.hidden = !hint.hidden;
+  $('descriptionToggle').setAttribute('aria-expanded', String(!hint.hidden));
+  $('descriptionToggle').textContent = hint.hidden ? 'Details' : 'Hide details';
+};
 $('filtersToggle').onclick = () => {
   const open = document.body.classList.toggle('filters-open');
   $('filtersToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -902,7 +915,12 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
 }
 updateInstallUI();
 
-fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
+Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets/mechanics/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] })), fetch('presets/expansion/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] }))]).then(([c, mechanics, expansion]) => {
+  const approved = expansion.abilities.filter((a) => a.status === 'live');
+  c.abilities.push(...approved);
+  c.packs.push({ pack: 'matrix-expansion', title: 'Elemental expansion', repo: 'collective-ai (new)', count: approved.length });
+  c.abilities.push(...mechanics.abilities);
+  c.packs.push({ pack: 'mechanics', title: 'Combat mechanics', repo: 'collective-ai (new)', count: mechanics.abilities.length });
   catalog = c;
   for (const p of c.packs) packs[p.pack] = p;
   ELEMENTS = c.elements || [];
@@ -910,7 +928,7 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   sortCatalog();
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
   chips($('elementChips'), ELEMENTS.map((e) => [e.id, e.label]), filters.element, Object.fromEntries(ELEMENTS.map((e) => [e.id, e.accent])));
-  const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
+  const casts = [...new Set(c.abilities.filter((a) => a.status === 'live' && (a.kind === 'ability' || a.kind === 'mechanic')).map((a) => a.cast).filter(Boolean))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
   chips($('packChips'), PACK_ORDER.filter((p) => packs[p] && p !== 'moves').map((p) => [p, NEW_PACKS.includes(p) ? `${p} (new)` : p]), filters.pack);
   $('groupElement').setAttribute('aria-pressed', filters.group === 'element'); $('groupPack').setAttribute('aria-pressed', filters.group === 'pack');
@@ -919,7 +937,6 @@ fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
   const hash = location.hash.slice(1);
   const start = c.abilities.find((a) => a.uid.replace(/[^A-Za-z0-9._~-]/g, '_') === hash) || c.abilities.find((a) => a.uid === 'collective/tempest');
   select(start, { cast: true });
-  if (!store.get('onboarded', false)) openGuide(0);
 }).catch(() => { $('tally').textContent = 'Could not load presets/catalog.json — serve this folder over http.'; });
 </script>
 </body>

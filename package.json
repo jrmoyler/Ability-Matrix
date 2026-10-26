@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test tests/*.test.mjs tests/expansion-2026/*.test.mjs",
     "dev:atlas": "vite packs/atlas --host 127.0.0.1",
     "build:atlas": "vite build packs/atlas --base ./",
     "build": "sh tools/build-all.sh && sh tools/stage-site.sh"

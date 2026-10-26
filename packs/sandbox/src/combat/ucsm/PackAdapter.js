@@ -10,6 +10,8 @@ import { resolvePair, pairTable, foldElements } from './reactions.js';
 import { EXPANSION_REGISTRY, MECHANIC_FAMILIES } from './registry.js';
 import { CombatFeed } from './CombatFeed.js';
 import { MechanicHost } from './mechanics/MechanicHost.js';
+import { ExpansionCombatAdapter } from './ExpansionCombatAdapter.js';
+import { attachStandaloneHitObserver, notifyStandaloneHit } from '../../abilities/expansion-2026/StandaloneCombat.js';
 
 /**
  * Plugs the sandbox — every pack, all 230 castables — into the combat manager.
@@ -51,6 +53,19 @@ const _q = new Vector3();
 let castCounter = 0;
 
 export class PackAdapter {
+  /** Monotonic so active expansion casts cannot resume after a mode round trip. */
+  get enabled() { return this._enabled ?? true; }
+  set enabled(value) {
+    const next = !!value;
+    if (this._enabled !== undefined && next !== this._enabled) {
+      this._combatModeEpoch = (this._combatModeEpoch ?? 0) + 1;
+      // A pending expansion event belongs to the prior mode even if the user
+      // toggles back before the next fixed tick. Preserve legacy events.
+      this.manager?.cancelEvents?.((event) => event.abilityUid?.startsWith('matrix-expansion/'));
+    }
+    this._enabled = next;
+  }
+  get combatModeEpoch() { return this._combatModeEpoch ?? 0; }
   constructor(app, budget = {}) {
     this.app = app;
     this.manager = new CombatStateManager(budget);
@@ -62,12 +77,15 @@ export class PackAdapter {
     this._meta = new WeakMap();
     this._wrapped = new WeakSet();
     this._ids = new WeakMap();
+    this._dummyGenerations = new WeakMap();
     this._byId = new Map();
     this._tracked = new Set();
     this._nextDummy = 0;
     this.feed = new CombatFeed(document.body);
     this._install();
     this.mechanics = new MechanicHost(this);
+    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, modeVersion: () => this.combatModeEpoch, isTargetable: (id) => this._expansionTargetable(id), actorGeneration: (id) => { const dummy = this._byId.get(id); return dummy ? this.app.dummies.standGeneration?.(dummy) : undefined; } });
+    app.abilities.ctx.expansionCombat = this.expansionCombat;
   }
 
   /* ------------------------------------------------------------------ */
@@ -77,6 +95,7 @@ export class PackAdapter {
   _install() {
     const adapter = this;
     const app = this.app;
+    if(app.abilities.ctx)this._detachStandaloneHits = attachStandaloneHitObserver(app.abilities.ctx, this);
 
     // Native casts.
     const nativeCast = app.abilities.cast.bind(app.abilities);
@@ -92,9 +111,11 @@ export class PackAdapter {
     const applyHits = DummyField.prototype.applyHits;
     const applyHitsWith = DummyField.prototype.applyHitsWith;
     field.applyHits = function (abilities) {
+      if(!adapter.enabled)for(const slot of this.slots??[])adapter._dummyId(slot.dummy);
       for (const ability of abilities) adapter._within(ability, () => applyHits.call(this, [ability]));
     };
     field.applyHitsWith = function (abilities, shapeOf, radiusOf) {
+      if(!adapter.enabled)for(const slot of this.slots??[])adapter._dummyId(slot.dummy);
       for (const ability of abilities) adapter._within(ability, () => applyHitsWith.call(this, [ability], shapeOf, radiusOf));
     };
 
@@ -111,11 +132,19 @@ export class PackAdapter {
         }
         const fell = original.apply(this, args);
         if (fell && current?.enabled && current.scope) current._hit(this, current.scope, name);
+        else if (fell && current && !current.enabled && current.scope)
+          notifyStandaloneHit(current.app.abilities.ctx,current,this,current.scope);
         return fell;
       };
       wrapped.__ucsm = true;
       Dummy.prototype[name] = wrapped;
     }
+  }
+
+  /** Expansion queries must not find disabled or removed sandbox bodies. */
+  _expansionTargetable(id) {
+    const dummy = this._byId.get(id);
+    return !dummy || (settings.dummies.enabled && this.app.dummies.slots.some((slot) => slot.dummy === dummy));
   }
 
   /** Hosted runtimes load lazily; wrap each the first time it is seen. */
@@ -160,7 +189,7 @@ export class PackAdapter {
     for (const ability of active) {
       if (before.has(ability)) continue;
       const uid = uidOf(ability);
-      const element = elementOf(uid);
+      const element = elementOf(uid) ?? this.app.expansionDev?.byUid.get(uid)?.config.meta.element;
       if (!element) continue;
       const meta = { uid, element, origin: [ability.origin.x, 0, ability.origin.z], isLine: (runtime ? runtime.castShapeOf(ability.element) : castShapeOf(ability.element)) !== CastShape.ZONE, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
       this._meta.set(ability, meta);
@@ -183,6 +212,9 @@ export class PackAdapter {
   _within(ability, run) {
     const meta = this._meta.get(ability);
     if (!meta) return run();
+    // Ability updates precede the host update in App.frame. Bind newly added
+    // dummies before an ability can synchronously hit them during that update.
+    if (!this.enabled) for (const slot of this.app.dummies.slots ?? []) this._dummyId(slot.dummy);
     const outer = this.scope;
     this.scope = meta;
     try {
@@ -234,6 +266,10 @@ export class PackAdapter {
     if (!this.enabled) {
       if (this._wasEnabled !== false) this.mechanics.clear();
       this._wasEnabled = false;
+      if (Number.isFinite(dt) && dt > 0) this._standaloneTime=(this._standaloneTime??0)+dt;
+      // Dummies can be created while combat is off; the existing physical-hit
+      // hook needs their host binding even though the manager is not updated.
+      for(const slot of this.app.dummies.slots??[])this._dummyId(slot.dummy);
       return;
     }
     this._wasEnabled = true;
@@ -246,6 +282,16 @@ export class PackAdapter {
     for (const slot of app.dummies.slots) {
       const d = slot.dummy;
       const id = this._dummyId(d);
+      const generation = app.dummies.standGeneration?.(d);
+      const generations = this._dummyGenerations ??= new WeakMap();
+      const previous = generations.get(d);
+      if (generation !== undefined) generations.set(d, generation);
+      // Reset can replace a still-living pooled body; the manager would otherwise
+      // retain the previous life's partial health and elemental statuses.
+      if (previous !== undefined && generation !== undefined && generation !== previous && m.entities.has(id)) {
+        m.setAlive(id, false);
+        if (d.alive) m.setAlive(id, true);
+      }
       m.upsertEntity({ id, teamId: TARGETS, position: [d.position.x, 0, d.position.z], alive: d.alive });
     }
 
@@ -263,6 +309,7 @@ export class PackAdapter {
     }
 
     if (dt > 0) this.mechanics.beforeStep();
+    this.expansionCombat?.filterQueuedTargets();
     m.step(dt);
     const { effects, cues } = m.drain();
     for (const effect of effects) this._applyEffect(effect);
@@ -295,11 +342,13 @@ export class PackAdapter {
     if (effect.kind === 'damage') {
       const dummy = this._byId.get(effect.targetId);
       if (dummy && effect.health <= 0 && dummy.alive) {
-        const dx = dummy.position.x - effect.from[0], dz = dummy.position.z - effect.from[1];
-        const d = Math.hypot(dx, dz) || 1;
+        let dx = dummy.position.x - effect.from[0], dz = dummy.position.z - effect.from[1];
+        let d = Math.hypot(dx, dz);
+        if(effect.hitForce && d<1e-8){const caster=this.app.character?.position;dx=dummy.position.x-(caster?.x??0);dz=dummy.position.z-(caster?.z??0);d=Math.hypot(dx,dz);if(d<1e-8){dx=0;dz=1;d=1;}}
+        d ||= 1;
         // UCSM has already committed this hit. Do not report it a second time.
         const outer = this.scope; this.scope = null;
-        try { dummy.kill(dx / d, dz / d, settings.dummies.hit); } finally { this.scope = outer; }
+        try { dummy.kill(dx / d, dz / d, effect.hitForce ?? settings.dummies.hit); } finally { this.scope = outer; }
       }
       if (effect.targetId === 'caster') this.app.hud.showToast(`Hit · ${Math.round(effect.health * 100)}% health`, 800);
       return;
@@ -376,7 +425,13 @@ export class PackAdapter {
     };
   }
 
-  dispose() { for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter; this.mechanics.dispose(); this.feed.root?.remove(); this.feed.layer?.remove(); }
+  dispose() {
+    this._detachStandaloneHits?.();
+    for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter;
+    this.expansionCombat.dispose();
+    if (this.app.abilities.ctx.expansionCombat === this.expansionCombat) delete this.app.abilities.ctx.expansionCombat;
+    this.mechanics.dispose(); this.feed.root?.remove(); this.feed.layer?.remove();
+  }
 
   /** Editor folder: switches and the budget. */
   buildEditor(gui) {

@@ -244,10 +244,10 @@ test('the same events give the same reactions (determinism), and history is kept
 
 /* ---- proposed content ---- */
 
-test('the expansion registry promotes only implemented mechanics', () => {
+test('the expansion registry separates selectable and proposed entries', () => {
   assert.equal(PROPOSED_STANDARD.length, 46);
   assert.equal(PROPOSED_MECHANICS.length + IMPLEMENTED_MECHANICS.length, 115);
-  assert.equal(PROPOSED.length, PROPOSED_STANDARD.length + PROPOSED_MECHANICS.length);
+  assert.equal(PROPOSED.length, PROPOSED_STANDARD.filter((p) => !p.selectable).length + PROPOSED_MECHANICS.length);
   assert.equal(IMPLEMENTED_MECHANICS.length, 31);
   assert.equal(new Set(IMPLEMENTED_MECHANICS.map(p => p.mechanic)).size, 5);
   const uids = new Set(EXPANSION_REGISTRY.map((p) => p.uid));
@@ -256,7 +256,7 @@ test('the expansion registry promotes only implemented mechanics', () => {
   for (const p of EXPANSION_REGISTRY) {
     assert.ok(!existing.has(p.uid), `${p.uid} does not collide`);
     assert.equal(p.status, p.selectable ? 'live' : 'proposed');
-    if (!IMPLEMENTED_MECHANICS.includes(p)) assert.equal(p.selectable, false);
+    if (p.mechanic !== 'standard' && !IMPLEMENTED_MECHANICS.includes(p)) assert.equal(p.selectable, false);
     assert.ok(ELEMENT_IDS.includes(p.element), p.uid);
     assert.match(p.uid, p.mechanic === 'standard' ? /^matrix-expansion\/[a-z0-9-]+$/ : new RegExp(`^mechanics/${p.mechanic}/[a-z0-9-]+$`));
   }

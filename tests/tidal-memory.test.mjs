@@ -1,0 +1,175 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Vector3 } from "three";
+import { settings } from "../packs/sandbox/src/config/settings.js";
+import {
+  TidalMemoryAbility,
+  CONFIG,
+  ID,
+} from "../packs/sandbox/src/abilities/expansion-2026/water/TidalMemory.js";
+settings[ID] = structuredClone(CONFIG.settings);
+test("tidal memory traces the same wave path forward and back with per-pass target hits", () => {
+  let hit = [];
+  const target = {
+      position: new Vector3(0, 0, 3),
+      kill(x, z) {
+        hit.push([x, z]);
+        return true;
+      },
+    },
+    ctx = {
+      lights: { acquire: () => ({}), set() {}, release() {} },
+      dummies: {
+        findTargets(_x, _z, _r, out) {
+          out.length = 0;
+          out.push(target);
+          return out;
+        },
+      },
+    };
+  const a = new TidalMemoryAbility(ctx);
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 6);
+  const samples = Array.from(a.samples);
+  for (let i = 0; i < 120 && a.isActive; i++) a.update(0.05);
+  assert.deepEqual(Array.from(a.samples), samples);
+  assert.equal(hit.length, 2);
+  assert.ok(hit[0][1] > 0 && hit[1][1] < 0);
+  a.destroy();
+  a.dispose();
+});
+
+test("wake only reveals travelled water and spray resources recycle", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.wakeMat.uniforms.uCoverage.value, 0);
+  a.update(0.2);
+  assert.ok(
+    a.wakeMat.uniforms.uCoverage.value > 0 &&
+      a.wakeMat.uniforms.uCoverage.value < 1,
+  );
+  a.update(2);
+  assert.equal(a.wakeMat.uniforms.uCoverage.value, 1);
+  let disposed = 0;
+  for (const r of [a.sprayGeometry, a.sprayMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});
+
+test("water spray and wake reverse on the return and reset on reuse", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, 1);
+  a.update(2);
+  a.update(0.1);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, -1);
+  assert.equal(a.spray.rotation.y, Math.PI);
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.wakeMat.uniforms.uDirection.value, 1);
+  assert.equal(a.spray.rotation.y, 0);
+  a.destroy();
+  a.dispose();
+});
+
+test("turnaround ripple appears at the endpoint, decays, and resets", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.turnRing.visible, false);
+  a.update(2);
+  assert.equal(a.turnRing.visible, true);
+  assert.ok(Math.abs(a.turnRing.position.z - 5) < 0.3);
+  a.update(0.2);
+  assert.ok(a.turnRing.scale.x > 0.2);
+  assert.ok(a.turnMaterial.uniforms.uFade.value < 1);
+  a.update(0.4);
+  assert.equal(a.turnRing.visible, false);
+  let disposed = 0;
+  for (const r of [a.turnGeometry, a.turnMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.turnRing.visible, false);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});
+
+test("two crest foam bands trail the wave in each direction and release geometry", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  a.update(0.1);
+  const centerIndex = 40 * 2 * 3 + 2;
+  assert.equal(a.crestBands.length, 2);
+  assert.ok(
+    a.crestBands[0].geometry.attributes.position.array[centerIndex] <
+      a.frontPoint.z,
+  );
+  a.update(2);
+  a.update(0.1);
+  assert.ok(
+    a.crestBands[0].geometry.attributes.position.array[centerIndex] >
+      a.frontPoint.z,
+  );
+  assert.ok(
+    a.crestBands[1].geometry.attributes.position.array[centerIndex] >
+      a.crestBands[0].geometry.attributes.position.array[centerIndex],
+  );
+  let disposed = 0;
+  for (const r of [...a.crestBands.map((b) => b.geometry), a.crestMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 3);
+});
+
+test('water sweep pushes along the recorded curve tangent on both passes', () => {
+  const hits = [];
+  const target = {position: new Vector3(), kill(x, z) {hits.push([x, z]); return true;}};
+  const a = new TidalMemoryAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {findTargets(_x, _z, _r, out) {out.length=0;out.push(target);return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0,0,1), 6);
+  a._point(3, target.position);
+  a._sweep(2, 4, a.hitOut);
+  a._sweep(4, 2, a.hitBack);
+  const slope = (a._path(3.01) - a._path(2.99)) / .02;
+  const tangent = new Vector3(a.side.x * slope, 0, 1 + a.side.z * slope).normalize();
+  assert.ok(new Vector3(hits[0][0],0,hits[0][1]).dot(tangent) > .999);
+  assert.ok(new Vector3(hits[1][0],0,hits[1][1]).dot(tangent) < -.999);
+  a.destroy(); a.dispose();
+});

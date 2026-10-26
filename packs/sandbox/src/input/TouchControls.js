@@ -108,6 +108,11 @@ export class TouchControls {
   }
 
   async _castAt(clientX, clientY) {
+    const mechanics = this.app.combat?.mechanics;
+    if (this.app.combat?.enabled && mechanics?.selected) {
+      mechanics.castAt(clientX, clientY);
+      return;
+    }
     const aim = this.app.activeAim;
     if (!aim) return;
     const point = this._localNDC(clientX, clientY).clone();

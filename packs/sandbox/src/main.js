@@ -2,6 +2,7 @@ import { App } from './core/App.js';
 import { installMatrixBridge } from './bridge/MatrixBridge.js';
 import { LoadingScreen } from './ui/HUD.js';
 import { PackAdapter } from './combat/ucsm/PackAdapter.js';
+import { hasLiveExpansion } from './abilities/expansion-2026/status.js';
 
 /**
  * Entry point.
@@ -21,6 +22,14 @@ async function boot() {
     // Every cast, from every pack, reports into one combat state (combat/ucsm).
     app.combat = new PackAdapter(app);
     app.combat.buildEditor(app.editor.gui);
+    if (hasLiveExpansion()) {
+      const { installProductionExpansion } = await import('./abilities/expansion-2026/ProductionRegistration.js');
+      installProductionExpansion(app);
+    }
+    if (new URLSearchParams(location.search).get('expansionDev') === '1') {
+      const { installExpansionHarness } = await import('./dev/ExpansionHarness.js');
+      installExpansionHarness(app);
+    }
     installMatrixBridge(app, 'sandbox');
     window.matrix.combat = app.combat.api();
   } catch (error) {

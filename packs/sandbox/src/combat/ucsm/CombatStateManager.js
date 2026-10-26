@@ -1,3 +1,4 @@
+import { validImpactForce } from '../../abilities/expansion-2026/ImpactForce.js';
 import { CAPABILITIES, EVENT_TYPES, STATUS_OF, ELEMENT_OF_STATUS, MECHANICS, isElement } from './ontology.js';
 import { resolvePair, TIER } from './reactions.js';
 
@@ -228,6 +229,8 @@ export class CombatStateManager {
       mechanic: event.mechanic ?? 'standard',
       targetIds: [...(event.targetIds ?? [])],
       position: (event.position ?? [0, 0, 0]).map(snap),
+      ...(event.type==='hit' && typeof event.abilityUid==='string' && event.abilityUid.startsWith('matrix-expansion/') && validImpactForce(event.hitForce) ? { hitForce: { impulse:event.hitForce.impulse,lift:event.hitForce.lift,spin:event.hitForce.spin } } : {}),
+      ...(Array.isArray(event.sourcePosition) && event.sourcePosition.length === 3 && event.sourcePosition.every(Number.isFinite) ? { sourcePosition: event.sourcePosition.map(snap) } : {}),
       shape: event.shape ?? null,
       tags: [...(event.tags ?? [])],
       intensity: event.intensity ?? 1,
@@ -311,6 +314,8 @@ export class CombatStateManager {
     this._cancelledEvents = new WeakSet();
     for (const event of due) {
       if (this._cancelledEvents.has(event)) continue;
+      // A listener may replace a pooled target during the same fixed tick.
+      this.expansionObserver?.filterEventTargets?.(event);
       const reason = this._validate(event);
       if (reason) {
         this._reject(event, reason);
@@ -326,6 +331,7 @@ export class CombatStateManager {
       this._damage(event);
       for (const contact of contacts) this._react(event, contact, tick);
       this.mechanics?.afterEvent(event);
+      this.expansionObserver?.onEvent(event);
     }
 
     this._dueEvents = null;
@@ -343,7 +349,8 @@ export class CombatStateManager {
       const shield = Math.min(e.shields, amount);
       e.shields -= shield; e.health = Math.max(0, e.health - (amount - shield));
       if (e.health === 0) e.alive = false;
-      this.effects.push({ kind: 'damage', effectId: `damage:${event.eventId}:${id}`, targetId: id, amount, health: e.health, from: [event.position[0], event.position[2]], element: event.element, abilityUid: event.abilityUid });
+      const source = event.sourcePosition ?? event.position;
+      this.effects.push({ kind: 'damage', effectId: `damage:${event.eventId}:${id}`, targetId: id, amount, health: e.health, from: [source[0], source[2]], element: event.element, abilityUid: event.abilityUid, ...(event.hitForce ? {hitForce:{...event.hitForce}} : {}) });
     }
   }
 

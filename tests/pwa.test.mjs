@@ -47,10 +47,13 @@ test('make-precache hashes the site and stamps a release into sw.js', () => {
   mkdirSync(path.join(site, 'presets'));
   mkdirSync(path.join(site, 'packs/sandbox'), { recursive: true });
   writeFileSync(path.join(site, 'presets/catalog.json'), '{}');
+  mkdirSync(path.join(site, 'presets/mechanics'), { recursive: true });
+  writeFileSync(path.join(site, 'presets/mechanics/catalog.json'), '{}');
   writeFileSync(path.join(site, 'packs/sandbox/index.html'), '<!doctype html>');
   const run = () => execFileSync('node', [path.join(root, 'tools/make-precache.mjs'), site], { encoding: 'utf8' });
   assert.match(run(), /precache [0-9a-f]{10}: \d+ files/);
   const pre = JSON.parse(readFileSync(path.join(site, 'precache.json'), 'utf8'));
+  assert.ok(pre.shell.includes('presets/mechanics/catalog.json'));
   for (const f of pre.shell) assert.ok(pre.files[f], `shell file ${f} is hashed`);
   assert.ok(!('sw.js' in pre.files) && !('precache.json' in pre.files));
   const sw = readFileSync(path.join(site, 'sw.js'), 'utf8');

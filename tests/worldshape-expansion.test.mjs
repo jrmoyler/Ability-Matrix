@@ -104,11 +104,28 @@ test('five worldshape rigs have finite, distinctive mesh structures and release 
     const { s, region } = setup(p), scene = new Scene(), view = new MechanicPresentation(scene, s);
     const item = view.add('shape', 'worldshape', region);
     const shapes = [];
-    item.g.traverse(node => { if (node.isMesh) { assert.ok(node.geometry.attributes.position.count > 0); shapes.push([node.geometry.type, node.material.color.getHex(), ...node.scale.toArray()]); } });
+    item.g.traverse(node => { if (node.isMesh) { assert.ok(node.geometry.attributes.position.count > 0); const color = node.material.color ?? node.material.uniforms?.tint?.value; assert.ok(color, p.uid); shapes.push([node.geometry.type, color.getHex(), ...node.scale.toArray()]); } });
     assert.ok(shapes.length >= 10, p.uid);
     signatures.push(JSON.stringify(shapes));
     view.dispose();
     assert.equal(scene.children.length, 0);
   }
   assert.equal(new Set(signatures).size, 5);
+});
+
+test('a budget-blocked worldshape pulse retries without presenting a phantom impact', () => {
+  const p = WORLDSHAPE_VARIANTS.find(x => x.style === 'floodplain');
+  const { m, s, region } = setup(p);
+  m.tick = region.nextPulse;
+  s.used = s.b.eventsPerTick;
+  m.cues.length = 0;
+  const expectedTick = region.nextPulse;
+  s.worldshape.update();
+  assert.equal(region.nextPulse, expectedTick, 'blocked pulse must remain due');
+  assert.equal(m.cues.some(c => c.phase === 'terrain-pulse'), false, 'no visual for a refused hit');
+  s.used = 0;
+  s.worldshape.update();
+  assert.ok(m.queue.some(e => e.type === 'hit' && e.abilityUid === p.uid), 'next available tick queues the actual pulse');
+  assert.ok(m.cues.some(c => c.phase === 'terrain-pulse'));
+  assert.ok(region.nextPulse > expectedTick);
 });

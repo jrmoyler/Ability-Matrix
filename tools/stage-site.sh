@@ -6,13 +6,18 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT="$ROOT/site"
+ARCHIVE=$(mktemp "${TMPDIR:-/tmp}/ability-matrix-stage.XXXXXX")
+trap 'rm -f "$ARCHIVE"' EXIT HUP INT TERM
 rm -rf "$OUT" && mkdir -p "$OUT/packs"
 cp "$ROOT/index.html" "$ROOT/manifest.webmanifest" "$ROOT/sw.js" "$OUT/"
 cp -r "$ROOT/icons" "$OUT/icons"
 cp -r "$ROOT/presets" "$OUT/presets"
 for p in sandbox; do
   mkdir -p "$OUT/packs/$p"
-  (cd "$ROOT/packs/$p/dist" && find . -type f ! -name '*.map' ! -path './mediapipe/*' | tar cf - -T -) | (cd "$OUT/packs/$p" && tar xf -)
+  # Build the archive before extracting so a tar failure cannot be hidden by
+  # the exit status of the consumer. Ignore transient hidden build files.
+  (cd "$ROOT/packs/$p/dist" && find . -type f ! -name '.*' ! -name '*.map' ! -path './mediapipe/*' | tar cf "$ARCHIVE" -T -)
+  (cd "$OUT/packs/$p" && tar xf "$ARCHIVE")
 done
 # Artifacts serve web media types only: binary models/HDRs ride as .wasm bytes;
 # the bridge rewrites their URLs when the matrix passes ?bin=wasm.
@@ -25,4 +30,5 @@ du -sh "$OUT"; find "$OUT" -type f | wc -l
 # Mirror the staged site so either output directory succeeds.
 rm -rf "$ROOT/dist"
 mkdir -p "$ROOT/dist"
-tar -C "$OUT" -cf - . | tar -C "$ROOT/dist" -xf -
+tar -C "$OUT" -cf "$ARCHIVE" .
+tar -C "$ROOT/dist" -xf "$ARCHIVE"

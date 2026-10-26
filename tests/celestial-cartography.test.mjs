@@ -1,0 +1,78 @@
+import test from 'node:test';import assert from 'node:assert/strict';import { Scene, Vector3 } from 'three';
+import { settings } from '../packs/sandbox/src/config/settings.js';
+import { CelestialCartographyAbility, ID, starGeometry, beamGeometry, celestialTargetGeometry, celestialShardGeometry, celestialMeteorTailGeometry } from '../packs/sandbox/src/abilities/expansion-2026/cosmic/CelestialCartographyAbility.js';
+import config from '../packs/sandbox/src/abilities/expansion-2026/cosmic/celestial-cartography.config.js';
+settings[ID]=structuredClone(config.settings);
+function arena(){const bodies=[],scene=new Scene(),ctx={scene,lights:{acquire:()=>({}),set(){},release(){}},dummies:{findTargets(x,z,r,out){out.length=0;out.push(...bodies.filter(d=>d.alive&&Math.hypot(d.position.x-x,d.position.z-z)<=r));return out;}}};const a=new CelestialCartographyAbility(ctx);scene.add(a.group);return {a,bodies,scene};}
+const tick=(a,n)=>{for(let i=0;i<n*60;i++)a.update(1/60);};
+const dummy=(x,z)=>({alive:true,position:new Vector3(x,0,z),hits:0,kill(){this.hits++;this.alive=false;return true;}});
+test('constellation waits for a target then strikes only the marked location after its warning',()=>{const {a,bodies}=arena(),d=dummy(30,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1);assert.equal(d.hits,0);d.position.x=5;tick(a,.2);assert.equal(d.hits,0);tick(a,.5);assert.equal(d.hits,1);tick(a,1);assert.equal(d.hits,1);a.destroy();a.dispose();});
+test('marked target can evade by leaving before the strike lands',()=>{const {a,bodies}=arena(),d=dummy(5,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.9);d.position.x=8;tick(a,1);assert.equal(d.hits,0);a.destroy();a.dispose();});
+test('star and beam geometry are finite and the ability disposes owned resources',()=>{for(const g of [starGeometry(),beamGeometry()]){const p=g.attributes.position;assert.ok(p.count>20);for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();}const {a,scene}=arena();let count=0;for(const x of [...a.gs,...a.ms])x.addEventListener('dispose',()=>count++);a.dispose();assert.equal(count,a.gs.length+a.ms.length);assert.equal(scene.children.length,0);});
+
+test('strike releases a brief corona at the marked location',()=>{const {a,bodies}=arena();bodies.push(dummy(5,0));a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.25);assert.equal(a._struck,true);assert.equal(a.flare.visible,true);assert.equal(a.flareRings.length,3);assert.equal(a.flare.position.x,0);tick(a,.6);assert.equal(a.flare.visible,false);a.destroy();a.dispose();});
+
+test('travelling star reaches the cast location before the chart opens',()=>{const {a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.equal(a.travelStar.visible,true);a.update(.08);assert.ok(a.travelStar.position.x>0&&a.travelStar.position.x<5);assert.equal(a.travelStars.length,3);tick(a,.5);assert.equal(a.travelStar.visible,false);assert.equal(a.chartGroup.visible,true);a.destroy();a.dispose();});
+
+test('constellation links draw sequentially and the chart contracts on release',()=>{const {a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.35);const reveals=a.lineMaterials.map(m=>m.uniforms.uReveal.value);assert.ok(reveals[0]>0);assert.equal(reveals.at(-1),0);tick(a,.7);assert.ok(a.lineMaterials.every(m=>m.uniforms.uReveal.value===1));const radius=a.frame.scale.x,height=a.frame.position.y;a.onFade(0,1.5);assert.ok(a.frame.scale.x<radius);assert.ok(a.frame.position.y<height);a.destroy();a.dispose();});
+
+test('celestial chart marks the enemy nearest its center',()=>{const {a,bodies}=arena(),far=dummy(7,0),near=dummy(5,0);bodies.push(far,near);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.6);assert.equal(near.hits,1);assert.equal(far.hits,0);a.destroy();a.dispose();});
+
+test('the marked strike shows its actual adjustable radius and uses bespoke hit effects',()=>{for(const g of [celestialTargetGeometry(),celestialShardGeometry()]){const p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();}const {a,bodies}=arena(),d=dummy(5,0),bursts=[],decals=[],before=a.config.strikeRadius;bodies.push(d);a.ctx.bursts={spawn:(mode,pos,opt)=>bursts.push({mode,pos:pos.clone(),radius:opt.endRadius})};a.ctx.decals={spawn:(mode,pos,opt)=>decals.push({mode,pos:pos.clone(),radius:opt.radius})};a.atmosphere.cue=()=>{throw new Error('generic cue must not be used');};a.config.strikeRadius=2;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);assert.equal(a.targetMark.visible,true);assert.equal(a.targetMark.scale.x,2);d.position.x=6.5;tick(a,.5);assert.equal(d.hits,1);assert.equal(a.targetMark.visible,false);assert.equal(bursts.length,1);assert.equal(decals.length,1);assert.equal(bursts[0].pos.x,5);assert.ok(bursts[0].radius<=4);assert.ok(a.strikeShards.some(s=>s.visible));tick(a,.45);assert.equal(a.flare.visible,false);assert.ok(a.strikeShards.some(s=>s.visible));assert.ok(a.shardMat.uniforms.uFade.value>0);a.config.strikeRadius=before;a.destroy();a.dispose();});
+
+test('reused chart resolves current placement controls on its arrival frame',()=>{const {a}=arena(),height=a.config.chartHeight,radius=a.config.zoneRadius;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,2);a.destroy();a.config.chartHeight=6;a.config.zoneRadius=3;a.spawn(new Vector3(),new Vector3(1,0,0),5);a.update(.5);assert.equal(a.chartGroup.visible,true);assert.equal(a.frame.position.y,6);assert.equal(a.frame.scale.x,3);assert.equal(a._markedAt,-1);a.config.chartHeight=height;a.config.zoneRadius=radius;a.destroy();a.dispose();});
+
+test('a marked meteor descends toward the fixed warning point with a bounded trail',()=>{const g=celestialMeteorTailGeometry(),p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&p.getY(i)>=0&&p.getY(i)<=1&&Number.isFinite(p.getZ(i)));g.dispose();const {a,bodies}=arena(),d=dummy(5,0),trail=[];bodies.push(d);a.meteorTrail.update=(dt,point)=>trail.push(point.clone());a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);assert.equal(a.meteor.visible,true);assert.equal(a.targetMark.visible,true);const height=a.meteor.position.y;assert.ok(height>0&&height<a.config.chartHeight);assert.ok(a.meteorTail.scale.y<=a.config.chartHeight-height+1e-9);d.position.x=8;a.update(0);const count=trail.length;tick(a,.15);assert.ok(a.meteor.position.y<height);assert.ok(trail.length>count);assert.ok(trail.every(point=>point.x===5));tick(a,.4);assert.equal(d.hits,0);assert.equal(a.meteor.visible,false);assert.equal(a.beam.visible,false);a.destroy();a.dispose();});
+
+test('target lock draws chart rays to the fixed warning point and clears them on reuse',()=>{const {a,bodies}=arena(),d=dummy(5,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);const ray=a.convergenceRays[0];assert.equal(ray.visible,true);assert.ok(ray.scale.y>0);assert.equal(ray.scale.x,a.config.convergenceWidth);assert.equal(a.convergenceMat.uniforms.uFade.value,a.config.convergenceGlow);const endpoint=a._targetPos.clone();d.position.x=8;tick(a,.15);assert.deepEqual(a._targetPos.toArray(),endpoint.toArray());assert.ok(ray.scale.y>0);tick(a,.4);assert.ok(a.convergenceRays.every(r=>!r.visible));assert.equal(d.hits,0);a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.ok(a.convergenceRays.every(r=>!r.visible));a.destroy();a.dispose();});
+
+test('a marked strike cannot hit a pooled dummy after it is reset into a new life',()=>{const {a,bodies}=arena(),d=dummy(5,0);let generation=1;a.ctx.dummies.standGeneration=()=>generation;bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);assert.equal(a._target,d);generation++;tick(a,.6);assert.equal(d.hits,0);a.destroy();a.dispose();});
+
+test('a marked strike does not hit after sandbox dummies are disabled',()=>{const before=settings.dummies.enabled;try{settings.dummies.enabled=true;const {a,bodies}=arena(),d=dummy(5,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);assert.equal(a._target,d);settings.dummies.enabled=false;tick(a,.6);assert.equal(d.hits,0);a.destroy();a.dispose();}finally{settings.dummies.enabled=before;}});
+
+test('chart does not mark a body whose center is outside its advertised radius',()=>{const {a,bodies}=arena(),d=dummy(5+a.config.zoneRadius+.1,0);bodies.push(d);a.ctx.dummies.findTargets=(x,z,r,out)=>{out.length=0;out.push(d);return out;};a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.5);assert.equal(a._target,null);assert.equal(d.hits,0);a.destroy();a.dispose();});
+
+test('constellation marks and strikes a UCSM enemy after its warning',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});m.upsertEntity({id:'enemy',teamId:'enemy',position:[5,0,0],health:5});m.upsertEntity({id:'ally',teamId:'player',position:[5,0,0],health:5});
+ const bridge=new ExpansionCombatAdapter(m),a=new CelestialCartographyAbility({lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ const seen=[],sub=bridge.bind('matrix-expansion/test').on('hit',e=>seen.push(e));
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);
+ for(let i=0;i<150;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.equal(m.entities.get('enemy').health,4);assert.equal(m.entities.get('ally').health,5);assert.equal(seen.length,1);assert.equal(seen[0].abilityUid,'matrix-expansion/celestial-cartography');
+ sub.unsubscribe();a.destroy();a.dispose();bridge.dispose();
+});
+
+test('UCSM enemy can evade the marked celestial strike',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});m.upsertEntity({id:'enemy',teamId:'enemy',position:[5,0,0],health:5});
+ const bridge=new ExpansionCombatAdapter(m),a=new CelestialCartographyAbility({lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});a.spawn(new Vector3(),new Vector3(1,0,0),5);
+ for(let i=0;i<60;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.ok(a._markedAt>=0);m.upsertEntity({id:'enemy',teamId:'enemy',position:[10,0,0],health:5});
+ for(let i=0;i<100;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.equal(m.entities.get('enemy').health,5);a.destroy();a.dispose();bridge.dispose();
+});
+
+test('combat mode changes before acquisition do not let a stale celestial cast hit a dummy',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});
+ let enabled=true,epoch=0;const d=dummy(5,0),field={slots:[{dummy:d}],findTargets(x,z,r,out){out.length=0;if(d.alive)out.push(d);return out;}};
+ const bridge=new ExpansionCombatAdapter(m,{enabled:()=>enabled,modeVersion:()=>epoch}),a=new CelestialCartographyAbility({character:{position:new Vector3()},dummies:field,lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);enabled=false;epoch++;
+ for(let i=0;i<150;i++)a.update(1/60);
+ assert.equal(d.hits,0);assert.equal(a.failure,'combat mode changed during cast');
+ a.destroy();a.dispose();bridge.dispose();
+});
+
+test('a combat mode round trip cannot revive a standalone celestial mark',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();let enabled=false,epoch=0;const d=dummy(5,0),field={slots:[{dummy:d}],findTargets(x,z,r,out){out.length=0;if(d.alive)out.push(d);return out;}};
+ const bridge=new ExpansionCombatAdapter(m,{enabled:()=>enabled,modeVersion:()=>epoch}),a=new CelestialCartographyAbility({character:{position:new Vector3()},dummies:field,lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);for(let i=0;i<50;i++)a.update(1/60);assert.ok(a._markedAt>=0);
+ enabled=true;epoch++;enabled=false;epoch++;for(let i=0;i<100;i++)a.update(1/60);
+ assert.equal(d.hits,0);assert.equal(a.failure,'combat mode changed during cast');a.destroy();a.dispose();bridge.dispose();
+});

@@ -580,3 +580,51 @@ test('fast targets crossing a link between ticks collide once, not once per inte
   ticks(m, 4);
   assert.equal(m.entities.get('enemy').health, 9);
 });
+
+test('interrupting queued convergence removes its uncommitted visual cue', () => {
+  const {m,s}=arena();
+  m.submit({type:'terrain-impact',ownerId:'enemy',teamId:'enemy',abilityUid:'test/water',element:'water',position:[8,0,0],shape:{kind:'disc',x:8,z:0,r:2},durationTicks:100});
+  m.advance();
+  const c={id:'cancelled-convergence',family:'convergence',uid:P.convergence.uid,ownerId:'caster',position:[8,0,0],direction:[1,0,0]};
+  assert.equal(s.convergence.activate(c),null);
+  assert.ok(m.cues.some(cue=>cue.id===c.id&&cue.phase==='convergence'));
+  s.cancel('caster');
+  assert.equal(m.cues.some(cue=>cue.id===c.id&&cue.phase==='convergence'),false);
+  m.advance();
+  assert.equal(m.entities.get('enemy').health,10);
+});
+
+test('same-tick interruption suppresses only an uncommitted convergence cue', () => {
+  const {m,s}=arena();
+  m.submit({type:'terrain-impact',ownerId:'enemy',teamId:'enemy',abilityUid:'test/water',element:'water',position:[8,0,0],shape:{kind:'disc',x:8,z:0,r:2},durationTicks:100});
+  m.advance();
+  m.submit({type:'interrupt',ownerId:'enemy',teamId:'enemy',abilityUid:'test/interrupt',element:'force',targetIds:['caster']});
+  const c={id:'due-convergence',family:'convergence',uid:P.convergence.uid,ownerId:'caster',position:[8,0,0],direction:[1,0,0]};
+  assert.equal(s.convergence.activate(c),null);
+  m.advance();
+  assert.equal(m.cues.some(cue=>cue.id===c.id&&cue.phase==='convergence'),false);
+  assert.equal(m.entities.get('enemy').health,10);
+});
+
+test('cancelling after convergence commits retains its impact cue', () => {
+  const {m,s}=arena();
+  m.submit({type:'terrain-impact',ownerId:'enemy',teamId:'enemy',abilityUid:'test/water',element:'water',position:[8,0,0],shape:{kind:'disc',x:8,z:0,r:2},durationTicks:100});
+  m.advance();
+  const c={id:'committed-convergence',family:'convergence',uid:P.convergence.uid,ownerId:'caster',position:[8,0,0],direction:[1,0,0]};
+  assert.equal(s.convergence.activate(c),null);
+  m.advance();
+  s.cancel('caster');
+  assert.equal(m.cues.some(cue=>cue.id===c.id&&cue.phase==='convergence'),true);
+});
+
+test('a lethal hit cancels a dead owner’s later same-tick mechanic events', () => {
+  const { m, s } = arena();
+  s.actor('caster');
+  incoming(m, { eventId: 'lethal', damage: 2 });
+  const c = { id: 'dead-owner-attack', family: 'convergence', uid: P.convergence.uid,
+    ownerId: 'caster', position: [8, 0, 0], direction: [1, 0, 0] };
+  assert.equal(s.emit(c, { type: 'hit', targetIds: ['enemy'], damage: 2 }), true);
+  m.advance();
+  assert.equal(m.entities.get('caster').alive, false);
+  assert.equal(m.entities.get('enemy').health, 10, 'an owner defeated earlier in the tick cannot land a delayed mechanic');
+});

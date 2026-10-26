@@ -1,0 +1,38 @@
+/** A time cast whose impact is deliberately deferred, rather than a renamed instant strike. */
+export default {
+  id: 'borrowedTomorrow',
+  meta: {
+    label: 'Borrowed Tomorrow',
+    accent: '#ffd38a',
+    element: 'time',
+    cast: 'zone',
+    hint: 'Time — a suspended clock gathers the future into one delayed, heavier strike',
+    glyph:
+      '<circle cx="50" cy="50" r="34"/><path d="M50 19V50L70 61M37 7L29 18M63 93L71 82"/>',
+  },
+  settings: {
+    range: 20,
+    minRange: 1,
+    speed: 30,
+    cooldown: 3.5,
+    castAnim: 'cast3',
+    zoneRadius: 3.6,
+    lifetime: 2.6,
+    delay: 1.25,
+    pulseSpeed: 3.4,
+    rotationSpeed: 0.8,
+    hitImpulse: 18,
+    hitLift: 8,
+    hitSpin: 3,
+    impactShake: 0.18,
+    impactFlash: 0.12,
+    lightColor: '#ffd38a',
+    lightIntensity: 5.5,
+    lightRadius: 9,
+    ringColor: '#d5a052',
+    coreColor: '#fff0c4',
+    shadowColor: '#342351',
+    pendulumArc: 0.55,
+    pendulumRate: 3,
+  },
+};

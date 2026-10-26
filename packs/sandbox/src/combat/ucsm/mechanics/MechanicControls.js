@@ -18,7 +18,9 @@ export class MechanicControls {
     this.buttons = [];
     this.root = document.createElement('details');
     this.root.className = 'mechanic-controls';
-    this.root.open = innerWidth > 600;
+    // A compact closed control keeps the casting area visible at every size.
+    // Native <details> keeps the full controls available by mouse, touch and keyboard.
+    this.root.open = false;
     const title = document.createElement('summary');
     title.textContent = 'Combat mechanics';
     this.root.append(title);
