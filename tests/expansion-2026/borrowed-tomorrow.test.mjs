@@ -108,3 +108,18 @@ test('clock gathers bounded orbiting particles before the delayed strike', () =>
   assert.ok(counts.includes(64));
   ability.destroy(); ability.dispose();
 });
+test('pendulum settles exactly when the deferred strike is released and resets on reuse', () => {
+  const {ability,hits}=setup();
+  ability.spawn(new Vector3(),new Vector3(1,0,0),10);
+  for(let i=0;i<55;i++)ability.update(1/60);
+  assert.equal(hits.length,0);
+  assert.ok(Math.abs(ability.pendulum.rotation.z)>.01);
+  for(let i=0;i<180&&!ability._released;i++)ability.update(1/60);
+  assert.equal(hits.length,1);
+  assert.ok(Math.abs(ability.pendulum.rotation.z)<1e-8);
+  for(let i=0;i<80;i++)ability.update(1/60);
+  assert.ok(ability.root.scale.x<1);
+  ability.destroy();ability.spawn(new Vector3(),new Vector3(1,0,0),10);
+  assert.equal(ability._released,false);
+  ability.destroy();ability.dispose();
+});

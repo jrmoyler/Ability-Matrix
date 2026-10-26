@@ -32,5 +32,7 @@ export default {
     ringColor: '#d5a052',
     coreColor: '#fff0c4',
     shadowColor: '#342351',
+    pendulumArc: 0.55,
+    pendulumRate: 3,
   },
 };

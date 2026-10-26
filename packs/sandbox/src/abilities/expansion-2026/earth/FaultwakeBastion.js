@@ -49,6 +49,9 @@ export const CONFIG = Object.freeze({
     crackWidth: 1.2,
     impactShake: 0.18,
     impactFlash: 0.07,
+    settleOvershoot: 0.15,
+    settleDuration: 0.35,
+    sinkDepth: 1.1,
   },
 });
 function rockGeometry() {
@@ -201,11 +204,13 @@ export class FaultwakeBastionAbility extends Ability {
     this.found = [];
     this.hit = new Set();
     this.prev = 0;
+    this.columnArrival = new Float64Array(16);
   }
   createParticles() {}
   onSpawn() {
     this.prev = 0;
     this.hit.clear();
+    this.columnArrival.fill(-1);
     this.mat.uniforms.uFade.value = 1;
     this.crack.visible = true;
     this.debris.visible = true;
@@ -219,15 +224,31 @@ export class FaultwakeBastionAbility extends Ability {
       const d = (this.length * (i + 1)) / n,
         emerge = Math.max(0.001, Math.min(1, (front - d + 1) / 1)),
         jitter = Math.sin(i * 12.9) * 0.24;
+      if (front >= d && this.columnArrival[i] < 0)
+        this.columnArrival[i] = this.age;
+      const since =
+        this.columnArrival[i] < 0 ? 0 : this.age - this.columnArrival[i];
+      const settle =
+        1 +
+        this.config.settleOvershoot *
+          Math.sin(
+            Math.PI *
+              Math.min(1, since / Math.max(0.01, this.config.settleDuration)),
+          );
+      const sink = this.config.height * this.config.sinkDepth * (1 - fade) ** 2;
       this.p
         .copy(this.origin)
         .addScaledVector(this.direction, d)
         .addScaledVector(this.side, jitter);
       const sx = this.config.columnWidth * (0.8 + 0.2 * Math.sin(i * 5.1)),
         sy =
-          this.config.height * 0.5 * (0.7 + 0.3 * Math.cos(i * 8.3)) * emerge;
+          this.config.height *
+          0.5 *
+          (0.7 + 0.3 * Math.cos(i * 8.3)) *
+          emerge *
+          settle;
       this.m.makeScale(sx, sy, sx);
-      this.m.setPosition(this.p.x, 0, this.p.z);
+      this.m.setPosition(this.p.x, -sink, this.p.z);
       this.columns.setMatrixAt(i, this.m);
     }
     this.columns.instanceMatrix.needsUpdate = true;
@@ -337,6 +358,9 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "columns", 3, 16, 1, "column count");
   R(f, c, "columnWidth", 0.1, 2, 0.05, "column width");
   R(f, c, "height", 0.5, 4, 0.1, "height");
+  R(f, c, "settleOvershoot", 0, 0.6, 0.01, "rise overshoot");
+  R(f, c, "settleDuration", 0.05, 1.5, 0.05, "settle time");
+  R(f, c, "sinkDepth", 0, 2, 0.05, "retreat depth");
   R(f, c, "reach", 0.3, 3, 0.05, "hit reach");
   R(f, c, "impulse", 0, 15, 0.1, "eruption force");
   R(f, c, "lift", 0, 8, 0.1, "eruption lift");

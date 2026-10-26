@@ -182,3 +182,19 @@ test('distinct resonance stages follow strike and wave phases and editor control
   a.destroy();a.dispose();settings[c.id].resonanceScale=c.settings.resonanceScale;settings[c.id].resonanceMotion=c.settings.resonanceMotion;
  }
 });
+
+test('delivery particle trail uses actual arcing position, a fixed per-frame budget, pause and reduced motion',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const before=settings[c.id].speed;settings[c.id].speed=1;const emitted=[];
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},particles:{get(id){return {setGradient(){},emit(n,o){if(id.endsWith('.delivery'))emitted.push({n,p:o.position.clone()});}};}}});
+  const prior=globalThis.matchMedia;
+  try{
+   a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,.5);assert.ok(emitted.length>0);
+   assert.ok(emitted.every(x=>x.n>=0&&x.n<=128&&x.p.x>0&&x.p.x<5&&x.p.y>0));
+   const previous=emitted.length;a.update(0);assert.equal(emitted.length,previous);
+   globalThis.matchMedia=()=>({matches:true});run(a,.5);assert.equal(emitted.length,previous);
+   globalThis.matchMedia=()=>({matches:false});a.update(1);assert.ok(emitted.length-previous<=1);
+   a.destroy();a.dispose();
+  }finally{settings[c.id].speed=before;if(prior)globalThis.matchMedia=prior;else delete globalThis.matchMedia;}
+ }
+});

@@ -12,6 +12,7 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Group,
+  IcosahedronGeometry,
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
@@ -211,6 +212,17 @@ export class Ability extends BaseAbility {
       this.root.add(pivot);
       this.hands.push(pivot);
     }
+    // A raised pendulum settles as the actual deferred strike approaches.
+    this.pendulum = new Group();
+    this.pendulum.position.y = 1.7;
+    const rod = new Mesh(handGeo, this.gold);
+    rod.rotation.z = Math.PI;
+    rod.scale.set(.45, 1.1, .45);
+    this.pendulum.add(rod);
+    const bob = new Mesh(own(new IcosahedronGeometry(.16, 1)), this.lit);
+    bob.position.y = -1.05;
+    this.pendulum.add(bob);
+    this.root.add(this.pendulum);
     const frag = own(fragmentGeometry());
     this.shards = new InstancedMesh(frag, this.glass, MAX_SHARDS);
     this.shards.frustumCulled = false;
@@ -316,7 +328,7 @@ export class Ability extends BaseAbility {
           ? 1 - clamp(this.fadeTime / this.fadeDuration)
           : 1;
     this.root.position.copy(this.position);
-    this.root.scale.setScalar(arrival);
+    this.root.scale.setScalar(Math.max(.001, arrival * fade));
     this.field.scale.set(r * 2, r * 2, 1);
     const u = this.fieldMaterial.uniforms;
     u.uTime.value = this.age * c.pulseSpeed;
@@ -336,6 +348,9 @@ export class Ability extends BaseAbility {
       anticipation * TAU
     );
     this.hands[1].rotation.z = this.age * c.rotationSpeed * 0.6;
+    this.pendulum.rotation.z = Math.sin(this.age * (c.pendulumRate ?? 3)) *
+      (c.pendulumArc ?? .55) * (1 - anticipation);
+    this.pendulum.rotation.y = this.age * c.rotationSpeed * .2;
     for (let i = 0; i < 12; i++) {
       const angle = i * TAU / 12;
       scratch.position.set(Math.sin(angle) * r * .81, .17, Math.cos(angle) * r * .81);
@@ -385,6 +400,8 @@ export function buildEditor(gui, c) {
   f.add(c, 'zoneRadius', 1, 8, 0.1).name('strike radius');
   f.add(c, 'rotationSpeed', 0, 4, 0.05).name('clock speed');
   f.add(c, 'pulseSpeed', 0, 8, 0.1).name('clock pulse');
+  f.add(c, 'pendulumRate', 0, 8, .1).name('pendulum speed');
+  f.add(c, 'pendulumArc', 0, 1.2, .05).name('pendulum arc');
   f.add(c, 'hitImpulse', 0, 30, 0.5).name('impact impulse');
   f.addColor(c, 'coreColor').name('clock light');
   f.addColor(c, 'ringColor').name('brass');

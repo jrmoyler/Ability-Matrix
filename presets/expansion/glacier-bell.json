@@ -38,6 +38,8 @@
     "monumentScale": 1.5,
     "monumentGlow": 1,
     "deliveryScale": 1,
+    "travelRate": 8,
+    "travelParticles": 3,
     "deliveryArc": 1.4,
     "fragmentScale": 1,
     "fragmentGlow": 1,

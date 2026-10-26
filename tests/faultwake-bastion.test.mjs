@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Vector3 } from "three";
+import { Matrix4, Vector3 } from "three";
 import { settings } from "../packs/sandbox/src/config/settings.js";
 import {
   FaultwakeBastionAbility,
@@ -137,4 +137,43 @@ test("rock columns have capped ends and the impact ring respects camera shake se
   a.dispose();
   assert.equal(disposed, 2);
   settings.global.cameraShake = previous;
+});
+
+test("erupted columns overshoot then settle and retreat during fade", () => {
+  const a = new FaultwakeBastionAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  const m = new Matrix4(),
+    scale = new Vector3(),
+    position = new Vector3(),
+    rotation = a.columns.quaternion.clone();
+  const index = a.columns.count - 1;
+  a.columns.getMatrixAt(index, m);
+  m.decompose(position, rotation, scale);
+  const initial = scale.y;
+  a.update(0.1);
+  a.columns.getMatrixAt(index, m);
+  m.decompose(position, rotation, scale);
+  assert.ok(scale.y > initial, "column heaves above its settled height");
+  a.update(0.5);
+  a.columns.getMatrixAt(index, m);
+  m.decompose(position, rotation, scale);
+  assert.ok(Math.abs(scale.y - initial) < 1e-5);
+  a.update(a.fadeDuration * 0.5);
+  a.columns.getMatrixAt(index, m);
+  m.decompose(position, rotation, scale);
+  assert.ok(position.y < 0, "column retreats beneath the ground");
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.ok(a.columnArrival.every((t) => t === -1));
+  a.destroy();
+  a.dispose();
 });

@@ -36,6 +36,9 @@
     "dustOpacity": 0.7,
     "crackWidth": 1.2,
     "impactShake": 0.18,
-    "impactFlash": 0.07
+    "impactFlash": 0.07,
+    "settleOvershoot": 0.15,
+    "settleDuration": 0.35,
+    "sinkDepth": 1.1
   }
 }

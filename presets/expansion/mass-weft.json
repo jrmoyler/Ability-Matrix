@@ -43,6 +43,7 @@
     "contactGlow": 0.8,
     "collapseStrength": 0.85,
     "flowSpeed": 1,
+    "lensWarp": 0.7,
     "particleFlowSpeed": 0.8,
     "damage": 0.35,
     "gravityColor": "#9f8fbe",
