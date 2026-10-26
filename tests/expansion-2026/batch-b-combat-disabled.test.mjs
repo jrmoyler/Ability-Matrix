@@ -23,13 +23,13 @@ test('production expansion casts use real dummy fallback with combat disabled',a
   globalThis.document={createElement:()=>new Element(),body:new Element()};
   const bytes=readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx',import.meta.url));
   const model=new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
-  for(const [id,element] of [['exp-toxin-evolution','poison'],['exp-heliostat-verdict','light'],['exp-vigil-of-embers','holy'],['exp-mass-weft','gravity'],['exp-hollow-meridian','void'],['exp-nightshade-inheritance','shadow']]) {
+  for(const [id,element] of [['exp-toxin-evolution','poison'],['exp-heliostat-verdict','light'],['exp-vigil-of-embers','holy'],['exp-mass-weft','gravity'],['exp-hollow-meridian','void'],['exp-nightshade-inheritance','shadow'],['exp-nightshade-inheritance','shadow-reset']]) {
     const env={registerShadowCasterWithPatch(){}};
     const target=new Dummy({source:model,clip:model.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});
     target.root.position.set(0,0,5);target.root.updateWorldMatrix(true,true);
     const dummies=new DummyField(env);dummies.slots=[{dummy:target,wait:0}];
-    let nextTarget;
-    if(element==='shadow'){nextTarget=new Dummy({source:model,clip:model.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});nextTarget.root.position.set(1,0,5);nextTarget.root.updateWorldMatrix(true,true);dummies.slots.push({dummy:nextTarget,wait:0});}
+    let nextTarget,thirdTarget;
+    if(element.startsWith('shadow')){nextTarget=new Dummy({source:model,clip:model.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});nextTarget.root.position.set(1,0,5);nextTarget.root.updateWorldMatrix(true,true);dummies.slots.push({dummy:nextTarget,wait:0});thirdTarget=new Dummy({source:model,clip:model.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});thirdTarget.root.position.set(2,0,5);thirdTarget.root.updateWorldMatrix(true,true);dummies.slots.push({dummy:thirdTarget,wait:0});}
     const combat=new CombatStateManager(); new MechanicSystems(combat); let host; const bridge=new ExpansionCombatAdapter(combat,{enabled:()=>host?.enabled??false});
     const ctx={scene:new Scene(),lights:{acquire:()=>({}),set(){},release(){}},character:{position:new Vector3()},dummies,expansionCombat:bridge};
     const abilities=new AbilityManager(ctx);
@@ -39,15 +39,18 @@ test('production expansion casts use real dummy fallback with combat disabled',a
     const item=expansionRoster().find(c=>c.ID===id);const live=installProductionExpansion(app,expansionRoster({...EXPANSION_STATUS,[item.uid]:'live'}));
     host.update(1/60);
     await app.select(item.uid,{prepare:false});app._cast(new Vector3(),new Vector3(0,0,1),5);const candidate=abilities.active[0];assert.ok(candidate,id);
-    for(let i=0;i<240;i++){abilities.update(1/60);host.update(1/60);}
-    if(element==='shadow'){
-      assert.equal(target.alive,true,'status-only shadow cannot claim unsupported standalone behavior');
-      assert.match(candidate.failure,/require.*combat/);
-      assert.equal(candidate.targetId,null);
+    for(let i=0;i<240;i++){abilities.update(1/60);if(element==='shadow'&&i===60){assert.ok(candidate.targetId,'standalone cast must first mark the real host');assert.equal(target.alive,true);assert.equal(nextTarget.alive,true);target.kill(0,1,{impulse:1,lift:1,spin:1});}if(element==='shadow-reset'&&i===60){assert.ok(candidate.targetId);dummies.reset();}host.update(1/60);}
+    if(element==='shadow-reset'){
+      assert.equal(candidate.targetId,null);assert.equal(candidate.failure,'marked target was replaced');assert.equal(candidate.transfers,0);assert.ok([target,nextTarget,thirdTarget].every(d=>d.alive));
+    } else if(element==='shadow'){
+      assert.equal(target.alive,false,'an external real strike defeats the marked host');
+      assert.equal(nextTarget.alive,false,'inheritance deals a real standalone strike to the next host');
+      assert.equal(thirdTarget.alive,false,'inheritance continues to a third real host');
+      assert.equal(candidate.transfers,2);assert.equal(candidate.targetId,null);
     } else {
       assert.equal(target.alive,false,`${id} must knock down an actual dummy with combat disabled`);
     }
     assert.equal(combat.queue.length,0,'disabled manager does not receive fabricated combat events');
-    live.dispose();abilities.dispose();bridge.dispose();target.dispose();nextTarget?.dispose();
+    live.dispose();abilities.dispose();bridge.dispose();target.dispose();nextTarget?.dispose();thirdTarget?.dispose();
   }
 });

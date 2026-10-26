@@ -24,7 +24,7 @@ function snapshot(world,health,dummy,generation){
   let hp=entry?.generation===generation?entry.hp:undefined;
   // A real dummy which has stood up starts with full health again.
   if(dummy.alive&&hp!==undefined&&hp<=0){hp=1;health.set(dummy,{hp,generation});}
-  return {id:idFor(world,dummy),teamId:'targets',kind:'actor',position:[dummy.position.x,0,dummy.position.z],health:hp??1,maxHealth:1,shields:0,alive:!!dummy.alive,statuses:[]};
+  return {id:idFor(world,dummy),teamId:'targets',kind:'actor',position:[dummy.position.x,0,dummy.position.z],health:hp??1,maxHealth:1,shields:0,alive:!!dummy.alive,statuses:[],standGeneration:generation};
 }
 function fallback(ctx){
   const world=worldFor(ctx),health=new WeakMap();
