@@ -62,16 +62,21 @@ function harmonicGeometry() {
   g.setIndex(idx);
   return g;
 }
-function harmonicMaterial() {
+function harmonicMaterial(color = new Vector3(0.65, 1, 0.52), frequency = 1) {
   return new ShaderMaterial({
     transparent: true,
     side: DoubleSide,
     depthWrite: false,
     blending: AdditiveBlending,
-    uniforms: { uFade: { value: 1 }, uTime: { value: 0 } },
+    uniforms: {
+      uFade: { value: 1 },
+      uTime: { value: 0 },
+      uColor: { value: color },
+      uHarmonic: { value: frequency },
+    },
     vertexShader:
       "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-    fragmentShader: `varying vec2 vUv;uniform float uFade,uTime;void main(){float centre=pow(max(0.,1.-abs(vUv.y-.5)*2.),1.4);float node=pow(abs(sin(vUv.x*37.699-uTime*2.)),8.);float a=(centre*.5+node*.4)*uFade;gl_FragColor=vec4(vec3(.65,1.,.52)*(1.+node*.8),a);}`,
+    fragmentShader: `varying vec2 vUv;uniform float uFade,uTime,uHarmonic;uniform vec3 uColor;void main(){float centre=pow(max(0.,1.-abs(vUv.y-.5)*2.),1.4);float node=pow(abs(sin(vUv.x*37.699*uHarmonic-uTime*2.)),8.);float a=(centre*.5+node*.4)*uFade;gl_FragColor=vec4(uColor*(1.+node*.8),a);}`,
   });
 }
 export class OvertoneSpiralAbility extends Ability {
@@ -94,8 +99,16 @@ export class OvertoneSpiralAbility extends Ability {
   createShaders() {
     this.mat = harmonicMaterial();
     this.rings = [];
+    this.ringMaterials = [];
+    const colors = [
+      new Vector3(0.65, 1, 0.52),
+      new Vector3(0.33, 0.92, 0.9),
+      new Vector3(0.9, 0.82, 1),
+    ];
     for (let i = 0; i < 3; i++) {
-      const ring = new Mesh(harmonicGeometry(), this.mat);
+      const material = harmonicMaterial(colors[i], 1 + i * 0.5);
+      this.ringMaterials.push(material);
+      const ring = new Mesh(harmonicGeometry(), material);
       ring.layers.set(LAYER.VFX);
       ring.frustumCulled = false;
       this.group.add(ring);
@@ -156,6 +169,8 @@ export class OvertoneSpiralAbility extends Ability {
     for (const s of this.hit) s.clear();
     this.previous.fill(0);
     this.mat.uniforms.uFade.value = 1;
+    for (const material of this.ringMaterials)
+      material.uniforms.uFade.value = 1;
     this.noteMaterial.uniforms.uFade.value = 1;
     this.notes.position.copy(this.centre);
     this.noteMaterial.uniforms.uRadius.value = this.config.radius;
@@ -250,6 +265,9 @@ export class OvertoneSpiralAbility extends Ability {
           age * this.config.waveSpeed,
         );
         this.rings[i].visible = true;
+        this.ringMaterials[i].uniforms.uTime.value = this.age;
+        this.ringMaterials[i].uniforms.uFade.value =
+          1 - (0.65 * radius) / this.config.radius;
         this._scan(i, this.previous[i], radius);
         this.previous[i] = radius;
         this._ringMesh(this.rings[i], radius, i);
@@ -259,6 +277,8 @@ export class OvertoneSpiralAbility extends Ability {
       this.position.copy(this.centre);
     } else {
       this.mat.uniforms.uFade.value = 2 - t;
+      for (const material of this.ringMaterials)
+        material.uniforms.uFade.value = 0.35 * (2 - t);
       this.noteMaterial.uniforms.uFade.value = 2 - t;
       this._resonator(1);
     }
@@ -269,6 +289,7 @@ export class OvertoneSpiralAbility extends Ability {
   }
   dispose() {
     for (const ring of this.rings) ring.geometry.dispose();
+    for (const material of this.ringMaterials) material.dispose();
     this.forkGeometry.dispose();
     this.stemGeometry.dispose();
     this.noteGeometry.dispose();

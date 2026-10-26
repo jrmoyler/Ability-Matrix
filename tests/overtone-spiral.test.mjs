@@ -79,3 +79,37 @@ test("resonator appears on impact and releases its tuning-fork and note layers",
   a.dispose();
   assert.equal(disposed, 4);
 });
+
+test("three harmonic fronts carry independent colors, phases and disposal", () => {
+  const a = new OvertoneSpiralAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(0.1);
+  assert.equal(a.rings[0].visible, true);
+  assert.equal(a.rings[1].visible, false);
+  assert.equal(new Set(a.ringMaterials).size, 3);
+  assert.equal(
+    new Set(a.ringMaterials.map((m) => m.uniforms.uHarmonic.value)).size,
+    3,
+  );
+  a.update(0.5);
+  assert.equal(a.rings[1].visible, true);
+  assert.notEqual(
+    a.ringMaterials[0].uniforms.uFade.value,
+    a.ringMaterials[1].uniforms.uFade.value,
+  );
+  let disposed = 0;
+  for (const m of a.ringMaterials)
+    m.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 3);
+});

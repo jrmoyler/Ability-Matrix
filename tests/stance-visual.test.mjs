@@ -24,7 +24,9 @@ test('each stance has element-specific finite geometry for anticipation, block, 
         if (!n.isMesh) return;
         assert.ok(n.geometry.attributes.position.count>0);
         for (const value of n.geometry.attributes.position.array) assert.ok(Number.isFinite(value));
-        shapes.push([n.geometry.type,n.geometry.attributes.position.count,n.material.color.getHex()]);
+        const color=n.material.color ?? n.material.uniforms?.tint?.value;
+        assert.ok(color,p.uid);
+        shapes.push([n.geometry.type,n.geometry.attributes.position.count,color.getHex()]);
       });
       assert.ok(shapes.length>=7,p.uid);
       signatures.push(JSON.stringify(shapes));

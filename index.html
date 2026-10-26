@@ -395,8 +395,8 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'mechanics', 'moves'];
-const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex'];
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'matrix-expansion', 'mechanics', 'moves'];
+const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex', 'matrix-expansion'];
 const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', mechanic: 'Combat mechanics', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -912,7 +912,10 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
 }
 updateInstallUI();
 
-Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets/mechanics/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] }))]).then(([c, mechanics]) => {
+Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets/mechanics/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] })), fetch('presets/expansion/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] }))]).then(([c, mechanics, expansion]) => {
+  const approved = expansion.abilities.filter((a) => a.status === 'live');
+  c.abilities.push(...approved);
+  c.packs.push({ pack: 'matrix-expansion', title: 'Elemental expansion', repo: 'collective-ai (new)', count: approved.length });
   c.abilities.push(...mechanics.abilities);
   c.packs.push({ pack: 'mechanics', title: 'Combat mechanics', repo: 'collective-ai (new)', count: mechanics.abilities.length });
   catalog = c;

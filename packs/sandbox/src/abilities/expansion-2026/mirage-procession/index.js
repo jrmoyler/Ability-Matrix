@@ -167,6 +167,16 @@ export class Ability extends BaseAbility {
   }
   onImpact() {
     this._sync();
+    // Every mask dissolves with the same terminal flourish; impact feedback
+    // cannot reveal the damaging lane.
+    for (let lane = -1; lane <= 1; lane++) {
+      this.pointAt(1, point);
+      point.addScaledVector(this.side, lane * this.config.laneGap);
+      point.y = 1.1;
+      expansionBurst(this.fx, point, {
+        count: 12, size: .16, life: .65, speed: 1.4, spread: .8, radius: .35,
+      });
+    }
     expansionImpact(
       this.ctx,
       this.config.edgeColor,

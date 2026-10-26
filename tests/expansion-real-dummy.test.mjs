@@ -50,6 +50,7 @@ test("frost uses the actual rigged sandbox dummy, preserves its pose as ice, and
   }
   assert.equal(target.state, "frozen");
   assert.equal(a.frozen.length, 1);
+  assert.equal(a.iceShards.count, 6, "statue gets a bounded ice shard cluster");
   assert.equal(
     target.root.visible,
     false,
@@ -79,6 +80,7 @@ test("frost uses the actual rigged sandbox dummy, preserves its pose as ice, and
     "gone",
     "statue expires after its configured duration",
   );
+  assert.equal(a.iceShards.count, 0, "expired statues release shard instances");
   a.destroy();
   assert.equal(target.state, "gone");
   assert.equal(a.frozen.length, 0);

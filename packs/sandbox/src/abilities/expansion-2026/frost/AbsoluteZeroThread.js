@@ -3,10 +3,13 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  ConeGeometry,
   DoubleSide,
   Mesh,
+  InstancedMesh,
   MeshStandardMaterial,
   Points,
+  Object3D,
   RingGeometry,
   ShaderMaterial,
   Vector3,
@@ -139,6 +142,26 @@ export class AbsoluteZeroThreadAbility extends Ability {
     });
     this.frostRingGeometry = new RingGeometry(0.36, 0.8, 32);
     this.frostRingMaterial = iceMaterial();
+    this.iceShardGeometry = new ConeGeometry(0.14, 0.8, 5);
+    this.iceShardMaterial = new MeshStandardMaterial({
+      color: 0x99eaff,
+      emissive: 0x16496a,
+      emissiveIntensity: 0.8,
+      metalness: 0.15,
+      roughness: 0.22,
+      transparent: true,
+      opacity: 0.82,
+    });
+    this.iceShards = new InstancedMesh(
+      this.iceShardGeometry,
+      this.iceShardMaterial,
+      48,
+    );
+    this.iceShards.layers.set(LAYER.VFX);
+    this.iceShards.frustumCulled = false;
+    this.iceShards.count = 0;
+    this.group.add(this.iceShards);
+    this.shardTransform = new Object3D();
     this.hit = new Set();
     this.pending = [];
     this.frozen = [];
@@ -246,6 +269,32 @@ export class AbsoluteZeroThreadAbility extends Ability {
         this.pending.splice(i, 1);
       }
     }
+    this._drawIceShards();
+  }
+  _drawIceShards() {
+    let count = 0;
+    for (const frozen of this.frozen) {
+      const elapsed = this.config.freezeDuration - (frozen.until - this.age);
+      const growth = Math.max(
+        0.001,
+        Math.min(1, elapsed * 4, (frozen.until - this.age) * 4),
+      );
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3,
+          p = this.shardTransform;
+        p.position.set(
+          frozen.ring.position.x + Math.cos(angle) * 0.52,
+          0.34 * growth,
+          frozen.ring.position.z + Math.sin(angle) * 0.52,
+        );
+        p.rotation.set(Math.sin(angle) * 0.26, angle, Math.cos(angle) * -0.26);
+        p.scale.set(0.8, growth * (0.75 + (i % 3) * 0.18), 0.8);
+        p.updateMatrix();
+        this.iceShards.setMatrixAt(count++, p.matrix);
+      }
+    }
+    this.iceShards.count = count;
+    this.iceShards.instanceMatrix.needsUpdate = true;
   }
   onTravel() {
     const before = this.prevFront ?? 0;
@@ -274,6 +323,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
       this.group.remove(f.ring);
     }
     this.frozen.length = 0;
+    this.iceShards.count = 0;
     this.hit.clear();
     this.pending.length = 0;
     this.prevFront = 0;
@@ -290,6 +340,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.statueMaterial.dispose();
     this.frostRingGeometry.dispose();
     this.frostRingMaterial.dispose();
+    this.iceShardGeometry.dispose();
+    this.iceShardMaterial.dispose();
     super.dispose();
   }
 }

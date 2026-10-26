@@ -82,8 +82,9 @@ export class CelestialCartographyAbility extends Ability {
  onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.chartGroup.visible=false;this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this.flare.visible=false;}
  onTravel(){}
  onImpact(){this.chartGroup.position.copy(this.position);this.chartGroup.visible=true;}
- onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
   const c=this.config,elapsed=this.impactTime,fade=t<=1?1:1-bound(t-1),rise=smoother(elapsed/Math.max(.01,c.armDelay)),radius=c.zoneRadius;
+  this.atmosphere.syncPalette(c.chartColor,c.coreColor);
   this.floor.scale.set(radius,radius,1);this.frame.position.y=c.chartHeight;this.frame.scale.setScalar(radius);
   for(let i=0;i<this.stars.length;i++){const s=this.stars[i];s.position.set(this.nodes[i].x*radius,c.chartHeight,this.nodes[i].z*radius);s.scale.setScalar(.22*(.8+.2*Math.sin(visualTime*3+i)));}
   for(const line of this.lines){line.position.y=c.chartHeight;line.scale.set(radius,1,radius);}
@@ -97,11 +98,11 @@ export class CelestialCartographyAbility extends Ability {
   this.beam.visible=this._markedAt>=0 && !this._struck;
   if(this.beam.visible){this.beam.position.set(this._targetPos.x-this.position.x,0,this._targetPos.z-this.position.z);this.beam.scale.set(1,c.chartHeight*charge,1);}
   if(this._target && !this._struck && charge>=1){this._struck=true;this._strikeAt=elapsed;const d=this._target;
-   if(d.alive && Math.hypot(d.position.x-this._targetPos.x,d.position.z-this._targetPos.z)<=1){V.copy(this.direction);if(d.kill(V.x,V.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin})&&!this.reduceMotion)this.atmosphere.cue(this._targetPos,c.zoneRadius*.5);}
+   if(d.alive && Math.hypot(d.position.x-this._targetPos.x,d.position.z-this._targetPos.z)<=1){V.copy(this.direction);if(d.kill(V.x,V.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin})&&!this.reduceMotion){this.atmosphere.cue(this._targetPos,c.zoneRadius*.5);this.atmosphere.burst(this._targetPos,22,{radius:.4,speed:1.4,size:.08,life:.9,spread:.8});}}
   }
   const flareAge=this._strikeAt<0?-1:elapsed-this._strikeAt;this.flare.visible=flareAge>=0&&flareAge<.5;this.flare.position.set(this._targetPos.x-this.position.x,.6,this._targetPos.z-this.position.z);this.flare.scale.setScalar((c.flareScale??1)*(1+bound(flareAge/.5)*1.5));this.flareMat.uniforms.uTime.value=visualTime;this.flareMat.uniforms.uFade.value=fade*(1-bound(flareAge/.5));this.flareMat.uniforms.uColor.value.set(c.coreColor);for(let i=0;i<this.flareRings.length;i++)this.flareRings[i].rotation.set(i*TAU/3,visualTime*(i%2?-1:1),i*TAU/6);this.flareStar.rotation.y=visualTime;
  }
  onDestroy(){this.chartGroup.visible=false;this.beam.visible=false;this._target=null;this._found.length=0;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}
+export function buildEditor(gui,c,Editor){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}

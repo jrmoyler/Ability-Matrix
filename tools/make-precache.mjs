@@ -16,7 +16,7 @@ const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
 const rel = (f) => path.relative(site, f).split(path.sep).join('/');
 
 const SKIP = new Set(['sw.js', 'precache.json']);
-const SHELL = ['index.html', 'manifest.webmanifest', 'presets/catalog.json', 'presets/mechanics/catalog.json', 'packs/sandbox/index.html'];
+const SHELL = ['index.html', 'manifest.webmanifest', 'presets/catalog.json', 'presets/mechanics/catalog.json', 'presets/expansion/catalog.json', 'packs/sandbox/index.html'];
 const files = {};
 for (const f of walk(site).sort()) {
   const p = rel(f);

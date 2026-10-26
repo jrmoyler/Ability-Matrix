@@ -1,5 +1,6 @@
 import { ELEMENT_IDS } from './ontology.js';
 import { PLAYABLE_MECHANICS } from './mechanics/presets.js';
+import { EXPANSION_STATUS } from '../../abilities/expansion-2026/status.js';
 
 /**
  * The spec's proposed content (Unified Combat Spec §3–4), as data.
@@ -77,7 +78,7 @@ export function slugOf(name) {
 }
 
 function entry(uid, element, name, mechanic, note) {
-  const selectable = PLAYABLE_MECHANICS.includes(uid);
+  const selectable = PLAYABLE_MECHANICS.includes(uid) || (mechanic === 'standard' && EXPANSION_STATUS[uid] === 'live');
   return Object.freeze({ uid, element, name, mechanic, note, status: selectable ? 'live' : 'proposed', selectable });
 }
 

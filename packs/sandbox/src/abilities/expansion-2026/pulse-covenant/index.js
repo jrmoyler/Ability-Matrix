@@ -143,6 +143,15 @@ export class Ability extends BaseAbility {
     this.ring.rotation.x = Math.PI / 2;
     this.ring.position.y = 0.08;
     this.root.add(this.ring);
+    this.waveMaterial = own(new MeshBasicMaterial({
+      color: 0xff8290, transparent: true, opacity: 0, depthWrite: false,
+      blending: AdditiveBlending,
+    }));
+    this.pulseWave = new Mesh(ringGeo, this.waveMaterial);
+    this.pulseWave.rotation.x = Math.PI / 2;
+    this.pulseWave.visible = false;
+    // The pulse travels from the triggering hit, not from the caster.
+    this.group.add(this.pulseWave);
     this.membrane = own(membrane());
     this.floor = new Mesh(own(new PlaneGeometry(1, 1)), this.membrane);
     this.floor.rotation.x = -Math.PI / 2;
@@ -152,6 +161,7 @@ export class Ability extends BaseAbility {
     this._unsub = null;
     this._lastTick = null;
     this._pulseAge = 999;
+    this.pulseWave.visible = false;
     this._seen = new Set();
     this._seenOrder = [];
     this._casts = new Set();
@@ -291,9 +301,17 @@ export class Ability extends BaseAbility {
       this.branches[i].scale.setScalar(1 + .025 * wave);
     }
     this.glow.color.set(c.bloodGlow);
-    const r = c.pulseRadius;
-    this.ring.scale.setScalar(r);
-    this.floor.scale.set(r * 2, r * 2, 1);
+    this.ring.scale.setScalar(.8);
+    this.floor.scale.set(2.5, 2.5, 1);
+    this.pulseWave.visible = this._pulseAge < .65 && !!this._fxPoint;
+    if (this.pulseWave.visible) {
+      const progress = clamp(this._pulseAge / .65);
+      this.pulseWave.position.copy(this._fxPoint);
+      this.pulseWave.position.y = .1;
+      this.pulseWave.scale.setScalar(Math.max(.01, c.pulseRadius * progress));
+      this.waveMaterial.color.set(c.bloodGlow);
+      this.waveMaterial.opacity = (1 - progress) * .8 * fade;
+    }
     this.membrane.uniforms.time.value = this.age;
     this.membrane.uniforms.pulse.value = clamp(this._pulseAge / 0.65);
     this.membrane.uniforms.fade.value = fade;
@@ -304,6 +322,7 @@ export class Ability extends BaseAbility {
     this._unsub = null;
     this._scope = null;
     this.root.visible = false;
+    this.pulseWave.visible = false;
     this._seen.clear();
     this._seenOrder.length = 0;
   }

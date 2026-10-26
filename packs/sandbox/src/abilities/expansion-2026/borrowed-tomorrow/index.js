@@ -305,7 +305,7 @@ export class Ability extends BaseAbility {
     this.root.scale.setScalar(arrival);
     this.field.scale.set(r * 2, r * 2, 1);
     const u = this.fieldMaterial.uniforms;
-    u.uTime.value = this.age;
+    u.uTime.value = this.age * c.pulseSpeed;
     u.uRadius.value = r;
     u.uEnergy.value = 0.45 + 0.55 * anticipation;
     u.uFade.value = fade;
@@ -335,14 +335,18 @@ export class Ability extends BaseAbility {
     this.releaseRing.scale.setScalar(r * (.18 + .82 * smooth(release)));
     this.releaseMaterial.opacity = this._released ? (1 - release) * .8 * fade : 0;
     this.releaseMaterial.color.set(c.coreColor);
+    const shatter = this._released
+      ? clamp((this.impactTime - c.delay + (this.phase === 'fade' ? this.fadeTime : 0)) / .8)
+      : 0;
     for (let i = 0; i < MAX_SHARDS; i++) {
       const a = i * 2.399963 + this.age * 0.23,
         band = 0.36 + (i % 5) * 0.11;
-      const orbit = r * band;
-      const lift = 0.22 + (i % 7) * 0.13 + Math.sin(this.age * 2 + i) * 0.08;
+      const orbit = r * (band + shatter * (.25 + (i % 4) * .08));
+      const lift = 0.22 + (i % 7) * 0.13 + Math.sin(this.age * 2 + i) * 0.08
+        + shatter * (1.1 + (i % 5) * .18);
       scratch.position.set(Math.cos(a) * orbit, lift, Math.sin(a) * orbit);
-      scratch.rotation.set(a * 0.5, a, this.age * 0.8 + i);
-      const size = (0.65 + (i % 3) * 0.22) * fade;
+      scratch.rotation.set(a * 0.5 + shatter * 2, a + shatter, this.age * 0.8 + i);
+      const size = (0.65 + (i % 3) * 0.22) * fade * (1 - shatter * .75);
       scratch.scale.setScalar(size);
       scratch.updateMatrix();
       this.shards.setMatrixAt(i, scratch.matrix);
@@ -366,6 +370,7 @@ export function buildEditor(gui, c) {
   f.add(c, 'delay', 0.25, 3, 0.05).name('defer (s)');
   f.add(c, 'zoneRadius', 1, 8, 0.1).name('strike radius');
   f.add(c, 'rotationSpeed', 0, 4, 0.05).name('clock speed');
+  f.add(c, 'pulseSpeed', 0, 8, 0.1).name('clock pulse');
   f.add(c, 'hitImpulse', 0, 30, 0.5).name('impact impulse');
   f.addColor(c, 'coreColor').name('clock light');
   f.addColor(c, 'ringColor').name('brass');

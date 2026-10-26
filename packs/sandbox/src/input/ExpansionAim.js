@@ -51,7 +51,9 @@ export class ExpansionAim {
     this.circle.visible = style === 'self';
     this.lines.visible = style === 'lanes' || style === 'wide';
     if (style === 'self') {
-      this.circle.scale.setScalar(Math.max(0.05, config.pulseRadius));
+      // This marks a self activation; secondary pulse radius is centered on
+      // the later hit, not on the caster.
+      this.circle.scale.setScalar(0.8);
       return;
     }
     if (!this.lines.visible) return;

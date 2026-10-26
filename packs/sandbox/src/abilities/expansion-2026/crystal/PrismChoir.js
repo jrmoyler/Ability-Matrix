@@ -5,11 +5,13 @@ import {
   DoubleSide,
   Mesh,
   Points,
+  Quaternion,
   ShaderMaterial,
   Vector3,
 } from "three";
 import { Ability } from "../../Ability.js";
 import { LAYER } from "../../../core/Layers.js";
+import { settings } from "../../../config/settings.js";
 export const ID = "prism-choir",
   UID = "matrix-expansion/prism-choir";
 export const CONFIG = Object.freeze({
@@ -39,6 +41,8 @@ export const CONFIG = Object.freeze({
     reach: 0.8,
     impulse: 4,
     lift: 1.5,
+    impactFlash: 0.08,
+    impactShake: 0.08,
   },
 });
 function crystalGeo() {
@@ -131,6 +135,9 @@ export class PrismChoirAbility extends Ability {
     this.splitStart = new Vector3();
     this.splitEnd = new Vector3();
     this.splitPrevious = 0;
+    this.longAxis = new Vector3(0, 1, 0);
+    this.flightDirection = new Vector3();
+    this.spin = new Quaternion();
   }
   createParticles() {
     const count = 120,
@@ -183,14 +190,21 @@ export class PrismChoirAbility extends Ability {
     this.pointAt(Math.min(1, d / this.length), this.tmp);
     this.primary.position.copy(this.tmp);
     this.primary.position.y = 1.0;
-    this.primary.rotation.set(
-      Math.PI / 2,
+    this._orient(
+      this.primary,
+      this.direction.x,
+      this.direction.z,
       this.age * 2,
-      Math.atan2(this.direction.x, this.direction.z),
     );
     this.primary.scale.setScalar(this.config.size);
     this.mat.uniforms.uTime.value = this.age;
     this.position.copy(this.tmp);
+  }
+  _orient(mesh, dx, dz, spin) {
+    this.flightDirection.set(dx, 0, dz).normalize();
+    mesh.quaternion.setFromUnitVectors(this.longAxis, this.flightDirection);
+    this.spin.setFromAxisAngle(this.longAxis, spin);
+    mesh.quaternion.multiply(this.spin);
   }
   _hitShape(position, r) {
     const found =
@@ -224,6 +238,15 @@ export class PrismChoirAbility extends Ability {
     this._drawPrimary(end);
   }
   onImpact() {
+    this.ctx.shake?.add?.(
+      this.config.impactShake * settings.global.cameraShake,
+      6,
+      22,
+    );
+    this.ctx.flash?.trigger?.(
+      this.lightColor.set(this.config.lightColor),
+      this.config.impactFlash * settings.global.explosionIntensity,
+    );
     this.splitPrevious = 0;
     this.pointAt(1, this.splitOrigin);
     this.primary.visible = false;
@@ -282,7 +305,7 @@ export class PrismChoirAbility extends Ability {
         const s = this.shards[i];
         s.position.set(this.tmp.x, 1, this.tmp.z);
         s.scale.setScalar(this.config.size * 0.7);
-        s.rotation.set(Math.PI / 2, this.age * 3 + i, angle);
+        this._orient(s, dx, dz, this.age * 3 + i);
         this.splitStart.set(
           this.splitOrigin.x + dx * this.splitPrevious,
           0,
@@ -338,6 +361,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "reach", 0.1, 3, 0.05, "shard reach");
   R(f, c, "impulse", 0, 15, 0.1, "shard force");
   R(f, c, "lift", 0, 8, 0.1, "shard lift");
+  R(f, c, "impactShake", 0, 1, 0.01, "split shake");
+  R(f, c, "impactFlash", 0, 0.5, 0.01, "split flash");
   f.close();
   return f;
 }

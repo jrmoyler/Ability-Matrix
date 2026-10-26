@@ -13,6 +13,7 @@ import {
 } from "three";
 import { Ability } from "../../Ability.js";
 import { LAYER } from "../../../core/Layers.js";
+import { settings } from "../../../config/settings.js";
 
 export const ID = "fulminant-relay";
 export const UID = "matrix-expansion/fulminant-relay";
@@ -44,6 +45,8 @@ export const CONFIG = Object.freeze({
     jumpInterval: 0.22,
     impulse: 5,
     lift: 2.2,
+    impactFlash: 0.1,
+    impactShake: 0.1,
   },
 });
 const SECTIONS = 24,
@@ -227,6 +230,15 @@ export class FulminantRelayAbility extends Ability {
   }
   onImpact() {
     this.nextJump = 0;
+    this.ctx.shake?.add?.(
+      this.config.impactShake * settings.global.cameraShake,
+      7,
+      22,
+    );
+    this.ctx.flash?.trigger?.(
+      this.lightColor.set(this.config.lightColor),
+      this.config.impactFlash * settings.global.explosionIntensity,
+    );
   }
   _jump() {
     const found =
@@ -354,6 +366,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "jumpInterval", 0.1, 1, 0.05, "jump interval");
   R(f, c, "impulse", 0, 15, 0.1, "impact force");
   R(f, c, "lift", 0, 8, 0.1, "impact lift");
+  R(f, c, "impactShake", 0, 1, 0.01, "impact shake");
+  R(f, c, "impactFlash", 0, 0.5, 0.01, "impact flash");
   f.close();
   return f;
 }

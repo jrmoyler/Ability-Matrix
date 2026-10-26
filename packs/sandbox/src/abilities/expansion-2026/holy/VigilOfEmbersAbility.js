@@ -28,12 +28,13 @@ export class VigilOfEmbersAbility extends Ability{
   this.crown=new Mesh(g(new TorusGeometry(1,.025,8,64)),this.mat);this.crown.rotation.x=Math.PI/2;this.crown.position.y=3.2;this.rig.add(this.crown);this.rig.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});this.scope=null;this.nextPulse=0;this.pulseAt=-1;this.failure=null;}
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'holy',{shape:'SOFT',colors:['#ffffff','#fff1ca','#ffd77f','#997748'],rate:24});}onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.scope=this.ctx.expansionCombat?.bind?.(UID,'caster')??null;this.failure=this.scope?null:'combat bridge unavailable';this.rig.visible=false;this.nextPulse=0;this.pulseAt=-1;}
  onTravel(){}onImpact(){if(!this.scope)return;this.rig.position.copy(this.position);this.rig.visible=true;}
- onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);if(this.scope&&this.phase===AbilityPhase.IMPACT&&this.impactTime>=this.nextPulse){
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);if(this.scope&&this.phase===AbilityPhase.IMPACT&&this.impactTime>=this.nextPulse){
    const pos=this.position.toArray(),allies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'ally'}),enemies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'enemy'});
    if(!allies?.ok||!enemies?.ok)this.failure='sanctuary query refused';let emitted=false;for(const [query,type] of [[allies,'status'],[enemies,'hit']]){const ids=query?.ok?query.actors.filter(a=>a.alive).slice(0,8).map(a=>a.id):[];if(ids.length){const ev={type,element:'holy',position:pos,targetIds:ids,intensity:1};if(type==='hit')ev.damage=c.damage;const out=this.scope.emit(ev);if(out?.ok)emitted=true;else this.failure=out?.reason??'vigil event refused';}}
-   if(emitted){this.pulseAt=this.impactTime;if(!this.reduceMotion)this.atmosphere.cue(pos,c.zoneRadius);}this.nextPulse=this.impactTime+Math.max(.3,c.pulsePeriod);
+   if(emitted){this.pulseAt=this.impactTime;if(!this.reduceMotion){this.atmosphere.cue(pos,c.zoneRadius);this.atmosphere.burst(pos,18,{radius:c.zoneRadius*.5,speed:.8,size:.1,life:1.1,spread:.6});}}this.nextPulse=this.impactTime+Math.max(.3,c.pulsePeriod);
   }
   const pulse=this.pulseAt<0?0:clamp((this.impactTime-this.pulseAt)/.65),flash=this.pulseAt<0?0:1-clamp((this.impactTime-this.pulseAt)/.35);
+  this.atmosphere.syncPalette(c.holyColor,c.coreColor);
   this.mat.uniforms.uTime.value=visualTime;this.mat.uniforms.uFade.value=fade;this.mat.uniforms.uPulse.value=flash;this.mat.uniforms.uColor.value.set(c.holyColor);this.mat.uniforms.uCore.value.set(c.coreColor);
   this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade;this.floorMat.uniforms.uPulse.value=pulse;this.floorMat.uniforms.uColor.value.set(c.holyColor);
   this.floor.scale.set(c.zoneRadius,c.zoneRadius,1);for(let i=0;i<this.arches.length;i++){const a=i*TAU/8;this.arches[i].position.x=Math.sin(a)*c.zoneRadius*.64;this.arches[i].position.z=Math.cos(a)*c.zoneRadius*.64;}
@@ -42,4 +43,4 @@ export class VigilOfEmbersAbility extends Ability{
  }
  onDestroy(){this.rig.visible=false;this.scope=null;}dispose(){for(const x of this.gs)x.dispose();for(const x of this.ms)x.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Vigil of Embers');for(const[k,a,b,s]of[['zoneRadius',1,8,.1],['pulsePeriod',.3,3,.1],['damage',.1,2,.1],['emberScale',.25,2,.05],['lifetime',2,8,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}
+export function buildEditor(gui,c,Editor){const f=gui.addFolder('Vigil of Embers');for(const[k,a,b,s]of[['zoneRadius',1,8,.1],['pulsePeriod',.3,3,.1],['damage',.1,2,.1],['emberScale',.25,2,.05],['lifetime',2,8,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}

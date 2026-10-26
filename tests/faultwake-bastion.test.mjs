@@ -100,3 +100,41 @@ test("earth debris clock continues after the eruption reaches its endpoint", () 
   a.destroy();
   a.dispose();
 });
+
+test("rock columns have capped ends and the impact ring respects camera shake settings", () => {
+  let shake = -1;
+  const previous = settings.global.cameraShake;
+  settings.global.cameraShake = 0;
+  const a = new FaultwakeBastionAbility({
+    shake: {
+      add(v) {
+        shake = v;
+      },
+    },
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  assert.equal(a.geo.attributes.position.count, 119);
+  assert.equal(a.geo.index.count, 8 * 12 * 6 + 12 * 6);
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.impactRing.visible, false);
+  a.update(2);
+  assert.equal(shake, 0);
+  assert.equal(a.impactRing.visible, true);
+  a.update(a.impactDuration * 0.5);
+  assert.ok(a.impactRing.scale.x > 0.2);
+  assert.ok(a.impactMaterial.uniforms.uFade.value < 1);
+  let disposed = 0;
+  for (const r of [a.impactGeometry, a.impactMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  assert.equal(a.impactRing.visible, false);
+  a.dispose();
+  assert.equal(disposed, 2);
+  settings.global.cameraShake = previous;
+});

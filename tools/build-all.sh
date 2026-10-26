@@ -10,3 +10,4 @@ done
 (cd "$ROOT" && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run build:atlas -- --logLevel error)
 node "$ROOT/tools/extract-presets.mjs"
 node "$ROOT/tools/extract-mechanics.mjs"
+node "$ROOT/tools/extract-expansion.mjs"

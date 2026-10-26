@@ -64,5 +64,9 @@ test('every lane emits the same trail even before any target is hit', () => {
   assert.ok(emissions.every((e) => e.count === emissions[0].count));
   const positions = emissions.map((e) => e.position.z).sort((x, y) => x - y);
   assert.deepEqual(positions, [-config.settings.laneGap, 0, config.settings.laneGap]);
+  for (let i = 0; i < 90; i++) a.update(1 / 60);
+  const terminal = emissions.filter((e) => e.count === 12);
+  assert.equal(terminal.length, 3);
+  assert.deepEqual(terminal.map((e) => e.position.z).sort((x, y) => x - y), positions);
   a.destroy(); a.dispose();
 });

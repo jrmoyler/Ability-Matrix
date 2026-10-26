@@ -153,3 +153,28 @@ test("echo restores visibility and applies ember drift on each reuse", () => {
   a.destroy();
   a.dispose();
 });
+
+test("ash echo telegraphs each pulse with a fading expanding ring", () => {
+  const a = new AshenDoppelgangerAbility({
+    character: { position: new Vector3() },
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 3);
+  assert.equal(a.groundMat.uniforms.uPulse.value, 1);
+  for (let i = 0; i < 50 && a.lastPulse < 0; i++) a.update(0.05);
+  assert.ok(a.lastPulse >= 0);
+  assert.equal(a.groundMat.uniforms.uPulse.value, 0);
+  a.update(0.1);
+  assert.ok(
+    a.groundMat.uniforms.uPulse.value > 0 &&
+      a.groundMat.uniforms.uPulse.value < 1,
+  );
+  a.destroy();
+  a.dispose();
+});

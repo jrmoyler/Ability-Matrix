@@ -72,9 +72,13 @@ function glowMaterial() {
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
-    uniforms: { uTime: { value: 0 }, uOpacity: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 0 },
+      uPulse: { value: 1 },
+    },
     vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-    fragmentShader: `varying vec2 vUv; uniform float uTime,uOpacity; void main(){vec2 p=vUv*2.0-1.0;float r=length(p);float ring=exp(-pow((r-.74)*18.0,2.0));float cracks=pow(max(0.0,sin(atan(p.y,p.x)*12.0+r*25.0-uTime*3.0)),12.0)*(1.0-r);float a=(ring+cracks*.35)*(1.0-smoothstep(.84,1.0,r))*uOpacity;gl_FragColor=vec4(vec3(1.0,.18,.015)*a,a);}`,
+    fragmentShader: `varying vec2 vUv; uniform float uTime,uOpacity,uPulse; void main(){vec2 p=vUv*2.0-1.0;float r=length(p);float ring=exp(-pow((r-.74)*18.0,2.0));float cracks=pow(max(0.0,sin(atan(p.y,p.x)*12.0+r*25.0-uTime*3.0)),12.0)*(1.0-r);float shock=exp(-pow((r-(.12+uPulse*.75))*32.0,2.0))*(1.0-uPulse);float a=(ring+cracks*.35+shock*1.2)*(1.0-smoothstep(.84,1.0,r))*uOpacity;gl_FragColor=vec4(vec3(1.0,.18,.015)*a,a);}`,
   });
 }
 function limbGeometry() {
@@ -214,12 +218,14 @@ export class AshenDoppelgangerAbility extends Ability {
     this.writeIndex = 0;
     this.sampleClock = 0;
     this.nextPulse = this.config.delay;
+    this.lastPulse = -1;
     this.last.copy(this.origin);
     this.echo.position.copy(this.origin);
     this.skin.uniforms.uOpacity.value = this.config.echoOpacity;
     this.sparkMat.uniforms.uOpacity.value = 0.8;
     this.sparkMat.uniforms.uRate.value = this.config.emberRate;
     this.groundMat.uniforms.uOpacity.value = 0.32;
+    this.groundMat.uniforms.uPulse.value = 1;
     this._sample();
   }
   _ensureRig() {
@@ -363,12 +369,18 @@ export class AshenDoppelgangerAbility extends Ability {
     }
     this.groundMat.uniforms.uTime.value = this.age;
     this.groundMat.uniforms.uOpacity.value = 0.32;
+    this.groundMat.uniforms.uPulse.value = Math.max(
+      0,
+      Math.min(1, (this.age - this.lastPulse) / 0.4),
+    );
     this.sparkMat.uniforms.uTime.value = this.age;
     this.sparkMat.uniforms.uOpacity.value = 0.8;
     this.position.copy(this.echo.position);
     let pulses = 0;
     while (this.age >= this.nextPulse && pulses++ < 4) {
       this.nextPulse += Math.max(0.05, this.config.pulseInterval);
+      this.lastPulse = this.age;
+      this.groundMat.uniforms.uPulse.value = 0;
       const found =
         this.ctx.dummies?.findTargets?.(
           this.echo.position.x,

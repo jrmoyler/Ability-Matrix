@@ -33,3 +33,27 @@ test('five targeted candidates strike the actual animated sandbox dummy', () => 
     ability.destroy(); ability.dispose(); target.dispose(); delete settings[id];
   }
 });
+
+test('targets beyond the actual attack footprint survive each targeted candidate', () => {
+  const bytes = readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx', import.meta.url));
+  const root = new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  const ids = ['borrowedTomorrow', 'momentumLedger', 'spellwrightsGambit', 'mirageProcession', 'vectorBreakwater'];
+  for (const id of ids) {
+    const { module: { Ability, config } } = BATCH_C.find(({ module }) => module.ID === id);
+    settings[id] = structuredClone(config.settings);
+    const env = { registerShadowCasterWithPatch() {} };
+    const target = new Dummy({ source: root, clip: root.animations[0], scale: .01, offset: {x:0,y:0,z:0}, forwardYaw: 0, environment: env });
+    target.root.position.set(7, 0, 3);
+    target.root.updateWorldMatrix(true, true);
+    const field = new DummyField(env);
+    field.slots.push({ dummy: target, wait: 0 });
+    const ability = new Ability({ dummies: field, character: {position: new Vector3()}, lights: {acquire: () => ({}), set() {}, release() {}} });
+    ability.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+    for (let i = 0; i < 240 && ability.isActive; i++) {
+      ability.update(1 / 60);
+      target.update(1 / 60);
+    }
+    assert.equal(target.alive, true, `${id} must not hit an out-of-footprint sandbox actor`);
+    ability.destroy(); ability.dispose(); target.dispose(); delete settings[id];
+  }
+});

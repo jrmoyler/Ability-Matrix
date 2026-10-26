@@ -60,6 +60,13 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   let autoTimer = null;
   let autoUid = null;
   let castCount = 0;
+  let initialTimer = null;
+
+  // A newer player action takes precedence over the deferred URL action.
+  function cancelInitial() {
+    clearTimeout(initialTimer);
+    initialTimer = null;
+  }
 
   const post = (message) => {
     if (window.parent && window.parent !== window) window.parent.postMessage({ ...message, pack: packId }, '*');
@@ -96,10 +103,12 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   }
 
   async function select(uid) {
+    cancelInitial();
     return app.select(uid);
   }
 
   async function arm(uid) {
+    cancelInitial();
     await app.select(uid);
     if (!app.activeAim.isArmed) await app.arm(uid);
   }
@@ -107,11 +116,13 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   // Mechanics use the same spellbook but retain their own ground/self input.
   // Validate the UID against implemented runtime presets before arming it.
   function selectMechanic(uid) {
+    cancelInitial();
     stopAuto();
     return armMechanic(app, uid);
   }
 
   async function cast(uid, options = {}) {
+    cancelInitial();
     await app.select(uid);
     const slot = app.slot;
     const runtime = slot.runtime;
@@ -139,12 +150,14 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   }
 
   function stopAuto() {
+    cancelInitial();
     clearTimeout(autoTimer);
     autoTimer = null;
     autoUid = null;
   }
 
   function auto(uid, seconds = 4) {
+    cancelInitial();
     stopAuto();
     autoUid = uid;
     const loop = async () => {
@@ -201,6 +214,7 @@ export function installMatrixBridge(app, packId = 'sandbox') {
     auto,
     stopAuto,
     clear: () => {
+      cancelInitial();
       stopAuto();
       app.clearEffects();
     },
@@ -296,10 +310,11 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   const start = params.get('ability');
   const autoSeconds = Number(params.get('auto'));
   if (start) {
-    setTimeout(() => {
+    initialTimer = setTimeout(() => {
+      initialTimer = null;
       if (autoSeconds > 0) auto(start, autoSeconds);
-      else if (params.get('cast') === '1') cast(start).catch(() => {});
-      else select(start).catch(() => {});
+      else if (params.get('cast') === '1') cast(start).catch((error) => post({ matrix: 'error', message: String(error?.message ?? error) }));
+      else select(start).catch((error) => post({ matrix: 'error', message: String(error?.message ?? error) }));
     }, 400);
   }
 

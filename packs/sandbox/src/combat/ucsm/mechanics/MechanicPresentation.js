@@ -3,6 +3,7 @@ import { drawConvergenceArt, drawConvergenceCharge } from './ConvergenceArt.js';
 import { addConvergenceHero } from './ConvergenceHeroGeometry.js';
 import { addWorldshapeHero } from './WorldshapeHeroGeometry.js';
 import { addStanceHero } from './StanceHeroGeometry.js';
+import { addStancePhaseSurface } from './StancePhaseGeometry.js';
 import {
   Group,
   Mesh,
@@ -194,6 +195,7 @@ export class MechanicPresentation {
       g.userData.stancePhase = kind;
       g.userData.stanceRadius = data.visualRadius ?? p.finisherRadius;
       buildStancePhase(this, g, kind, p.element);
+      addStancePhaseSurface(this, g, p.element, kind);
     } else if (kind === 'anchor' && buildWeaveAnchor(this, g, data)) {
       // Built by the variant-specific sculptor.
     } else if (kind === 'anchor' && frostWeave) {

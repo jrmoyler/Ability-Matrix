@@ -64,6 +64,8 @@ test('composed ring then line release separately and enforce their selected foot
 test('shape indicators respond to live selection and all geometry is bounded and disposable', () => {
   const { ability } = setup();
   assert.equal(ability.shapeRing.visible, true);
+  assert.equal(ability.ringFootprint.uniforms.width.value, settings[ID].ringWidth / settings[ID].zoneRadius);
+  assert.equal(ability.lineFootprint.uniforms.width.value, settings[ID].lineWidth / settings[ID].zoneRadius);
   settings[ID].firstShape = 'burst';
   ability.update(0);
   assert.equal(ability.shapeBurst.visible, true);

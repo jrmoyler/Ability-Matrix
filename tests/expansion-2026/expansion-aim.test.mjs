@@ -27,7 +27,7 @@ test('real aim controller confirms a self cast without requiring a pointer and a
   a.update(0.2);
   assert.equal(a.valid, true);
   assert.equal(a.expansionAim.circle.visible, true);
-  assert.equal(a.expansionAim.circle.scale.x, settings[pulse.id].pulseRadius);
+  assert.equal(a.expansionAim.circle.scale.x, 0.8);
   assert.deepEqual(a.expansionAim.object3D.position.toArray(), [3, 0.06, 4]);
   assert.equal(a.confirm(), true);
   assert.equal(cast.distance, 0.1);

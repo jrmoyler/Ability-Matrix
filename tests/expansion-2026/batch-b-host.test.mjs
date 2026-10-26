@@ -42,7 +42,7 @@ test('bridge-driven expansion casts affect real host-synchronized dummies',()=>{
     const event=seen.find(e=>e.abilityUid===uid&&e.element===element&&e.targetIds.includes('dummy:0'));
     assert.ok(event,`${id} must commit an attributed event for the actual host dummy`);
     assert.equal(event.ownerId,'caster');
-    if(element==='poison') assert.equal(target.alive,false,'three default poison strikes defeat a full-health sandbox dummy');
+    if(['poison','light','void','holy','gravity'].includes(element)) assert.equal(target.alive,false,`${id} defeats a full-health sandbox dummy at default settings`);
     if(element==='shadow'){assert.equal(candidate.transfers,1);assert.ok(seen.some(e=>e.abilityUid===uid&&e.type==='status'&&e.targetIds.includes('dummy:1')),'defeat transfers mark to second real dummy');}
     harness.dispose();abilities.dispose();bridge.dispose();target.dispose();nextTarget?.dispose();
   }

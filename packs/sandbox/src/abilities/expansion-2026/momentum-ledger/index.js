@@ -294,6 +294,8 @@ export class Ability extends BaseAbility {
     attr.needsUpdate = true;
     this.wake.geometry.setDrawRange(0, this._wakeCount);
     this.wake.material.opacity = 0.8 * fade;
+    this.wake.material.color.set(c.trailColor);
+    this.glow.color.set(c.coreColor);
     this.field.scale.set(r * 2, r * 2, 1);
     const u = this.fieldMat.uniforms;
     u.time.value = this.age;
@@ -352,6 +354,7 @@ export function buildEditor(gui, c) {
   f.add(c, 'zoneRadius', 1, 8, 0.1).name('release radius');
   f.add(c, 'bonusImpulse', 0, 30, 0.5).name('stored impulse');
   f.addColor(c, 'accentColor').name('velocity');
+  f.addColor(c, 'coreColor').name('core');
   f.addColor(c, 'trailColor').name('trail');
   f.add(c, 'impactShake', 0, 1, 0.01).name('impact shake');
   f.add(c, 'impactFlash', 0, 1, 0.01).name('impact flash');

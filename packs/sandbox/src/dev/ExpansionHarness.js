@@ -17,7 +17,8 @@ export const candidates = [
 export function installExpansionHarness(app) {
   const byId = new Map();
   const byUid = new Map();
-  for (const item of candidates) {
+  const available = candidates.filter(item => !app.expansionLive?.byUid.has(item.uid));
+  for (const item of available) {
     const { ID, uid, config, Ability, buildEditor } = item;
     if (!ID || ID !== config?.id || !uid?.startsWith('matrix-expansion/') || !config.meta?.element || typeof Ability !== 'function' || typeof buildEditor !== 'function' || settings[ID] || app.abilities.pools.has(ID) || byId.has(ID) || byUid.has(uid)) {
       throw new Error(`Invalid or conflicting expansion candidate: ${ID}`);
@@ -26,7 +27,7 @@ export function installExpansionHarness(app) {
     byUid.set(uid, item);
   }
   // Candidate state and pools exist only for this opt-in session.
-  for (const item of candidates) {
+  for (const item of available) {
     settings[item.ID] = structuredClone(item.config.settings);
     ELEMENT_META[item.ID] = { ...item.config.meta };
     app.abilities.pools.set(item.ID, new ObjectPool(() => {
@@ -79,7 +80,7 @@ export function installExpansionHarness(app) {
   panel.append(summary);
   const select = document.createElement('select');
   select.setAttribute('aria-label', 'Experimental castable');
-  for (const item of candidates) {
+  for (const item of available) {
     const option = document.createElement('option');
     option.value = item.ID;
     option.textContent = `${item.config.meta.element} — ${item.config.meta.label}`;
@@ -131,7 +132,8 @@ export function installExpansionHarness(app) {
       console.error('[expansion test cast]', error);
     }
   });
-  updateEditor();
+  if (available.length) updateEditor();
+  else { button.disabled = true; select.disabled = true; status.textContent = 'No experimental candidates remain; all are live.'; }
   refreshDiagnostics();
   const diagnosticTimer = setInterval(refreshDiagnostics, 200);
   const dispose = () => {
@@ -147,7 +149,7 @@ export function installExpansionHarness(app) {
       ability.destroy();
       manager.pools.get(ability.element).release(ability);
     }
-    for (const item of candidates) {
+    for (const item of available) {
       manager.pools.get(item.ID)?.dispose((ability) => {
         app.combat._tracked?.delete(ability);
         ability.dispose();
@@ -161,5 +163,5 @@ export function installExpansionHarness(app) {
     if (app.expansionDev?.byUid === byUid) delete app.expansionDev;
   };
   app.expansionDev.dispose = dispose;
-  return { candidates, cast: (id, aim) => cast(byId.get(id), aim), refreshDiagnostics, dispose };
+  return { candidates: available, cast: (id, aim) => cast(byId.get(id), aim), refreshDiagnostics, dispose };
 }

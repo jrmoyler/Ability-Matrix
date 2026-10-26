@@ -120,3 +120,38 @@ test("a reused dummy slot is released and can be caught again", () => {
   assert.equal(releases, 2);
   a.dispose();
 });
+
+test("inversion restores gravity when the gust ends rather than after visual fade", () => {
+  let releases = 0;
+  const target = {
+    position: new Vector3(1, 0, 5),
+    kill() {
+      return true;
+    },
+    carry() {},
+    shove() {},
+    release() {
+      releases++;
+    },
+  };
+  const a = new PressureInversionAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        out.push(target);
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(a.impactDuration);
+  assert.equal(releases, 0);
+  a.update(0.05);
+  assert.equal(releases, 1);
+  assert.equal(a.held.size, 0);
+  a.destroy();
+  a.dispose();
+  assert.equal(releases, 1);
+});

@@ -263,6 +263,9 @@ export class PressureInversionAbility extends Ability {
       this._apply(dt);
       this._draw(t);
     } else {
+      // The gust has ended. Return gravity immediately instead of leaving
+      // bodies buoyant for the separate visual fade-out.
+      this._releaseHeld();
       this.mat.uniforms.uFade.value = 2 - t;
       this.floorMaterial.uniforms.uFade.value = 2 - t;
       this.dustMaterial.uniforms.uFade.value = 2 - t;
@@ -270,9 +273,12 @@ export class PressureInversionAbility extends Ability {
     }
   }
   onDestroy() {
+    this._releaseHeld();
+    this.mat.uniforms.uFade.value = 1;
+  }
+  _releaseHeld() {
     for (const d of this.held) d.release?.();
     this.held.clear();
-    this.mat.uniforms.uFade.value = 1;
   }
   dispose() {
     this.onDestroy();

@@ -83,6 +83,17 @@ function ink() {
     fragmentShader: `varying vec2 q;uniform float time,phase,fade;uniform vec3 ink,edge;void main(){float r=length(q),a=atan(q.y,q.x);float boundary=exp(-abs(r-.94)*85.);float marks=pow(abs(cos(a*12.)),32.)*smoothstep(.58,.88,r);float circles=pow(max(0.,cos(r*40.-time*1.5)),16.);float scan=exp(-abs(a-mod(time*.8,6.283)+3.14159)*12.);float mask=1.-smoothstep(.94,1.,r);float x=(boundary*.8+marks*.3+circles*.16+scan*.12)*mask*(.55+.45*phase)*fade;gl_FragColor=vec4(mix(ink,edge,clamp(boundary+circles*.5,0.,1.))*2.,x);}`,
   });
 }
+/** Draw the same disc-clipped stripe or annular band used by the hit test. */
+function footprint(kind) {
+  return new ShaderMaterial({
+    transparent: true, depthWrite: false, side: DoubleSide, blending: AdditiveBlending,
+    uniforms: { color: { value: new Color('#b6a4ff') }, fade: { value: 1 }, width: { value: .2 } },
+    vertexShader: `varying vec2 p;void main(){p=uv*2.-1.;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader: kind === 'line'
+      ? `varying vec2 p;uniform vec3 color;uniform float fade,width;void main(){float disc=1.-smoothstep(.985,1.,length(p));float stripe=1.-smoothstep(width-.01,width+.01,abs(p.x));gl_FragColor=vec4(color*1.6,disc*stripe*fade*.35);}`
+      : `varying vec2 p;uniform vec3 color;uniform float fade,width;void main(){float r=length(p);float band=smoothstep(1.-width-.01,1.-width+.01,r)*(1.-smoothstep(.985,1.,r));gl_FragColor=vec4(color*1.6,band*fade*.35);}`,
+  });
+}
 /** Two independently selected attack shapes share a target but execute as separate beats. */
 export class Ability extends BaseAbility {
   constructor(ctx) {
@@ -137,7 +148,9 @@ export class Ability extends BaseAbility {
       this.root.add(r);
       this.rings.push(r);
     }
-    this.shapeLine = new Mesh(own(new PlaneGeometry(1, 1)), this.glow);
+    this.lineFootprint = own(footprint('line'));
+    this.ringFootprint = own(footprint('ring'));
+    this.shapeLine = new Mesh(own(new PlaneGeometry(1, 1)), this.lineFootprint);
     this.shapeLine.rotation.x = -Math.PI / 2;
     this.shapeLine.position.y = 0.06;
     this.root.add(this.shapeLine);
@@ -156,8 +169,8 @@ export class Ability extends BaseAbility {
     this.shapeBurst.rotation.x = -Math.PI / 2;
     this.shapeBurst.position.y = 0.045;
     this.root.add(this.shapeBurst);
-    this.shapeRing = new Mesh(torus, this.glow);
-    this.shapeRing.rotation.x = Math.PI / 2;
+    this.shapeRing = new Mesh(own(new PlaneGeometry(1, 1)), this.ringFootprint);
+    this.shapeRing.rotation.x = -Math.PI / 2;
     this.shapeRing.position.y = 0.12;
     this.root.add(this.shapeRing);
     // Each beat owns its own fading footprint so overlapping releases remain
@@ -292,9 +305,15 @@ export class Ability extends BaseAbility {
     this.shapeRing.visible = this._beats < 2 && next === 'ring';
     this.shapeLine.visible = this._beats < 2 && next === 'line';
     this.shapeBurst.visible = this._beats < 2 && next === 'burst';
-    this.shapeRing.scale.setScalar(r);
-    this.shapeLine.scale.set(c.lineWidth * 2, r * 2, 1);
+    this.shapeRing.scale.set(r * 2, r * 2, 1);
+    this.shapeLine.scale.set(r * 2, r * 2, 1);
     this.shapeLine.rotation.z = -Math.atan2(this.direction.x, this.direction.z);
+    this.lineFootprint.uniforms.width.value = clamp(c.lineWidth / Math.max(.01, r));
+    this.ringFootprint.uniforms.width.value = clamp(c.ringWidth / Math.max(.01, r));
+    this.lineFootprint.uniforms.color.value.set(c.edgeColor);
+    this.ringFootprint.uniforms.color.value.set(c.edgeColor);
+    this.lineFootprint.uniforms.fade.value = fade;
+    this.ringFootprint.uniforms.fade.value = fade;
     this.shapeBurst.scale.setScalar(r);
     this.shapeBurst.material.opacity = 0.15 * fade;
     for (const release of this.releases) {

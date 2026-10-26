@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import config from '../../packs/sandbox/src/abilities/expansion-2026/borrowed-tomorrow/config.js';
 import {
@@ -40,6 +40,7 @@ test('Borrowed Tomorrow delays its one bounded strike until the clock debt matur
   ability.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
   for (let i = 0; i < 45; i++) ability.update(1 / 60);
   assert.equal(hits.length, 0);
+  assert.ok(Math.abs(ability.fieldMaterial.uniforms.uTime.value - ability.age * config.settings.pulseSpeed) < 1e-6);
   for (let i = 0; i < 75; i++) ability.update(1 / 60);
   assert.equal(hits.length, 1);
   assert.equal(hits[0].impulse, config.settings.hitImpulse);
@@ -76,4 +77,21 @@ test('clock geometry and shader resources are finite, bounded, and disposed exac
   ability.dispose();
   ability.dispose();
   assert.equal(count, ability.resources.length);
+});
+test('clock fragments scatter after the deferred hit and pooling clears the release phase', () => {
+  const { ability } = setup();
+  ability.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
+  for (let i = 0; i < 240 && !ability._released; i++) ability.update(1 / 60);
+  assert.equal(ability._released, true);
+  const matrix = new Matrix4();
+  ability.shards.getMatrixAt(0, matrix);
+  const before = new Vector3().setFromMatrixPosition(matrix);
+  for (let i = 0; i < 20; i++) ability.update(1 / 60);
+  ability.shards.getMatrixAt(0, matrix);
+  const after = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(after.y > before.y + .2);
+  ability.destroy();
+  ability.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
+  assert.equal(ability._released, false);
+  ability.destroy(); ability.dispose();
 });

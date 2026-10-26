@@ -70,7 +70,7 @@ export class ToxinEvolutionAbility extends Ability {
   this.targetId=q.actors.find(x=>x.alive)?.id??null;if(!this.targetId){this.failure='no eligible target';return;}
   this.effect.visible=true;this.nextStage=0;
  }
- onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
   const fade=t<=1?1:1-clamp(t-1),c=this.config;
   if(this.targetId && this.scope && this.phase===AbilityPhase.IMPACT){
    const actor=this.scope.getActor(this.targetId);const e=actor?.actor;
@@ -79,10 +79,11 @@ export class ToxinEvolutionAbility extends Ability {
     this.effect.position.fromArray(e.position);
     if(this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
      const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
-     if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion)this.atmosphere.cue(e.position,1+this.stage*.25);this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
+     if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion){this.atmosphere.cue(e.position,1+this.stage*.25);this.atmosphere.burst(e.position,8+this.stage*6,{radius:.4+this.stage*.15,speed:.45+this.stage*.15,size:.09+this.stage*.02,life:1.3});}this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
     }
    }
   }
+  this.atmosphere.syncPalette(c.toxinColor,c.coreColor);
   this.bodyMat.uniforms.uTime.value=visualTime;this.bodyMat.uniforms.uStage.value=this.stage;this.bodyMat.uniforms.uFade.value=fade;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);
   this.sigilMat.uniforms.uTime.value=visualTime;this.sigilMat.uniforms.uStage.value=this.stage;this.sigilMat.uniforms.uFade.value=fade;this.sigilMat.uniforms.uColor.value.set(c.toxinColor);
   this.vesselMat.uniforms.uTime.value=visualTime;this.vesselMat.uniforms.uFade.value=fade;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);
@@ -94,4 +95,4 @@ export class ToxinEvolutionAbility extends Ability {
  onDestroy(){this.effect.visible=false;this.targetId=null;this.scope=null;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Toxin Evolution');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['stagePeriod',.3,3,.1],['stageDamage',.05,1,.05],['maxStages',1,3,1],['vesselScale',.25,2,.05],['tetherRange',2,16,.1],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}
+export function buildEditor(gui,c,Editor){const f=gui.addFolder('Toxin Evolution');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['stagePeriod',.3,3,.1],['stageDamage',.05,1,.05],['maxStages',1,3,1],['vesselScale',.25,2,.05],['tetherRange',2,16,.1],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}

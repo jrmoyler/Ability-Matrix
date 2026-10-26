@@ -1,12 +1,14 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  AdditiveBlending,
   Color,
   InstancedMesh,
   Matrix4,
   Mesh,
   PlaneGeometry,
   Points,
+  RingGeometry,
   DoubleSide,
   ShaderMaterial,
   Vector3,
@@ -45,6 +47,8 @@ export const CONFIG = Object.freeze({
     lift: 2.2,
     dustOpacity: 0.7,
     crackWidth: 1.2,
+    impactShake: 0.18,
+    impactFlash: 0.07,
   },
 });
 function rockGeometry() {
@@ -67,6 +71,14 @@ function rockGeometry() {
         idx.push(n, n + 1, n + seg + 1, n + 1, n + seg + 2, n + seg + 1);
       }
     }
+  const top = pos.length / 3;
+  pos.push(0, 2.05, 0);
+  const bottom = pos.length / 3;
+  pos.push(0, 0, 0);
+  for (let i = 0; i < seg; i++) {
+    const upper = rows * (seg + 1) + i;
+    idx.push(top, upper + 1, upper, bottom, i, i + 1);
+  }
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
   g.setIndex(idx);
@@ -167,6 +179,23 @@ export class FaultwakeBastionAbility extends Ability {
     this.debris.layers.set(LAYER.VFX);
     this.debris.frustumCulled = false;
     this.group.add(this.debris);
+    this.impactGeometry = new RingGeometry(0.86, 1, 72);
+    this.impactMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      uniforms: { uFade: { value: 0 }, uTime: { value: 0 } },
+      vertexShader:
+        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+      fragmentShader:
+        "varying vec2 vUv;uniform float uFade,uTime;void main(){vec2 p=vUv-.5;float a=atan(p.y,p.x);float cracks=pow(max(0.,sin(a*19.+sin(a*7.)*2.-uTime*4.)),6.);gl_FragColor=vec4(1.,.32,.06,uFade*(.2+cracks*.8));}",
+    });
+    this.impactRing = new Mesh(this.impactGeometry, this.impactMaterial);
+    this.impactRing.layers.set(LAYER.VFX);
+    this.impactRing.rotation.x = -Math.PI / 2;
+    this.impactRing.visible = false;
+    this.group.add(this.impactRing);
     this.m = new Matrix4();
     this.p = new Vector3();
     this.found = [];
@@ -180,6 +209,7 @@ export class FaultwakeBastionAbility extends Ability {
     this.mat.uniforms.uFade.value = 1;
     this.crack.visible = true;
     this.debris.visible = true;
+    this.impactRing.visible = false;
     this._draw(0, 1);
   }
   _draw(front, fade) {
@@ -259,16 +289,35 @@ export class FaultwakeBastionAbility extends Ability {
     this._draw(front, 1);
   }
   onImpact() {
-    this.ctx.shake?.add?.(0.18, 5, 18);
+    this.pointAt(1, this.impactRing.position);
+    this.impactRing.position.y = 0.055;
+    this.impactRing.scale.setScalar(0.2);
+    this.impactRing.visible = true;
+    this.impactMaterial.uniforms.uFade.value = 1;
+    this.ctx.shake?.add?.(
+      this.config.impactShake * settings.global.cameraShake,
+      5,
+      18,
+    );
+    this.ctx.flash?.trigger?.(
+      this.lightColor.set(this.config.lightColor),
+      this.config.impactFlash * settings.global.explosionIntensity,
+    );
   }
   onFade(_dt, t) {
     this._draw(this.length, t > 1 ? 2 - t : 1);
+    if (t <= 1) {
+      this.impactRing.scale.setScalar(0.2 + t * this.config.reach * 2);
+      this.impactMaterial.uniforms.uFade.value = (1 - t) * (1 - t);
+      this.impactMaterial.uniforms.uTime.value = this.age;
+    } else this.impactRing.visible = false;
   }
   onDestroy() {
     this.hit.clear();
     this.columns.count = 0;
     this.crack.visible = false;
     this.debris.visible = false;
+    this.impactRing.visible = false;
   }
   dispose() {
     this.geo.dispose();
@@ -277,6 +326,8 @@ export class FaultwakeBastionAbility extends Ability {
     this.crackMaterial.dispose();
     this.debrisGeometry.dispose();
     this.debrisMaterial.dispose();
+    this.impactGeometry.dispose();
+    this.impactMaterial.dispose();
     super.dispose();
   }
 }
@@ -291,6 +342,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "lift", 0, 8, 0.1, "eruption lift");
   R(f, c, "dustOpacity", 0, 1, 0.01, "dust opacity");
   R(f, c, "crackWidth", 0.1, 3, 0.05, "fissure width");
+  R(f, c, "impactShake", 0, 1, 0.01, "impact shake");
+  R(f, c, "impactFlash", 0, 0.5, 0.01, "impact flash");
   f.close();
   return f;
 }

@@ -59,6 +59,10 @@ test('only distinct in-rhythm owned strikes produce bounded secondary blood puls
   assert.equal(emits.length, 1);
   assert.deepEqual(emits[0].targetIds, ['near']);
   assert.equal(emits[0].element, 'blood');
+  a.update(.1);
+  assert.equal(a.pulseWave.visible, true);
+  assert.equal(a.pulseWave.position.x, 1);
+  assert.ok(a.pulseWave.scale.x < config.settings.pulseRadius);
   send(hit('b', 19));
   send(hit('c', 37, { abilityUid: 'matrix-expansion/pulse-covenant' }));
   send(hit('d', 100));

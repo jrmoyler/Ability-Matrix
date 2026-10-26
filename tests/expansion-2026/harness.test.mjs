@@ -120,3 +120,26 @@ test('nature and cosmic hits on real dummies retain their candidate attribution'
   }
   harness.dispose(); abilities.dispose(); particles.dispose(); bridge.dispose();
 });
+
+test('live candidates are excluded without replacing or disposing their state', () => {
+  globalThis.document = { createElement: () => new Element(), body: new Element() };
+  const ctx = {scene:new Scene(), lights:{acquire:()=>({}),release(){},set(){}}, character:{position:new Vector3()}};
+  const manager = new AbilityManager(ctx);
+  const item = candidates[0];
+  const liveSettings = { range: 123 };
+  const livePool = { dispose() { throw new Error('live pool disposed'); } };
+  settings[item.ID] = liveSettings;
+  manager.pools.set(item.ID, livePool);
+  const app = { abilities:manager, character:ctx.character, editor:{gui}, combat:{enabled:true}, expansionLive:{byUid:new Map([[item.uid, item]])} };
+  const harness = installExpansionHarness(app);
+  assert.equal(harness.candidates.length, candidates.length - 1);
+  assert.equal(settings[item.ID], liveSettings);
+  assert.equal(manager.pools.get(item.ID), livePool);
+  assert.throws(() => harness.cast(item.ID), /Unknown/);
+  harness.dispose();
+  assert.equal(settings[item.ID], liveSettings);
+  assert.equal(manager.pools.get(item.ID), livePool);
+  delete settings[item.ID];
+  manager.pools.delete(item.ID);
+  manager.dispose();
+});
