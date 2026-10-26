@@ -245,6 +245,12 @@ export class CombatStateManager {
     return out.eventId;
   }
 
+  /** Remove queued events and invalidate events already extracted for this tick. */
+  cancelEvents(predicate) {
+    this.queue = this.queue.filter((event) => !predicate(event));
+    for (const event of this._dueEvents ?? []) if (predicate(event)) this._cancelledEvents.add(event);
+  }
+
   /** Advance by real seconds: as many fixed ticks as fit. */
   step(dt) {
     this._acc += Math.max(0, dt);
@@ -301,7 +307,10 @@ export class CombatStateManager {
     // 3. expire before anything new lands (stable id order)
     this._expire(tick);
 
+    this._dueEvents = due;
+    this._cancelledEvents = new WeakSet();
     for (const event of due) {
+      if (this._cancelledEvents.has(event)) continue;
       const reason = this._validate(event);
       if (reason) {
         this._reject(event, reason);
@@ -319,6 +328,8 @@ export class CombatStateManager {
       this.mechanics?.afterEvent(event);
     }
 
+    this._dueEvents = null;
+    this._cancelledEvents = null;
     this._record(tick);
     this.tick++;
   }
