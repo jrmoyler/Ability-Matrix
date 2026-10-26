@@ -165,6 +165,19 @@ export class Ability extends BaseAbility {
     );
     this.beam.visible = false;
     this.root.add(this.beam);
+    this.impactMaterial = own(new MeshBasicMaterial({color:0xd6ffff, transparent:true,
+      opacity:0, depthWrite:false, blending:AdditiveBlending}));
+    this.impactGroup = new Group();
+    this.impactGroup.visible = false;
+    this.impactRings = [];
+    for (let i = 0; i < 2; i++) {
+      const ring = new Mesh(torus, this.impactMaterial);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = .04 + i * .04;
+      this.impactGroup.add(ring);
+      this.impactRings.push(ring);
+    }
+    this.root.add(this.impactGroup);
     this._point = new Vector3();
     this._lastTarget = null;
     this._lastElement = null;
@@ -299,6 +312,19 @@ export class Ability extends BaseAbility {
       this.arms[i].rotation.z = -.35 - .12 * Math.sin(this.age * 1.8 + i * TAU / 6) - recoil * .2;
     }
     this.head.rotation.y = this.age * 0.6;
+    const impactTime = Math.max(.05, c.impactDuration ?? .45);
+    this.impactGroup.visible = !!this._lastTarget && this._beamAge < impactTime;
+    if (this.impactGroup.visible) {
+      const progress = clamp(this._beamAge / impactTime);
+      this.impactGroup.position.set(this._lastTarget[0] - this._point.x, 0,
+        this._lastTarget[2] - this._point.z);
+      this.impactMaterial.color.set(counterColors[this._lastElement] ?? c.beamColor);
+      this.impactMaterial.opacity = .7 * (1 - progress) * fade;
+      for (let i = 0; i < this.impactRings.length; i++) {
+        this.impactRings[i].scale.setScalar((c.impactRadius ?? .8) * (.2 + progress * (i ? 1 : 1.5)));
+        this.impactRings[i].rotation.z = this.age * (i ? -2 : 2);
+      }
+    }
     this.beam.visible = !!this._lastTarget && this._beamAge < 0.18;
     if (this.beam.visible) {
       aim.fromArray(this._lastTarget).sub(this._point).setY(-1.1);
@@ -315,6 +341,7 @@ export class Ability extends BaseAbility {
   onDestroy() {
     this.root.visible = false;
     this.beam.visible = false;
+    this.impactGroup.visible = false;
     this._scope = null;
     this._lastTarget = null;
     this._lastElement = null;
@@ -333,6 +360,8 @@ export function buildEditor(gui, c) {
   f.add(c, 'zoneRadius', 2, 12, 0.1).name('scan radius');
   f.add(c, 'shotInterval', 0.2, 2, 0.05).name('shot interval');
   f.add(c, 'damage', 0, 2, 0.05).name('damage');
+  f.add(c, 'impactRadius', .2, 3, .05).name('impact visual size');
+  f.add(c, 'impactDuration', .1, 1, .05).name('impact visual time');
   f.addColor(c, 'metalColor').name('housing');
   f.addColor(c, 'coreColor').name('core');
   f.addColor(c, 'beamColor').name('beam');

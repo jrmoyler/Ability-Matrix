@@ -69,3 +69,37 @@ test('cinder second pulse control changes both the strike and crown energy timin
   a.destroy();a.dispose();
  }finally{settings[CINDER_CONFIG.id].secondPulse=original;settings[CINDER_CONFIG.id].coreColor=CINDER_CONFIG.settings.coreColor;settings[CINDER_CONFIG.id].detailHeight=CINDER_CONFIG.settings.detailHeight;}
 });
+
+test('zero duration updates never commit pending combat actions',()=>{
+ for(const C of [CinderCrownAbility,GlacierBellAbility]){
+  const {a,hits}=fixture(C);run(a,.25);assert.equal(a.phase,'impact');
+  a.impactTime=a.impactDuration*.9;const before=hits.length;
+  for(let i=0;i<5;i++)a.update(0);
+  assert.equal(hits.length,before);if(a.fire)assert.equal(a.second,false);
+  a.update(1/60);assert.ok(hits.length>before);a.destroy();a.dispose();
+ }
+});
+
+test('travel only shows the landing telegraph and reveals the authored effect at impact',()=>{
+ for(const C of [CinderCrownAbility,GlacierBellAbility]){
+  const {a}=fixture(C);assert.equal(a.phase,'travel');assert.equal(a.surface.visible,false);assert.equal(a.detail.points.visible,false);assert.equal(a.authored.stage.visible,false);assert.equal(a.monument.group.visible,false);assert.equal(a.ring.scale.x,a.config.zoneRadius);
+  run(a,.25);assert.equal(a.phase,'impact');assert.equal(a.surface.visible,true);assert.equal(a.authored.stage.visible,true);assert.equal(a.monument.group.visible,true);
+  a.destroy();a.dispose();
+ }
+});
+
+test('coal heart and frost bell are distinct finite surfaces with phase-driven light and live controls',()=>{
+ const heart=fixture(CinderCrownAbility),bell=fixture(GlacierBellAbility);
+ try{
+  const fire=heart.a,ice=bell.a;
+  assert.notEqual(fire.monument.solid.geometry.attributes.position.count,ice.monument.solid.geometry.attributes.position.count);
+  for(const a of [fire,ice])for(const n of a.monument.solid.geometry.attributes.position.array)assert.ok(Number.isFinite(n));
+  run(ice,.3);const early=ice.monument.shafts.material.uniforms.power.value;run(ice,.6);assert.ok(ice.monument.shafts.material.uniforms.power.value>early);
+  run(fire,.25);const impact=fire.monument.shafts.material.uniforms.power.value;run(fire,.3);assert.ok(fire.monument.shafts.material.uniforms.power.value<impact);
+  settings[CINDER_CONFIG.id].monumentScale=2;settings[CINDER_CONFIG.id].monumentGlow=2;fire.update(1/60);
+  assert.equal(fire.monument.group.scale.x,2);assert.ok(fire.monument.solid.material.emissiveIntensity>=.8);
+ }finally{
+  settings[CINDER_CONFIG.id].monumentScale=CINDER_CONFIG.settings.monumentScale;settings[CINDER_CONFIG.id].monumentGlow=CINDER_CONFIG.settings.monumentGlow;
+  for(const a of [heart.a,bell.a]){a.destroy();a.dispose();}
+ }
+});

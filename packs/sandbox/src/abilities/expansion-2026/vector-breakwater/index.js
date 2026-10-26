@@ -12,8 +12,10 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Group,
+  InstancedMesh,
   Mesh,
   MeshBasicMaterial,
+  Object3D,
   PlaneGeometry,
   RingGeometry,
   ShaderMaterial,
@@ -28,6 +30,8 @@ export const ID = config.id;
 const TAU = Math.PI * 2,
   clamp = (x) => Math.max(0, Math.min(1, x));
 const loc = new Vector3();
+const finTransform = new Object3D();
+const FINS_PER_FRONT = 6;
 const MAX_TARGETS = 16;
 /** Parameterized curved shield front, with tapered tips and camber; not a stock quad. */
 function frontGeometry() {
@@ -74,6 +78,18 @@ function ribGeometry() {
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+/** Raised, asymmetric pressure fins used behind each travelling shield. */
+function finGeometry() {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute([
+    0,.7,0, -.3,0,-.3, .3,0,-.3,
+    0,.7,0, .3,0,-.3, 0,0,.45,
+    0,.7,0, 0,0,.45, -.3,0,-.3,
+    -.3,0,-.3, 0,0,.45, .3,0,-.3,
+  ], 3));
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -135,6 +151,9 @@ export class Ability extends BaseAbility {
       opacity: .7, depthWrite: false, side: DoubleSide, blending: AdditiveBlending }));
     this.fronts = [];
     this.wakeRings = [];
+    this.fins = new InstancedMesh(own(finGeometry()), this.ribMat, 3 * FINS_PER_FRONT);
+    this.fins.frustumCulled = false;
+    this.root.add(this.fins);
     const wakeGeo = own(new RingGeometry(.88, 1, 64));
     for (let i = 0; i < 3; i++) {
       const mesh = new Mesh(geo, this.frontMat);
@@ -229,10 +248,23 @@ export class Ability extends BaseAbility {
         wake.material.opacity = .65 * (1 - t) * fade;
         wake.material.color.set(c.edgeColor);
       }
+      const peel = clamp(arrival / .55);
+      const active = elapsed >= 0 && arrival < .55;
+      for (let j = 0; j < FINS_PER_FRONT; j++) {
+        const side = (j / (FINS_PER_FRONT - 1)) * 2 - 1;
+        finTransform.position.set(side * (c.width * .82 + peel * (c.finSpread ?? .9)),
+          .12 + (j % 3) * .16 + peel * .6,
+          front - .25 - (j % 2) * .15 + peel * .45);
+        finTransform.rotation.set(peel * 1.5, side * .3, side * (.3 + peel));
+        finTransform.scale.setScalar(active ? (c.finSize ?? .22) * (1 - peel) * fade : .001);
+        finTransform.updateMatrix();
+        this.fins.setMatrixAt(i * FINS_PER_FRONT + j, finTransform.matrix);
+      }
       if (elapsed >= 0 && front > this._previous[i])
         this._sweep(i, this._previous[i], front);
       this._previous[i] = front;
     }
+    this.fins.instanceMatrix.needsUpdate = true;
   }
   _sweep(i, from, to) {
     const c = this.config,
@@ -299,6 +331,8 @@ export function buildEditor(gui, c) {
   f.add(c, 'spacing', 0.05, 0.6, 0.01).name('front spacing');
   f.add(c, 'speed', 3, 40, 0.5).name('speed');
   f.add(c, 'impulse', 0, 30, 0.5).name('impulse');
+  f.add(c, 'finSize', .04, .5, .01).name('pressure fin size');
+  f.add(c, 'finSpread', 0, 3, .1).name('arrival spread');
   f.addColor(c, 'edgeColor').name('edge');
   f.addColor(c, 'bodyColor').name('pressure');
   f.addColor(c, 'groundColor').name('wake');

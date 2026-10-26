@@ -106,3 +106,18 @@ test('fabricator chooses the nearest visible live actor instead of the first act
   assert.deepEqual(events[0].position, [6,0,0]);
   ability.destroy(); ability.dispose();
 });
+test('adaptive arrival rings expand at the struck target and reset on reuse', () => {
+  const { ability } = setup('wet');
+  ability._fire(); ability._sync();
+  assert.equal(ability.impactGroup.visible, true);
+  assert.equal(ability.impactGroup.position.x, 1);
+  const before = ability.impactRings[0].scale.x;
+  ability.update(.3);
+  assert.ok(ability.impactRings[0].scale.x > before);
+  ability.update(.3);
+  assert.equal(ability.impactGroup.visible, false);
+  ability.destroy();
+  ability.spawn(new Vector3(), new Vector3(1,0,0), 5);
+  assert.equal(ability.impactGroup.visible, false);
+  ability.destroy(); ability.dispose();
+});

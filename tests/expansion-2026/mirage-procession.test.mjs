@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import config from '../../packs/sandbox/src/abilities/expansion-2026/mirage-procession/config.js';
 import {
@@ -70,5 +70,22 @@ test('every lane emits the same trail even before any target is hit', () => {
   const terminal = emissions.filter((e) => e.count === 12);
   assert.equal(terminal.length, 3);
   assert.deepEqual(terminal.map((e) => e.position.z).sort((x, y) => x - y), positions);
+  a.destroy(); a.dispose();
+});
+test('identical pooled mirror shards expand as masks dissolve at the end', () => {
+  const { a } = setup(0);
+  assert.equal(a.shards.count, 24);
+  const matrix = new Matrix4();
+  a.shards.getMatrixAt(0, matrix);
+  const left = new Vector3().setFromMatrixPosition(matrix);
+  a.shards.getMatrixAt(8, matrix);
+  const center = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(Math.abs(center.x - left.x - config.settings.laneGap) < 1e-5);
+  while (a.phase === 'travel') a.update(1 / 60);
+  for (let i = 0; i < 25; i++) a.update(1 / 60);
+  a.shards.getMatrixAt(8, matrix);
+  const after = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(Math.hypot(after.x, (after.y - a.masks[1].position.y) / .8) > .55);
+  assert.ok(a.masks[1].scale.x < 1);
   a.destroy(); a.dispose();
 });

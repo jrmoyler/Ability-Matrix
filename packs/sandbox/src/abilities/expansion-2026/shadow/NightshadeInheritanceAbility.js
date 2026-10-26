@@ -24,7 +24,7 @@ export class NightshadeInheritanceAbility extends Ability {
  constructor(ctx){super(ID,ctx);}
  get handlesOwnHits(){return true;}get impactDuration(){return this.config.lifetime;}get fadeDuration(){return this.config.fade;}
  get instanceCount(){return this.wings.length+this.motes.length+1;}
- createShaders(){this.shade=new Group();this.group.add(this.shade);this.shade.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
+ createShaders(){this._lightSaved=new Vector3();this.shade=new Group();this.group.add(this.shade);this.shade.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
   this.mat=m(shadeMaterial());this.floorMat=m(floorMaterial());const ribbonGeometry=g(inheritanceRibbonGeometry());this.ribbons=[];this.ribbonMaterials=[];this.ribbonTimes=[-1,-1,-1];this.ribbonNext=0;for(let i=0;i<3;i++){const mat=m(inheritanceMaterial()),ribbon=new Mesh(ribbonGeometry,mat);ribbon.layers.set(LAYER.VFX);ribbon.frustumCulled=false;ribbon.visible=false;this.group.add(ribbon);this.ribbons.push(ribbon);this.ribbonMaterials.push(mat);}this.ribbon=this.ribbons[0];this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.045;this.shade.add(this.floor);
   const wing=g(shadeWingGeometry());this.wings=[];for(let i=0;i<8;i++){const w=new Mesh(wing,this.mat);w.rotation.y=i*TAU/8;w.rotation.z=.5+(i%2)*.3;w.position.y=1.2;this.shade.add(w);this.wings.push(w);}
   this.travelShade=new Group();this.group.add(this.travelShade);this.travelShade.visible=false;this.travelWings=[];for(let i=0;i<4;i++){const w=new Mesh(wing,this.mat);w.rotation.y=i*TAU/4;w.rotation.z=.5;w.scale.setScalar(.55);this.travelShade.add(w);this.travelWings.push(w);}this.travelShade.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
@@ -56,6 +56,7 @@ export class NightshadeInheritanceAbility extends Ability {
   for(let i=0;i<this.wings.length;i++){const w=this.wings[i];w.rotation.y=i*TAU/8+visualTime*.25;w.rotation.z=.5+(i%2)*.3+.12*Math.sin(visualTime*2+i);}
   for(let i=0;i<this.motes.length;i++){const a=i*2.399963+visualTime*.6,r=.7+(i%5)*.16;this.motes[i].position.set(Math.cos(a)*r,.2+((i*.29+visualTime*.4)%2.3),Math.sin(a)*r);}
  }
+ _updateLight(dt,scale){if(this.phase===AbilityPhase.TRAVEL||!this.shade.visible)return super._updateLight(dt,scale);this._lightSaved.copy(this.position);this.position.copy(this.shade.position);try{super._updateLight(dt,scale);}finally{this.position.copy(this._lightSaved);}}
  onDestroy(){this.unsubscribe?.();this.unsubscribe=null;this.shade.visible=false;for(const ribbon of this.ribbons)ribbon.visible=false;this.travelShade.visible=false;this.targetId=null;this.scope=null;this.visited.clear();}
  dispose(){this.unsubscribe?.();this.unsubscribe=null;for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }

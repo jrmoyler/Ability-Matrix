@@ -47,7 +47,7 @@ export class ToxinEvolutionAbility extends Ability {
  get impactDuration(){return this.config.lifetime;}
  get fadeDuration(){return this.config.fade;}
  get instanceCount(){return this.coils.length+this.spores.length+2;}
- createShaders(){
+ createShaders(){this._lightSaved=new Vector3();
   this.effect=new Group();this.group.add(this.effect);this.effect.visible=false;this.gs=[];this.ms=[];
   const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
   this.bodyMat=m(material());this.sigilMat=m(sigil());this.vesselMat=m(vesselMaterial());this.body=new Mesh(g(toxinMembraneGeometry()),this.bodyMat);this.effect.add(this.body);
@@ -95,6 +95,7 @@ export class ToxinEvolutionAbility extends Ability {
   for(let i=0;i<this.coils.length;i++){this.coils[i].rotation.y=visualTime*(.7+i*.15)*(i%2?-1:1);this.coils[i].scale.setScalar(grow);}
   for(let i=0;i<this.spores.length;i++){const a=i*2.399963+visualTime*.8,r=.7+(i%4)*.16;this.spores[i].position.set(Math.cos(a)*r,.2+((i*.31+visualTime*.45)%2.3),Math.sin(a)*r);}
  }
+ _updateLight(dt,scale){if(this.phase===AbilityPhase.TRAVEL||!this.effect.visible)return super._updateLight(dt,scale);this._lightSaved.copy(this.position);this.position.copy(this.effect.position);try{super._updateLight(dt,scale);}finally{this.position.copy(this._lightSaved);}}
  onDestroy(){this.effect.visible=false;this.travelPod.visible=false;this.targetId=null;this.scope=null;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { settings } from '../../packs/sandbox/src/config/settings.js';
 import config from '../../packs/sandbox/src/abilities/expansion-2026/vector-breakwater/config.js';
 import {
@@ -73,6 +73,10 @@ test('custom shield buffer is finite, bounded and pooled resources dispose once'
 });
 test('shield ribs travel with the front and each impact opens a bounded expanding wake', () => {
   const { a } = setup();
+  assert.equal(a.fins.count, 18);
+  const matrix = new Matrix4();
+  a.fins.getMatrixAt(6, matrix);
+  assert.ok(new Vector3().setFromMatrixScale(matrix).x < .01, 'later front remains hidden before launch');
   assert.equal(a.fronts[0].children.length, 1);
   assert.ok(a.fronts[0].children[0].geometry.attributes.position.count >= 300);
   assert.ok(a.wakeRings.every((ring) => !ring.visible));
@@ -80,7 +84,12 @@ test('shield ribs travel with the front and each impact opens a bounded expandin
   assert.equal(a.wakeRings[0].visible, true);
   assert.equal(a.wakeRings[1].visible, false);
   const start = a.wakeRings[0].scale.x;
+  a.fins.getMatrixAt(0, matrix);
+  const finBefore = new Vector3().setFromMatrixPosition(matrix);
   for (let i = 0; i < 6; i++) a.update(1 / 60);
+  a.fins.getMatrixAt(0, matrix);
+  const finAfter = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(Math.abs(finAfter.x) > Math.abs(finBefore.x));
   assert.ok(a.wakeRings[0].scale.x > start);
   a.destroy();
   a.spawn(new Vector3(), new Vector3(1, 0, 0), 18);

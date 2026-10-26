@@ -38,6 +38,8 @@
     "armDelay": 0.55,
     "triggerWindup": 0.32,
     "thornLength": 1.5,
+    "strikeWidth": 0.12,
+    "strikeDuration": 0.6,
     "lifetime": 6,
     "fade": 1.1,
     "hitImpulse": 5,

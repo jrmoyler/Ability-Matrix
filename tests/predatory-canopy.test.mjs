@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Scene, Vector3 } from 'three';
 import { settings } from '../packs/sandbox/src/config/settings.js';
-import { PredatoryCanopyAbility, ID, canopyLeafGeometry, canopyThornGeometry } from '../packs/sandbox/src/abilities/expansion-2026/nature/PredatoryCanopyAbility.js';
+import { PredatoryCanopyAbility, ID, canopyLeafGeometry, canopyThornGeometry, canopyStrikeGeometry } from '../packs/sandbox/src/abilities/expansion-2026/nature/PredatoryCanopyAbility.js';
 import config from '../packs/sandbox/src/abilities/expansion-2026/nature/predatory-canopy.config.js';
 settings[ID] = structuredClone(config.settings);
 const target = (x,z) => ({ alive: true, position: new Vector3(x,0,z), hits: 0, kill() {this.hits++;this.alive=false;return true;} });
@@ -40,3 +40,5 @@ test('foliage palette changes update pooled particle gradients in a live cast',(
 test('folded leaf seed travels to the impact point and opens the canopy',()=>{const {ability:a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.equal(a.seed.visible,true);a.update(.08);assert.ok(a.seed.position.x>0&&a.seed.position.x<5);assert.equal(a.seedLeaves.length,4);ticks(a,.5);assert.equal(a.seed.visible,false);assert.equal(a.root.visible,true);a.destroy();a.dispose();});
 
 test('canopy descends and contracts while releasing',()=>{const {ability:a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);ticks(a,1);const width=a.root.scale.x,height=a.branches[0].position.y;a.onFade(0,1.5);assert.ok(a.root.scale.x<width);assert.ok(a.branches[0].position.y<height);assert.ok(a.leaves[0].position.y<height);a.destroy();a.dispose();});
+
+test('strike vines follow the actual moving target then fade after the hit',()=>{const g=canopyStrikeGeometry(),p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();const {ability:a,bodies}=arena(),d=target(6,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);ticks(a,1);assert.equal(a.strikeRig.visible,true);assert.equal(a.strikeMaterials[0].uniforms.uTarget.value.x,1);d.position.set(5,0,1.5);ticks(a,.1);assert.equal(a.strikeMaterials[0].uniforms.uTarget.value.x,0);assert.equal(a.strikeMaterials[0].uniforms.uTarget.value.z,1.5);ticks(a,.5);assert.equal(d.hits,1);ticks(a,.8);assert.equal(a.strikeRig.visible,false);a.destroy();a.dispose();});

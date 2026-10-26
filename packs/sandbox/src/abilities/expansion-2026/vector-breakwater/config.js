@@ -29,5 +29,7 @@ export default {
     edgeColor: '#fff0dd',
     bodyColor: '#d16f56',
     groundColor: '#ff9e76',
+    finSize: 0.22,
+    finSpread: 0.9,
   },
 };

@@ -28,5 +28,7 @@ export default {
     metalColor: '#284258',
     coreColor: '#7ff0ff',
     beamColor: '#d6ffff',
+    impactRadius: 0.8,
+    impactDuration: 0.45,
   },
 };

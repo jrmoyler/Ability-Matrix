@@ -13,9 +13,12 @@ import {
   ExtrudeGeometry,
   Float32BufferAttribute,
   Group,
+  InstancedMesh,
   LineBasicMaterial,
   LineSegments,
   Mesh,
+  MeshBasicMaterial,
+  Object3D,
   PlaneGeometry,
   ShaderMaterial,
   Shape,
@@ -30,6 +33,8 @@ export { config };
 export const ID = config.id;
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const point = new Vector3();
+const shardTransform = new Object3D();
+const SHARDS_PER_LANE = 8;
 const MAX_TARGETS = 16;
 /** A faceted theatrical mask with two cut eye apertures. */
 function maskGeometry() {
@@ -71,6 +76,18 @@ function filigreeGeometry() {
     positions.push(path[i-1][0],path[i-1][1],.115,path[i][0],path[i][1],.115);
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  return g;
+}
+/** Tapered glass facets that orbit each mask and peel outward at arrival. */
+function shardGeometry() {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute([
+    0, .9, 0, -.34, 0, .16, 0, -.8, 0,
+    0, .9, 0, 0, -.8, 0, .34, 0, .16,
+    0, .9, 0, .34, 0, .16, -.34, 0, .16,
+    0, -.8, 0, -.34, 0, .16, .34, 0, .16,
+  ], 3));
+  g.computeVertexNormals();
   return g;
 }
 function maskMaterial() {
@@ -148,6 +165,11 @@ export class Ability extends BaseAbility {
       this.root.add(w);
       this.wakes.push(w);
     }
+    this.shardMat = own(new MeshBasicMaterial({color:0xfff3ff, transparent:true,
+      opacity:.7, depthWrite:false, side:DoubleSide, blending:AdditiveBlending}));
+    this.shards = new InstancedMesh(own(shardGeometry()), this.shardMat, 3 * SHARDS_PER_LANE);
+    this.shards.frustumCulled = false;
+    this.root.add(this.shards);
     this._previous = 0;
     this._hits = new Set();
     this._found = [];
@@ -273,6 +295,9 @@ export class Ability extends BaseAbility {
     this.wakeMat.uniforms.time.value = this.age;
     this.wakeMat.uniforms.fade.value = fade;
     this.wakeMat.uniforms.color.value.set(c.trailColor);
+    this.shardMat.color.set(c.edgeColor);
+    this.shardMat.opacity = .7 * fade;
+    const departure = this.phase === 'travel' ? 0 : clamp(this.impactTime / this.impactDuration);
     for (let i = 0; i < 3; i++) {
       const lane = i - 1,
         m = this.masks[i],
@@ -283,9 +308,22 @@ export class Ability extends BaseAbility {
         this.front,
       );
       m.rotation.y = Math.sin(this.age * 2 + i) * 0.16;
+      m.scale.setScalar(1 - departure * .75);
       w.position.set(lane * c.laneGap, 0.04, this.front * 0.5);
       w.scale.set(c.hitWidth * 2, Math.max(0.01, this.front), 1);
+      for (let j = 0; j < SHARDS_PER_LANE; j++) {
+        const angle = j * Math.PI * 2 / SHARDS_PER_LANE + this.age * 1.8;
+        const orbit = .55 + departure * (c.shardSpread ?? 1.2);
+        shardTransform.position.set(lane * c.laneGap + Math.cos(angle) * orbit,
+          m.position.y + Math.sin(angle) * orbit * .8,
+          this.front + Math.sin(angle * 2) * .18 + departure * (j % 2 ? .45 : -.45));
+        shardTransform.rotation.set(angle * .4, angle, this.age * 2 + j);
+        shardTransform.scale.setScalar((c.shardSize ?? .12) * (1 - departure * .6) * fade);
+        shardTransform.updateMatrix();
+        this.shards.setMatrixAt(i * SHARDS_PER_LANE + j, shardTransform.matrix);
+      }
     }
+    this.shards.instanceMatrix.needsUpdate = true;
   }
   onDestroy() {
     this.root.visible = false;
@@ -304,6 +342,8 @@ export function buildEditor(gui, c) {
   f.add(c, 'laneGap', 0.8, 4, 0.1).name('lane spacing');
   f.add(c, 'hitWidth', 0.1, 2, 0.05).name('real width');
   f.add(c, 'speed', 3, 40, 0.5).name('speed');
+  f.add(c, 'shardSize', .03, .35, .01).name('mirror size');
+  f.add(c, 'shardSpread', .2, 3, .1).name('departure spread');
   f.addColor(c, 'maskColor').name('mask');
   f.addColor(c, 'edgeColor').name('edge');
   f.addColor(c, 'trailColor').name('wake');

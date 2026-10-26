@@ -35,6 +35,8 @@
     "accentColor": "#9ceaff",
     "particleCount": 32,
     "detailHeight": 1,
+    "monumentScale": 1.5,
+    "monumentGlow": 1,
     "coreColor": "#cdf6ff"
   }
 }

@@ -23,7 +23,7 @@ function rayMaterial(){return new ShaderMaterial({transparent:true,depthWrite:fa
 }`});}
 export class HeliostatVerdictAbility extends Ability{
  constructor(ctx){super(ID,ctx);}get handlesOwnHits(){return true;}get impactDuration(){return this.config.lifetime;}get fadeDuration(){return this.config.fade;}
- createShaders(){this.rig=new Group();this.group.add(this.rig);this.rig.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
+ createShaders(){this._lightSaved=new Vector3();this.rig=new Group();this.group.add(this.rig);this.rig.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
   this.lensMat=m(lensMaterial());this.rayMat=m(rayMaterial());this.beamMat=m(rayMaterial());this.irisMat=m(irisMaterial());this.mirror=new Mesh(g(heliostatGeometry()),this.lensMat);this.mirror.position.y=2.7;this.rig.add(this.mirror);
   this.halo=new Mesh(g(new PlaneGeometry(3,3,1,1)),this.rayMat);this.halo.rotation.x=-Math.PI/2;this.halo.position.y=.05;this.rig.add(this.halo);
   const blade=g(heliostatBladeGeometry());this.blades=[];for(let i=0;i<8;i++){const b=new Mesh(blade,this.irisMat);this.rig.add(b);this.blades.push(b);}
@@ -39,6 +39,7 @@ export class HeliostatVerdictAbility extends Ability{
   if(this.targetId&&this.scope&&this.phase===AbilityPhase.IMPACT){const result=this.scope.getActor(this.targetId),a=result?.actor;if(!result?.ok||!a?.alive||Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)>c.zoneRadius){this.targetId=null;if(!this.fired){this.failure='target escaped';this.rig.visible=false;}}else{this.rig.position.fromArray(a.position);if(dt>0&&charge>=1&&!this.fired&&this.impactTime>=this.retryAt){const cover=this.scope.isBlocked(this.origin.toArray(),a.position);if(!cover.ok||cover.blocked){this.failure='target behind cover';this.targetId=null;this.rig.visible=false;return;}const event=this.scope.emit({type:'hit',element:'light',targetIds:[a.id],position:a.position,damage:c.damage,intensity:1});if(event?.ok){this.fired=true;this.firedAt=this.impactTime;if(!this.reduceMotion){this.atmosphere.cue(a.position,c.zoneRadius*.5);this.atmosphere.burst(a.position,24,{radius:.25,speed:2.2,size:.07,life:.65,spread:.35});}}else {this.failure=event?.reason??'ray refused';this.retryAt=this.impactTime+.2;}}}}
   const beamAge=this.firedAt<0?-1:this.impactTime-this.firedAt,beamLife=Math.max(.1,c.beamDuration??.6);this.beamMat.uniforms.uTime.value=visualTime;this.beamMat.uniforms.uFade.value=beamAge<0?0:normalFade*(1-clamp(beamAge/beamLife));this.beamMat.uniforms.uColor.value.set(c.coreColor);for(const ray of this.rays){ray.visible=beamAge>=0&&beamAge<beamLife;ray.scale.set(1,2.6,1);}if(this.fired&&release<=0)this.rig.visible=false;
  }
+ _updateLight(dt,scale){if(this.phase===AbilityPhase.TRAVEL||!this.rig.visible)return super._updateLight(dt,scale);this._lightSaved.copy(this.position);this.position.copy(this.rig.position);try{super._updateLight(dt,scale);}finally{this.position.copy(this._lightSaved);}}
  onDestroy(){this.rig.visible=false;this.travelLens.visible=false;this.targetId=null;this.scope=null;for(const r of this.rays)r.visible=false;}
  dispose(){for(const x of this.gs)x.dispose();for(const x of this.ms)x.dispose();super.dispose();}
 }

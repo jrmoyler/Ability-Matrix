@@ -33,7 +33,8 @@ test('two pulse candidates use production selection, cast, and rigged host comba
     const ctx={scene:new Scene(),lights:{acquire:()=>({}),set(){},release(){}},character:{position:new Vector3()},dummies,expansionCombat:bridge};
     const abilities=new AbilityManager(ctx);
     const app=Object.assign(Object.create(App.prototype),{abilities,scene:ctx.scene,character:ctx.character,dummies,editor:{gui},nativePack:new Map(),runtimes:new Map(),renderer:{gl:{domElement:{}}},hud:{setElement(){},showToast(){}},aim:{object3D:{visible:true},setElement(){},cancel(){},facing:0},cooldowns:new Map(),slot:null,_throwBody(){}});
-    const host=Object.assign(Object.create(PackAdapter.prototype),{app,manager:combat,enabled:true,cues:false,scope:null,_meta:new WeakMap(),_wrapped:new WeakSet(),_tracked:new Set(),_ids:new WeakMap(),_byId:new Map(),_nextDummy:0,mechanics:{systems:{worldshape:{blocked:()=>false}},beforeStep(){},update(){},cue(){},clear(){}},feed:{update(){},badges(){}}});
+    let coverChecks=0;
+    const host=Object.assign(Object.create(PackAdapter.prototype),{app,manager:combat,enabled:true,cues:false,scope:null,_meta:new WeakMap(),_wrapped:new WeakSet(),_tracked:new Set(),_ids:new WeakMap(),_byId:new Map(),_nextDummy:0,mechanics:{systems:{worldshape:{blocked:()=>{coverChecks++;return true;}}},beforeStep(){},update(){},cue(){},clear(){}},feed:{update(){},badges(){}}});
     app.combat=host;host._install();
     const item=expansionRoster().find(c=>c.ID===id);assert.ok(item,id);
     const live=installProductionExpansion(app,expansionRoster({...EXPANSION_STATUS,[item.uid]:'live'}));
@@ -51,6 +52,7 @@ test('two pulse candidates use production selection, cast, and rigged host comba
     const event=seen.find(e=>e.abilityUid===uid&&e.element===element&&e.type==='hit'&&e.targetIds.includes(targetId));
     assert.ok(event,`${id} must commit an attributed hit for the actual host dummy`);
     assert.equal(event.ownerId,'caster');
+    assert.equal(coverChecks,0,`${id} is a zone and bypasses line-only cover`);
     if(element!=='blood')assert.equal(target.alive,false,`${id} defeats the target in the host`);
     live.dispose();abilities.dispose();bridge.dispose();target.dispose();nearby?.dispose();
   }

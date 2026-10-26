@@ -31,5 +31,7 @@ export default {
     maskColor: '#f3a5ed',
     edgeColor: '#fff3ff',
     trailColor: '#9654d9',
+    shardSize: 0.12,
+    shardSpread: 1.2,
   },
 };
