@@ -166,6 +166,7 @@ export class Ability extends BaseAbility {
     this.root.add(this.floor);
     this._unsub = null;
     this._lastTick = null;
+    this.failure = null;
     this._pulseAge = 999;
     this.pulseWave.visible = false;
     this._seen = new Set();
@@ -187,6 +188,7 @@ export class Ability extends BaseAbility {
   }
   onSpawn() {
     this._lastTick = null;
+    this.failure = null;
     this._pulseAge = 999;
     this._seen.clear();
     this._seenOrder.length = 0;
@@ -200,6 +202,7 @@ export class Ability extends BaseAbility {
     const bridge = this.ctx.expansionCombat;
     if (!bridge?.bind) {
       this._bridgeUnavailable = true;
+      this.failure = 'combat bridge unavailable';
       return;
     }
     const scope = bindExpansionCombat(this.ctx, UID);
@@ -207,6 +210,7 @@ export class Ability extends BaseAbility {
     this._bridgeUnavailable = false;
     const sub = scope.on('hit', (e) => this._onHit(e));
     this._bridgeUnavailable = !sub?.ok;
+    if (!sub?.ok) this.failure = sub?.reason ?? 'owned hit observation unavailable';
     this._unsub = sub?.ok ? sub.unsubscribe : null;
   }
   _onHit(e) {

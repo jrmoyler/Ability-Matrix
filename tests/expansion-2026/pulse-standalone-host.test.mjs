@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { Vector3 } from 'three';
+import { Scene, Vector3 } from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { registerHooks } from 'node:module';
 import { Dummy } from '../../packs/sandbox/src/combat/Dummy.js';
@@ -11,6 +11,8 @@ import { CombatStateManager } from '../../packs/sandbox/src/combat/ucsm/CombatSt
 import { ExpansionCombatAdapter } from '../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js';
 import { bindExpansionCombat } from '../../packs/sandbox/src/abilities/expansion-2026/StandaloneCombat.js';
 import { Ability, ID, config } from '../../packs/sandbox/src/abilities/expansion-2026/pulse-covenant/index.js';
+import { AbilityManager } from '../../packs/sandbox/src/abilities/AbilityManager.js';
+import { ParticleEngine } from '../../packs/sandbox/src/particles/ParticleEngine.js';
 registerHooks({load(url,context,next){return url.endsWith('.css')?{format:'module',source:'',shortCircuit:true}:next(url,context);}});
 const {PackAdapter}=await import('../../packs/sandbox/src/combat/ucsm/PackAdapter.js');
 
@@ -94,4 +96,39 @@ test('a scoped hit on a newly added dummy is observed before the host frame upda
   assert.equal(x.events.length,1);
   assert.equal(x.events[0].abilityUid,'collective/tempest');
   x.close();
+});
+
+test('standalone Pulse reports an unavailable host observer rather than silently arming',()=>{
+  settings[ID]=structuredClone(config.settings);
+  const a=new Ability({character:{position:new Vector3()},dummies:{slots:[]},lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:{enabled:()=>false,bind:()=>({})}});
+  a.spawn(new Vector3(),new Vector3(0,0,1),.1);
+  assert.equal(a._bridgeUnavailable,true);
+  assert.equal(a.failure,'owned hit observation unavailable');
+  a.destroy();a.dispose();delete settings[ID];
+});
+
+test('two actual original Dune casts trigger Pulse via sandbox collision with combat off',()=>{
+  settings[ID]={...structuredClone(config.settings),damage:1};
+  const bytes=readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx',import.meta.url));
+  const model=new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
+  const env={registerShadowCasterWithPatch(){}};
+  const field=new DummyField(env),scene=new Scene(),particles=new ParticleEngine(scene);
+  const targets=[[0,2],[2,0],[2,2.2]].map(([x,z])=>{const d=new Dummy({source:model,clip:model.animations[0],scale:.01,offset:{x:0,y:0,z:0},forwardYaw:0,environment:env});d.root.position.set(x,0,z);d.root.updateWorldMatrix(true,true);field.slots.push({dummy:d,wait:0});return d;});
+  const ctx={scene,particles,dummies:field,character:{position:new Vector3()},lights:{acquire:()=>({}),set(){},release(){}},shake:{rumble(){},add(){}},flash:{trigger(){}},bursts:{spawn(){}},decals:{spawn(){}}};
+  const abilities=new AbilityManager(ctx),manager=new CombatStateManager();
+  const app={abilities,dummies:field,character:ctx.character,uidOf:id=>`collective/${id}`};
+  const host=Object.assign(Object.create(PackAdapter.prototype),{app,manager,enabled:false,scope:null,_meta:new WeakMap(),_wrapped:new WeakSet(),_tracked:new Set(),_ids:new WeakMap(),_byId:new Map(),_nextDummy:0,mechanics:{clear(){}}});
+  const bridge=new ExpansionCombatAdapter(manager,{enabled:()=>host.enabled,modeVersion:()=>host.combatModeEpoch});ctx.expansionCombat=bridge;
+  host._install();host.update(1/60);
+  const pulse=new Ability(ctx);pulse.spawn(new Vector3(),new Vector3(0,0,1),.1);
+  abilities.cast(new Vector3(),new Vector3(0,0,1),5,'dune');
+  for(let i=0;i<120&&targets[2].alive;i++){
+    if(i===36)abilities.cast(new Vector3(),new Vector3(1,0,0),5,'dune');
+    abilities.update(1/60);pulse.update(1/60);field.applyHits(abilities.active);host.update(1/60);
+  }
+  assert.equal(targets[0].alive,false);
+  assert.equal(targets[1].alive,false);
+  assert.equal(targets[2].alive,false,'second genuine original cast triggers the secondary pulse');
+  assert.equal(manager.queue.length,0);
+  pulse.destroy();pulse.dispose();abilities.clear();abilities.dispose();host._detachStandaloneHits();bridge.dispose();particles.dispose();for(const d of targets)d.dispose();delete settings[ID];
 });
