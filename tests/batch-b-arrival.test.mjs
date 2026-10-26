@@ -12,7 +12,7 @@ test('arrival resolves staged geometry immediately without premature damage',()=
     const a=new mod.Ability(ctx);a.spawn(new Vector3(),new Vector3(1,0,0),5);a.update(.5);
     if(id==='exp-predatory-canopy'){assert.equal(a.root.visible,true);assert.ok(a.root.scale.x<=.02);}
     if(id==='exp-toxin-evolution'){assert.equal(a.effect.visible,true);assert.equal(a.effect.position.x,6);assert.ok(a.coils.every(x=>!x.visible));}
-    if(id==='exp-nightshade-inheritance'){assert.equal(a.shade.visible,true);assert.equal(a.shade.position.x,6);assert.equal(a.floorMat.uniforms.uFade.value,1);}
+    if(id==='exp-nightshade-inheritance'){assert.equal(a.shade.visible,true);assert.equal(a.shade.position.x,6);assert.equal(a.floorMat.uniforms.uFade.value,0);a.update(.1);assert.ok(a.floorMat.uniforms.uFade.value>0);}
     if(id==='exp-vigil-of-embers'){assert.equal(a.rig.visible,true);assert.equal(a.crown.position.y,3.2);assert.ok(a.curtains.every(x=>!x.visible));}
     if(id==='exp-mass-weft'){assert.equal(a.rig.visible,true);assert.equal(a.ribbon.scale.y,5);assert.ok(a.compressionWaves.flat().every(x=>!x.visible));}
     assert.ok(events.every(e=>e.type==='status'),id);a.destroy();a.dispose();delete settings[id];
