@@ -1,4 +1,4 @@
-import { prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
+import { prefersReducedMotion, addCommonEditorControls, syncParticleGlobals } from '../ExpansionAtmosphere.js';
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CatmullRomCurve3, Color,
   DoubleSide, Group, Mesh, MeshStandardMaterial, PlaneGeometry, ShaderMaterial,
@@ -203,12 +203,13 @@ export class PredatoryCanopyAbility extends Ability {
     this.strikeRig.visible=!!target&&wind>0&&release>0&&dist<=c.zoneRadius;
     if(this.strikeRig.visible){for(let i=0;i<this.strikeMaterials.length;i++){const a=i*TAU/3,mat=this.strikeMaterials[i];mat.uniforms.uAnchor.value.set(Math.cos(a)*c.canopySpread*.28,h,Math.sin(a)*c.canopySpread*.28);mat.uniforms.uTarget.value.set(target.position.x-this.position.x,.35,target.position.z-this.position.z);mat.uniforms.uProgress.value=wind;mat.uniforms.uWidth.value=c.strikeWidth??.12;mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade*release;mat.uniforms.uColor.value.set(c.barkColor);mat.uniforms.uVein.value.set(c.rootColor);}}
 
+    syncParticleGlobals(this.leafParticles);syncParticleGlobals(this.moteParticles);
     if (!this.reduceMotion && this.leafParticles && this.moteParticles && this.phase===AbilityPhase.IMPACT) {
       this._emitPosition.copy(this.position).setY(h*.85);
       const leafCount=this.leafEmitter.tick(dt,Math.max(0,c.leafRate)*(wind>0?3.5:1)*settings.global.particleCount), moteCount=this.moteEmitter.tick(dt,Math.max(0,c.moteRate)*settings.global.particleCount);
-      const params={position:this._emitPosition, radius:c.zoneRadius*.7, direction:this._emitDown, speed:.55, spread:.7, size:c.leafSize*settings.global.particleSize, life:1.7, spin:3, time:frame.uTime.value};
+      const params={position:this._emitPosition, radius:c.zoneRadius*.7, direction:this._emitDown, speed:.55, spread:.7, size:c.leafSize, life:1.7, spin:3, time:frame.uTime.value};
       if(leafCount)this.leafParticles.emit(leafCount,params);
-      if(moteCount)this.moteParticles.emit(moteCount,{...params,speed:.2,size:.07*settings.global.particleSize,life:1.2});
+      if(moteCount)this.moteParticles.emit(moteCount,{...params,speed:.2,size:.07,life:1.2});
     }
     for(const thorn of this.thorns){thorn.visible=wind>0;thorn.scale.set(1,Math.max(.001,wind*(c.thornLength??1.5)),1);}
     for(let i=0;i<this.tendrils.length;i++) {

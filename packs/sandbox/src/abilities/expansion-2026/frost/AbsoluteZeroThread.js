@@ -49,6 +49,9 @@ export const CONFIG = Object.freeze({
 });
 const N = 96,
   UP = new Vector3(0, 1, 0);
+// A pooled dummy may be placed and frozen again before an older cast expires.
+// A cast may only vanish the specific frozen life it owns.
+const frozenOwners = new WeakMap();
 function ribbon() {
   const g = new BufferGeometry(),
     p = new Float32Array((N + 1) * 2 * 3),
@@ -224,8 +227,12 @@ export class AbsoluteZeroThreadAbility extends Ability {
   _flush() {
     for (let i = this.frozen.length - 1; i >= 0; i--) {
       const f = this.frozen[i];
-      if (f.until <= this.age) {
-        f.dummy.vanish?.();
+      const owned = frozenOwners.get(f.dummy) === f;
+      const changedState =
+        typeof f.dummy.state === "string" && f.dummy.state !== "frozen";
+      if (!owned || changedState || f.until <= this.age) {
+        if (owned && !changedState) f.dummy.vanish?.();
+        if (owned) frozenOwners.delete(f.dummy);
         this.group.remove(f.figure);
         this.group.remove(f.ring);
         this.frozen.splice(i, 1);
@@ -259,12 +266,14 @@ export class AbsoluteZeroThreadAbility extends Ability {
           ring.rotation.x = -Math.PI / 2;
           ring.position.set(d.position.x, 0.035, d.position.z);
           this.group.add(ring);
-          this.frozen.push({
+          const frozen = {
             dummy: d,
             figure,
             ring,
             until: this.age + this.config.freezeDuration,
-          });
+          };
+          frozenOwners.set(d, frozen);
+          this.frozen.push(frozen);
         }
         this.pending.splice(i, 1);
       }
@@ -318,7 +327,10 @@ export class AbsoluteZeroThreadAbility extends Ability {
   }
   onDestroy() {
     for (const f of this.frozen) {
-      f.dummy.vanish?.();
+      if (frozenOwners.get(f.dummy) === f) {
+        frozenOwners.delete(f.dummy);
+        f.dummy.vanish?.();
+      }
       this.group.remove(f.figure);
       this.group.remove(f.ring);
     }

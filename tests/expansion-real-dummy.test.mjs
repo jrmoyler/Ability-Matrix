@@ -188,3 +188,47 @@ test("fire, water, crystal and sound candidates reach actual sandbox actors", as
     target.dispose();
   }
 });
+
+test("an older frost cast cannot vanish a reused dummy frozen by a newer cast", () => {
+  const bytes = readFileSync(
+    new URL("../packs/sandbox/public/models/dummy.fbx", import.meta.url),
+  );
+  const root = new FBXLoader().parse(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    "",
+  );
+  const env = { registerShadowCasterWithPatch() {} };
+  const target = new Dummy({
+    source: root,
+    clip: root.animations[0],
+    scale: 0.01,
+    offset: { x: 0, y: 0, z: 0 },
+    forwardYaw: 0,
+    environment: env,
+  });
+  target.place(0, 3, 0);
+  const field = new DummyField(env);
+  field.slots.push({ dummy: target, wait: 0 });
+  const context = {
+    dummies: field,
+    lights: { acquire: () => ({}), set() {}, release() {} },
+  };
+  const first = new AbsoluteZeroThreadAbility(context),
+    second = new AbsoluteZeroThreadAbility(context);
+  first.spawn(new Vector3(), new Vector3(0, 0, 1), 6);
+  for (let i = 0; i < 40 && !first.frozen.length; i++) first.update(0.05);
+  assert.equal(target.state, "frozen");
+  target.vanish();
+  target.place(0, 3, 0);
+  second.spawn(new Vector3(), new Vector3(0, 0, 1), 6);
+  for (let i = 0; i < 40 && !second.frozen.length; i++) second.update(0.05);
+  assert.equal(target.state, "frozen");
+  assert.equal(second.frozen.length, 1);
+  first.destroy();
+  assert.equal(target.state, "frozen", "old cast must not end the new freeze");
+  second.destroy();
+  assert.equal(target.state, "gone");
+  first.dispose();
+  second.dispose();
+  target.dispose();
+});

@@ -6,6 +6,14 @@ import { BurstMode } from '../../effects/BurstSphere.js';
 import { DecalType } from '../../effects/GroundDecals.js';
 import { CAST_ANIMATIONS, settings } from '../../config/settings.js';
 
+/** Match the sandbox global controls for existing as well as new particles. */
+export function syncParticleGlobals(system) {
+  const u=system?.uniforms;if(!u)return;
+  if(u.uSizeScale)u.uSizeScale.value=settings.global.particleSize;
+  if(u.uSpeedScale)u.uSpeedScale.value=settings.global.particleSpeed;
+  if(u.uLifeScale)u.uLifeScale.value=settings.global.particleLifetime;
+}
+
 // Shared bounded particle transport, not a shared spell design. Each cast
 // provides its own geometry, shader, cadence, shape and palette. The sandbox's
 // ParticleEngine owns these pooled systems and disposes them with the app.
@@ -31,16 +39,18 @@ export class ExpansionAtmosphere {
     this.system?.setGradient?.(this.colors[0],this.colors[1],this.colors[2],this.paletteDark);
   }
   update(dt, position, rateScale=1) {
+    syncParticleGlobals(this.system);
     if(!this.system || !position || !Number.isFinite(dt) || dt<=0)return;
     const n=this.emitter.tick(dt,Math.max(0,Math.min(100,this.rate*rateScale*settings.global.particleCount)));
-    if(n)this.system.emit(n,{position,radius:this.radius,direction:this.direction,speed:this.speed,spread:this.spread,size:this.size*settings.global.particleSize,life:this.life,spin:2,time:frame.uTime.value});
+    if(n)this.system.emit(n,{position,radius:this.radius,direction:this.direction,speed:this.speed,spread:this.spread,size:this.size,life:this.life,spin:2,time:frame.uTime.value});
   }
   /** Bounded one-shot emission for an accepted spell-specific event. */
   burst(position, count, {radius=.5, speed=1, size=.12, life=1, spread=.8}={}) {
+    syncParticleGlobals(this.system);
     if (!this.system || !position || !Number.isFinite(count)) return;
     if (Array.isArray(position)) this.point.fromArray(position); else this.point.copy(position);
     const scaled=Math.max(0,Math.min(48,Math.round(count*settings.global.particleCount)));if(!scaled)return;
-    this.system.emit(scaled, {position:this.point,radius:Math.max(0,Math.min(5,radius)),direction:this.direction,speed,spread,size:size*settings.global.particleSize,life,spin:2,time:frame.uTime.value});
+    this.system.emit(scaled, {position:this.point,radius:Math.max(0,Math.min(5,radius)),direction:this.direction,speed,spread,size,life,spin:2,time:frame.uTime.value});
   }
   /** One bounded contact beat, issued only by the owning cast's accepted event. */
   cue(position, radius=1.5) {
