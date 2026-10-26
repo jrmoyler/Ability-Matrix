@@ -107,3 +107,26 @@ test("pending freeze is cancelled when its target dies before the delay", () => 
   a.destroy();
   a.dispose();
 });
+
+test("shatter chips use bounded reusable slots and are released on cancellation", () => {
+  const a = new AbsoluteZeroThreadAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  for (let i = 0; i < 12; i++) a._shatter(new Vector3(i, 0, 0));
+  assert.equal(a.shatters.length, 8);
+  assert.equal(a.shatters.filter((s) => s.points.visible).length, 8);
+  let disposed = 0;
+  for (const r of [a.chipGeometry, ...a.shatters.map((s) => s.points.material)])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  assert.ok(a.shatters.every((s) => !s.points.visible));
+  a.dispose();
+  assert.equal(disposed, 9);
+});

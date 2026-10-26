@@ -31,5 +31,7 @@ export default {
     groundColor: '#ff9e76',
     finSize: 0.22,
     finSpread: 0.9,
+    contactSize: 1,
+    contactLife: 0.4,
   },
 };

@@ -30,6 +30,8 @@
     "width": 0.15,
     "reach": 0.8,
     "freezeDelay": 0.25,
-    "freezeDuration": 1.5
+    "freezeDuration": 1.5,
+    "shatterLife": 0.7,
+    "shatterSpeed": 2.4
   }
 }

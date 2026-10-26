@@ -26,10 +26,10 @@ export function createTravelDelivery(parent,resources,fire){
  return {group,mesh,line,count:0,fire};
 }
 export function resetTravelDelivery(d){d.count=0;d.line.geometry.setDrawRange(0,0);d.group.visible=true;d.line.visible=true;}
-export function updateTravelDelivery(d,position,direction,dt,clock,tint,scale){
- d.group.position.copy(position);d.group.rotation.y=Math.atan2(direction.x,direction.z);d.group.scale.setScalar(scale);d.mesh.material.uniforms.clock.value=clock;d.line.material.color.set(tint);
+export function updateTravelDelivery(d,position,direction,dt,clock,tint,scale,progress,arc,reducedMotion){
+ d.group.position.copy(position);d.group.position.y+=4*arc*progress*(1-progress);d.mesh.rotation.z=reducedMotion?0:(d.fire?progress*.5:progress*Math.PI*2);d.group.rotation.y=Math.atan2(direction.x,direction.z);d.group.scale.setScalar(scale);d.mesh.material.uniforms.clock.value=clock;d.line.material.color.set(tint);
  const attr=d.line.geometry.attributes.position;
- if(dt>0){if(d.count===48){attr.array.copyWithin(0,3);d.count--;}attr.setXYZ(d.count++,position.x,position.y+.25,position.z);}
+ if(dt>0){if(d.count===48){attr.array.copyWithin(0,3);d.count--;}attr.setXYZ(d.count++,position.x,d.group.position.y+.25,position.z);}
  attr.needsUpdate=true;d.line.geometry.setDrawRange(0,d.count);
 }
 export function endTravelDelivery(d){d.group.visible=false;d.line.visible=false;d.count=0;d.line.geometry.setDrawRange(0,0);}

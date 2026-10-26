@@ -81,6 +81,16 @@ test("frost uses the actual rigged sandbox dummy, preserves its pose as ice, and
     "statue expires after its configured duration",
   );
   assert.equal(a.iceShards.count, 0, "expired statues release shard instances");
+  assert.equal(
+    a.shatters.filter((s) => s.points.visible).length,
+    1,
+    "natural statue expiry releases ice chips",
+  );
+  for (let i = 0; i < 20; i++) a.update(0.05);
+  assert.ok(
+    a.shatters.every((s) => !s.points.visible),
+    "ice chips expire before pool cleanup",
+  );
   a.destroy();
   assert.equal(target.state, "gone");
   assert.equal(a.frozen.length, 0);

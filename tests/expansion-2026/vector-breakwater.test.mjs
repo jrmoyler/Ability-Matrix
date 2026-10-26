@@ -96,3 +96,22 @@ test('shield ribs travel with the front and each impact opens a bounded expandin
   assert.ok(a.wakeRings.every((ring) => !ring.visible));
   a.destroy(); a.dispose();
 });
+test('each front shows its contact burst only when a target accepts the hit', () => {
+  const {a}=setup();
+  assert.ok(a.contacts.every((contact)=>!contact.visible));
+  for(let i=0;i<26;i++)a.update(1/60);
+  assert.ok(a.contactTimes[0]>=0);
+  assert.equal(a.contacts[0].visible,true);
+  assert.ok(Math.abs(a.contacts[0].position.z-5)<1e-6);
+  a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),18);
+  assert.deepEqual(a.contactTimes,[-1,-1,-1]);
+  a.destroy();a.dispose();
+
+  const blocked={position:new Vector3(5,0,0),kill:()=>false};
+  const b=new Ability({lights:{acquire:()=>({}),set(){},release(){}},dummies:{findTargets(_x,_z,_r,out){out.length=0;out.push(blocked);return out;}}});
+  b.spawn(new Vector3(),new Vector3(1,0,0),18);
+  for(let i=0;i<100;i++)b.update(1/60);
+  assert.deepEqual(b.contactTimes,[-1,-1,-1]);
+  assert.ok(b.contacts.every((contact)=>!contact.visible));
+  b.destroy();b.dispose();
+});

@@ -93,6 +93,32 @@ function finGeometry() {
   geometry.computeVertexNormals();
   return geometry;
 }
+/** Broken, directional pressure petals arranged around a real contact. */
+function contactGeometry() {
+  const positions = [], uv = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = i * TAU / 10, length = .6 + (i % 3) * .16;
+    const a = angle - .1, b = angle + .1;
+    positions.push(Math.cos(a)*.16,0,Math.sin(a)*.16,
+      Math.cos(angle)*length,0,Math.sin(angle)*length,
+      Math.cos(b)*.16,0,Math.sin(b)*.16);
+    uv.push(0,0, 1,.5, 0,1);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+function contactMaterial() {
+  return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,
+    uniforms:{color:{value:new Color('#fff0dd')},fade:{value:0}},
+    vertexShader:`varying vec2 q;void main(){q=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`varying vec2 q;uniform vec3 color;uniform float fade;void main(){float tip=1.-q.x;gl_FragColor=vec4(color,(.25+.75*tip)*fade);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`});
+}
 function frontMaterial() {
   return new ShaderMaterial({
     transparent: true,
@@ -151,6 +177,9 @@ export class Ability extends BaseAbility {
       opacity: .7, depthWrite: false, side: DoubleSide, blending: AdditiveBlending }));
     this.fronts = [];
     this.wakeRings = [];
+    this.contacts = [];
+    this.contactTimes = [-1,-1,-1];
+    const contactGeo = own(contactGeometry());
     this.fins = new InstancedMesh(own(finGeometry()), this.ribMat, 3 * FINS_PER_FRONT);
     this.fins.frustumCulled = false;
     this.root.add(this.fins);
@@ -169,6 +198,10 @@ export class Ability extends BaseAbility {
       wake.position.y = .06 + i * .005;
       this.root.add(wake);
       this.wakeRings.push(wake);
+      const contact = new Mesh(contactGeo, own(contactMaterial()));
+      contact.visible = false;
+      this.root.add(contact);
+      this.contacts.push(contact);
     }
     this.trail = new Mesh(own(new PlaneGeometry(1, 1)), this.trailMat);
     this.trail.rotation.x = -Math.PI / 2;
@@ -192,6 +225,8 @@ export class Ability extends BaseAbility {
   onSpawn() {
     this._previous.fill(0);
     this._nextTrail.fill(0);
+    this.contactTimes.fill(-1);
+    for (const contact of this.contacts) contact.visible = false;
     for (const s of this._hitSets) s.clear();
     this.root.visible = true;
     this._updateWaves();
@@ -247,6 +282,16 @@ export class Ability extends BaseAbility {
         wake.scale.setScalar(c.width * (.15 + t * 1.15));
         wake.material.opacity = .65 * (1 - t) * fade;
         wake.material.color.set(c.edgeColor);
+      }
+      const contact = this.contacts[i], contactAge = this.contactTimes[i] < 0 ? -1 : this.age - this.contactTimes[i];
+      const contactLife = Math.max(.05, c.contactLife ?? .4);
+      contact.visible = contactAge >= 0 && contactAge < contactLife;
+      if (contact.visible) {
+        const t = clamp(contactAge / contactLife);
+        contact.scale.setScalar((c.contactSize ?? 1) * (.25 + .75 * t));
+        contact.rotation.y = this.age * (i % 2 ? -1 : 1);
+        contact.material.uniforms.color.value.set(c.edgeColor);
+        contact.material.uniforms.fade.value = (1 - t) * fade;
       }
       const peel = clamp(arrival / .55);
       const active = elapsed >= 0 && arrival < .55;
@@ -307,11 +352,15 @@ export class Ability extends BaseAbility {
         continue;
       if (this._hitSets[i].size >= 64) break;
       this._hitSets[i].add(d);
-      if (
-        d.kill(this.direction.x, this.direction.z, this._force) &&
-        ++n >= MAX_TARGETS
-      )
-        break;
+      if (d.kill(this.direction.x, this.direction.z, this._force)) {
+        if (n === 0) {
+          // The rig's local X is opposite the gameplay side vector.
+          this.contacts[i].position.set(-lat, .08 + i * .01, along);
+          this.contactTimes[i] = this.age;
+          expansionBurst(this.fx, d.position, {count:12,size:.09,life:.38,speed:3,radius:.15});
+        }
+        if (++n >= MAX_TARGETS) break;
+      }
     }
   }
   onDestroy() {
@@ -333,6 +382,8 @@ export function buildEditor(gui, c) {
   f.add(c, 'impulse', 0, 30, 0.5).name('impulse');
   f.add(c, 'finSize', .04, .5, .01).name('pressure fin size');
   f.add(c, 'finSpread', 0, 3, .1).name('arrival spread');
+  f.add(c, 'contactSize', .2, 3, .1).name('contact visual size');
+  f.add(c, 'contactLife', .1, 1, .05).name('contact visual time');
   f.addColor(c, 'edgeColor').name('edge');
   f.addColor(c, 'bodyColor').name('pressure');
   f.addColor(c, 'groundColor').name('wake');

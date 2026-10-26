@@ -192,7 +192,7 @@ export class PredatoryCanopyAbility extends Ability {
       const field=this.ctx.dummies;
       if(field?.findTargets){
         const found=field.findTargets(this.position.x,this.position.z,c.zoneRadius,this._found);
-        let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;
+        let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance>c.zoneRadius)continue;if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;
         if(this._target) this._triggerAt=elapsed;
         this._found.length=0;
       }

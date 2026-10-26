@@ -45,6 +45,8 @@ export const CONFIG = Object.freeze({
     reach: 0.8,
     freezeDelay: 0.25,
     freezeDuration: 1.5,
+    shatterLife: 0.7,
+    shatterSpeed: 2.4,
   },
 });
 const N = 96,
@@ -108,7 +110,10 @@ export class AbsoluteZeroThreadAbility extends Ability {
     return Math.max(
       0.2,
       this.config.lifetime,
-      this.config.freezeDelay + this.config.freezeDuration + 0.1,
+      this.config.freezeDelay +
+        this.config.freezeDuration +
+        this.config.shatterLife +
+        0.1,
     );
   }
   createShaders() {
@@ -165,6 +170,48 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.iceShards.count = 0;
     this.group.add(this.iceShards);
     this.shardTransform = new Object3D();
+    const chipPositions = new Float32Array(64 * 3),
+      seeds = new Float32Array(64);
+    for (let i = 0; i < 64; i++) {
+      const angle = i * 2.399963,
+        y = (i % 13) / 13,
+        r = 0.35 + (i % 7) / 10;
+      chipPositions.set(
+        [Math.cos(angle) * r, 0.4 + y, Math.sin(angle) * r],
+        i * 3,
+      );
+      seeds[i] = (i * 0.618034) % 1;
+    }
+    this.chipGeometry = new BufferGeometry();
+    this.chipGeometry.setAttribute(
+      "position",
+      new BufferAttribute(chipPositions, 3),
+    );
+    this.chipGeometry.setAttribute("seed", new BufferAttribute(seeds, 1));
+    this.shatters = [];
+    for (let i = 0; i < 8; i++) {
+      const material = new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: AdditiveBlending,
+        uniforms: {
+          uAge: { value: 0 },
+          uLife: { value: 1 },
+          uSpeed: { value: 1 },
+        },
+        vertexShader:
+          "attribute float seed;uniform float uAge,uLife,uSpeed;varying float vA;void main(){float t=uAge;vec3 p=position*uSpeed*t;p.y+=.8-t*t*2.2;vA=(1.-smoothstep(.3,1.,t/max(.01,uLife)))*step(0.,p.y);vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp((12.+seed*12.)/-mv.z,1.,7.);gl_Position=projectionMatrix*mv;}",
+        fragmentShader:
+          "varying float vA;void main(){vec2 p=abs(gl_PointCoord-.5)*2.;float chip=1.-smoothstep(.65,1.,p.x+p.y);gl_FragColor=vec4(.55,.9,1.,chip*vA);}",
+      });
+      const points = new Points(this.chipGeometry, material);
+      points.layers.set(LAYER.VFX);
+      points.frustumCulled = false;
+      points.visible = false;
+      this.group.add(points);
+      this.shatters.push({ points, born: 0 });
+    }
+    this.shatterCursor = 0;
     this.hit = new Set();
     this.pending = [];
     this.frozen = [];
@@ -177,6 +224,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.hit.clear();
     this.pending.length = 0;
     this.frozen.length = 0;
+    this.shatterCursor = 0;
+    for (const burst of this.shatters) burst.points.visible = false;
     this._redraw(0);
     this.motes.position.copy(this.origin);
     this.motes.rotation.y = Math.atan2(this.direction.x, this.direction.z);
@@ -231,7 +280,10 @@ export class AbsoluteZeroThreadAbility extends Ability {
       const changedState =
         typeof f.dummy.state === "string" && f.dummy.state !== "frozen";
       if (!owned || changedState || f.until <= this.age) {
-        if (owned && !changedState) f.dummy.vanish?.();
+        if (owned && !changedState) {
+          this._shatter(f.ring.position);
+          f.dummy.vanish?.();
+        }
         if (owned) frozenOwners.delete(f.dummy);
         this.group.remove(f.figure);
         this.group.remove(f.ring);
@@ -285,6 +337,25 @@ export class AbsoluteZeroThreadAbility extends Ability {
       }
     }
     this._drawIceShards();
+    this._drawShatters();
+  }
+  _shatter(position) {
+    const burst = this.shatters[this.shatterCursor++ % this.shatters.length];
+    burst.born = this.age;
+    burst.points.position.copy(position);
+    burst.points.visible = true;
+    burst.points.material.uniforms.uAge.value = 0;
+    burst.points.material.uniforms.uLife.value = this.config.shatterLife;
+    burst.points.material.uniforms.uSpeed.value = this.config.shatterSpeed;
+  }
+  _drawShatters() {
+    for (const burst of this.shatters) {
+      if (!burst.points.visible) continue;
+      const elapsed = this.age - burst.born;
+      burst.points.material.uniforms.uAge.value = elapsed;
+      if (elapsed >= burst.points.material.uniforms.uLife.value)
+        burst.points.visible = false;
+    }
   }
   _drawIceShards() {
     let count = 0;
@@ -342,6 +413,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
     }
     this.frozen.length = 0;
     this.iceShards.count = 0;
+    for (const burst of this.shatters) burst.points.visible = false;
     this.hit.clear();
     this.pending.length = 0;
     this.prevFront = 0;
@@ -360,6 +432,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.frostRingMaterial.dispose();
     this.iceShardGeometry.dispose();
     this.iceShardMaterial.dispose();
+    this.chipGeometry.dispose();
+    for (const burst of this.shatters) burst.points.material.dispose();
     super.dispose();
   }
 }
@@ -370,6 +444,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "reach", 0.1, 3, 0.05, "freeze reach");
   R(f, c, "freezeDelay", 0, 2, 0.05, "freeze delay");
   R(f, c, "freezeDuration", 0.1, 6, 0.1, "statue duration");
+  R(f, c, "shatterLife", 0.1, 2, 0.05, "chip lifetime");
+  R(f, c, "shatterSpeed", 0.2, 6, 0.1, "chip speed");
   f.close();
   return f;
 }

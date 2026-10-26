@@ -155,3 +155,18 @@ test('distinct ground seals follow gameplay phase, actual radius and live editor
   a.destroy();a.dispose();settings[c.id].groundColor=c.settings.groundColor;settings[c.id].groundGlow=c.settings.groundGlow;settings[c.id].groundOpacity=c.settings.groundOpacity;
  }
 });
+
+test('delivery arcs follow cast progress and editor height without changing hit position',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const originalSpeed=settings[c.id].speed,originalArc=settings[c.id].deliveryArc;
+  settings[c.id].speed=1;settings[c.id].deliveryArc=2;
+  try{
+   const {a}=fixture(C);run(a,2);assert.equal(a.phase,'travel');const q=a.u;
+   assert.ok(Math.abs(a.delivery.group.position.y-8*q*(1-q))<1e-7);
+   assert.ok(Math.abs(a.delivery.group.position.x-a.length*q)<1e-7);
+   const attr=a.delivery.line.geometry.attributes.position;assert.ok(Math.abs(attr.getY(a.delivery.count-1)-(a.delivery.group.position.y+.25))<1e-5);
+   assert.deepEqual(a.target.toArray(),[5,0,0]);
+   a.destroy();a.dispose();
+  }finally{settings[c.id].speed=originalSpeed;settings[c.id].deliveryArc=originalArc;}
+ }
+});
