@@ -71,7 +71,13 @@ export const MECHANIC_PRESETS = Object.freeze({
     castAnim: 'cast2'
   })
 });
-export const PLAYABLE_MECHANICS = Object.freeze(Object.values(MECHANIC_PRESETS).map((p) => p.uid));
+/** Additional moves use the same family manager but retain their own authored contract. */
+export const CRYOSTASIS_MESH = move('weave', 'cryostasis-mesh', 'Cryostasis Mesh', 'frost', {
+  cost: 10, cooldown: 22, life: 12, maxAnchors: 3, maxLink: 14,
+  width: 0.42, anchorHealth: 2, pulse: 0.9, damage: 0.65, castAnim: 'cast1'
+});
+export const MECHANIC_VARIANTS = Object.freeze({ [CRYOSTASIS_MESH.uid]: CRYOSTASIS_MESH });
+export const PLAYABLE_MECHANICS = Object.freeze([...Object.values(MECHANIC_PRESETS), ...Object.values(MECHANIC_VARIANTS)].map((p) => p.uid));
 export const MECHANIC_BUDGET = Object.freeze({
   maxCommands: 64,
   commandsPerTick: 8,

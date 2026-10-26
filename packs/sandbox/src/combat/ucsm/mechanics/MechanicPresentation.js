@@ -143,7 +143,22 @@ export class MechanicPresentation {
   build(kind, data) {
     const g = new Group();
     g.name = `mechanic:${kind}`;
-    if (kind === 'anchor') {
+    const frostWeave = data.uid === 'mechanics/weave/cryostasis-mesh';
+    if (kind === 'anchor' && frostWeave) {
+      this.mesh('base', 'steel', g, 0, 0, 0, 0.8, 0.7, 0.8);
+      this.ring(g, 'ice', 0.7, 0.15);
+      this.mesh('shard', 'ice', g, 0, 1.15, 0, 0.28, 1.05, 0.28);
+      for (let i = 0; i < 6; i++) {
+        const a = i * TAU / 6;
+        const shard = this.mesh('shard', 'ice', g, Math.sin(a) * 0.48, 0.65, Math.cos(a) * 0.48, 0.13, 0.55, 0.13);
+        shard.rotation.z = Math.sin(a) * 0.45;
+        shard.rotation.x = Math.cos(a) * 0.45;
+        const brace = this.mesh('box', 'steel', g, Math.sin(a) * 0.55, 0.32, Math.cos(a) * 0.55, 0.07, 0.55, 0.07);
+        brace.rotation.z = -Math.sin(a) * 0.4;
+        brace.rotation.x = -Math.cos(a) * 0.4;
+      }
+      this.ring(g, 'steel', 0.35, 1.45);
+    } else if (kind === 'anchor') {
       this.mesh('base', 'iron', g);
       this.ring(g, 'bronze', 0.54, 0.16);
       this.mesh('shaft', 'bronze', g, 0, 0.8, 0, 1, 1.3, 1);
@@ -162,14 +177,14 @@ export class MechanicPresentation {
         b = new Vector3(data.shape.bx, 0.65, data.shape.bz);
       const length = a.distanceTo(b),
         mid = a.clone().add(b).multiplyScalar(0.5);
-      this.mesh('shaft', 'fire', g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
+      this.mesh('shaft', frostWeave ? 'ice' : 'fire', g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
         up,
         b.sub(a).normalize()
       );
       for (let i = 0; i < 7; i++)
         this.mesh(
           'shard',
-          'bronze',
+          frostWeave ? 'ice' : 'bronze',
           g,
           data.shape.ax + ((data.shape.bx - data.shape.ax) * i) / 6,
           0.65,

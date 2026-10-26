@@ -1,4 +1,4 @@
-import { MECHANIC_PRESETS as P } from './presets.js';
+import { MECHANIC_PRESETS as P, CRYOSTASIS_MESH } from './presets.js';
 import './mechanics.css';
 const families = Object.keys(P);
 const hints = {
@@ -30,6 +30,22 @@ export class MechanicControls {
       this.root.append(b);
       this.buttons.push(b);
     }
+    this.frost = document.createElement('button');
+    this.frost.type = 'button';
+    this.frost.textContent = CRYOSTASIS_MESH.name;
+    this.frost.title = 'Place three frost anchors to chill enemies crossing their mesh.';
+    this.frost.addEventListener('click', () => host.select('weave', CRYOSTASIS_MESH.uid));
+    this.root.append(this.frost);
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = 'Clear my active mechanics';
+    clear.title = 'Remove active anchors and other mechanics before selecting a different weave.';
+    clear.addEventListener('click', () => {
+      host.systems.cancel('caster');
+      host.selected = null;
+      host.selectedUid = null;
+    });
+    this.root.append(clear);
     this.hint = document.createElement('p');
     this.hint.textContent = 'Alt+Z/X/C/V/B select · click arena to cast · Esc cancel';
     this.root.append(this.hint);
@@ -77,8 +93,9 @@ export class MechanicControls {
       const cooldown = Math.max(0, ((a.cooldowns[f] ?? 0) - s.m.tick) / s.m.budget.tickRate);
       const label = `Alt+${['Z', 'X', 'C', 'V', 'B'][i]} · ${P[f].name}${cooldown > 0 ? ` · ${cooldown.toFixed(1)}s` : ''}`;
       if (this.buttons[i].textContent !== label) this.buttons[i].textContent = label;
-      this.buttons[i].setAttribute('aria-pressed', String(h.selected === f));
+      this.buttons[i].setAttribute('aria-pressed', String(h.selected === f && !h.selectedUid));
     });
+    this.frost.setAttribute('aria-pressed', String(h.selected === 'weave' && h.selectedUid === CRYOSTASIS_MESH.uid));
     const hint = h.selected ? hints[h.selected] : 'Alt+Z/X/C/V/B select · click arena to cast · Esc cancel';
     if (this.hint.textContent !== hint) this.hint.textContent = hint;
   }

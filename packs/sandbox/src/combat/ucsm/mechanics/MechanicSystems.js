@@ -1,5 +1,5 @@
 import { shapeContains, shapesOverlap } from '../CombatStateManager.js';
-import { MECHANIC_PRESETS as P, MECHANIC_BUDGET } from './presets.js';
+import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS, MECHANIC_BUDGET } from './presets.js';
 import { resolvePair, TIER } from '../reactions.js';
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
 const disc = (p, r) => ({ kind: 'disc', x: p[0], z: p[2], r });
@@ -17,9 +17,10 @@ export class WeavingManager {
   }
   activate(c) {
     const s = this.s,
-      p = P.weave,
+      p = s.preset(c),
       own = sorted(this.anchors).filter((a) => a.ownerId === c.ownerId);
     if (own.length >= p.maxAnchors || this.anchors.size >= s.b.maxAnchors) return 'anchor limit';
+    if (own.some((a) => (a.uid ?? P.weave.uid) !== (c.uid ?? P.weave.uid))) return 'remove existing anchors before changing weave';
     if (own.some((a) => dist(a.position, c.position) < 1.5)) return 'anchors too close';
     if (own.length && !own.some((a) => dist(a.position, c.position) <= p.maxLink)) return 'link exceeds 14 m';
     const a = { ...c, id: c.id, health: p.anchorHealth, expiresTick: s.m.tick + s.t(p.life) };
@@ -42,8 +43,7 @@ export class WeavingManager {
     }
   }
   update() {
-    const s = this.s,
-      p = P.weave;
+    const s = this.s;
     for (const a of sorted(this.anchors))
       if (a.expiresTick <= s.m.tick || !s.alive(a.ownerId)) this.anchors.delete(a.id);
     this.links = [];
@@ -53,21 +53,23 @@ export class WeavingManager {
       for (let j = i + 1; j < all.length; j++) {
         const a = all[i],
           b = all[j];
+        const profile = s.preset(a);
         if (
           a.ownerId !== b.ownerId ||
-          dist(a.position, b.position) > p.maxLink ||
+          a.uid !== b.uid ||
+          dist(a.position, b.position) > profile.maxLink ||
           s.worldshape.blocked(a.position, b.position)
         )
           continue;
-        const shape = segment(a.position, b.position, p.width);
-        this.links.push({ id: `${a.id}:${b.id}`, ownerId: a.ownerId, shape });
+        const shape = segment(a.position, b.position, profile.width);
+        this.links.push({ id: `${a.id}:${b.id}`, ownerId: a.ownerId, uid: a.uid, shape });
         const c = { ...a, id: `${a.id}:${b.id}:${s.m.tick}` };
         const ids = s.targets(c, shape, true).filter((id) => !this.hitCooldowns.has(`${a.ownerId}:${id}`));
-        if (ids.length && s.emit(c, { type: 'hit', targetIds: ids, shape, damage: p.damage })) {
-          for (const id of ids) this.hitCooldowns.set(`${a.ownerId}:${id}`, s.m.tick + s.t(p.pulse));
+        if (ids.length && s.emit(c, { type: 'hit', targetIds: ids, shape, damage: profile.damage })) {
+          for (const id of ids) this.hitCooldowns.set(`${a.ownerId}:${id}`, s.m.tick + s.t(profile.pulse));
         }
-        if (s.m.tick % s.t(p.pulse) === 0)
-          s.emit(c, { type: 'terrain-impact', shape, durationTicks: s.t(p.pulse) });
+        if (s.m.tick % s.t(profile.pulse) === 0)
+          s.emit(c, { type: 'terrain-impact', shape, durationTicks: s.t(profile.pulse) });
       }
   }
 }
@@ -329,8 +331,11 @@ export class MechanicSystems {
     if (!this.actors.has(id)) this.actors.set(id, { energy: this.b.energy, cooldowns: {}, recoveryUntil: 0 });
     return this.actors.get(id);
   }
-  command({ family, ownerId = 'caster', position, direction = [0, 0, 1], action = 'cast', commandId }) {
+  preset(c) { return MECHANIC_VARIANTS[c.uid] ?? P[c.family]; }
+  command({ family, uid, ownerId = 'caster', position, direction = [0, 0, 1], action = 'cast', commandId }) {
     if (!P[family]) return { ok: false, reason: 'unimplemented mechanic' };
+    if (uid && uid !== P[family].uid && MECHANIC_VARIANTS[uid]?.family !== family)
+      return { ok: false, reason: 'unknown mechanic variant' };
     if (!this.alive(ownerId)) return { ok: false, reason: 'unknown or dead owner' };
     if (!this.actors.has(ownerId) && this.actors.size >= this.b.maxActors)
       return { ok: false, reason: 'actor budget' };
@@ -356,6 +361,7 @@ export class MechanicSystems {
     this.commands.push({
       id,
       family,
+      uid: uid ?? P[family].uid,
       ownerId,
       position: position.map(snap),
       direction: [direction[0] / length, 0, direction[2] / length],
@@ -369,7 +375,7 @@ export class MechanicSystems {
   emit(c, event) {
     if (this.used >= this.b.eventsPerTick || this.m.queue.length >= this.m.budget.maxQueue) return false;
     this.used++;
-    const p = P[c.family],
+    const p = this.preset(c),
       owner = this.m.entities.get(c.ownerId);
     this.m.submit({
       eventId: `${c.id}:${event.type}`,
@@ -425,14 +431,14 @@ export class MechanicSystems {
       const reason = this[c.family].activate(c);
       if (reason) {
         const a = this.actor(c.ownerId);
-        a.energy = Math.min(this.b.energy, a.energy + P[c.family].cost);
+        a.energy = Math.min(this.b.energy, a.energy + this.preset(c).cost);
         a.cooldowns[c.family] = this.m.tick;
       }
       this.result(c, reason);
     }
     for (const c of this.commands.splice(0, this.b.commandsPerTick)) {
       const a = this.actor(c.ownerId),
-        p = P[c.family];
+        p = this.preset(c);
       if (c.action === 'cancel') {
         this.cancel(c.ownerId);
         this.result(c);

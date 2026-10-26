@@ -2,7 +2,7 @@ import { Raycaster, Plane, Vector2, Vector3 } from 'three';
 import { MechanicSystems } from './MechanicSystems.js';
 import { MechanicPresentation } from './MechanicPresentation.js';
 import { MechanicControls } from './MechanicControls.js';
-import { MECHANIC_PRESETS as P } from './presets.js';
+import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
 import { shapeContains } from '../CombatStateManager.js';
 
 /** Sandbox glue. All gameplay runs in UCSM; this owns input, audio and scene lifetime. */
@@ -13,6 +13,7 @@ export class MechanicHost {
     this.systems = new MechanicSystems(adapter.manager);
     this.presentation = new MechanicPresentation(this.app.scene, this.systems);
     this.selected = null;
+    this.selectedUid = null;
     this.drill = false;
     this.sound = false;
     this.nextThreat = 0;
@@ -62,20 +63,22 @@ export class MechanicHost {
     this.app.canvas.addEventListener('pointermove', this.onMove);
     this.app.canvas.addEventListener('pointerdown', this.onPointer, true);
   }
-  select(family) {
+  select(family, uid = null) {
     if (!P[family]) return false;
+    if (uid && MECHANIC_VARIANTS[uid]?.family !== family) return false;
     if (this.app.paused || !this.adapter.enabled) return false;
+    this.selectedUid = uid;
     if (family === 'stance' && this.systems.stance.active.has('caster')) {
       return this.cast(family, null, [0, 0, 1], 'finish');
     }
     this.app.activeAim.cancel();
     this.selected = family;
-    this.app.hud.showToast(`${P[family].name} · click arena to cast`, 2200);
+    this.app.hud.showToast(`${(MECHANIC_VARIANTS[uid] ?? P[family]).name} · click arena to cast`, 2200);
     return true;
   }
   cast(family, position, direction = [0, 0, 1], action = 'cast') {
     if (this.app.paused || !this.adapter.enabled) return { ok: false, reason: 'combat paused or disabled' };
-    const result = this.systems.command({ family, position: position ?? undefined, direction, action });
+    const result = this.systems.command({ family, uid: this.selectedUid, position: position ?? undefined, direction, action });
     if (result.ok) {
       this.app._throwBody(Math.atan2(direction[0], direction[2]), P[family].castAnim);
       if (family !== 'weave') this.selected = null;

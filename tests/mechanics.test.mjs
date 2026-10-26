@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CombatStateManager } from '../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
 import { MechanicSystems } from '../packs/sandbox/src/combat/ucsm/mechanics/MechanicSystems.js';
-import { MECHANIC_PRESETS as P } from '../packs/sandbox/src/combat/ucsm/mechanics/presets.js';
+import { MECHANIC_PRESETS as P, CRYOSTASIS_MESH } from '../packs/sandbox/src/combat/ucsm/mechanics/presets.js';
 import { ELEMENT_OF } from '../packs/sandbox/src/config/elements.js';
 import { Scene } from 'three';
 import { MechanicPresentation } from '../packs/sandbox/src/combat/ucsm/mechanics/MechanicPresentation.js';
@@ -88,6 +88,24 @@ test('hostile existing-cast footprints destroy anchors and remove ghost links; a
   ticks(m, 2);
   assert.equal(m.anchors.size, 1);
   assert.equal(s.weave.links.length, 0);
+});
+
+test('Cryostasis Mesh places frost anchors and chills hostile crossers without changing Infernal Circuit', () => {
+  const { m, s } = arena();
+  const add = (position) => {
+    assert.equal(s.command({ family: 'weave', uid: CRYOSTASIS_MESH.uid, position }).ok, true);
+    ticks(m, s.t(CRYOSTASIS_MESH.anticipation) + 1);
+  };
+  add([4, 0, 0]);
+  ticks(m, 24);
+  add([12, 0, 0]);
+  m.advance();
+  assert.equal(s.weave.links.length, 1);
+  assert.ok(m.entities.get('enemy').statuses.some((x) => x.tag === 'chilled'));
+  assert.ok(m.recentEvents.some((x) => x.abilityUid === CRYOSTASIS_MESH.uid && x.element === 'frost'));
+  assert.equal(m.entities.get('ally').health, 10);
+  assert.equal(s.weave.activate({ id: 'mixed', family: 'weave', uid: P.weave.uid, ownerId: 'caster', position: [8, 0, 5] }), 'remove existing anchors before changing weave');
+  assert.equal(s.command({ family: 'counter', uid: CRYOSTASIS_MESH.uid }).ok, false);
 });
 
 test('Aegis Exemplar: drain, movement, blocked impact bank, combo grammar, finisher and restoration', () => {
@@ -340,6 +358,18 @@ test('all five Three.js rigs have distinct real geometry and release scene/resou
   v.dispose();
   assert.equal(scene.children.length, 0);
   assert.equal(disposed, v.resources.length);
+});
+
+test('Cryostasis anchor has its own finite geometry and disposes shared resources', () => {
+  const { s } = arena(), scene = new Scene(), v = new MechanicPresentation(scene, s);
+  const fire = v.add('fire', 'anchor', { position: [0, 0, 0] });
+  const frost = v.add('frost', 'anchor', { uid: CRYOSTASIS_MESH.uid, position: [0, 0, 0] });
+  let count = 0;
+  frost.g.traverse((n) => { if (n.isMesh) { count++; assert.ok(n.geometry.attributes.position.count > 0); } });
+  assert.ok(count >= 10);
+  assert.notDeepEqual(frost.g.toJSON().object.children, fire.g.toJSON().object.children);
+  v.dispose();
+  assert.equal(scene.children.length, 0);
 });
 
 test('partial counter does not reduce another target, and duplicate targets never double damage', () => {
