@@ -39,6 +39,8 @@
     "warningIntensity": 0.6,
     "releaseScatter": 1,
     "riftFlow": 1,
+    "fractureReach": 1,
+    "fractureIntensity": 0.65,
     "damage": 1,
     "voidColor": "#281b58",
     "edgeColor": "#b8a8ff"

@@ -133,3 +133,14 @@ test('impact fragments follow the actual pulse and wave and remain bounded',()=>
   a.destroy();a.dispose();settings[c.id].fragmentGlow=c.settings.fragmentGlow;settings[c.id].fragmentScale=c.settings.fragmentScale;
  }
 });
+
+test('contacts appear only on successful targets, use local position, pause and clear on reuse',()=>{
+ for(const C of [CinderCrownAbility,GlacierBellAbility]){
+  const {a}=fixture(C);run(a,a.fire?.3:.65);const contact=a.contacts.states.find(s=>s.live);assert.ok(contact);assert.ok([1,3].includes(contact.x));assert.equal(contact.z,0);
+  const age=contact.age;a.update(0);assert.equal(contact.age,age);assert.ok(a.contacts.mesh.count>0&&a.contacts.mesh.count<=16);
+  for(const x of a.contacts.mesh.geometry.attributes.position.array)assert.ok(Number.isFinite(x));
+  a.destroy();assert.equal(a.contacts.mesh.count,0);assert.ok(a.contacts.states.every(s=>!s.live));a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.equal(a.contacts.mesh.count,0);a.destroy();a.dispose();
+ }
+ const a=new GlacierBellAbility({lights:{acquire:()=>({}),release(){},set(){}},dummies:{findTargets(x,z,r,out){out.length=0;out.push({position:new Vector3(5,0,0),kill:()=>false});return out;}}});
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,1);assert.ok(a.contacts.states.every(s=>!s.live));a.destroy();a.dispose();
+});

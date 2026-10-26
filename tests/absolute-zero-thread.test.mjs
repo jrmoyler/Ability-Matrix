@@ -73,3 +73,37 @@ test("frost motes advance with the filament and ring resources are reclaimed", (
   a.dispose();
   assert.equal(disposed, 2);
 });
+
+test("pending freeze is cancelled when its target dies before the delay", () => {
+  let freezes = 0;
+  const target = {
+    position: new Vector3(0, 0, 2),
+    root: new Group(),
+    alive: true,
+    freeze() {
+      freezes++;
+      return true;
+    },
+  };
+  const a = new AbsoluteZeroThreadAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        out.push(target);
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(0.1);
+  assert.equal(a.pending.length, 1);
+  target.alive = false;
+  a.update(0.05);
+  assert.equal(a.pending.length, 0);
+  target.alive = true;
+  for (let i = 0; i < 10; i++) a.update(0.1);
+  assert.equal(freezes, 0, "the later occupant is not frozen by the old hit");
+  a.destroy();
+  a.dispose();
+});

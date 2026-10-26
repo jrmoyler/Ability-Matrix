@@ -239,6 +239,12 @@ export class AbsoluteZeroThreadAbility extends Ability {
       }
     }
     for (let i = this.pending.length - 1; i >= 0; i--) {
+      // A delayed freeze belongs to the actor that was hit, not a later life
+      // of a pooled slot. Cancel as soon as that actor is no longer alive.
+      if (this.pending[i].dummy.alive === false) {
+        this.pending.splice(i, 1);
+        continue;
+      }
       if (this.pending[i].time <= this.age) {
         const d = this.pending[i].dummy;
         if (d.root && this.frozen.length < 8) {

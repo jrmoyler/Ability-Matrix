@@ -40,6 +40,7 @@
     "deliveryScale": 1,
     "fragmentScale": 1,
     "fragmentGlow": 1,
+    "contactScale": 1,
     "coreColor": "#cdf6ff"
   }
 }

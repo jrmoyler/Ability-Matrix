@@ -5,11 +5,13 @@ import {
   DoubleSide,
   Mesh,
   Points,
+  RingGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
 import { Ability } from "../../Ability.js";
 import { LAYER } from "../../../core/Layers.js";
+import { settings } from "../../../config/settings.js";
 export const ID = "tidal-memory";
 export const UID = "matrix-expansion/tidal-memory";
 export const CONFIG = Object.freeze({
@@ -39,6 +41,10 @@ export const CONFIG = Object.freeze({
     returnDuration: 1.2,
     impulse: 4,
     lift: 2,
+    turnRadius: 2.4,
+    turnDuration: 0.45,
+    turnFlash: 0.06,
+    turnShake: 0.06,
   },
 });
 const N = 80;
@@ -113,6 +119,23 @@ export class TidalMemoryAbility extends Ability {
     this.wake.frustumCulled = false;
     this.wake.layers.set(LAYER.VFX);
     this.group.add(this.wake);
+    this.turnGeometry = new RingGeometry(0.82, 1, 72);
+    this.turnMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      uniforms: { uFade: { value: 1 }, uTime: { value: 0 } },
+      vertexShader:
+        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+      fragmentShader:
+        "varying vec2 vUv;uniform float uFade,uTime;void main(){vec2 p=vUv-.5;float angle=atan(p.y,p.x);float bead=pow(max(0.,sin(angle*13.-uTime*7.)),6.);gl_FragColor=vec4(.2,.8,1.,uFade*(.2+.65*bead));}",
+    });
+    this.turnRing = new Mesh(this.turnGeometry, this.turnMaterial);
+    this.turnRing.layers.set(LAYER.VFX);
+    this.turnRing.rotation.x = -Math.PI / 2;
+    this.turnRing.visible = false;
+    this.group.add(this.turnRing);
     this.samples = new Float32Array((N + 1) * 2);
     this.hitOut = new Set();
     this.hitBack = new Set();
@@ -164,6 +187,7 @@ export class TidalMemoryAbility extends Ability {
   onSpawn() {
     this.hitOut.clear();
     this.hitBack.clear();
+    this.turnRing.visible = false;
     this.prev = 0;
     this.backDistance = this.length;
     this.coverage = 0;
@@ -293,14 +317,37 @@ export class TidalMemoryAbility extends Ability {
     this.backDistance = this.length;
     this.returning = true;
     this.wakeMat.uniforms.uDirection.value = -1;
+    this.turnRing.position.copy(this.frontPoint);
+    this.turnRing.position.y = 0.06;
+    this.turnRing.scale.setScalar(0.2);
+    this.turnRing.visible = true;
+    this.turnMaterial.uniforms.uFade.value = 1;
+    this.ctx.shake?.add?.(
+      this.config.turnShake * settings.global.cameraShake,
+      5,
+      18,
+    );
+    this.ctx.flash?.trigger?.(
+      this.lightColor.set(this.config.lightColor),
+      this.config.turnFlash * settings.global.explosionIntensity,
+    );
   }
   onFade(_dt, t) {
     if (t <= 1) {
+      const turn = Math.min(
+        1,
+        (t * this.impactDuration) / Math.max(0.05, this.config.turnDuration),
+      );
+      this.turnRing.scale.setScalar(0.2 + turn * this.config.turnRadius);
+      this.turnMaterial.uniforms.uFade.value = (1 - turn) * (1 - turn);
+      this.turnMaterial.uniforms.uTime.value = this.age;
+      this.turnRing.visible = turn < 1;
       const next = this.length * (1 - t);
       this._sweep(this.backDistance, next, this.hitBack);
       this.backDistance = next;
       this._draw(next);
     } else {
+      this.turnRing.visible = false;
       const f = 2 - t;
       this.mat.uniforms.uFade.value = f;
       this.wakeMat.uniforms.uFade.value = f;
@@ -310,6 +357,7 @@ export class TidalMemoryAbility extends Ability {
   onDestroy() {
     this.hitOut.clear();
     this.hitBack.clear();
+    this.turnRing.visible = false;
     this.mat.uniforms.uFade.value = 1;
     this.wakeMat.uniforms.uFade.value = 1;
   }
@@ -320,6 +368,8 @@ export class TidalMemoryAbility extends Ability {
     this.wakeMat.dispose();
     this.sprayGeometry.dispose();
     this.sprayMaterial.dispose();
+    this.turnGeometry.dispose();
+    this.turnMaterial.dispose();
     super.dispose();
   }
 }
@@ -329,6 +379,10 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "width", 0.4, 4, 0.05, "wave width");
   R(f, c, "height", 0.2, 4, 0.05, "crest height");
   R(f, c, "returnDuration", 0.2, 4, 0.05, "return time");
+  R(f, c, "turnRadius", 0.2, 6, 0.1, "turn ripple radius");
+  R(f, c, "turnDuration", 0.1, 2, 0.05, "turn ripple time");
+  R(f, c, "turnFlash", 0, 0.5, 0.01, "turn flash");
+  R(f, c, "turnShake", 0, 1, 0.01, "turn shake");
   R(f, c, "impulse", 0, 15, 0.1, "wave force");
   R(f, c, "lift", 0, 8, 0.1, "wave lift");
   f.close();

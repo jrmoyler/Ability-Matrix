@@ -46,6 +46,7 @@ export const CONFIG = Object.freeze({
     toneA: "#a6ff85",
     toneB: "#54ebe6",
     toneC: "#e6d1ff",
+    resonance: 1,
   },
 });
 const SEG = 128,
@@ -228,18 +229,33 @@ export class OvertoneSpiralAbility extends Ability {
   _resonator(t) {
     const envelope = Math.min(1, t * 8),
       shimmer = Math.sin(this.age * 35) * 0.04;
+    const elapsed = t * this.impactDuration;
+    let beat = 0;
+    for (let i = 0; i < 3; i++) {
+      const since = elapsed - i * this.config.pulseInterval;
+      if (since >= 0) beat = Math.max(beat, Math.max(0, 1 - since / 0.18));
+    }
+    beat *= this.config.resonance;
     this.stem.position.set(this.centre.x, 0.32, this.centre.z);
-    this.stem.scale.setScalar(envelope);
+    this.stem.scale.set(
+      envelope * (1 + beat * 0.12),
+      envelope,
+      envelope * (1 + beat * 0.12),
+    );
     for (let i = 0; i < this.forks.length; i++) {
       const fork = this.forks[i],
         a = this.age * 0.25 + (i * TAU) / 3;
       fork.position.set(
         this.centre.x + Math.cos(a) * 0.25,
-        1 + shimmer,
+        1 + shimmer + beat * 0.15,
         this.centre.z + Math.sin(a) * 0.25,
       );
-      fork.rotation.set(shimmer * (i + 1), a, shimmer);
-      fork.scale.set(envelope, envelope * (1 + i * 0.16), envelope);
+      fork.rotation.set(shimmer * (i + 1), a, shimmer + beat * 0.12);
+      fork.scale.set(
+        envelope,
+        envelope * (1 + i * 0.16) * (1 + beat * 0.2),
+        envelope,
+      );
     }
     this.noteMaterial.uniforms.uTime.value = this.age;
   }
@@ -344,6 +360,7 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "radius", 1, 10, 0.1, "maximum radius");
   R(f, c, "pulseInterval", 0.1, 1, 0.05, "pulse spacing");
   R(f, c, "waveSpeed", 1, 20, 0.5, "wave speed");
+  R(f, c, "resonance", 0, 2, 0.05, "strike motion");
   R(f, c, "impulse", 0, 15, 0.1, "wave force");
   R(f, c, "lift", 0, 8, 0.1, "wave lift");
   f.addColor(c, "toneA").name("first tone");

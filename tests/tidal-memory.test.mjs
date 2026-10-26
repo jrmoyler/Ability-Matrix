@@ -88,3 +88,34 @@ test("water spray and wake reverse on the return and reset on reuse", () => {
   a.destroy();
   a.dispose();
 });
+
+test("turnaround ripple appears at the endpoint, decays, and resets", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.turnRing.visible, false);
+  a.update(2);
+  assert.equal(a.turnRing.visible, true);
+  assert.ok(Math.abs(a.turnRing.position.z - 5) < 0.3);
+  a.update(0.2);
+  assert.ok(a.turnRing.scale.x > 0.2);
+  assert.ok(a.turnMaterial.uniforms.uFade.value < 1);
+  a.update(0.4);
+  assert.equal(a.turnRing.visible, false);
+  let disposed = 0;
+  for (const r of [a.turnGeometry, a.turnMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.turnRing.visible, false);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});

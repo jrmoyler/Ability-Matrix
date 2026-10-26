@@ -178,3 +178,26 @@ test("tone colors update live and return to saved settings on reuse", () => {
     a.dispose();
   }
 });
+
+test("resonator strikes in sync with each wavefront and settles afterward", () => {
+  const a = new OvertoneSpiralAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(a.config.pulseInterval - 0.02);
+  const before = a.forks[0].scale.y;
+  a.update(0.02);
+  const strike = a.forks[0].scale.y;
+  assert.ok(strike > before);
+  a.update(0.25);
+  assert.ok(a.forks[0].scale.y < strike);
+  a.destroy();
+  a.dispose();
+});

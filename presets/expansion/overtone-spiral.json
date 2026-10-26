@@ -34,6 +34,7 @@
     "lift": 1.4,
     "toneA": "#a6ff85",
     "toneB": "#54ebe6",
-    "toneC": "#e6d1ff"
+    "toneC": "#e6d1ff",
+    "resonance": 1
   }
 }

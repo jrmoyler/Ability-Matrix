@@ -1,3 +1,4 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
 import {AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, PlaneGeometry, ShaderMaterial, SphereGeometry, TubeGeometry, CatmullRomCurve3, Vector3} from 'three';
 import {Ability, AbilityPhase} from '../../Ability.js';
@@ -61,7 +62,7 @@ export class ToxinEvolutionAbility extends Ability {
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'poison',{shape:'BUBBLE',colors:['#e8ffad','#9be641','#5c9830','#24431b'],rate:22});}
  onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;this.releaseAt=-1;this.stageTimes.fill(-1);
-  const bridge=this.ctx.expansionCombat;this.scope=bridge?.bind?.(UID,'caster') ?? null;if(!this.scope)this.failure='combat bridge unavailable';this.travelPod.visible=!!this.scope;this.travelPod.position.copy(this.origin);
+  const bridge=this.ctx.expansionCombat;this.scope=bindExpansionCombat(this.ctx,UID);if(!this.scope)this.failure='combat bridge unavailable';this.travelPod.visible=!!this.scope;this.travelPod.position.copy(this.origin);
  }
  onTravel(){const c=this.config,t=this.reduceMotion?0:this.age;this.travelPod.position.copy(this.position);this.travelPod.position.y=.7;this.travelPod.rotation.y=t*2;this.travelPod.scale.setScalar(c.travelScale??1);this.vesselMat.uniforms.uTime.value=t;this.vesselMat.uniforms.uFade.value=1;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);this.bodyMat.uniforms.uFade.value=1;this.bodyMat.uniforms.uPulse.value=0;this.bodyMat.uniforms.uTime.value=t;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);for(let i=0;i<this.travelSpores.length;i++){const a=i*TAU/this.travelSpores.length+t*2;this.travelSpores[i].position.set(Math.cos(a)*.5,.2+(i%3)*.18,Math.sin(a)*.5);}}
  onImpact(){
