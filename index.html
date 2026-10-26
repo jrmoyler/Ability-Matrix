@@ -67,7 +67,8 @@ button { cursor: pointer; }
   touch-action: none;
 }
 .screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.screen .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); pointer-events: none; }
+.screen .loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); pointer-events: none; }
+.screen .loading[hidden] { display: none; }
 .now { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .now .sigil { width: 46px; height: 46px; flex: none; color: var(--a, var(--accent)); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: var(--panel); }
 .now .sigil svg { width: 30px; height: 30px; }
@@ -251,7 +252,7 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       </div>
     </div>
     <div class="screen">
-      <div class="loading" id="loading">Preparing the range &mdash; compiling shaders&hellip;</div>
+      <div class="loading" id="loading" role="status">Preparing the range &mdash; compiling shaders&hellip;</div>
       <iframe id="stage" title="Casting range" allow="autoplay; fullscreen"></iframe>
     </div>
     <div class="stage-dock">
@@ -394,9 +395,9 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
 
 <script>
 const $ = (id) => document.getElementById(id);
-const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'moves'];
+const PACK_ORDER = ['linear', 'linear-ext', 'linear-extended', 'handcast', 'casting', 'collective', 'matrix-new', 'atlas', 'codex', 'mechanics', 'moves'];
 const NEW_PACKS = ['collective', 'matrix-new', 'atlas', 'codex'];
-const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', move: 'Moves', archived: 'Archived' };
+const KINDS = { ability: 'Abilities', summon: 'Summons', buff: 'Buffs', mechanic: 'Combat mechanics', move: 'Moves', archived: 'Archived' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem('matrix.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('matrix.' + k, JSON.stringify(v)); } catch {} }
@@ -405,7 +406,7 @@ const store = {
 let catalog = null, packs = {}, current = null, livePack = null, ready = false, pending = [];
 let autoOn = false, gauntlet = null, paused = false;
 const tried = new Set(store.get('tried', []));
-const filters = { q: '', kind: new Set(['ability', 'summon', 'buff']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
+const filters = { q: '', kind: new Set(['ability', 'summon', 'buff', 'mechanic']), cast: new Set(), pack: new Set(), element: new Set(), view: store.get('view', 'cards'), group: store.get('group', 'element') };
 let advanced = store.get('advanced', false);
 if (!advanced && filters.group === 'pack') filters.group = 'element';
 document.body.classList.toggle('advanced', advanced);
@@ -512,9 +513,15 @@ function select(a, { cast = false, scroll = false } = {}) {
   }
 
   const live = a.status === 'live';
-  ['castBtn', 'autoBtn', 'presetBtn'].forEach((id) => ($(id).disabled = !live));
-  $('armBtn').disabled = !(live && a.kind === 'ability');
-  $('castBtn').textContent = a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
+  $('castBtn').disabled = !live;
+  $('autoBtn').disabled = !live || a.kind === 'mechanic';
+  $('presetBtn').disabled = !live || a.kind === 'mechanic';
+  $('armBtn').disabled = !(live && (a.kind === 'ability' || a.kind === 'mechanic'));
+  if (a.kind === 'mechanic' && $('preset').classList.contains('open')) {
+    $('preset').classList.remove('open'); $('presetBtn').classList.remove('on');
+  }
+  if (a.kind === 'mechanic' && autoOn) { autoOn = false; $('autoBtn').classList.remove('on'); send({ matrix: 'stop' }); }
+  $('castBtn').textContent = a.kind === 'mechanic' ? 'Aim mechanic' : a.kind === 'summon' ? 'Deploy / recall' : a.kind === 'buff' ? 'Toggle buff' : a.kind === 'move' ? 'Play move' : 'Cast';
   renderMoves(a.pack);
   if (a.status === 'archived') { toast('Archived in the source repo \u2014 not wired into its live app'); return; }
   if (a.status === 'pack-only') { toast(a.hint); return; }
@@ -522,17 +529,19 @@ function select(a, { cast = false, scroll = false } = {}) {
   const first = !livePack;
   boot(first && (a.kind === 'ability' || a.kind === 'summon') ? `&ability=${encodeURIComponent(a.uid)}${cast ? '&cast=1' : ''}` : '');
   if (!first || (a.kind !== 'ability' && a.kind !== 'summon')) {
-    if (a.kind === 'ability' || a.kind === 'summon') send(cast ? { matrix: 'cast', uid: a.uid } : { matrix: 'select', uid: a.uid });
+    if (a.kind === 'mechanic') { send({ matrix: 'selectMechanic', uid: a.uid }); toast('Aim inside the stage and click to use this mechanic'); }
+    else if (a.kind === 'ability' || a.kind === 'summon') send(cast ? { matrix: 'cast', uid: a.uid } : { matrix: 'select', uid: a.uid });
     else if (cast) castCurrent();
   }
   if (autoOn && a.kind === 'ability') send({ matrix: 'auto', uid: a.uid, seconds: 5 });
-  if ($('preset').classList.contains('open') && a.kind !== 'move') send({ matrix: 'getPreset', uid: a.uid });
+  if ($('preset').classList.contains('open') && a.kind !== 'move' && a.kind !== 'mechanic') send({ matrix: 'getPreset', uid: a.uid });
   try { history.replaceState(null, '', '#' + a.uid.replace(/[^A-Za-z0-9._~-]/g, '_')); } catch {}
 }
 
 function castCurrent() {
   const a = current; if (!a) return;
-  if (a.kind === 'buff') { send({ matrix: 'runAction', packId: a.pack, action: a.action || a.id }); markTried(a); }
+  if (a.kind === 'mechanic') { send({ matrix: 'selectMechanic', uid: a.uid }); toast('Aim inside the stage and click to use this mechanic'); }
+  else if (a.kind === 'buff') { send({ matrix: 'runAction', packId: a.pack, action: a.action || a.id }); markTried(a); }
   else if (a.kind === 'move') {
     if (a.move) send({ matrix: 'move', name: a.move });
     else if (a.action) send({ matrix: 'action', action: a.action });
@@ -556,7 +565,7 @@ function renderMoves(pack) {
 
 /* ---------- controls ---------- */
 $('castBtn').onclick = () => castCurrent();
-$('armBtn').onclick = () => { send({ matrix: 'arm', uid: current.uid }); toast('Armed \u2014 aim inside the frame and click'); };
+$('armBtn').onclick = () => { send({ matrix: current.kind === 'mechanic' ? 'selectMechanic' : 'arm', uid: current.uid }); toast('Armed \u2014 aim inside the frame and click'); };
 $('autoBtn').onclick = () => {
   autoOn = !autoOn; $('autoBtn').classList.toggle('on', autoOn);
   if (autoOn && current?.kind === 'ability') send({ matrix: 'auto', uid: current.uid, seconds: 5 });
@@ -682,8 +691,9 @@ function updateTally() {
   const cast = catalog.abilities.filter(castable);
   const done = cast.filter((a) => tried.has(a.uid)).length;
   const moves = catalog.abilities.filter((a) => a.kind === 'move').length;
+  const mechanics = catalog.abilities.filter((a) => a.kind === 'mechanic').length;
   const arch = catalog.abilities.filter((a) => a.kind === 'archived').length;
-  $('tally').textContent = `${cast.length} castable \u00b7 ${ELEMENTS.length} elements \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 you've tried ${done}/${cast.length}`;
+  $('tally').textContent = `${cast.length} castable \u00b7 ${mechanics} mechanics \u00b7 ${ELEMENTS.length} elements \u00b7 ${moves} moves \u00b7 ${arch} archived \u00b7 you've tried ${done}/${cast.length}`;
 }
 $('q').addEventListener('input', (e) => { filters.q = e.target.value; render(); });
 $('viewCards').onclick = () => { filters.view = 'cards'; store.set('view', 'cards'); $('viewCards').setAttribute('aria-pressed', true); $('viewTable').setAttribute('aria-pressed', false); render(); };
@@ -902,7 +912,9 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
 }
 updateInstallUI();
 
-fetch('presets/catalog.json').then((r) => r.json()).then((c) => {
+Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets/mechanics/catalog.json').then((r) => r.ok ? r.json() : { abilities: [] }).catch(() => ({ abilities: [] }))]).then(([c, mechanics]) => {
+  c.abilities.push(...mechanics.abilities);
+  c.packs.push({ pack: 'mechanics', title: 'Combat mechanics', repo: 'collective-ai (new)', count: mechanics.abilities.length });
   catalog = c;
   for (const p of c.packs) packs[p.pack] = p;
   ELEMENTS = c.elements || [];

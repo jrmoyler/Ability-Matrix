@@ -25,10 +25,10 @@ export class HUD {
     this._armedShown = null;
 
     root.innerHTML = `
-      <div class="hud__panel hud__title">
-        Ability Sandbox
+      <details class="hud__panel hud__title">
+        <summary>Ability Sandbox</summary>
         <span data-blurb>This stage hosts every pack. [ ] cycles all of them; Q–U are only the twelve Collective originals. The matrix spellbook is the full list.</span>
-      </div>
+      </details>
 
       <div class="hud__panel hud__stats">
         <div>FPS <b data-stat="fps">—</b></div>
@@ -37,7 +37,7 @@ export class HUD {
         <div>Draw calls <b data-stat="calls">0</b></div>
       </div>
 
-      <div class="hud__panel hud__help">
+      <div class="hud__panel hud__help is-hidden">
         <div>This stage hosts every pack.</div>
         <div><strong>[ / ]</strong> — cycle all of them</div>
         <div><strong>Q E R F V X B Z N K Y U</strong> — only the twelve Collective originals</div>
@@ -71,7 +71,7 @@ export class HUD {
 
       ${CONTACT_MARKUP}
 
-      <div class="hud__toast" data-toast></div>
+      <div class="hud__toast" data-toast role="status" aria-live="polite"></div>
       <div class="hud__paused" data-paused>Paused</div>
     `;
 
@@ -148,10 +148,19 @@ export class HUD {
   }
 
   showToast(message, duration = 1600) {
+    const token = this._toastToken = (this._toastToken ?? 0) + 1;
     this.toast.textContent = message;
     this.toast.classList.add('is-visible');
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => this.toast.classList.remove('is-visible'), duration);
+    this._toastTimer = setTimeout(() => this.dismissToast(token), duration);
+    return token;
+  }
+
+  /** Do not erase a newer notification when an older async load completes. */
+  dismissToast(token) {
+    if (token !== this._toastToken) return;
+    clearTimeout(this._toastTimer);
+    this.toast.classList.remove('is-visible');
   }
 
   /**

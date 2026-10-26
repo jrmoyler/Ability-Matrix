@@ -358,11 +358,10 @@ export class App {
   loadRuntime(pack) {
     if (this.runtimes.has(pack)) return Promise.resolve(this.runtimes.get(pack));
     if (this._runtimeLoads.has(pack)) return this._runtimeLoads.get(pack);
-    this.hud.showToast(`Loading the ${VENDOR_PACKS[pack]?.title ?? pack} engine…`, 4000);
+    const loadingNotice = this.hud.showToast(`Loading ${VENDOR_PACKS[pack]?.title ?? pack}…`, 4000);
     const job = loadVendorRuntime(pack, this._vendorHost).then((runtime) => {
       this.runtimes.set(pack, runtime);
       this.combat?._wrapRuntime(runtime);
-      this._runtimeLoads.delete(pack);
       runtime.aim.on('cast', (origin, direction, distance) => this._castVendor(runtime, origin, direction, distance));
       runtime.aim.on('reject', () => this.hud.showToast('Too close — aim further out'));
       // Its own editor folders, the originals, under one heading.
@@ -371,6 +370,9 @@ export class App {
       folder.foldersRecursive().forEach((f) => f.close());
       folder.close();
       return runtime;
+    }).finally(() => {
+      this._runtimeLoads.delete(pack);
+      this.hud.dismissToast(loadingNotice);
     });
     this._runtimeLoads.set(pack, job);
     return job;

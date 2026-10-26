@@ -1,7 +1,19 @@
 import { Group, Vector3 } from 'three';
+import { createCounterHeroGeometry, COUNTER_HERO_SLUGS } from './CounterHeroGeometry.js';
 
 const TAU = Math.PI * 2;
 const UP = new Vector3(0, 1, 0);
+function heroGeometry(v, uid) {
+  const slug = uid?.split('/').at(-1);
+  if (!COUNTER_HERO_SLUGS.includes(slug)) return null;
+  const name = `counterHero:${slug}`;
+  if (!v.geo[name]) {
+    const geometry = createCounterHeroGeometry(slug);
+    v.geo[name] = geometry;
+    v.resources.push(geometry);
+  }
+  return name;
+}
 const materialOf = (uid) => ({
   'backdraft-reprisal': 'fire', 'feedback-execution': 'storm',
   'undertow-reversal': 'water', 'faultline-retort': 'strata', 'facet-reprisal': 'ice',
@@ -16,6 +28,10 @@ const mark = (node, type, phase = 0) => {
 export function buildCounterGuard(v, g, uid) {
   const slug = uid?.split('/').at(-1), mat = materialOf(uid);
   if (!mat) return false;
+  // An element-specific sculpted surface gives the guard a recognisable read
+  // in silhouette, before the smaller orbiting pieces are visible.
+  const hero = mark(v.mesh(heroGeometry(v, uid), mat, g, 0, .08, 1.14, .82, .82, .82), 'hero');
+  hero.name = `counter-hero:${slug}`;
   const orbit = new Group(); g.add(orbit); mark(orbit, 'orbit', slug === 'undertow-reversal' ? 1 : 0);
   if (slug === 'backdraft-reprisal') {
     for (let i = 0; i < 11; i++) {
@@ -84,7 +100,7 @@ export function buildCounterReversal(v, g, data, profile) {
     strand.quaternion.setFromUnitVectors(UP, b.clone().sub(a).normalize());
     strand.userData.counterTrail = i;
   }
-  const orb = v.mesh('shard', mat, g, start.x, start.y, start.z, .23, .35, .23);
+  const orb = v.mesh(heroGeometry(v, data.uid), mat, g, start.x, start.y, start.z, .26, .26, .26);
   orb.userData.counterProjectile = { start, end };
   const impact = new Group(); g.add(impact); impact.userData.counterImpact = true;
   const radius = profile?.footprint ?? profile?.splash ?? 1.2;

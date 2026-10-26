@@ -13,11 +13,22 @@
  */
 import { Raycaster, Plane, Vector2, Vector3 } from 'three';
 import { settings, DEFAULT_SETTINGS, applySettings } from '../config/settings.js';
+import { MECHANIC_PRESETS, MECHANIC_VARIANTS } from '../combat/ucsm/mechanics/presets.js';
 
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+
+/** Arm a live mechanic by its authoritative UID, without touching legacy castables. */
+export function armMechanic(app, uid) {
+  const preset = MECHANIC_VARIANTS[uid] ?? Object.values(MECHANIC_PRESETS).find((p) => p.uid === uid);
+  if (!preset) throw new Error(`Unknown mechanic ${uid}`);
+  if (!app.combat?.enabled) throw new Error('Enable combat mechanics to use this move');
+  const selected = app.combat.mechanics.select(preset.family, MECHANIC_VARIANTS[uid] ? uid : null);
+  if (!selected || selected.ok === false) throw new Error(selected?.reason ?? 'Unable to arm mechanic while paused or disabled');
+  return preset;
+}
 
 /**
  * Hosted builds can only serve web media types, so the staging script renames
@@ -91,6 +102,13 @@ export function installMatrixBridge(app, packId = 'sandbox') {
   async function arm(uid) {
     await app.select(uid);
     if (!app.activeAim.isArmed) await app.arm(uid);
+  }
+
+  // Mechanics use the same spellbook but retain their own ground/self input.
+  // Validate the UID against implemented runtime presets before arming it.
+  function selectMechanic(uid) {
+    stopAuto();
+    return armMechanic(app, uid);
   }
 
   async function cast(uid, options = {}) {
@@ -177,6 +195,7 @@ export function installMatrixBridge(app, packId = 'sandbox') {
     pack: packId,
     list: () => ({ abilities: app.uids }),
     select,
+    selectMechanic,
     arm,
     cast,
     auto,
@@ -219,6 +238,9 @@ export function installMatrixBridge(app, packId = 'sandbox') {
           break;
         case 'select':
           post({ matrix: 'selected', uid, meta: await select(uid) });
+          break;
+        case 'selectMechanic':
+          post({ matrix: 'mechanicSelected', uid, meta: selectMechanic(uid) });
           break;
         case 'arm':
           await arm(uid);

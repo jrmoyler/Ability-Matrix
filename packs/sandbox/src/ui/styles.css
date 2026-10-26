@@ -367,7 +367,11 @@ body:has(.touch-rig) .hud__help.is-hidden {
   text-transform: uppercase;
   font-size: 11px;
   font-weight: 600;
+  pointer-events: auto;
 }
+
+.hud__title summary { cursor: pointer; }
+.hud__title summary:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
 
 .hud__title span {
   display: block;
@@ -380,10 +384,11 @@ body:has(.touch-rig) .hud__help.is-hidden {
 
 .hud__toast {
   position: absolute;
-  left: 50%;
-  top: 76px;
-  transform: translate(-50%, -12px);
-  padding: 9px 18px;
+  left: 12px;
+  top: 80px;
+  max-width: min(240px, calc(100vw - 24px));
+  transform: translateY(-8px);
+  padding: 7px 12px;
   border-radius: 999px;
   border: 1px solid var(--ui-border);
   background: var(--ui-bg-solid);
@@ -396,8 +401,10 @@ body:has(.touch-rig) .hud__help.is-hidden {
 
 .hud__toast.is-visible {
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: translateY(0);
 }
+
+.matrix-embedded .hud__toast { top: 10px; }
 
 /* Standing reminder that the clock is stopped but the editor is not. */
 .hud__paused {

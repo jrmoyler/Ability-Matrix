@@ -1,0 +1,1529 @@
+{
+  "sourceCommit": "bff650b74a547364dcee5a91c4b9fbed290ad0dc",
+  "entries": {
+    "linear/ice": {
+      "record": "e117ea5f1a28fb5e6e96aeb9252fa28a3ab17b58950c0e2d9ae58f85cb85fa05",
+      "preset": "52461bb42acac59073c8aff63906d921de6fb7abbad038ba9875801cc3564132"
+    },
+    "linear/thunder": {
+      "record": "d5e35e533f99d66e3f030fc534573797a31d4c1c30940c74b91823325cf68f57",
+      "preset": "09408598a9362daf127b9f3467d32cc8edca64b9500c821121b3677deb8f19bf"
+    },
+    "linear/meteor": {
+      "record": "ce8f6280c0e1572a1499f30d3631d6ae53b47200fe7ae6f69a42c4917e30d1e2",
+      "preset": "fc96bbcca7d09b35aac78f670d058f2627f69e6c751f57542c36c5085ebebea4"
+    },
+    "linear/beam": {
+      "record": "3280d7196217dfd09303d6e296b821ae059fe30ba973fc2f5e24978c5d3891a2",
+      "preset": "e4f66ee830d5454c8f8155bd536be3e8c45b562abbe20383241de510333201a7"
+    },
+    "linear/snare": {
+      "record": "638f8b73f29acfe61851e2211d4fde4f61b1c97d11075188ad27dd67ffa3a088",
+      "preset": "99378063f2d58a31f3615102b9c193ded9e3d43e3fa71b008243d25023ccdaec"
+    },
+    "linear/glacier": {
+      "record": "9f23514ee51a8999c2c93e701083f166bb64e08e3ea214f6cf018f296ba3a436",
+      "preset": "27075da8fd10f75086dc7b4ea346f088b946cc71414aa475251376a656fb72e5"
+    },
+    "linear-ext/pyre": {
+      "record": "8a4cb2e02e9f48c7f9875113ca9f9d7fb901b0226ab494f57f427ecfa8332261",
+      "preset": "c168c407107018284a64cd1e4407694644b857cfba9196d69d0927ca9a032d1a"
+    },
+    "linear-ext/kraken": {
+      "record": "54f1d9c4d27479beafeef5eae9c30a1267bc7f08aba206e30f2170d71f718a34",
+      "preset": "ded48a91bd5dd918503f406fa3b17aab1827c43850b5556b7e6ab93afe1620dc"
+    },
+    "linear-ext/electrical": {
+      "record": "3a36e643ebc8ccf57a602ec51427914d76cbe40e0cb9692651628231e4da9962",
+      "preset": "2b1801a8d2035b2b72f36eb5fce4f70fdfbbd4c074ce8f729e6b4f3ce1804d86"
+    },
+    "linear-ext/earth": {
+      "record": "abb8f8305db62076752a3ffc69fb59617db44a3d2bad6cf591f3b6812fcd7191",
+      "preset": "cbc0af67361c121170e310656dc70d93e2b9d1217aef6487d2b6477b367bedb1"
+    },
+    "linear-ext/portal": {
+      "record": "81e5385dd4249add660f538c0056e5285391c4e1f22bb9a846aaab55ca479346",
+      "preset": "e870f90c354bd954911dc79737fb0cba318451416cc898926fb63b55beef5079"
+    },
+    "linear-ext/aether": {
+      "record": "170949a29bec271b62f99334fcb0ed383c89b8c4cef66c1fded0828230a192cb",
+      "preset": "19403bccff1c6d034113547e1eae65b1aeb82792d02f89b015bfe4de5eb40461"
+    },
+    "linear-ext/firePortal": {
+      "record": "298ff72f517eb4bd353467385881843dff5e9e8edc96f05ebe79b678a6a020e6",
+      "preset": "e2c9f91e88ecc42256b4517410d5c0339cc7c88844d4e7b738c1aa551c4a242d"
+    },
+    "linear-ext/boost": {
+      "record": "778f6af9de3c25f77224081e30071157728c2bd97331cc8922636944e3d1ec65",
+      "preset": "3cfba6a16ea82d3586e93c6dd76329154c42b83560b63e5c52d0bdcbdfb82f1a"
+    },
+    "linear-ext/magic": {
+      "record": "c83e5ce83b4c23b378aa93f25b406893240b8cdf331c50c9fd23b33f1e0aa44f",
+      "preset": "3ee77ccba3f2c45c4a23cbdfa30b1adb9ffc68b58c9626a8c71ad68eda416b44"
+    },
+    "linear-ext/fire": {
+      "record": "340a0bb74cfbbc6be0e9a55920e909c1d3e3f5079f33c1c43da14e78fef4449c",
+      "preset": "6045dbe9aaca9263c9091df1200c92b683af95878e881d3e194582b23a0a55a5"
+    },
+    "linear-extended/ward": {
+      "record": "6493abcd1de6ef42d966b119dc33ce1323192fa588accbcb30b73e9bdff26a4f",
+      "preset": "b05cabac99f326de7ed713c815bb9198dcc2b2cdbb5686c567521ecd6962989e"
+    },
+    "linear-extended/acid": {
+      "record": "d320373c3ede828d5a24490c86602ff0727e818bbfb790680787f30ae7b3b91c",
+      "preset": "02159d8fd5156f9f2680dd754693e87edba20a08ed240f12c5b58545e0965943"
+    },
+    "linear-extended/growth": {
+      "record": "0df95f21c2217262f288df60ea9b73dfe532d7c50747d3d025b26c55cb2b43a2",
+      "preset": "85184742d2b8b4affd946e23db48e0510d0688c080d00f98790d285fea30f497"
+    },
+    "linear-extended/cyber": {
+      "record": "0e6795de58642e0972e48a44d9159fda28516eee93d76d916da1022d092be820",
+      "preset": "8c41176248564b2ea9fdb5dc5048ab14fdcb62938ebd64fe11f683f26f40ff51"
+    },
+    "linear-extended/venom": {
+      "record": "a1aa83e78428f6b42758fd99c59587b876d77506ae6a2907f3c1f4306d558cf4",
+      "preset": "5907a5cd7243ae8aad4d903ca21d725d405de7b8c3c54f4f7d3fb6fb03bc0b17"
+    },
+    "linear-extended/quake": {
+      "record": "b4aeae0464ffa4120832dc311d0d5003aa1d5e3622a9d9a23cbd7a1961a80b8d",
+      "preset": "0b44f97e0bd3609429fa12ce2c48ef9a6eaee42105850d3eb7f092d3dbd13097"
+    },
+    "linear-extended/ink": {
+      "record": "4ff380ffc74bd5348b56915c2bae115d8e900e2732ea264b4e8959de33a980e5",
+      "preset": "12f21e5f4964e621637d5db7ea7cf34b463de2c5cc08be188f5412496e985956"
+    },
+    "linear-extended/astral": {
+      "record": "857586f3d2cbcd56fe1635a9d1e51cc408575a1a18b0a93842f1d08b33d2bf5d",
+      "preset": "cbaa2b18dae65664b78c64072859bf243c67f26d2e2c58d191c26082ca88ea55"
+    },
+    "linear-extended/cascade": {
+      "record": "71e482ff3a9a3e94046008b0f675b4539e4f2ba3bf1ce5ec947ec0a3fd109b90",
+      "preset": "d0cb8b1ba0cf1fc05bc8e7c77e94e8cca55f207d6b601e8f741dbb2d65a793ba"
+    },
+    "linear-extended/rend": {
+      "record": "89781613acd641dc89f45aa4bf4b3863f4eefeedeb1b6eaf63112cad7cdd4597",
+      "preset": "c2127e29bf0cacd264b0d20c9f590c33b1a9577dadd4c14f380043d1ea230fe7"
+    },
+    "handcast/flux": {
+      "record": "7caf06b686534178edc2598f71a066971f0e2238eba341b1cffcb436b099a4b0",
+      "preset": "8d9d0f3e86fd6e5e181da9798f052d8681d695433bf2fd040554da4936933a66"
+    },
+    "handcast/voidslash": {
+      "record": "88339a8e5e5b40d5c4296c7dc23dc4e2fb10d327e6bd6a7f89658ae1618247c4",
+      "preset": "337be1a33b1c4592ac05722f16360692730f1f98c3546e41ce1a51cb96d983a1"
+    },
+    "handcast/glacial": {
+      "record": "a5b44524c1ba0777f5799bd67343fe28e6cb9eb0b5e35f61b3c1c9935a04aa00",
+      "preset": "1700966fe8cab5a350ca15a7c67c3e4b27672bb49ade99954ef34c619d959e27"
+    },
+    "handcast/shard": {
+      "record": "251d942357ff360f978a93c8356fa9cc15eece3565e37b3378daacc4f6fa7728",
+      "preset": "9ff8cb9291cc24db5b4978a963942e48d907ea7df690f5b3d0c170df10e9771a"
+    },
+    "handcast/frost": {
+      "record": "e325289ead339b96667f4a4ec3ea8d67b5f4d7c9ecb5cfd47a001064b5a7329b",
+      "preset": "cc449816349e83550287111537fb8dfa0afd61e05c275881103d4b8b6efc190f"
+    },
+    "handcast/toxic": {
+      "record": "aa90b5b0ec04e9aaea241bdd8f63dbd877343bc3ccc14fdb9aaaa927201d0230",
+      "preset": "8bc0755c32243dfba2a7ef67eea0f21d3005764e2141d4e89179576ee6d019f6"
+    },
+    "handcast/phoenix": {
+      "record": "2031b72a1c042f11573724b235c03f94773f22790cb9aedc0998b3645c2ca7e7",
+      "preset": "9d9c346500119ed837a8905944250cbe7f1dbefb513b1ca10cb1172c12fe2979"
+    },
+    "handcast/monowheel": {
+      "record": "58b654624b585f2c26ead017c2b2ee1923cdb8bba92d649fac5b01c7fe98aa02",
+      "preset": "570115f04f3aa8c77ba6b190714c4269a82333563f860e69773463d1cde839a5"
+    },
+    "handcast/drone": {
+      "record": "eb5ddde21dd34f49fe435475d0ce4d9deb2c7e1482feb888040b766006e95ea5",
+      "preset": "cb7ecb87274a8057321799554e895a3aceeb8be40d744e3514e7b46a093b4de7"
+    },
+    "casting/shark": {
+      "record": "867884d4a13e62c52eca0ca5b7d3ff243e15086dede98bccd1be36588b44ba9d",
+      "preset": "21c69894387321a60b3cd8f7fa0b59f26c0c794ffb57c5809439b2d55e723497"
+    },
+    "casting/chains": {
+      "record": "981ca1360b27953736373280be22cf9d9468c807e96af631cb31d6e5d45dfeaa",
+      "preset": "7520a173fb24c01725f832f21de49a4293c1f70d43053b5cac21ef14d965612b"
+    },
+    "casting/dragon": {
+      "record": "844c5a7f26a0c9791b22d796d689a2c94aead57eba67fa4a494966f7f8054cdd",
+      "preset": "8761976d2f428e3e47d32555b8b34b896a1fcec9820d47c90d46cc1cfa1940b4"
+    },
+    "casting/gyro": {
+      "record": "85c10b4fe3a518ff4ed3d7a0b43fe0bb122f9e35f8bfc4dc255c3bd13a6041b0",
+      "preset": "acdf393d4ff2674e97ff168272403750e6e3bcad9b077425f8ad4eb910e11900"
+    },
+    "casting/amethyst": {
+      "record": "c534b3557f92989e67f9276c394432dadd58a06246dc9d830543c2ca250847a2",
+      "preset": "74f8e048f0d555a33ab01ae59c11cb235af801a57c12dc982a7d3d6095690d8e"
+    },
+    "casting/tome": {
+      "record": "fb2435067831eb444f82588f7d014fde4ae16b287a6f30bac20d625344702a09",
+      "preset": "0d4730dc4e4809be543ff10ddf3f6d7b45768bb0cd7031cc2bfd6b589f5ce69a"
+    },
+    "casting/reliquary": {
+      "record": "993fe9099d84582544e2932fe951e02322bc6fd9a053d643b3d58dd60ef81217",
+      "preset": "6475d81614677701ab4b8676ea19a475d0c3712e3e0e1e3b5b8ce0f0b97aee71"
+    },
+    "casting/lance": {
+      "record": "67961d1962fddc287d87f4d24cfc5e487fd4396d1571def6a3eb10c2d772ef10",
+      "preset": "1da5817cd2c3afb6a45c37d82a31dc3e844f4f421929d15b4a01f4ea5e223332"
+    },
+    "casting/wolf": {
+      "record": "9e4eb270212554281b416b134c10fc3937aa541afcdb97afd1f43805a106a406",
+      "preset": "c5bc40c808c91e52623eca0b5858e95ed6d1569651e778a9c611b53524fa4288"
+    },
+    "collective/tempest": {
+      "record": "f2c1b16643bfa873b59740a97ecbb14ae6e99f9918b7bf37d7e759ccc0a26c97",
+      "preset": "a4316a6f8fc38da7a814a2c18e06f0dfe3ab98dd66ae48690071b30d36fb8f31"
+    },
+    "collective/dune": {
+      "record": "d675524c5399199370c817f69086d3ec02d11540119d5ddbb34f57bf5b334741",
+      "preset": "d9dd3e9806beccf97d3bd739fc0bb801be650ac0cb6c0e466c7743cbf4e78d7d"
+    },
+    "collective/prism": {
+      "record": "140ce18051548ac33550be1d694bdd15a065069c5f6ff5c23a57bfb94ef5be49",
+      "preset": "05489baa30c3cf03a643afbf4abba997991e48311bf3817f4c6b44890536f79a"
+    },
+    "collective/chain": {
+      "record": "53f094a1dc495e4019f992634327c12f7b4b544bf8c0b362ba3b31cd090230b3",
+      "preset": "a95b0e165b48735a1bbc21bf2e5805d44f5f3305b3fb01b29b3cb303c9379703"
+    },
+    "collective/graviton": {
+      "record": "3e232a58b01ac393bb5e2cba161dce71358d5ec2be15779bd1209034ba9793eb",
+      "preset": "c2a7fe84d7c912f927a7dd9c6ccb991c1929bc6d1ec2aaea3e3437381ea38d3f"
+    },
+    "collective/blink": {
+      "record": "ef91e1cad376619c6d5901853e2ffca7361dcfee23902afc0ccc9debf6ed0742",
+      "preset": "e467c13f755d79e1b5c27f1ee9f00c0589763eae3eae7856f3eaebcf655d5566"
+    },
+    "collective/sonic": {
+      "record": "08fd6fcbbeb6bfb36485d0eaf5f4d4bddc8d39408ea1183eff7cec88c1a1ea68",
+      "preset": "e710d627e236e885217f63f8f2b42e0009bed634961d59858af885d70560ebfa"
+    },
+    "collective/crimson": {
+      "record": "2cde76c126ce766df27cc9c09691e06b6acfa915541073f39ba8679cdf448b80",
+      "preset": "5b8fb6de8db74e32eddd02d5ac16115fe688b85ce74adaba722efdbb2c00077a"
+    },
+    "collective/swarm": {
+      "record": "bb38ed46de48794309e693e723f624ccba5f991b058a84e76d071bebaaa8b49b",
+      "preset": "453eaa2a74bd6168d038135d84d2935ae2114a332c5776bdb645e412f0797691"
+    },
+    "collective/aegis": {
+      "record": "789265c0208fe7520f2c0cc547bb8d3fddd002f6335254aa8302c173cd2d6feb",
+      "preset": "019cf05ba448a7d2067aaadbccf139b53a079b6d005d84a392201375dcd41126"
+    },
+    "collective/spore": {
+      "record": "1fa683ec6a09c80e40a2a352ca84df6668a0edd42c23ab2cc9d63f0d10cf8d98",
+      "preset": "cecb6163876c52d0841808a103c84396f263a1d973f82a6cb16b5d0fc3bf2d23"
+    },
+    "collective/chrono": {
+      "record": "bbe38dfe232c420fcc475df9182baaf5c06c486407401b281d0c6e619658b06c",
+      "preset": "0b18c939770217fb9f8ff8a05e689cd55bf7f43b0e924b02eafa9d8ae2c4648a"
+    },
+    "matrix-new/gale": {
+      "record": "6ccfe597d2d8bf9c7d582b067f0ecc70f5e564ab9ebeac08a61ea61687af1688",
+      "preset": "91b46ccc658305d1e9ca90a420248723a945ea39e55103a0456dab4a29253699"
+    },
+    "matrix-new/emberveil": {
+      "record": "11b24b8f792b89225ad84c4daadb1511a38bf870a1ee1a71542dd0a6b4302ac6",
+      "preset": "95ec2efefdff3db303c4e5752ddbede558ed8b6a92f8acdc8f5fd2bf797df574"
+    },
+    "matrix-new/umbra": {
+      "record": "18765101795e5b1a70fbc9f900df33301c080790a262b78bb25d22dbe935b5e3",
+      "preset": "863db6fc4bd5ebf79f9daddc6f149413dff8fdd261cde43bcfde149700b26aed"
+    },
+    "matrix-new/geode": {
+      "record": "68fb284618a791cb6e9f8cd87972013cb50ab8a00014efcf2349a7049a248c9f",
+      "preset": "8c55659af6bbd168de96af1f6d5c9f70dce5ee2af28c98d9b44bab61ff780106"
+    },
+    "matrix-new/aetherblade": {
+      "record": "59ee2161019690a1cb5064c0d8285a33ce34dddf393ec45723179f5839f098b9",
+      "preset": "c353cb60f075c7d42258edca7864e973513de9faf32bb4187ddcf74a7b68f322"
+    },
+    "matrix-new/mirage": {
+      "record": "a9bcbf36ab3f03cbb7c21f1d2a2625167591c3465656a53b0eb0f75a091e85cb",
+      "preset": "895b903b7ffca0ee6b43db0310604f642a90565c0d3439c4df0721ecd14bf876"
+    },
+    "matrix-new/bloodroot": {
+      "record": "2d4affe738a6d788aa6ba3f21b4dfb228460e75407ffde38b98adc5385474cb2",
+      "preset": "9a9063cacea68e5afb6a78581d25030f5aad04173c8f4a0333fddf363060c553"
+    },
+    "matrix-new/ionstorm": {
+      "record": "0a9873b857fa37dfc3cbc010da76b89c94634e514c2e1c5b881d2c54d107c037",
+      "preset": "c6551050f367ff8a3a4ccc50acaa04c439e97c463ca40b6bf2d8eefb3842d35f"
+    },
+    "matrix-new/obsidianwall": {
+      "record": "2db029f2c4b978ab426e3f5c1db1e2a03d7413b3d9de63eb631608d23f7e271e",
+      "preset": "47b6ae1e23b39bf76b6e4c8970ebe58907a9b044671b81604110349b6bbc9205"
+    },
+    "matrix-new/starfall": {
+      "record": "b479d5f57e302dd3b9baefa4b6b99a8cf949625204a5ec561d3ea8d5d866d49d",
+      "preset": "b516285c9a770d67ec508809398804a6784760bc6cf1ca338fea7e58f1283978"
+    },
+    "matrix-new/voidstep": {
+      "record": "e07a9cd1b811259e02f868b28a2fc98af0b67dfb3fd32c2bfbcbc802e1b2e73f",
+      "preset": "4a325591fedd779c5e403fb0fba2c43fcfdfa25da8897c4b5ef22b2c686bb773"
+    },
+    "matrix-new/crystallineheart": {
+      "record": "1e659d865075403ba12d41e3cdd7317ebf40c72e01913bde7819cbd26833ed29",
+      "preset": "3485b243766bcbe6c0aaedc14661ced437ad9a3d6f11dc8731d96bce97f35d13"
+    },
+    "atlas/relay": {
+      "record": "309942acad4f5a11f6f4a779797ef12b9d7a421471428df372169884cfcf74d2",
+      "preset": "11558165c9170aa460af239ff109319ca10cea33721768ea0b0445f20e054424"
+    },
+    "atlas/recall": {
+      "record": "24d38ed8e475c94d5334ea83cc9a44a455196cb6e63826294f8c82d78c913693",
+      "preset": "f903fdcbf151fab0e6f46a7ddf0f0775b636c058968010883966bd7827c12da4"
+    },
+    "atlas/parallax": {
+      "record": "d2c9dea363ee1d4976caf33a166dfebc2da0a8381a5011b5f7cde3d18d4c6476",
+      "preset": "fb0e25f2dcd43f6866793393fbf7aa3a09cf1b44bb1796834a1aaee824ae8ceb"
+    },
+    "atlas/sanctuary": {
+      "record": "1ed5287b74b39de70a6116b022986286b3cd28dd060ce9812dc9a3a6748cca96",
+      "preset": "8b6db618f8c907e9ea142c802d17ee4c29db7dbbdb10f052d268d618f476a3f1"
+    },
+    "atlas/polarity": {
+      "record": "4c2038a1441f178385d8f2381878b3e4829e51adbbc415ca306a05aae4d7be0d",
+      "preset": "b6a8108c6f5d553964c67fba8a1fe7f05071557edbabfea15a5643816c897e02"
+    },
+    "atlas/echoes": {
+      "record": "6a20a453f013ffee1bf4e14d8732617c7261d80aef72b88fd9263e43b58a1a28",
+      "preset": "d885875c9719d919651b73fa18007b049761142dbcdaedca88aa8a5c2c83a93c"
+    },
+    "atlas/chakram": {
+      "record": "a7d968d4d6890dbd0dfa161858acb8e749aa5419205358b14c4a6d11ad4465b4",
+      "preset": "b75c62424517ef16b01186cc677fe0eef1fd4d3e99accdbadc6ed1b16d1db2e6"
+    },
+    "atlas/reversal": {
+      "record": "759e97e691ba72e4d203c0be6784e2b1a20fa76293b36b7b7eabb3f8c6be8533",
+      "preset": "c2d0d00fccbfc85c0d52a5453b414daa814083aa3b1d921cf814babb68e3e8ac"
+    },
+    "atlas/stillpoint": {
+      "record": "7199516cf61824a0d46d2ab54aaa8077c375d1fd9f8b051bbdc0ce2abb965f74",
+      "preset": "6b668f34af13c266904c8a5a8a5559b878648c7c86dea1ae4e04c946407e8043"
+    },
+    "atlas/refractor": {
+      "record": "38a4fb8f51d583fa6c05322f85a0cbb6327cf6499c69b18f42d56a6f539bbc14",
+      "preset": "c0986860642d932eb3da482fa5a0c5ec9a9913611fbd94975b2c68f2fbb81cdf"
+    },
+    "codex/solarlash": {
+      "record": "5d95aa1d7f375eb2073786415c601451d4d407c1e0551e1ddd5cc8939df19d40",
+      "preset": "0f31c0ae9942414da16fbd70414541fb5289ed76017c20eed42774ed47c85fe7"
+    },
+    "codex/permafrost": {
+      "record": "59e9a8d1dbe07cb7289fe12aa944df10310d49c0e4efadd4b2a93b47d2cd7e0c",
+      "preset": "05b8db88b85d49dd850808d2590a83a29d3f1b088b7bb7df200873b7f6b797ff"
+    },
+    "codex/avalanche": {
+      "record": "6442f4e953004e071a077cb52c4871f9aad2ea9648c77802bfcf1425b7d992ce",
+      "preset": "e7872fc9a8721cef582c8a820c2cc8df183f55fabd2b6a938c9b5276778f1d16"
+    },
+    "codex/maelstrom": {
+      "record": "7439c18373a4cd2c8e89f4564a8fbcf50eb1ae9bd28fe2eb72b7e3af1ebb81ef",
+      "preset": "730ddcce59692fcf16cb69a13c519f352b8da81916b2fd8e0c1ff9e15bd99977"
+    },
+    "codex/riptide": {
+      "record": "3ca675cde5add72c0bd685985789f75a2d624f9710feede46a85d9187a5cd005",
+      "preset": "3544d2b4358c5bf5c9e81091dda30f3824e14425363bc091d548cdd90ffc5471"
+    },
+    "codex/zephyr": {
+      "record": "34d822be91606f8a72c6f7a654aa1aacd3b3467320d4b961d4ba90cc278d4b57",
+      "preset": "e78c4135e5a21c8cb68f32ffe34ae55f058f39eec6b41c95b017a585f5b86f38"
+    },
+    "codex/downburst": {
+      "record": "00e84dde2b48424e4b001e7031ba0ca9b1f16f1151ca73a2aafea6b5638511cf",
+      "preset": "36f4b1a7e4e230ac9819f705afab3bdc5bfbd359970dd64b556565190754fbcb"
+    },
+    "codex/pollen": {
+      "record": "5841daee854866bedbd5a95d53c7e2d2ca1757c2fc6508551ae58c450b687792",
+      "preset": "c9d67a9be6c2d536cb4d1f50ff48e6196159578b22df0f3f62b3ae96b988a454"
+    },
+    "codex/seedstorm": {
+      "record": "1f8758e4af220e37d7835d092e78753ea47241ee047d45c06a3facaafa18b15a",
+      "preset": "2692a92a0beb1250af7570b41de210bbc0577b9693ff82f2debcb0825575986a"
+    },
+    "codex/plague": {
+      "record": "068d44691cab6ddab04761d6e3ceb1a6b76f108ddb3c7738aad4856813b8127d",
+      "preset": "ae54a9137c85658272acdb9596668bdcc7ef13eaa01d7e38e454a8c00df12158"
+    },
+    "codex/miasma": {
+      "record": "7726c96f86f72f80fa262cc2864869583de6b181c76e13861a576d4fd7a38598",
+      "preset": "18291c0b3d74963cc8f180c00057183ccc90846dd848dd421984aaa8d4197226"
+    },
+    "codex/nebula": {
+      "record": "32947fa354f3682e318833b274c7058c6de8ba18cdc1e40bff77075a2a45c7cb",
+      "preset": "f1483320e155fc03c766bb72a0c93ea45af0150f1c594689cbf055bab06342b0"
+    },
+    "codex/nightfall": {
+      "record": "4bc15a2bc84477ad26aaaefdae4e43fb13af563bde4a36f1325e4785e53d9273",
+      "preset": "492ff8a11d1fef55e01ba452fd4d369a3fcab1f663b13219d3640deb4d9c25c2"
+    },
+    "codex/wraiths": {
+      "record": "df9063e4ea07c15a94df0456f9224c06ebe92640d1b286d55fc7c142ab86ddde",
+      "preset": "c23305a7fea33a148a14f2864ec182c98b366faf17680bab9436b7b6bbe56c3c"
+    },
+    "codex/sanguine": {
+      "record": "575952ef2e12f231e3651f8216a4475a61e3261241d1fedd7105b2a1fa98d247",
+      "preset": "a446941543dc1351841806b437e6c6ff0254a074cdd1bb86f82111579d4a1087"
+    },
+    "codex/glyphs": {
+      "record": "48070fce40fa35d0f885d1f9dec7f536be4d995f66a9577bb2f8790d2e0cc18e",
+      "preset": "a5a3dd80de2b85a8ef7ec26dad02c01ec54676a3c3380a58438f555587d7e7a7"
+    },
+    "codex/hourglass": {
+      "record": "c4905c73bdce0455cc0dffc95c4b87e9cd0b070e95342176afb8059aae3de932",
+      "preset": "025dcfdc4152c9e53338bd94bf9ec25a1b41eef6b11e832a839bc01f39832fb9"
+    },
+    "codex/basalt": {
+      "record": "c25939b04b0ad77a80aefb6846382e508121936725025ae538be27ac0bc63c71",
+      "preset": "994ec9d120bfd5c20de0c03053273be793c7d629d25043a1acdac95d0f9abffb"
+    },
+    "codex/seraph": {
+      "record": "37c162cbbd532602ce0b28bc7976505f7ebed173139d8c2b9f3bd241969f313a",
+      "preset": "7564101c6c110d74cb57b858e2a2ecbed8432cfe9766ee28f908f1c454db69d7"
+    },
+    "codex/balllightning": {
+      "record": "3a1cb4c11f788f8baacb0aca92f87312eafbfd919d01f4f3eaa37d53507062d0",
+      "preset": "684c011b44b25a86dc989eeedb39ad30c7da6b484f341e9941f99e6b661e89ee"
+    },
+    "codex/railgun": {
+      "record": "e19d4101efe780c34c2b780cacb39831c310efde7645e50f3e162e1bbbafe868",
+      "preset": "4c99fa51e00b52e17cb8018c3e6a07ac6a3308af371d7cb8c91b55372ab7add9"
+    },
+    "codex/orbital": {
+      "record": "bb71e00eac047114d9a8e88da9047cad53a888ea4f8758e1a89b41a3f6fd128b",
+      "preset": "a2bcc6a34d6a5fb4ff86374845a3d93526e61545e5677e751ee3aa009b35d4fe"
+    },
+    "codex/hoarfrost": {
+      "record": "45c6aa9c84ae730ee172ff9b08083fa4d8e93792692283ecaaec004485220d8c",
+      "preset": "9e939d21ebcb1d7f00d1149a6708473b8319190abd49be6933a9b30905048162"
+    },
+    "codex/rimehalo": {
+      "record": "7c2655345d05b280cba0ec1bf79ba6298edbe2a867d68076eab13ecc1608c617",
+      "preset": "d0add412856d21b811ef0da49ee9b05a92488a9298ff597ef4e997e753d2339a"
+    },
+    "codex/whiteout": {
+      "record": "7ac6d78afd01d3b4b7f0f2ce532c221c1537cd19f256e33503afe7ac9c37da18",
+      "preset": "7b0ea1004cde7451e931ae7be9239aab767bed2280d7c8e9f26b26afcbd01afa"
+    },
+    "codex/calving": {
+      "record": "55ada89263607db7e0d4db11b1636509eae17a816a13cc840a88039b158e2bd3",
+      "preset": "07c002548036a7574efe10953519e453f017fe76d8581e52cfd821bb5bcc12fa"
+    },
+    "codex/fulgur": {
+      "record": "dd0fb0d4ab1f56281c2594a8939c193e72d2dac36a251c1917c66325f70a65c1",
+      "preset": "f4457045bc8c01d38379d02815fd63909e0cfcf1646b341ce6273f6ec0789371"
+    },
+    "codex/brine": {
+      "record": "d9c5589672b35d98d602e7fd55624f509c989824e88dea083727a37536433dc9",
+      "preset": "17667779bbdc4c670c42f68002b3b0ab5d689db0c3730296ac4f28dd35e126cd"
+    },
+    "codex/glasstide": {
+      "record": "9b5578fee65f72e8e4eb82b15629e9feae24b8e1e5a748c3fcffae17f547eaef",
+      "preset": "301b1da31876ad867e68851e76a7815041fdb2d8c5398cabb75c805e50b35095"
+    },
+    "codex/undertow": {
+      "record": "bd3ffa1b55589947dd33c0d530cc88cd4afa3c85debebb384628d4b7cb5a9632",
+      "preset": "8b50f1d931dbedfa39dac266ad0b92ad56c9a100c77d9ea9d55a130ae31b6b0f"
+    },
+    "codex/pearltempest": {
+      "record": "e306ddf1a5bac9bcab59e7c6d78efc01f7fb9a9dd0e9eb3ccd950023d323ed68",
+      "preset": "cf50cbc8ec4a861f77578d4670f9c437852bb943136a0cd952c8df41b5630716"
+    },
+    "codex/faultchoir": {
+      "record": "6087db96d40a4f42e4cc61fa4c63e0396f991b1d5928ac5474b94f71a31ac6ab",
+      "preset": "5e4678ba4873624e44f06c4fcee1cd95b8920140961fdcf3520c150195814c36"
+    },
+    "codex/quartzspire": {
+      "record": "fd9f20e19a30f81ebb20d9a4fdda6b2ab871e1208bdf3886eb6321fa75c05251",
+      "preset": "5e0ccaeb37a53e8a241c87347e97309b0b994c1cf6922620d6e61fb8f24dd8e9"
+    },
+    "codex/sirennote": {
+      "record": "cd4d64b0b017b37e72737589f2ac2089a2c22442d1ec3534e78e9a68e3c30608",
+      "preset": "ade360726f36b1d09024d59cc7c75b1927ec021edb4b72ef1085753e2b383b57"
+    },
+    "codex/vortexbell": {
+      "record": "9b85726977fb9a9b65917648d7b05a45c6dce627aca6364f0716449e42d76395",
+      "preset": "a0c8a199a57a8300a590a7f6c25024c6cd29546006b120cfcb59df3a0fc26852"
+    },
+    "codex/shearwall": {
+      "record": "29a527ca6252f0804aca04e7abda900d225a6324f2c192068bb1f349ee8ac662",
+      "preset": "1a58b9d319798fc4bd719f4bb95ad428955cbe616981980cebc4ea5a30471c58"
+    },
+    "codex/dustmarch": {
+      "record": "14f70b4159d375cb4a581542d529ee0572947c65c055cdf2d5aedcc12570b458",
+      "preset": "0f610b0e140c38c0dc6f3a571b5108dc3651c1cb4f28c360a350fb812d3735e1"
+    },
+    "codex/harmonic": {
+      "record": "f4d941cc30879f184f54d39dcedc5de482f3a0cda67f28802df2c38e6945d84b",
+      "preset": "08adfd3f5721032df35140048b9ba36ae7ea273bde98cb4c08b8f67315e11ce4"
+    },
+    "codex/briar": {
+      "record": "39c2b82ee4abdaa72e9fd2464b266f0dfe1987b1ead27c374d908cad5afc1fae",
+      "preset": "d032d3746686e910a8652f49f8681a8defbc203ed9907cc6dc90ce21dfdb004e"
+    },
+    "codex/mycelium": {
+      "record": "bc3c082e28ce73aeb5632092d65223aaabb43f9111a425de3224351305500c19",
+      "preset": "abfc042b17dd12a6b7ac8c5c75bcb02d53257c000d737aadaf6c430ac1435057"
+    },
+    "codex/thornvolley": {
+      "record": "2d37df716012f86b42e167c513d591e03d13961b1da4d936370dbc8a4e24aaab",
+      "preset": "133260dc04e7a895dfdb4e3a088d125c7bf2f12b8c1dbc9a9104ae0bbcc3e97e"
+    },
+    "codex/bloomcrown": {
+      "record": "193f47e06de405106e317ceb31ad359d79a26c1e09f23a0a787a04a2a5721094",
+      "preset": "ddb77f4fbe34b363b437ed353c6d4669f55d8ad42dea397bd4bd0e4c6905f528"
+    },
+    "codex/acidchoir": {
+      "record": "7266926044fc741070fce4c42a400a151b039ed0a3fe3b2aabe4f1a4b4691615",
+      "preset": "89ca500d560a8813a6cf30a1d4aa0983a34e1d7bd462809c2c7e952eff598e14"
+    },
+    "codex/bilelance": {
+      "record": "5664ddbe142b17c6f2bea47ccb1fed44b941b3397164c41ff1fa6274155ba718",
+      "preset": "d0715ad54ae8c4e2c0a7131e963940758d281df05788ae5a4a0579c38badf344"
+    },
+    "codex/sporecoffin": {
+      "record": "4d93417a9b5b7c8e2b659fff5ae09e3bd88e76e061cce8f8fc3450a50ae63b9b",
+      "preset": "9edfbd1708dc26905598aa10d419cba682e8fd27254fda161ee6d1192e4449ff"
+    },
+    "codex/noxioushalo": {
+      "record": "923a7a6661d3d3a49c289f3591400b4b5fc076c4cf4916021ec5a3e8871edffd",
+      "preset": "9e3b965adbfa4dd20474ffcc0761ed7f1d996057d0a65ea2da36cccc80b60b62"
+    },
+    "codex/vitriol": {
+      "record": "99afcbd33312654acbd0a395f6acfd439c6e9fd02d2b2cc3f096656932d1c653",
+      "preset": "6df886bc1eb5b118723834f0022fad9d975e6a9fa1df76d6f47e49de926c1c90"
+    },
+    "codex/haloguillotine": {
+      "record": "3a51dfcb04852704e41b5e28e9c118f4aa029f5e505dc24e3794d0a4e429d942",
+      "preset": "0e6ad4fafbb0157898080f77f918fedcda6ce6e5232ec9e882f36f98c2736201"
+    },
+    "codex/reliquarydawn": {
+      "record": "20dcbc248e5ede3b0fe9a153e98ca7e0e23f6a6362204d23dec83c0180019801",
+      "preset": "f0d054f9fdba44b857ac1a8c93d3a65a2c83a290cac992187c56b5e9e9e45d2a"
+    },
+    "codex/horizon": {
+      "record": "c9e8050ba0f5b119253281068bb3c68e9c9d856606f59013e95b877b5c7ec8a0",
+      "preset": "8eeeef0b633552c7485f98bd5bb626c7020aa039a1d1982640d8c67eaff36883"
+    },
+    "codex/pulsar": {
+      "record": "52435a274bbbe3f9a1e7d67a143ac10dcea55424074485eec203fd2791f6e9cc",
+      "preset": "6edb1d05ba18664af6220445a2b426fc8c49b26d11217d5caaf00674a0e2bbd6"
+    },
+    "codex/darkwell": {
+      "record": "973a0ac9743ffe171e65f4abf425e2109d7e8e98cd41fdf7b4390309ed171091",
+      "preset": "7973666dec6b697d0e65f66c08dde5ebc4b92eac390ab82089ee53a6b2585a5b"
+    },
+    "codex/cometharpoon": {
+      "record": "ab702cbaa7d4aeebc7af7bfbf7b96e3b4fb655459587d65db54810763850f334",
+      "preset": "94528ff987eb8838b2abf8183a5b968b6718aa3abf2bf6539ee189ac1eab739b"
+    },
+    "codex/orbitlock": {
+      "record": "861bd13411cbd21fe616cfea8c479743076b7effc57131186146147b9dab00e3",
+      "preset": "96e0657ebb7d90c243531ef18e116619afa4f9cfc3d0bd54a8791e4bca2041d1"
+    },
+    "codex/umbral": {
+      "record": "0b45a77c4e69a9644e0267d1e9193ec60cb9582b785ad9814e170f5d52e3fa14",
+      "preset": "a573a06ef317b3e64caba3e0db51707b4234ee44268a3dae767e227c99beed53"
+    },
+    "codex/voidbloom": {
+      "record": "3da3c1a4ccb6a2d51e442fe250aff4cbbad54a03a675ff2d4532fbdc402890bb",
+      "preset": "19829123cbb632b73e2043ce7cdc1f1eb2d992ff0775df19c7cc3ff36da06414"
+    },
+    "codex/shadepuppet": {
+      "record": "b197b4781b85884b4076bbef8e0e03376717fa048760170c955d7dc55bb18918",
+      "preset": "799856ff5d49448b9b38e58fa64c4433ad8ae651780e4df71f48332410bfaa85"
+    },
+    "codex/eclipseneedle": {
+      "record": "9e9056c30c6219ff900e482193633b09d4b9e0f186970ef4fa1466ca91f55459",
+      "preset": "29534cb8cdc686f90b2fd3b1b046cf82fc21f1569ca0742c2ac1158c0102ba7c"
+    },
+    "codex/hemorrhage": {
+      "record": "d9db72e943b647e8a997658e2083f32e780ebee79b5dc2e70e73b34d57fa7917",
+      "preset": "a9b1c0c2943dab4591dac2990d9f37a42b900a2630be04e391356e44192cb427"
+    },
+    "codex/clotarmor": {
+      "record": "5c89e17f64922b8fa06a3defd494341097c0121442a4707f90679b10bd14f170",
+      "preset": "a7e968a5261c8520c198932786dc485206dfdd72a338897fa67126b6db0ea5bb"
+    },
+    "codex/arterial": {
+      "record": "e99d55cdb9da479d67affee346eb4941f3522d48d6b8ab0ae72b76e2526ece85",
+      "preset": "42f55aa259d54c8909a3cb282d6f1a4a745b543d0b42acedf7cf6225ce1d540c"
+    },
+    "codex/baptism": {
+      "record": "7a527c5a9627c20b08ad08efe8ddb8b137ec15ababe431000ce2dd921d13b564",
+      "preset": "924def0ef02390439ae4e0d4a9f2890859d86e354c73b1c5e8b8e4c4d6168cfd"
+    },
+    "codex/heartstake": {
+      "record": "04da65ea17f0fca5c3230c0354fef9a6c325199b46754eedd9c4f968a2c51588",
+      "preset": "f5addd418424f925c6b71b06116e1271a49a4dadf3dc64ce1bcaef994590bef6"
+    },
+    "codex/veinlattice": {
+      "record": "f9b2cfe3fd8acac331dd8fb6882aab75030d8ed674b94aa0123f1df697f62c48",
+      "preset": "5aff9aee813decb96e6d997a0a62dd12f2e182c723c8a6ecd6ee0637f4127aab"
+    },
+    "codex/sigilgate": {
+      "record": "14d46d3a90f8a095f9fb2af61811150931ab6339401cfe3fb67106652cdcf2dc",
+      "preset": "33a7a40d249b90ce54ca4ce24b171bed4e4924cdc34867798e110b96761f0ee3"
+    },
+    "codex/prismlie": {
+      "record": "a75f1d3ceb9f51b004d68e590845d6153d82283b0681bb147ffa4e58e347cba1",
+      "preset": "c518a8060737685d1286dec9408f2239398eb8f1d5dc5a280242f1ab8a38eb92"
+    },
+    "codex/runemeteor": {
+      "record": "0634937ffeddbaf8d92d22ac0067e82b1dc79e25e2dd1100856f833d717844c5",
+      "preset": "ae0cd3237dba591a739aa84ba4a2c471f10383b0c3e28d18647566e4ce13b3c6"
+    },
+    "codex/mindlattice": {
+      "record": "d86849cd3ffd9c40b0d0f5c3f2b4dcb5458c69f9d2aaa4a66ff2260976ade5b7",
+      "preset": "32917f0b612b340c3a3faf76fc807f0652a28f4eb7ae128e04857c40c30b29f3"
+    },
+    "codex/secondself": {
+      "record": "a774662bda2d6de7b0cfd47b936f8ed31f768fb3c8d98b3a1a72685d39224f2d",
+      "preset": "9a60315a74675402b9e2f4b667bd26af0eb97fe982e99e3f980a529a9c589a96"
+    },
+    "codex/rewindsnare": {
+      "record": "6885e8a12f57c2689b1515b1fedc0ec1010d584ef7d91b14b3c3b05d7eff6da0",
+      "preset": "99c2830e5eb55a9f2e7426a8198bb914102c3e0bcda6eb4115c45d495890a98d"
+    },
+    "codex/pendulum": {
+      "record": "5396de3236dc37719e6bdead33c3497f40a25dff78f09f7caeea485f3d28bac3",
+      "preset": "4cbab48d46c65d999b1d32f57601b0a63c9d4027bca13d68b77eafe1b2196998"
+    },
+    "codex/stasisbell": {
+      "record": "c02e8184fc3ccf6f98ac8e5851851d796c39b404b6fe039e49bbbec2c2e2d862",
+      "preset": "366d2f1cb84649e857791e99bce0d907b7f729689fae9ef0b4db2a03594fae61"
+    },
+    "codex/scarp": {
+      "record": "7d78db516cca308f6722cbfb28117602e036280ec53705b087b8133b9eadfce9",
+      "preset": "7f6d1ac22d0dc607b8b0162f0431c4a740574c961dd71ac1b20c23c68f04d78a"
+    },
+    "codex/sinter": {
+      "record": "cba107d9d4530146f836a11e6b1919928540818bce5604781d2f9efbbb1dc58a",
+      "preset": "45b6c1e60b49a94855d52f6c7de46733e34c2e5338b9212365e115752ed3fa3f"
+    },
+    "codex/loess": {
+      "record": "aa79ad85e2fe482193da5a1497ccf87b7f98084d2aca49181ae28f71afb92421",
+      "preset": "4374600a428278d403eeaf8d180c877b9fc31c0efbc7b4ca9a14cebd1dc40bfd"
+    },
+    "codex/keystone": {
+      "record": "f6925565d7e735f8a2775f4613f0e5f2b803b21e825d71d9450e80dc82b0a994",
+      "preset": "a042be0d3f71288828fe9ac787a5c20a08af3720a18713d57a36c0345719307f"
+    },
+    "codex/prismfault": {
+      "record": "a818efa43e66a1ee8f77d4b88ca04d0614cb3b8ab925c627bc86829580f6b7f0",
+      "preset": "c02275865bb6ce26b79a6f99e4d0110422bcc01533f1a036f15d435e9f1a4206"
+    },
+    "codex/geodecage": {
+      "record": "b26ffb9d7f245691a4910d2522d96b2b3c1c383572e2520db68b3136da8ca8cf",
+      "preset": "b586094fcf82655a66b9c391c81d88ad942727e6550da8619b82a26620e88115"
+    },
+    "codex/shardchoir": {
+      "record": "bc8605fe3d362ad306879a0935a90f99a28f1164a87885c45880ae4a80e90306",
+      "preset": "5e92310465a1191cd9c5585c9ee8722f0c53e9783e4500683345df5072b96a67"
+    },
+    "codex/lensewell": {
+      "record": "545447cdd2ee1b2275455b21eec17ffd2a6735feaef87c3e9b6d48c354a70c1d",
+      "preset": "ddc39db8ea95fb7bb6768cddee920a500d4439ae5852939926171c892d21d295"
+    },
+    "codex/facetvolley": {
+      "record": "e1c7466516d972eb69686ee5a928c9ece08e3be94edd308d3e5e38cd342ff5a6",
+      "preset": "1e14f5b30177308c4ba73e77764b78b3a6029e5116e4944f8ec61c222913c17d"
+    },
+    "codex/needleglass": {
+      "record": "66279c73002549e36d439fc368a6a2e9b68f82ae2d03990ee50b6911ebb665c2",
+      "preset": "84a99eafb53c949acf9ffa13c577fd4fa33dfea8c374eafed4ec20eed4d53397"
+    },
+    "codex/katabatic": {
+      "record": "9fe4b139b134e6d79b39a0933ed958043bf73a846b61bca11147972e546ca1ac",
+      "preset": "6f574b82f05ea254a634233e3fb5586edd116c74a01c2b815f174a96e9a2147d"
+    },
+    "codex/rotor": {
+      "record": "4b86e1ca3ca5989b2a3563d9c96501f2351e4a26b59a0d9c8f3bdbe25c69fe1a",
+      "preset": "0670e0178f5663ccf968c8ca64db388775251c05b7b43712a8d723c214e5bcc9"
+    },
+    "codex/venturi": {
+      "record": "a6dfb720c19c39b90f726d79a19b02da882d526698ff2d04cc6f2056f844a655",
+      "preset": "353b19549f38159b7326555239fd1369d8a4e742daf67724c72c2ac28168392e"
+    },
+    "codex/crosscut": {
+      "record": "c8cebc8551d2a14b57eb72f1ceec10cc1c7e933dea40ff07536fe2be599caf40",
+      "preset": "0b0347670e78e24a4230307f1b752ee3c0dab2ede65eb43e566bb772a8b6fd5a"
+    },
+    "codex/subtone": {
+      "record": "293da6b9ff04dae9d12b32989acd046139994c54b2c63650e0cf66aaf607346f",
+      "preset": "f5c4c7effdcb5414a890f0285797902d6d264461cbbb04dc510f845c2bb60e10"
+    },
+    "codex/clangor": {
+      "record": "193dd3c990cb9fc29395ec43ee626649c02da7f9537decfb60b8d9b0efcaf2a4",
+      "preset": "373e1f4f6bcc7a92a90f47ef8ab579f958679e4879814cab66a38e5ae5df6c9a"
+    },
+    "codex/overtone": {
+      "record": "09c2c060cf3e23758ab4c55854cab32bd691d62c38484972c2cfce7a8bcd7087",
+      "preset": "108253b67593176f37ee8b8c02941a34565515aeac0a6f4c7656dd30413a239a"
+    },
+    "codex/whisperwell": {
+      "record": "e02f26c8b45466c54f853331a4b7b1590d8c7de9b5ac7e62c614b0cf96ff2b8c",
+      "preset": "390097f1f25f04914d633b007a66c6e0392e1060fac7bd9c9c038112973744f9"
+    },
+    "codex/cadence": {
+      "record": "ab4bff11281d69b895e83fec2cb784cb8784d69b47778d04856c73bcb0af1fa9",
+      "preset": "d411ff7189759a56cd33fa999336e0838b85d3058b612c6ac9cd764eface32c5"
+    },
+    "codex/glissando": {
+      "record": "82fd251ddaadfc8a5817a684f47c280169bf796666389fc97933666d7c5a7e19",
+      "preset": "4abf03e9e0a5621aaeee50a0902e0821030e11384dc288d00bbe94105788f191"
+    },
+    "codex/caustic": {
+      "record": "5c5c8cc9ad13f043d9a7e6398457e5cb0386fa1b9d1209a2c8b3449af55df1af",
+      "preset": "5dcea5b2846cde6d20aea51c487cc5a03e1b4beb3494c01c767c182dd3dbcaf7"
+    },
+    "codex/aureole": {
+      "record": "faebdcf643522b10a8e22a318284f9dfff97c00b11426faa3d4900aa97e61b11",
+      "preset": "bad98f586ed6f64ad651da3596e29e3077b365ed6ecfcebd1fdcf912f6b6d2c6"
+    },
+    "codex/photonwell": {
+      "record": "3af98e3743284a979bda0df30c28ef23bbbc767e2f40d20b388d589c32297500",
+      "preset": "2ad07c2f83673282f2d3fb4d30399406521c02c2ed0a6ede42c697742a1ffc94"
+    },
+    "codex/filament": {
+      "record": "df139872fbf1d3b646227b16ade4e7a660e1edc75fe094700f072bef134e8bbf",
+      "preset": "6c94bbfc82d8fc11f745d16dcd95c67c641f7adc8b155adc5beab57f9d589cae"
+    },
+    "codex/noonblade": {
+      "record": "f1df9c6ad6a0b70ffbddb0ec5ba6de611061914ec6a301b952b5da1d9a8f3c10",
+      "preset": "7a18a82d7b6d3eb5c91476c8ebcc2cff52aea05d863d35ac7048a1c81d58d8de"
+    },
+    "codex/latticeflare": {
+      "record": "3ac91e889ad1e62270721f9c0fbf172d7db87f33eeb70b0aee33278f5263484c",
+      "preset": "742d139736e6be0b718ef92b972e57005aade2e812762ca827e4036af200dd05"
+    },
+    "codex/censers": {
+      "record": "4059d1a9062cb8aa6c97344b65b3d70011e8453e723f53dc47f685bf242567ac",
+      "preset": "9eaa6c2ec2563e116fcd0f24f4b26e1e2765f6bbdfb92470bf4e225b8f0a4637"
+    },
+    "codex/reliclash": {
+      "record": "5c515badbd4f570290cc4520fdb4792c00e99926f2ccbf8b65c95e4363e4dfbd",
+      "preset": "265dec8bd1b99b364cb2e658eaef582828b4c8a70d8450f748dbbd62e07654c6"
+    },
+    "codex/vowcage": {
+      "record": "f8decf553b5756255c5034264eed84e16da5fe03901a3a8d0fd3d98b4b0d4aa1",
+      "preset": "fbf012a9e65686dd4653de4c452eb3555b42820d9f95d3a0f05ef8bfc4e38bf7"
+    },
+    "codex/hymnwell": {
+      "record": "e6a1fa04ef6cf164434808da359048b91d9f4fd2a03d65aeb707ec8c14dab29e",
+      "preset": "fb49f853dd1299538a488cf34007ab1dc286785b786862134765ceb033ab6022"
+    },
+    "codex/redshift": {
+      "record": "f7630fe2096247c2343bc73c2cd1f52358f24918e9542a1663e9a7ac5534475e",
+      "preset": "f59455e7d743a93687bb1387d571bee3774cedf9bf593156f3a22c4a86356d3a"
+    },
+    "codex/magnetar": {
+      "record": "7d99210c9e7525628f3d641c1a403b452d5e06162aaf31e4366afcffa4305902",
+      "preset": "c6dc3adc28cefdde1d8c60b2147efd30ee3a5f09806af39a05ecaac65a15effb"
+    },
+    "codex/zodiac": {
+      "record": "9d9adb295f214f949b89da5082a82d3a79edc01edd3542184993f5b354c2dc55",
+      "preset": "68dc1e801bceadf0d58662c7f599d9db147311720d4c230489cd80802bb4ab5f"
+    },
+    "codex/quarkspire": {
+      "record": "d22a0d3c9560aee7a89425b5700a7ada4d8f9ad962663c2e6854d012c04892d4",
+      "preset": "4df3fb36eea955c5a15eaa08bcf5f13a946e4fd6affedddc4feb26f08976f734"
+    },
+    "codex/slingwell": {
+      "record": "02802e2e921053b307f1c53bde2a3137e036234744623f9e075e69b9355bc14c",
+      "preset": "a47a24b51cfc422669db82c6a367f109e8bbcebea19e6f34a15f1f809342bbe3"
+    },
+    "codex/tidebar": {
+      "record": "cda050bcfd25c0f304570f993f9fbf9a7fb3c64db66a0d21687de735ac199fec",
+      "preset": "017b7a76da2c3f4de6e19d5a6cff98bf1759bf5e0d74d004a4fb57e45a842497"
+    },
+    "codex/perigee": {
+      "record": "1da1e3b6e98aeb898c0ed93acfbe961ffcf0679d5ab25eecb74b6a28fedb4074",
+      "preset": "96144cc6bacacd0b2b5f68424c423c3bd56c39929a207fb0cf94876273e8c23e"
+    },
+    "codex/masslance": {
+      "record": "d55f4492cb7e1ac6e9d786b8128d399833dd5db6a0e2a5ef5c2c801db36987f7",
+      "preset": "e94bb306b1fb0a13223310c4e7153454716a6029f88329545d1f2a60d08977ba"
+    },
+    "codex/shearorbit": {
+      "record": "d336ddf16680e38e98c85e2d187a216301a5eabf3e4926a2ea06171784ad0d0e",
+      "preset": "f2af1a0af11dd2fcd9cd9517c2fcbd77cd9bd8dad1274d14e1be6d7a34ed7090"
+    },
+    "codex/plumbswing": {
+      "record": "72fb230e4c9a98277286ce9c51ee71830f691b4323b2593c1dbe61db62bc5e60",
+      "preset": "34b0e90161fb1b39c7e5ddf87046c420babc0bc43b32e36b8e8d1f79e132c460"
+    },
+    "codex/penumbra": {
+      "record": "e7432f57f70c7087ce07f04c612a0e16e46e2b244bf22b827c89063b7be5281a",
+      "preset": "3826e6f620e9ba02b8008cde96257aba238be92e3cd5112441741034bd55340b"
+    },
+    "codex/duskspire": {
+      "record": "335f72f7f73e9f26783f4331374e60ddf8d32947ab17fbb8a1b4f8f417b5e7c3",
+      "preset": "380512a777cab90cfda5784a0d8d0a5b9060f7e541d4678b72d3548e3523dada"
+    },
+    "codex/mournhalo": {
+      "record": "3e4c523572d4774ceab8d9eac9643bfb8896113bf7271f6285540dc874ab3f4a",
+      "preset": "8e49c533bf61726da8e037096c0334f657ec827cb86bbfb359979d87b466c67d"
+    },
+    "codex/nullwell": {
+      "record": "e27327458652c834b7f7665efbaede3371a5b4f07562693573f4bf2dd695848b",
+      "preset": "d616ecabe583efaef2e7b4a89a1734d8d8582df9369bb29b10b0a9aac610f55b"
+    },
+    "codex/eventcage": {
+      "record": "011a95172539330b1b3f8ca7bda67d32843d46187edd1495ec3d25c1835ccc66",
+      "preset": "000dd43502f86fbc3eaecd0984dca7446aee53e53aed0f9bab9f90708d9e9f4b"
+    },
+    "codex/absence": {
+      "record": "f950554f0e586e4aa09777466b7c83546ca9f0bfbb9be5cf67e16b8ce54240fd",
+      "preset": "bf208ea0661d66269bd79dae5eaf33131bb8abcaee3c9b0542c21c94abdf1ad4"
+    },
+    "codex/hollowvolley": {
+      "record": "e704e3b3dbbe3a9d77cba26ba3562decc28b3e3f3a5496e62f454ac3c62e100f",
+      "preset": "6ef377b5685c2c35d51c134d925ca779daf05eba8419b5c5125338219d23121f"
+    },
+    "codex/riftpendulum": {
+      "record": "3bc84e1b77de0a752e10250f540322b360057ca83a83a09a0b10751a371d7243",
+      "preset": "aa904a88c4a82f8bce97ba78706d387db3a46d3a051cc76963344480892ea4f2"
+    },
+    "codex/quietus": {
+      "record": "2a3489020ad26369860c7c66cf1c5c00ab13f443521755654f8ca6d8f7158b72",
+      "preset": "6b49ba80df2cb6cc96b1c30e11bc1b11af0a8e1b6b0066c383ed8e42de625961"
+    },
+    "codex/unspire": {
+      "record": "7219dc13bae55ca70e6f867c6d98569c85cb02e63747716298bbdb794488fe9a",
+      "preset": "cf0c7e96e1441e677e8859f47e7960bbe80cde67ee5aaa0c6242a3560faa84c5"
+    },
+    "codex/bindrune": {
+      "record": "405cc11059b211d88d00d235943d1a04f3adceea74d1daea96c58e0785d15a76",
+      "preset": "9b0d26eb7b01795136ecec044284b25b066f0f6464f54ed727ac11b0892de103"
+    },
+    "codex/leywhip": {
+      "record": "bae0050433a59344787da5a8c954d231c68104a94c6c787fbfd464614aeb68bc",
+      "preset": "255f1e72a2ae5a479611b5d2488a27c5864973535aa205d73b508a5c33b40fd4"
+    },
+    "codex/manawell": {
+      "record": "5b7fab760f74fcc74076a7eafa653c3424d650e0400c3672977b8a65edf3dedc",
+      "preset": "197ee8a2ff687a77dfdceaf826f5c0291df98da1cff8b491ab4a8a71d99ab0c3"
+    },
+    "codex/sigilvolley": {
+      "record": "43131a8ae816116b334f26e5184a7ee5e899af70674b3f9a793f0f10b2731153",
+      "preset": "b402cfcbde1ee61d86731ad0b9c2a15bcc43ab5354d9c015c0fd1c64d0145256"
+    },
+    "codex/doppel": {
+      "record": "9c9c264280c9c01a4eb772d2a7e71a7866b46a8d753663dde4353125efcc1f49",
+      "preset": "5806f17acac16f326b15560062893b61213a559d1ac498eda07fb19883e9b1f9"
+    },
+    "codex/falsefloor": {
+      "record": "437d2a2d4eeb92fcc8be5e61324c07a6078cae1967069c4544b7d83dcc018bbb",
+      "preset": "a17f8b8ca99d94c48cc0c938800fbc6f76b8fdaf1e06e3dfcf6a14ce3b837798"
+    },
+    "codex/mirrorhalo": {
+      "record": "c612698750c3ba6b6e4c43763da408b19b6e4220655138aafdf1383512704520",
+      "preset": "8f12976af441c9091ef6078948d652b74f8d5a5e2d9f15be1b622a9fcc701d63"
+    },
+    "codex/feintcage": {
+      "record": "3de8146d01f3089e385512ab404eee0f37bb27f195361ba024a571b0b74c44f3",
+      "preset": "e300bd1bab0f2fe747306c19cfd2810e2f260b48b69232f7d4109005e000eced"
+    },
+    "codex/glamour": {
+      "record": "59af11e4d1be1fc5079807357d6f572a21183bb651d6c7947033b8db9cb4131f",
+      "preset": "06146ba90b74de7e2a8c9c0b53697e970a587a69c3f4440f8a9f2522681b3aa4"
+    },
+    "codex/afterimage": {
+      "record": "eb2ffb909041d52af6bca3175ea6ea2fb6a5587a2cd56cb007b889ffeac7f1da",
+      "preset": "a1c4afde7c7826b781662b7de8cf2635987243c6068c91ae61519778cd4f9f70"
+    },
+    "codex/latebolt": {
+      "record": "e577f0c4a1ab166e94c8d85b24f40db675fb7fda7334b7326a774cc20a9de3ea",
+      "preset": "09bca4442e3f9b4b07b4cf1d4f6eb8817f3e48fcadd648b9a4082d8e49a27e6d"
+    },
+    "codex/chronowell": {
+      "record": "5c67c8ba095f40784b3ac465c48972a62c279f7ff1f3d62c334bcc8cf669151b",
+      "preset": "b69f110ed281d5e624be7f9519cdd423bf2202c46303eb36c5e7bdf747e34249"
+    },
+    "codex/tickcage": {
+      "record": "a14647f32963a85b4421760509441cb399acff059d2956512796a142f8242119",
+      "preset": "9d08309b96ef84c275a902f963469b31579d84fb60405414f09be74ff14962cf"
+    },
+    "codex/vectorlance": {
+      "record": "3e06b740d34b67b6784017c6cab55a52069d1e9002825b22f96860f044aee9ab",
+      "preset": "e230d6f829c9b302661dc48bc86155d8b7c50b7cfbd0dab99e90c1dbe0acfd52"
+    },
+    "codex/slingvolley": {
+      "record": "5262ec0f358bc80eaaf07df3dc62d54b728e357c4ebf730a4a19ce2727d1e2a0",
+      "preset": "10d8e733db59748d1ecc4a8eae128e4043de0245fc0f3ea4384c7d348f7b2d21"
+    },
+    "codex/shearstep": {
+      "record": "3354677f9c505c167e1c1c4b6274bc95b56505527b0ab309395275516df80089",
+      "preset": "0ff241ef908cf2a5c8e2f63310c13f6e2e369e1ead64343b28c63bfdbac5087a"
+    },
+    "codex/orbitpendulum": {
+      "record": "15dcd61ef8e4bdc33ad939e28de076eccd3ba759d8a07b7ba1d354df389f21ec",
+      "preset": "e78b62a21bbe26ed181f2aab5444a1b1c365967f4edf9751d3d33b7a7f4d0abc"
+    },
+    "codex/kinethalo": {
+      "record": "7b67b75951918ece68ff9a5def1be5676a58967671910fab39a72419db84a699",
+      "preset": "ecb3eda36294967afa693071d5f19c44a8690bde40c8e92211d20d4b83548f66"
+    },
+    "codex/presscage": {
+      "record": "919a96751a220940d3061f7e84627a7ef0b1f7ac4f96f9356b58da4d09569c1b",
+      "preset": "c741cf00b8e8b524f1bf0041c6e4eed83db73497701aecf6052193dbebdc1851"
+    },
+    "codex/surgewell": {
+      "record": "ca40e6b6faf9d70ba50c49178dc48f2585f24b1b1a607473471413fcbf93888a",
+      "preset": "12c046d987667f9a928a5b04ac7ce58f287c8e7246f2bd942dc66f6fd1ae24e5"
+    },
+    "codex/servopylon": {
+      "record": "862facd28a79a07e2b5dc1c513ca01adf40d51cffce984d0567934e9c8e8efe3",
+      "preset": "58ff0cc0b6d812db02433917841e5fffdfe889e79b0a365736f34fef7bbcc517"
+    },
+    "codex/raster": {
+      "record": "12ae393e41939518010c73d55f66834ab4c780a2df7d7958cdcd7e0d58076d31",
+      "preset": "a9b384269042e1a3c32564897c08461b327bf79560d332bd8e3679a92b9b3f63"
+    },
+    "codex/gimbal": {
+      "record": "75ac0a2a1bba934a33e02e89546fa2e84b091d941787749810a17aeae37fa4a7",
+      "preset": "2eaa7f2e920b4bc959197295e9492e2205a73e1049aaa2d49d12772730d47d19"
+    },
+    "codex/hardpoint": {
+      "record": "e1eb3cd32a56c2160ce0d3ba25badc289300b438e2368692b84da8801b4c9998",
+      "preset": "ce88a85a555b70956337340e8e049e92ed27e323f7f55ac4ebeef6bc99680a29"
+    },
+    "codex/impulse": {
+      "record": "5cb3fb25405dc2f633a0f5d5d4bdbbe8bae68beaa517dbe08a8cbca1d54b65ec",
+      "preset": "fd0d5672b29feb05fe925a7547a6573d1f9fde7bc3851e5407eda44b8b8d46ce"
+    },
+    "codex/tensor": {
+      "record": "254963f5a701f34697ef899741bcdba9c8025d455b66c8c03c7f238c3c8e2b93",
+      "preset": "b1a7a56f8cc3f3e17f5383fd03e0a891a2b38d9dc9379af67843490be84287dc"
+    },
+    "codex/vectorhalo": {
+      "record": "f38726f2836a027b1703881d5ba2765313986cd9146e8dc148ddcd6a562bb5c1",
+      "preset": "f9ea6b5196c55bfb830250c4215aa9f4e81776d359cad11a8988963f0bc9d541"
+    },
+    "codex/shearforce": {
+      "record": "1c0a50bccea59674dc1035d338c15e5a55ef1a5587c635f7d945a72a33696ecd",
+      "preset": "365cbd74fb57866730f8d43857322fc67643e198536ef9049e6ff2131722ccf5"
+    },
+    "codex/moment": {
+      "record": "a260b0b41bd57617bfd4484e0ae4e101940c4e9a2390ad54cd81638a689d5cb2",
+      "preset": "dfaba783dd448c09b53dc2ea5f8b41d470be8d55c9febc0057ab363e34f5579f"
+    },
+    "codex/presslance": {
+      "record": "eabb214d90a52530d389d296b2f379df328551c640e6490ff7f5c9500dfb5322",
+      "preset": "ceafec848566707fabe809573e180892d3a128a17cfd8faea7d1055627d6b4ee"
+    }
+  },
+  "files": {
+    "packs/sandbox/src/abilities/Ability.js": "05de78bf4782cfc0fef0f7b5e3b30314757a54df4fa7fdfa7c3678c4cc240f65",
+    "packs/sandbox/src/abilities/AbilityManager.js": "c4e186d4b9ab31caf0695b6a90ecd9507e26aeefdc0dbb63452d236b607f3304",
+    "packs/sandbox/src/abilities/AcidAbility.js": "01c9c21e46fa6c5e5db24be68873c36db8e4d0a93165874af26ecbece06956a2",
+    "packs/sandbox/src/abilities/ArborBloomAbility.js": "3e9afb0514f56f884641dcdca4bede7018ad27fc62f62702090160151cad2311",
+    "packs/sandbox/src/abilities/AstralVoidAbility.js": "7482a1ed91a512d604b5cb06303eb654ee648d91ea2ac12bbcba6e8ebd63cdfe",
+    "packs/sandbox/src/abilities/BalefulCascadeAbility.js": "273211873f5a5265050b71bdf504fa0f96993393d260bd2ab034b0b124e50378",
+    "packs/sandbox/src/abilities/CelestialRendAbility.js": "b9f316606eabf751dbcf6c3363ef9530b347a66faca1c13bcbec52c31dffb748",
+    "packs/sandbox/src/abilities/CyberSerpentAbility.js": "de5394cc93c278be6dde9d1458048fd6a0160254d797995d12a03ad918505553",
+    "packs/sandbox/src/abilities/MonolithRiftAbility.js": "58414ed57b793ce2e758e8421233160470a9d7a88b01a8dec1350fcd9fe8ffb3",
+    "packs/sandbox/src/abilities/SumiTideAbility.js": "abd1f7992673c4657cd6a585f9f57195e7e7102f62890255f597a17c98ae0e29",
+    "packs/sandbox/src/abilities/VenomSurgeAbility.js": "7758af2f9500909c36cde992e53d0429ce44ee2d3c7191174f4f9bffcfed8512",
+    "packs/sandbox/src/abilities/WardAbility.js": "ef9ce0ea808cb48c3d63d5abc8baca3c91cbe1de07bf211f10b337ffd3a236c3",
+    "packs/sandbox/src/abilities/atlas/AegisReversalAbility.js": "e4d247a9ad2d9f2c54a82765194e958227d18dd92e9133398df1b0036170d570",
+    "packs/sandbox/src/abilities/atlas/ArcRelayAbility.js": "a184353bf7fdb21bf76028b991e335d09d01faeff6df15d505b5949d645a98f5",
+    "packs/sandbox/src/abilities/atlas/ChronoRecallAbility.js": "06708488136434e672a895242029a053bff71a5517a4d7e292436d694784d7ea",
+    "packs/sandbox/src/abilities/atlas/DawnSanctuaryAbility.js": "36252cc9a88d4adf7ae4003b554a1c3924d7f6bc0ae49372723027301829aef1",
+    "packs/sandbox/src/abilities/atlas/HallOfEchoesAbility.js": "7fd06203f2405fb375e556a54e056020f65f65bbad9ac1f5b7c6c844973fb215",
+    "packs/sandbox/src/abilities/atlas/ParallaxBlinkAbility.js": "75d3764c07a22dacd1d2f676c8963cc8135daf173e1495a36d1b63c14d75536d",
+    "packs/sandbox/src/abilities/atlas/PolarityGardenAbility.js": "2369269053493f5fe7167e4c052e6b448c5a591f10cebd41b43c5322831447ff",
+    "packs/sandbox/src/abilities/atlas/PrismRefractorAbility.js": "6f11be0f22faac18417f0fec737637685845b448a230a52a8a4e1cef1a264d74",
+    "packs/sandbox/src/abilities/atlas/StillpointAbility.js": "c9f9a5ace97d630b86e535a38c1fd076f4581ea139555a216539294f5681768a",
+    "packs/sandbox/src/abilities/atlas/VectorChakramAbility.js": "34c045ac32329225bcdd52af14a9972a6877849c7facade750d12083b81b968f",
+    "packs/sandbox/src/abilities/atlas/index.js": "f5a7ec599f0d6ddc232d445a9fda30635861098f5fb3e396d5184455d9b70bd5",
+    "packs/sandbox/src/abilities/codex/AbsenceLanceAbility.js": "21ffd45338e28f009e3363428492cbe3a9b8c46aff59a65a0ca184b970dabf5e",
+    "packs/sandbox/src/abilities/codex/AcidChoirAbility.js": "5f34b71a792bcb87ac4b3882d63aae90ff2e5a84c379073b856c07387634fdc0",
+    "packs/sandbox/src/abilities/codex/AfterimageSwingAbility.js": "4132f3b5dbb83da8a01b58467fd6e5447537adba99a311ec125feec417c7aa50",
+    "packs/sandbox/src/abilities/codex/ArterialWhipAbility.js": "1a705d47d8414bcb749790f0846138cf792837b59cff7c4caa7d3332e600d5e9",
+    "packs/sandbox/src/abilities/codex/AureoleRingAbility.js": "f67c26929df50d772cd1f93c771212efa4a78938ddd6ef6100a9872c57243db0",
+    "packs/sandbox/src/abilities/codex/AvalancheWakeAbility.js": "54082dbccb694e4a87803f5c45a8ed9bd80e72406f701dad07a60b0c396d5ede",
+    "packs/sandbox/src/abilities/codex/BallLightningAbility.js": "c809485c4e9d2eb193f51c39722edc8b99eb75900772de4bccb795a71b503d0b",
+    "packs/sandbox/src/abilities/codex/BasaltColumnsAbility.js": "d7d81d499c0bb82a2ad5b7f8667c89d7a413e5e60aeba145a6c13cc145ce2319",
+    "packs/sandbox/src/abilities/codex/BileLanceAbility.js": "51315cab4c0218528feb9bc61ac891d8b2119b9a105d144dd950bf62f77bba14",
+    "packs/sandbox/src/abilities/codex/BindRuneAbility.js": "c7109bb09e660eb6a42df74be43640c13a3b9eb54c981074523661bb71f9895b",
+    "packs/sandbox/src/abilities/codex/BloomCrownAbility.js": "bf0764e86be2fc48c3359a112ec353517cd617fc24d0552c16c54ba5c52dd6c2",
+    "packs/sandbox/src/abilities/codex/BriarCathedralAbility.js": "e569c88cc00b6be6daa18485cb5740131034e225ff72c548e20d8c4ba099278b",
+    "packs/sandbox/src/abilities/codex/BrineGeyserAbility.js": "c8ab3942b500efaaafa805f7248cfe92e09b6d2f6db2d839ef4dc340322d2096",
+    "packs/sandbox/src/abilities/codex/CadenceVolleyAbility.js": "29866a543f4cc77c7dc9471622b5553507064cd69ef3940bb8ace3a4dc706465",
+    "packs/sandbox/src/abilities/codex/CausticLanceAbility.js": "f199e3e3a8ee45a9a6bbeb310f71683e2bfe0a8c8600dde4e0d9aa055ef894a2",
+    "packs/sandbox/src/abilities/codex/CenserMarchAbility.js": "64be3ce413bd66e8693de13f073bffb62ad5cf4258bce57d536d5a17c3440d49",
+    "packs/sandbox/src/abilities/codex/ChronoWellAbility.js": "99003cf18d6e52b30c24edd25002cb6b6e0a532583114b13bd0798f3b68ab90c",
+    "packs/sandbox/src/abilities/codex/ClangorCageAbility.js": "cea6cc437b87fb58ffcf043ce3b8c0235adf082eb53dfd03a39ba1f33e0690d1",
+    "packs/sandbox/src/abilities/codex/ClotArmorAbility.js": "6f85e3aebdaadfc527e8f5df25f05497b462864d998e5e9c659bfa52d7306610",
+    "packs/sandbox/src/abilities/codex/CometHarpoonAbility.js": "f025db0cbac3bcc13bbf89d545f0c9124bc460926570d6e2e71b975acc183ed9",
+    "packs/sandbox/src/abilities/codex/CrimsonBaptismAbility.js": "fbf401c124dfbdef4c8a8cc9823fdaa910b47b2f812a0f92f5fc8d7f3e953bd1",
+    "packs/sandbox/src/abilities/codex/CrosscutGustAbility.js": "ab29870621b7b4636636b757943be6cde7e693835e81ce998b4825a41439509d",
+    "packs/sandbox/src/abilities/codex/DarkMatterWellAbility.js": "b8d62209396730712395083ab547a69375938b79e7da21c657eeb429fc11a7b1",
+    "packs/sandbox/src/abilities/codex/DetailLayer.js": "8339f81622d40b71d248c83c9c5f8411500c404d5140a7b35559d5ed09a48272",
+    "packs/sandbox/src/abilities/codex/DoppelLanceAbility.js": "f1a7d63aacec7d3fbc4b2880d74c8a338f5d7eed3038001d9f76e142f96663b5",
+    "packs/sandbox/src/abilities/codex/DownburstAbility.js": "5870acc6d0f06b642d02c9c66ab5a3c22a94b7e584d90b037830fee686cc051a",
+    "packs/sandbox/src/abilities/codex/DuskSpireAbility.js": "6588eff12dacb4cb7e452d81bad3654216580bd610a6bafba02326e94db62ada",
+    "packs/sandbox/src/abilities/codex/DustDevilMarchAbility.js": "c024c1493b5e7926f6fc18704900063e1bb0eb627c4ef5a409ab79c792f8317f",
+    "packs/sandbox/src/abilities/codex/EclipseNeedleAbility.js": "d41686260ab8b75a71743d7f63bb3a89ee4edfaa27204030037b3208e0a6e3ca",
+    "packs/sandbox/src/abilities/codex/EventCageAbility.js": "6a788007df0c6e238b092c90fd2e7bfe4cf78bc5bef4e0903781f802cdc8b520",
+    "packs/sandbox/src/abilities/codex/EventHorizonAbility.js": "51e698dea8379c484441512e994b208fedf3d17cd36bdac1403eb0416658e1cb",
+    "packs/sandbox/src/abilities/codex/FacetVolleyAbility.js": "4b629c5d7c03074c74a4c179a20ca53ddd5dafd57747d146201c9082ddc2057d",
+    "packs/sandbox/src/abilities/codex/FalseFloorAbility.js": "c524487b4541674b8af28723c470ba20e20382b8ac3046902a51648354d83392",
+    "packs/sandbox/src/abilities/codex/FaultChoirAbility.js": "c316c1c3f9834932cb9d022f9585a55ad4589188a7403adaf490572cf87d789f",
+    "packs/sandbox/src/abilities/codex/FeintCageAbility.js": "0a4e1e8fcf2f295918cc5deef37b67d2ab457ba434fe5a10e5bef181cead8d48",
+    "packs/sandbox/src/abilities/codex/FilamentVolleyAbility.js": "5bdd4b43221a58d09498ae5e488b25b7659fe60086555b9e891b06fec9aa86a6",
+    "packs/sandbox/src/abilities/codex/FulgurCageAbility.js": "94495036a55c11819dc783419b7ebe0581d59395f58b6c08b6104e83d9c226e5",
+    "packs/sandbox/src/abilities/codex/GeodeCageAbility.js": "64fab231344308d2aebb353d9ea311e3d260f4f0278bc6600f786c55db8cf4bc",
+    "packs/sandbox/src/abilities/codex/GimbalWhipAbility.js": "4e1ffacd1bfbab9d915890d0cae7df470937a56d21d49e3e10596fc1ef6bb113",
+    "packs/sandbox/src/abilities/codex/GlacierCalvingAbility.js": "dafc861d1095b1ecd09504b2896ddfa889bd30c441c3da878a61cec825731128",
+    "packs/sandbox/src/abilities/codex/GlamourSweepAbility.js": "7aa800ea06a361e7087db3e3e97ca9a4796896aeef624c86bb989e818f4fe81b",
+    "packs/sandbox/src/abilities/codex/GlassTideAbility.js": "33208f4576c2d1c0fc7f9771a2f5aacbee792b47c0a0f4651714b30f04389315",
+    "packs/sandbox/src/abilities/codex/GlissandoSweepAbility.js": "e4acc91b5c7cf84b9ea961d76289466f76bb9f400b938726b73d175935467703",
+    "packs/sandbox/src/abilities/codex/GlyphBarrageAbility.js": "9f918f68f87deeeb54f85dfb0e62a1149dcf32d685902fe7b43799ad533a97ae",
+    "packs/sandbox/src/abilities/codex/HaloGuillotineAbility.js": "cf609839e7424e1e2a95dc6870170c00bac8cf5823da0ec8eeaec6f1bd85a225",
+    "packs/sandbox/src/abilities/codex/HardpointHaloAbility.js": "9d0e741f46f6db7e988e3d97da3dda35633de896bb35f7e1c6d19355fe1754f7",
+    "packs/sandbox/src/abilities/codex/HarmonicReedAbility.js": "921cc5b2ce5c3408875f1b2555b4aa953244c6c276a83a37a7e6333edc2f3683",
+    "packs/sandbox/src/abilities/codex/HeartstakeAbility.js": "6e09cb12163f617bb1079e357eb6d4bbce980200e7190213924fa90c5d780fb2",
+    "packs/sandbox/src/abilities/codex/HemorrhageRingAbility.js": "066b6374b708632f587399167ce72a7d475904ddccd0770c4f9e75a6e0f9c549",
+    "packs/sandbox/src/abilities/codex/HoarfrostMirrorAbility.js": "b580b64d2310399c82d17bf5a66a21dbfad000c0566d2f60bc42c5506e65f4ef",
+    "packs/sandbox/src/abilities/codex/HollowVolleyAbility.js": "84609cd8d91d7c887734872970d90061556710375922bb753e8a61efb937cbac",
+    "packs/sandbox/src/abilities/codex/HourglassSunderAbility.js": "f31d05427fb5cd2018f5b9b1f06b0825745590b6f2cb982e595568a87cb79aad",
+    "packs/sandbox/src/abilities/codex/HymnWellAbility.js": "faa1898cf9727c99193eca0f3382d68c871ec4d5762839777be78148e3cbaa23",
+    "packs/sandbox/src/abilities/codex/ImpulseWellAbility.js": "2ee29d64ccaf1043ce27106ea0d0b8d1c2d47b8896b6f9499231e9b788963bb6",
+    "packs/sandbox/src/abilities/codex/KatabaticSheetAbility.js": "f331d5a541c96c1d6081fcf9dc9ac30f5d4f690f43bc7891e3da52ca3de9602a",
+    "packs/sandbox/src/abilities/codex/KeystoneDropAbility.js": "3bfad81614cd75ca8d51183ed062a2785c003aeb666412bf6de605998525e739",
+    "packs/sandbox/src/abilities/codex/KineticHaloAbility.js": "d7e563fa21e501809992d9d9811ba619286ad84e89a864398c22ff73f2762ce1",
+    "packs/sandbox/src/abilities/codex/LateBoltAbility.js": "4cdb9de61153e14514bdcc1ee60edf57dd7f8323b23bb3c4741b387dab4ea454",
+    "packs/sandbox/src/abilities/codex/LatticeFlareAbility.js": "56e589028825cfdfcaca389cbb987d7fc9b99a56367b01cd6cd1521409a2cce4",
+    "packs/sandbox/src/abilities/codex/LensWellAbility.js": "c91703246bfe36de6fa0ad611fb4a4044ac6dc5095727176f5d26029955f6d5c",
+    "packs/sandbox/src/abilities/codex/LeyWhipAbility.js": "ce6899bb589310df64c77c70371a3644d5b120987b2e5c93c764403dbb530686",
+    "packs/sandbox/src/abilities/codex/LineTrail.js": "c85ad667140f96a9a8fa58b3adc4ac11b36db5dda1bdac9cd26a238690c87f46",
+    "packs/sandbox/src/abilities/codex/LoessCurtainAbility.js": "f7761b00896d76b136ae34f7a5a197eecd17bf7b58f5f8022ccc036239ef8d4c",
+    "packs/sandbox/src/abilities/codex/MaelstromVortexAbility.js": "3c3d1b2a5a0138b3cbc6f1c82c6c3b93ec2344557877ecf5efa96e5a56fb798e",
+    "packs/sandbox/src/abilities/codex/MagnetarVolleyAbility.js": "9b94b8073822960ec5e24dacd46e8292c9ac217391cdb5de8c8c70b5736d8296",
+    "packs/sandbox/src/abilities/codex/ManaWellAbility.js": "2271473fa8669756ca6607e908bdea1d53ed89613085147d4d98e365087bacd2",
+    "packs/sandbox/src/abilities/codex/MassLanceAbility.js": "787a64f9bc6639f04026f47b4bc15c2ef8d5e990e490e68b4e67dabcb777d919",
+    "packs/sandbox/src/abilities/codex/MiasmaSpitAbility.js": "718ab7aa37a0c1e8eb94a6e5e59c2eb4da3c3506281336f2d7428041c2ea8696",
+    "packs/sandbox/src/abilities/codex/MindLatticeAbility.js": "4eec7a6214f4fcbacf44c5f26987b99a0be3ea8f38e5650e917e13bfd5b59c9b",
+    "packs/sandbox/src/abilities/codex/MirrorHaloAbility.js": "917441bc1c3e67dd57ceb33788827052fa9f661811f52ed64b560da4b059a7da",
+    "packs/sandbox/src/abilities/codex/MomentSwingAbility.js": "cf9dbbbcaa88789a964c999b9236ccf0abebd1305ce07af9a79f054392254183",
+    "packs/sandbox/src/abilities/codex/MournHaloAbility.js": "37c4ea4ad10dd6e6ce595963f97ec7b38122b46b82e05c25cba1e0d1fb60df2a",
+    "packs/sandbox/src/abilities/codex/MyceliumWakeAbility.js": "c96c031b924ff8ce3a7d6497c675d60dc5094b2d5fbd2dd66202f9153e8f5363",
+    "packs/sandbox/src/abilities/codex/NebulaCollapseAbility.js": "6cbb8b079544f2a50cd884e93fa7464735bc7c1ba344881353d88228aa9a956f",
+    "packs/sandbox/src/abilities/codex/NeedleGlassAbility.js": "e506b96a99718b3f9ab16d011a296ee283383fdfa9b44945cb1783df7e2cc483",
+    "packs/sandbox/src/abilities/codex/NightfallScytheAbility.js": "26198f75671b117bbe89c6aa1136ef7e1671d4620a56058495227ed88eee8a82",
+    "packs/sandbox/src/abilities/codex/NoonBladeAbility.js": "279dad04324af11f0d655e6fca9eb9ceddcdc1374704bbaa3ea6370a38c82fd4",
+    "packs/sandbox/src/abilities/codex/NoxiousHaloAbility.js": "442fa8abd7ee156232079a96b8af795f3532e4dfe0485c4c13256d5da13d9559",
+    "packs/sandbox/src/abilities/codex/NullWellAbility.js": "030ca98d130e45726b84718f735a904761b7557849af441dd403ee5a142228c5",
+    "packs/sandbox/src/abilities/codex/OrbitLockAbility.js": "a447b8a889b0a4b1e5af4dfc3144b4dcad1e2561e6556ff9c59e3b1df1eee1c6",
+    "packs/sandbox/src/abilities/codex/OrbitPendulumAbility.js": "70d5de26cee99283e79a66c54d6c3124757882d0a61ebe579046de4c1cb9b06b",
+    "packs/sandbox/src/abilities/codex/OrbitalStrikeAbility.js": "7ff123bda03e221039326bf4708f8ba21f5bda9f0cbcd5f5c02dcbeeea9700f7",
+    "packs/sandbox/src/abilities/codex/OvertoneHaloAbility.js": "0632a359e9a1d1fb71d78b7051f9ad1f09632d6cf73ff25d622362f9a05f8fc8",
+    "packs/sandbox/src/abilities/codex/PearlTempestAbility.js": "878dbfb4cf1039001fe771c6759e6b979e75c5a72a2eef5ca9d68f000e8e6b7c",
+    "packs/sandbox/src/abilities/codex/PendulumCleaverAbility.js": "7acee30012531201450e14d8a51b8d494a8fedff83e39a462f64f417dca6ac90",
+    "packs/sandbox/src/abilities/codex/PenumbraSheetAbility.js": "6618d93ec8dd823ed4a1a35673c57883dd454df07afc96ad860d82b686ec41ab",
+    "packs/sandbox/src/abilities/codex/PerigeeHaloAbility.js": "4c2962e91f8083d53a4b24168537aa9cd5155d15e7f1e4b70831ea42c006100d",
+    "packs/sandbox/src/abilities/codex/PermafrostBloomAbility.js": "97532bc3ca0b01b240b1e6b13a9276337e7bb6f6d79f356c1659584cdb9c08ea",
+    "packs/sandbox/src/abilities/codex/PhotonWellAbility.js": "0d0ac90fc116343e49e24a0f69492891632d1ba657e52fbbad6f40528f05cbda",
+    "packs/sandbox/src/abilities/codex/PlagueSwarmAbility.js": "7dfe51966526ab75d06608e334af539e4c7096d8ef2dc100f044db37916efefa",
+    "packs/sandbox/src/abilities/codex/PlumbSwingAbility.js": "622c3223a7fc1b7451987cbbb6eb5fa3452fb5c3e52003349e0022c852c859f1",
+    "packs/sandbox/src/abilities/codex/PollenNovaAbility.js": "e01abe7200e2638c69c1ed179a5623affede51e8f38b48064dbf86c648684b63",
+    "packs/sandbox/src/abilities/codex/PressCageAbility.js": "cb384a6a23b9ddf6873c15825f86b7866c1d603d507d2ef73e32abfe571bf094",
+    "packs/sandbox/src/abilities/codex/PressLanceAbility.js": "b23fe8f2d60f4402eba76c96c6645b298552db06c02b1f2470715bc65b389e9a",
+    "packs/sandbox/src/abilities/codex/PrismFaultAbility.js": "6381788714e209dcdae7b35f6838a1b992283c6d7a1c0f427a44ce0a78ea3347",
+    "packs/sandbox/src/abilities/codex/PrismLieAbility.js": "e9021d32a5e9f4f14fbcb2f6dde30fed745e618049a1a7f8774b19382bda7b6a",
+    "packs/sandbox/src/abilities/codex/PulsarLashAbility.js": "6e8ed1a29b9553a7365316f112f465225b84de3cd7cb0b4b48c920266f2ed1a9",
+    "packs/sandbox/src/abilities/codex/PureBodyGeometries.js": "b182255456b79c750fca9f4614c9224e2743523f5e4aae0f07792a7925bcdefb",
+    "packs/sandbox/src/abilities/codex/QuarkSpireAbility.js": "bc8fb3e8cfa90a1cb2b8e8a037884a0ac3ce7fb763f8acfd8424b1e8a952ddf2",
+    "packs/sandbox/src/abilities/codex/QuartzSpireAbility.js": "316c288d9244c600baf1c9f1266f2a76fff3e82332d3ec060ef9229694ceb88c",
+    "packs/sandbox/src/abilities/codex/QuietusHaloAbility.js": "92bbc284d7cc5294021063012f111bd5b92f5095440e3f9daf0947cbbbbbf396",
+    "packs/sandbox/src/abilities/codex/RailgunLanceAbility.js": "612999c23ba113e00e072312afe7455aa500fce43df12aedbde82a487ab1c43a",
+    "packs/sandbox/src/abilities/codex/RasterLanceAbility.js": "6a794c757a5ced6910002930e470d8b7fd2364c01128ed58b52a12247b2b47b6",
+    "packs/sandbox/src/abilities/codex/RedshiftLanceAbility.js": "d4e92745ea173ce5b960a45586e714e9d3c6eb27b0bfcb07c83b7b37c5cebf64",
+    "packs/sandbox/src/abilities/codex/RelicLashAbility.js": "0cb2c9be069930ed3a0d53072123bd083ca790fbdbface8cd744e83140f79a74",
+    "packs/sandbox/src/abilities/codex/ReliquaryDawnAbility.js": "683279202a146f3722d9c2d8d6308d69e34db9bb95b092fbfc5579cc78cdabbc",
+    "packs/sandbox/src/abilities/codex/RewindSnareAbility.js": "ce278d280a3e5e867e1123f453d06644c07b3c36d9e4a1d1964e05eab751c4d1",
+    "packs/sandbox/src/abilities/codex/RiftPendulumAbility.js": "c6957a31792cab33921582e559ed19972b8bc5e0df52b7becbc0e66d9ce22aaf",
+    "packs/sandbox/src/abilities/codex/RigHero.js": "ef2bb0483cd70ac48a1246ac67f51480e4cae68968b3ad31969c4e2a34d9b285",
+    "packs/sandbox/src/abilities/codex/RimeHaloAbility.js": "90b1a46473e35e13a37c5be21b9bfa7070cc7044535ba57e3eb51cc704deaa2c",
+    "packs/sandbox/src/abilities/codex/RiptideLashAbility.js": "6156358f814fbd551a46511f4bfb9a10fa586d99a03313b3963e4b12420b9c2c",
+    "packs/sandbox/src/abilities/codex/RotorStackAbility.js": "d7eb3ab191533608ef97eb20b4efefad558925b9ffc55eaed5d4d6c9df7d677d",
+    "packs/sandbox/src/abilities/codex/RuneMeteorAbility.js": "54c2c076bcb212f8981e0ad6bb148b0f6334dc15a21350daa0c4ec1631616c1b",
+    "packs/sandbox/src/abilities/codex/SanguineTideAbility.js": "b8878fa7c35cbcd5fc11a2a10ee536c1c93e12098de5e0b53308392e5a1808b7",
+    "packs/sandbox/src/abilities/codex/ScarpBreakAbility.js": "1fb29f530e1c15c08ccddc008d4dff19ccce53ce5945876d809286120f1b3477",
+    "packs/sandbox/src/abilities/codex/SecondSelfAbility.js": "51e6894d8907ad96fa1a25b468d2d83784b3c21738eb5544bd8172bed0cba4c2",
+    "packs/sandbox/src/abilities/codex/SeedstormVolleyAbility.js": "737708849b1ccc320d4b1d05223dcb2082c59aeae4a7001bc00b26b049a662f8",
+    "packs/sandbox/src/abilities/codex/SeraphicDescentAbility.js": "cae2108fe28261d8f7db271cd27d8021e75b9dc8418e96568023ca8de63f42d0",
+    "packs/sandbox/src/abilities/codex/ServoPylonAbility.js": "7a9e848cda751b855e551b6ea81cd8ba304737f7cd329873b56abd3689ecbfd6",
+    "packs/sandbox/src/abilities/codex/ShadePuppetsAbility.js": "42cd4c44a42243dc089675b821544e010f0703e4e83c4fa8796321e22274e188",
+    "packs/sandbox/src/abilities/codex/ShardChoirAbility.js": "47385d687103520b9789f913d87055cd0b21883bdb7f52e45cb8e58cf40f19ae",
+    "packs/sandbox/src/abilities/codex/ShearForceAbility.js": "10432a896bec038f93c2b2e971e8207d82aac8884a361fc1bea0bb42cdf8dac9",
+    "packs/sandbox/src/abilities/codex/ShearOrbitAbility.js": "a276e584c334b06d7e86147cbd40a065072367474084a6670c63181a06db2b56",
+    "packs/sandbox/src/abilities/codex/ShearStepAbility.js": "f4f4fffe00f95d153498a66ebd94897eca4bc421c2f2bf142fb68da3679b6299",
+    "packs/sandbox/src/abilities/codex/ShearWallAbility.js": "496622204e1d4efcc856a1966d8f2ceb4343d96b5c1d06528a2c458a6d14daac",
+    "packs/sandbox/src/abilities/codex/SigilGateAbility.js": "962186eadb286cc3d0d2f2ec2504331592653aea73d48e3d59f088e661f1a6fc",
+    "packs/sandbox/src/abilities/codex/SigilVolleyAbility.js": "c1a544c002f5b5a892df9a8454e172bd0e3aec32a1dbaef4d9ccddb80d2900c4",
+    "packs/sandbox/src/abilities/codex/SinterPlateAbility.js": "9f545d237bea2ca240168d0adf2834bac595660763e2f2b9b0cce0c8946c38d5",
+    "packs/sandbox/src/abilities/codex/SirenNoteAbility.js": "4a032efe7426fd87ac8f8115f9faa533893f74c79266b1041e0a95a1a8e75a8c",
+    "packs/sandbox/src/abilities/codex/SlingVolleyAbility.js": "9d08170cbf8e97e10816808a05f949d848a8b79baa15ae0660131f7be0a9ee2d",
+    "packs/sandbox/src/abilities/codex/SlingWellAbility.js": "501d3a4a955cd35192dece7e1a6f59e471fa47fd375f76151bbe7dede282f6f7",
+    "packs/sandbox/src/abilities/codex/SolarLashAbility.js": "514b41c0b0fa38206076e3b642e9f47bea5d6ebd0a5707f7978d46d11e7022c7",
+    "packs/sandbox/src/abilities/codex/SporeCoffinAbility.js": "7f43865c660340a650618e07ed4e875ca29360a94f583756fb57fc3c34b33cc3",
+    "packs/sandbox/src/abilities/codex/StasisBellAbility.js": "87721a0c666af6cd8de916fc189d0ccb369606d65fc5112d28d7160b4347a52f",
+    "packs/sandbox/src/abilities/codex/SubtoneLanceAbility.js": "2d0291cb95ddaf962a3b0548489c28a7d059908bf7d132023ae049ffe94f24d3",
+    "packs/sandbox/src/abilities/codex/SurgeWellAbility.js": "e26beace5dd3ef561d9d3a31fa5d27bdcd8bde9ae5e7e0a74b360507656b5257",
+    "packs/sandbox/src/abilities/codex/TensorCageAbility.js": "cd1fee79ff760be07fe2e0bbb8dec6f55e07f09f1270d56ec87690ba70aa9d4b",
+    "packs/sandbox/src/abilities/codex/ThornVolleyAbility.js": "7cdc763b05ced485599bcb4af0e34fa09a7bfb091682a43bc0588c6eb2684f04",
+    "packs/sandbox/src/abilities/codex/TickCageAbility.js": "b2474327a86cdd264eb8de1b48cea7977f9a8a08c0b7143b6dc53e97c1f7da5c",
+    "packs/sandbox/src/abilities/codex/TideBarsAbility.js": "db6622133daa47466deab3f5391b24ae72625cfdb49a901ea855d63c2ab05e65",
+    "packs/sandbox/src/abilities/codex/UmbralGuillotineAbility.js": "8f4e4d57c38cf4fe3bf47f4f46c3d0340a72014d5594c008c61f25d0e5fac270",
+    "packs/sandbox/src/abilities/codex/UndertowChainsAbility.js": "0a387c39515411eb6229532aba8609425a94941ffe2c930954c61899b0eeb014",
+    "packs/sandbox/src/abilities/codex/UnspireAbility.js": "f0d897391edae5a1f20e19ce2d72673e7dd6ddb69377882d6d4a53248dee7491",
+    "packs/sandbox/src/abilities/codex/VectorHaloAbility.js": "c63f680fd8fe81f3044e835225a5606d25957336cc79b26cf7d517c5a3f75a3e",
+    "packs/sandbox/src/abilities/codex/VectorLanceAbility.js": "2be3e9b86b9d1b3522869b52c3a0166732318e5efd2896ce6caa3c6591fcfb73",
+    "packs/sandbox/src/abilities/codex/VeinLatticeAbility.js": "695d83e0e3d1910f84ec52014f3977015ccb8c20c65c01b53cbef79382c32d47",
+    "packs/sandbox/src/abilities/codex/VenturiGateAbility.js": "be0d533f202a511f65a97c1fd80dcd42d236d588642548e0aa1af21cec9a194c",
+    "packs/sandbox/src/abilities/codex/VitriolRainAbility.js": "a551eba6becb5539ea7d11a1f968aa849503fb28b4e95fcdd5dbc0d3f6a73fcc",
+    "packs/sandbox/src/abilities/codex/VoidBloomAbility.js": "cfc2066f163ccb2b3f8e9d08deeaa2645c5525698df1293234fbf826760b8cc4",
+    "packs/sandbox/src/abilities/codex/VortexBellAbility.js": "b8de0c5a2d636e446013653f2ca33738390fb50dfc333fc78a50f5445425796a",
+    "packs/sandbox/src/abilities/codex/VowCageAbility.js": "a2176e9ca4540b959054b2ac871879137437e6a7c95302f28941a88ed6042cfe",
+    "packs/sandbox/src/abilities/codex/WhisperWellAbility.js": "62593174257d1e6019228e07a683c5f5a1fbae5ad8fe0b1b0e2707919f31639c",
+    "packs/sandbox/src/abilities/codex/WhiteoutNeedleAbility.js": "6468f3a805d6b7474ba760f4d967e057c5939d59ed2803860fc3a69bfb002bd3",
+    "packs/sandbox/src/abilities/codex/WraithHostAbility.js": "0c1a572ccc3fb721129be68d3779a54be590d7e3dc9121e7b16788f1df1e8b54",
+    "packs/sandbox/src/abilities/codex/ZephyrShurikenAbility.js": "e10ba6642b2a6ff3939c50ac21dc7c432fdcbeaca36c28547fc8b863d97b735f",
+    "packs/sandbox/src/abilities/codex/ZodiacHaloAbility.js": "8aa02ea574ebbb0f3496db7e05e51e4a0ac1dc94c0f65269e1d3f99077159d24",
+    "packs/sandbox/src/abilities/codex/index.js": "7addb6a955f3711520613943d40df969fc395e879733ae3ecbbdbd22c5e73710",
+    "packs/sandbox/src/abilities/collective/AegisBulwarkAbility.js": "03125ac3e3bfba3451c91127fc9ca6b5371e5bfe9d09528151d19126129ef652",
+    "packs/sandbox/src/abilities/collective/BlinkStepAbility.js": "81d15483d322848276c5baf40026df9701ae823a05918217cdfd610b281debac",
+    "packs/sandbox/src/abilities/collective/ChainArcAbility.js": "ffa1279c166e1e50b0abe08bc61ec75d1344c38ab3ea5a3e4406a594633bd683",
+    "packs/sandbox/src/abilities/collective/ChronoFractureAbility.js": "9be3809d34382660c9aa2c5840ce90cc63e3bba357db80a0f6bab0eb95b354c0",
+    "packs/sandbox/src/abilities/collective/CrimsonRiteAbility.js": "75aa8c6a7cd49ac58f1a2a1695ff0cf413887c7fdca131cd4a3a6687617e8d3b",
+    "packs/sandbox/src/abilities/collective/DuneScourgeAbility.js": "3762c62955b7f386f3d2c40e6e79bbee2d1dd73838faaa29d2e2ff30d683750f",
+    "packs/sandbox/src/abilities/collective/GravitonCollapseAbility.js": "59900f20d9ff2d03087144129a1c08827466c90db0c79f0083e5f4cf93605675",
+    "packs/sandbox/src/abilities/collective/MeteorSwarmAbility.js": "403c2a5174a7c0da6729d31883ab9e27e6296707ebebe05fedb387f8a7030152",
+    "packs/sandbox/src/abilities/collective/ResonancePulseAbility.js": "8a534210113547342320143add7767f70976d2d7772393fb8be1927994d8ae0a",
+    "packs/sandbox/src/abilities/collective/SporeBloomAbility.js": "a4f21673ec2c39488581bb7a28746b7c77c8af8d1007bbc0efc4804e410a2089",
+    "packs/sandbox/src/abilities/collective/SunfallPrismAbility.js": "480e20801fb09dee1ae2919dd4862880cb48c8fe2d694aac1710bd04200ba053",
+    "packs/sandbox/src/abilities/collective/TempestSpiralAbility.js": "9d979a538bef3a97d752f57ce221ef4aa9a7299c578e98fa5b107fdbc97c06da",
+    "packs/sandbox/src/abilities/collective/_stub.js": "3f38a7fe27a478e19d82e1dbfb2e2c5588fa530a52b05403b6dbe169ea383a58",
+    "packs/sandbox/src/abilities/collective/index.js": "45d6302a7cb47079fd8958d06cfadc80b2f3c3ddfe231f1215eaad73257d4396",
+    "packs/sandbox/src/abilities/matrix-new/AetherbladeCascadeAbility.js": "3e7a354cff20597808da79c7fa02a415ba1a3492372553a9f3016762f9c0d3a3",
+    "packs/sandbox/src/abilities/matrix-new/BloodrootThornsAbility.js": "a792e035718a22ecc19ce45bddc039377230b6899a4b99dc089e76cb3716329f",
+    "packs/sandbox/src/abilities/matrix-new/CrystallineHeartAbility.js": "730f33e9f4f615812368756541d9abedeb1df6c38636bc05900c457b62a4bc25",
+    "packs/sandbox/src/abilities/matrix-new/EmberveilLatticeAbility.js": "f188142d1ffc6c614d2e73afeb90161c2b47152cc71d5a31ca3a66158e27f7d5",
+    "packs/sandbox/src/abilities/matrix-new/GaleSeverAbility.js": "98bc5d8a91e0525ac1d8fb135848d9a9cf6d709dc134b575ed61d1b06d1c8b00",
+    "packs/sandbox/src/abilities/matrix-new/GeodeEruptionAbility.js": "eee19cc92c7dace7ae58d613ca842e68e396d884d3fd00daa22687093f279ece",
+    "packs/sandbox/src/abilities/matrix-new/IonStormPillarAbility.js": "9a0fe65abb5d6b6a74474d56c79de72d76d8ac6e62b814994b41037df28c4bfc",
+    "packs/sandbox/src/abilities/matrix-new/MirageConstructAbility.js": "4aef1069dec021e1b6f5480b40e3dc57164635b3f69dbc11e0e4ab53c548ec43",
+    "packs/sandbox/src/abilities/matrix-new/ObsidianWallAbility.js": "4520a65cf63cb67665771cde791f9db4f7f27f87cb6f87a0e3419e169c65aea1",
+    "packs/sandbox/src/abilities/matrix-new/StarfallRiteAbility.js": "296ed84ccf3726cd4eb06967f118863a8be85775553ecba910596b43cbe11574",
+    "packs/sandbox/src/abilities/matrix-new/UmbraGraspAbility.js": "c87ddb07a399eee4e64f8ea6d32e28114ec2195b880ee77a87b09ba539e481bd",
+    "packs/sandbox/src/abilities/matrix-new/VoidstepRiftAbility.js": "617a2737f5783ce6a2194d376b404fe93284293907349d75f2129f0c104e294b",
+    "packs/sandbox/src/abilities/matrix-new/index.js": "295180f97fec84020849feb06eafe0863dda81ba4b2257f7a4dff92090630c61",
+    "packs/sandbox/src/assets/CascadeGeometry.js": "cd321813f360bcd3824621464bc33c9d067af6f71d8f1fd85784072a4ec10c98",
+    "packs/sandbox/src/assets/GrowthGeometry.js": "e28ba5d53370898bd022ec49248aee5e0fa6d4acae0b00f7dfd47e632432dfb2",
+    "packs/sandbox/src/assets/MonolithGeometry.js": "4542b19957a29480638202cb04ea0d741165d0942db8831160282e8a0f73233e",
+    "packs/sandbox/src/assets/ProceduralGeometry.js": "37dc99e1fe30ecea0d0673930d71dc75b5a6975ad9cb6de95afa69c90d1bb6ca",
+    "packs/sandbox/src/assets/RendGeometry.js": "1ddc315fedad8bbe6dbb780d6757b57570e6f599cfc7a4a7d4dbeda62dcee945",
+    "packs/sandbox/src/assets/SerpentGeometry.js": "2eeb24354c2bcfb5b6b08f3e006f07692d184423b9a992dc3b8292af012c7463",
+    "packs/sandbox/src/assets/ShatterGeometry.js": "b0ba30d52083dfdf998d4125ddf52266ceb42740e6d035015060f9ab1c7d5062",
+    "packs/sandbox/src/assets/atlas/AegisReversalGeometry.js": "25b3a31f00606deb2e9280a679369c9cd21de0b4e121aa5ba80e67113c350515",
+    "packs/sandbox/src/assets/atlas/ArcRelayGeometry.js": "692ebf231e34cafa78653f1c9d4409b93a4b2f71a3b212de03a6c4333fbe5b05",
+    "packs/sandbox/src/assets/atlas/ChronoRecallGeometry.js": "24c0eb26b7196df10c311bc574a83dc08348d282dc96e8258790d1b4ba79a689",
+    "packs/sandbox/src/assets/atlas/ChronoRecallRig.js": "bb6d51639c7a7cf091f1186b4bb4903a6f0ca4c915316de33fc281254f2e906d",
+    "packs/sandbox/src/assets/atlas/DawnSanctuaryGeometry.js": "9210bcaf4942f1ef8640adcf2027aaa433c0ae1c07583c8349647644ecd29687",
+    "packs/sandbox/src/assets/atlas/HallOfEchoesGeometry.js": "42fcbbf3b7c8f5cf41dc6d9058d09cc1904c8eacfa673b87707f3e460d353fbc",
+    "packs/sandbox/src/assets/atlas/ParallaxBlinkGeometry.js": "be06e311c918046a3b9153f5d3766dbdeb6b33f458a7f4bd917174f7d78134de",
+    "packs/sandbox/src/assets/atlas/PolarityGardenGeometry.js": "d9aa78125ba0b0e3d7e2de9b75e3e08cc685f08213a77f74851e641a8dc24510",
+    "packs/sandbox/src/assets/atlas/PrismRefractorGeometry.js": "af468777bacdd95c767597dcb127c06091b10e89a93e0e19d1af741e38649313",
+    "packs/sandbox/src/assets/atlas/StillpointGeometry.js": "145acdf336ee60bb3125e1da184148e11e7ab3192fc2b9fb5ccf106c83f29eba",
+    "packs/sandbox/src/assets/atlas/VectorChakramGeometry.js": "268d74a6f5c6d127bce2a9ea263581e763afa334976c18f3ec09422a9c791f91",
+    "packs/sandbox/src/assets/codex/AbsenceLanceGeometry.js": "f7ca0e976409991982fb056b2ad0f8d3c140e91b6224b9cb3c36cdbd2ce5b486",
+    "packs/sandbox/src/assets/codex/AcidChoirGeometry.js": "e0e550d3338b4ae1c1a28d1c90bea298063dd6be5acc21b2d0e25596326dc545",
+    "packs/sandbox/src/assets/codex/AfterimageSwingGeometry.js": "001e1e861201040d0e3d4a7993954e855e336ef4de776f7c7d9e30938c203e71",
+    "packs/sandbox/src/assets/codex/ArterialWhipGeometry.js": "449e631d7b724a99e432f1ef35e1a304654ea5fc694c94cf622bc7ebcd0a6918",
+    "packs/sandbox/src/assets/codex/AureoleRingGeometry.js": "19aabd48c872372e3e02255bf79574a49e9d3e9f6c90f3b902f7f9eaff814eb5",
+    "packs/sandbox/src/assets/codex/AvalancheWakeGeometry.js": "b68678b2cd25ea64ef5fa49dab3d51d8d7e592f5259d8920889bd801f84b731b",
+    "packs/sandbox/src/assets/codex/BallLightningGeometry.js": "33210704cdb7bd5f5fd83320906bc0ed17374b6563b82a92563009fedf7500e5",
+    "packs/sandbox/src/assets/codex/BasaltColumnsGeometry.js": "d78efc4041c37ac49846a385a87f18d223736946fc1f8f1ee73e9d33bc539c62",
+    "packs/sandbox/src/assets/codex/BileLanceGeometry.js": "5544b01578349d11a6ce967c50cdc9a20c36d907845db5ad31bfb46fbf97122f",
+    "packs/sandbox/src/assets/codex/BindRuneGeometry.js": "db1fb593b97173a3d87c52af4b12b6e56c1abebd9f183c7c79dd6512439915fc",
+    "packs/sandbox/src/assets/codex/BloomCrownGeometry.js": "1b906808dc7ca0d8f984f3c16560e41266eb1d9a06f8bd53f56fae64001c18af",
+    "packs/sandbox/src/assets/codex/BriarCathedralGeometry.js": "915201ed20ae6b4ae80a6cff5167694bce3cea33b0f2687848ee960416c91ac1",
+    "packs/sandbox/src/assets/codex/BrineGeyserGeometry.js": "c11bbd8f191b85da1bb6a772c29081a45f78cadc3e74e5bec3a45e911335f87b",
+    "packs/sandbox/src/assets/codex/CadenceVolleyGeometry.js": "dadbafa2adaa7a9c3d1d65137b75d5af85ef893c155b38cabccb09f1fb378f2b",
+    "packs/sandbox/src/assets/codex/CausticLanceGeometry.js": "3a110d4c6009cf8bfc2e4f273499ce995e2f8c9de67bbfa23bdaf1785820261f",
+    "packs/sandbox/src/assets/codex/CenserMarchGeometry.js": "d5fcd63138d3e71f58d111bdc5cef4baef1023ae20a6559b26060415cd7c46d3",
+    "packs/sandbox/src/assets/codex/ChronoWellGeometry.js": "deeee01957b6075496dff09c9d49d9e9cf4a3c1c0b92733065efee4e512ff179",
+    "packs/sandbox/src/assets/codex/ClangorCageGeometry.js": "3755834fcf40e3edf597c9cca24191c1490bfc08996bce1bdaac2d7f551967ff",
+    "packs/sandbox/src/assets/codex/ClotArmorGeometry.js": "76ffbe46fd617cb2cc20569f74838df2020db9cdbf6b382b2416ed8358541ec9",
+    "packs/sandbox/src/assets/codex/CometHarpoonGeometry.js": "17b51ad545df0f7666c03e27a10f371a83aee49186e6a419f0975de4c2f04a1c",
+    "packs/sandbox/src/assets/codex/CrimsonBaptismGeometry.js": "4266e71f2de8b71304f495f9cf360643074b96a8721efc1c6de7355503975834",
+    "packs/sandbox/src/assets/codex/CrosscutGustGeometry.js": "7707512e7d17ad02af5ed3079a6daae86e266988a468b48555c0561309b37477",
+    "packs/sandbox/src/assets/codex/DarkMatterWellGeometry.js": "cd19d04987e532f2ffff7cda84e14a7ec8715aef54818ca281331337216e956e",
+    "packs/sandbox/src/assets/codex/DoppelLanceGeometry.js": "925a7f3cfce535d1df3c235f91141e41ac7d54a1fa766c97404c6a089cfbdb5e",
+    "packs/sandbox/src/assets/codex/DownburstGeometry.js": "c9178731a6c7613f9cd391a5468c3e0090dab14985533c3883285c32a5d4d573",
+    "packs/sandbox/src/assets/codex/DuskSpireGeometry.js": "657ed2810676d6cf40894dfd3f59eec2c3aeabe751e291b38ba95202a2562583",
+    "packs/sandbox/src/assets/codex/DustDevilMarchGeometry.js": "cca52b71d98d05b10fb5e63dbb0d4deab12226cd438a4fc45f7dd4e6a69c6714",
+    "packs/sandbox/src/assets/codex/EclipseNeedleGeometry.js": "9bc5b92cff7769441ad9dbe61bfe48bd6176361c10422c6cc118f4b583a49527",
+    "packs/sandbox/src/assets/codex/EventCageGeometry.js": "a480cb0302fc9fd605e6b8d84502ec99b0d40fa055919ca44d6a4beeab107fb1",
+    "packs/sandbox/src/assets/codex/EventHorizonGeometry.js": "bea844e565466fff9b0cfe289175db948cde21d880134de04af05f375c77c309",
+    "packs/sandbox/src/assets/codex/FacetVolleyGeometry.js": "6ff648fe3bf0fa443a030ce850f9dc5170b329bb452b16e6407d997146a6ffa9",
+    "packs/sandbox/src/assets/codex/FalseFloorGeometry.js": "6404003c13c3ae3a2931901497987a491ec88af5cd7a8585f164ae65fd91f01f",
+    "packs/sandbox/src/assets/codex/FaultChoirGeometry.js": "c3a9dc7ef2df0ca1a3eae68af788810a400eaa12f9d2e9d810d952b0502c8f21",
+    "packs/sandbox/src/assets/codex/FeintCageGeometry.js": "0a43388a7e883432415d2760c5b7a30b227c97b95f02411b7842a74681d26e55",
+    "packs/sandbox/src/assets/codex/FilamentVolleyGeometry.js": "3efe6be3fe6ce44279b1b42b00b17aeeda84bc0c3f37b1784add16a20a2e9564",
+    "packs/sandbox/src/assets/codex/FulgurCageGeometry.js": "7c8def7fda7fd2b2373f75e4c3383ac7d8d4abd8cf33394da21f2d3cbe7cebec",
+    "packs/sandbox/src/assets/codex/GeodeCageGeometry.js": "c7b3b741e9ca2531f52cd4c16cded7edb420c044e47c8b4d9a10d66917b8e415",
+    "packs/sandbox/src/assets/codex/GimbalWhipGeometry.js": "dbe2234b231e81ddcd093b660b911a003361386bbc43f143fcf91938b27e8821",
+    "packs/sandbox/src/assets/codex/GlacierCalvingGeometry.js": "3e111b1faf81eac54d148859aa436393e64803ec17fdc5d2ffcdab9e170d155b",
+    "packs/sandbox/src/assets/codex/GlamourSweepGeometry.js": "e7c352a14acb5a68570d0d77d2d16a9a3019a6983cfa78057cc35c985a8d06be",
+    "packs/sandbox/src/assets/codex/GlassTideGeometry.js": "8c6d19a32d33b024c16923a1ecf3a523fee37b63a6820c6dfee4f8c31e671a38",
+    "packs/sandbox/src/assets/codex/GlissandoSweepGeometry.js": "f31bce067238f6bd78ed3a5303889755d8db27e0f0c63f127860cc78be73a5cb",
+    "packs/sandbox/src/assets/codex/HaloGuillotineGeometry.js": "ffd6679ebe7df96cb7f91cc332c7ad7c8bc498344d695a14f01b8aae47e8e188",
+    "packs/sandbox/src/assets/codex/HardpointHaloGeometry.js": "6616e8bd2663d10c063f1177b70a139cf090198a780135fa3504f93199a9b0f0",
+    "packs/sandbox/src/assets/codex/HeartstakeGeometry.js": "3cc22e3f4624e147c8498884cbd1d9a0793a8fecd7ca55dea4349a8155f4e2b1",
+    "packs/sandbox/src/assets/codex/HemorrhageRingGeometry.js": "18e6c4e70e79bca4594b6e4e58f2af7d378c077877a3354c259bf895af2d0f9d",
+    "packs/sandbox/src/assets/codex/HoarfrostMirrorGeometry.js": "e9d672078c551e3e318286a5c46312a89df3f709e416777472e14242f00b04a9",
+    "packs/sandbox/src/assets/codex/HollowVolleyGeometry.js": "bbe9b46796ae57f122b06a574161021e88957c0a3da09b0d456fe4dc360c54ef",
+    "packs/sandbox/src/assets/codex/HourglassSunderGeometry.js": "ee38b7606d7c5eae2d00944b0dce537ae32da5c1839cbee5fcdff6ef323fca5d",
+    "packs/sandbox/src/assets/codex/HymnWellGeometry.js": "c907fa0137fecdff0abc6b81cea91ef69f8429c2ce9c42d0496b15186dbb903f",
+    "packs/sandbox/src/assets/codex/ImpulseWellGeometry.js": "ea047db4a9ffeff36da4574a557a148b9cdb4bdedd32e4947fdd81eca8b1c87b",
+    "packs/sandbox/src/assets/codex/KatabaticSheetGeometry.js": "8939361b63169d3b57b049529954cf36f24393b295c9af8a88b4122e3e9400e9",
+    "packs/sandbox/src/assets/codex/KeystoneDropGeometry.js": "8a331d4a2629ccf3abe309401589c04053377a7526ead5cf1c2f643573bb6959",
+    "packs/sandbox/src/assets/codex/KineticHaloGeometry.js": "f4caa22d7147e5d921089a44c370d49b405e64b76913c1620168776df91433f8",
+    "packs/sandbox/src/assets/codex/LateBoltGeometry.js": "f8955ba0347d4e0283a38a0328727874ffd0105bff96743e256a003a772707e6",
+    "packs/sandbox/src/assets/codex/LatticeFlareGeometry.js": "895f7ae4f6c01a791ab37df966a9180b11adbe315120a1d70f04313ed97644b7",
+    "packs/sandbox/src/assets/codex/LensWellGeometry.js": "770ebba6ab083a650ed5bf2b8152f1d5178402bb67f4ca460d0efde75ea52b7a",
+    "packs/sandbox/src/assets/codex/LeyWhipGeometry.js": "7b2109d172f5cf1507cf74384b4bfa73879b024527af7d7c16530d903d928085",
+    "packs/sandbox/src/assets/codex/LoessCurtainGeometry.js": "e692b95780a5bcf5684a1eea2fd32d13022b1d35b52bcede2bccc7f17ab695fc",
+    "packs/sandbox/src/assets/codex/MaelstromVortexGeometry.js": "343e7ef837e3f20f7f49285060bda07ca2637714c492a4a54776aca7856afded",
+    "packs/sandbox/src/assets/codex/MagnetarVolleyGeometry.js": "e782740c1ebe139a1478e15fb425776a040d13b2309a78371cd739d4311976d6",
+    "packs/sandbox/src/assets/codex/ManaWellGeometry.js": "fb33685ce9790cb904d1b1b6aae59d5456e5394ff3311986cd2cb116e15887ff",
+    "packs/sandbox/src/assets/codex/MassLanceGeometry.js": "8f92c00980d7cc0932652769c15ab5df0f02cbce5862d9188bf96c68da6536a3",
+    "packs/sandbox/src/assets/codex/MirrorHaloGeometry.js": "5bd294941902631926a4d03d043d7e9ae15ded5e2c66479c5c50c56a5a80da07",
+    "packs/sandbox/src/assets/codex/MomentSwingGeometry.js": "7e526a8b12310fb441d50f232906c2dfb09c6f0174d2dad153b44583476bc8bc",
+    "packs/sandbox/src/assets/codex/MournHaloGeometry.js": "c5dbae5c244f5e6f0aa08b3ca8dbf6855731c607677aa1b454dd3f62edbe1ffb",
+    "packs/sandbox/src/assets/codex/MyceliumWakeGeometry.js": "355db40fd012e7c29af7d5ea1d835b1b156f0ee8b948545d33090336a81667aa",
+    "packs/sandbox/src/assets/codex/NebulaCollapseGeometry.js": "d45477caa587b0f2f367c8564bda7d38a2f9372ffccabe9810a48c046aa379da",
+    "packs/sandbox/src/assets/codex/NeedleGlassGeometry.js": "3dbd562168a47fde02fc95e7d0c5dc0c78556e1ee848621ac4e295d0d6d5eeb0",
+    "packs/sandbox/src/assets/codex/NoonBladeGeometry.js": "141f08d201a4392e2d50919f262c00c64d1f9846fea5dec81183417597e66f79",
+    "packs/sandbox/src/assets/codex/NoxiousHaloGeometry.js": "361e5d27f31af87617cf94a9cf13b7f8d58615e0f395b53e00c5576fd1efc6a7",
+    "packs/sandbox/src/assets/codex/NullWellGeometry.js": "1a417c779af1871c3e94bd4530e09e0e3c2487f10a3c9af5c2f92bc3c325f473",
+    "packs/sandbox/src/assets/codex/OrbitLockGeometry.js": "ed1e4e002a29cb1a04805ba8af1cfb766a3d7223ebfb3f63f7903b1d07a5f7e6",
+    "packs/sandbox/src/assets/codex/OrbitPendulumGeometry.js": "213c13b8220618a27f7e4182cb270739c350d9cd0458b0e4b24d5657d41879bb",
+    "packs/sandbox/src/assets/codex/OrbitalStrikeGeometry.js": "be8f959fda482e414951ae46f1b746419c1cb3afd6f94265afef797ba1fb823f",
+    "packs/sandbox/src/assets/codex/OvertoneHaloGeometry.js": "d438a23d74f4e72fbc628dce4385ed21b7d95ff95d5bbc47c3d8b58b3963b545",
+    "packs/sandbox/src/assets/codex/PearlTempestGeometry.js": "50ed380698b17c02684e4e1e386cd0a681c66aed103e3bf10ed41094167b2650",
+    "packs/sandbox/src/assets/codex/PendulumCleaverGeometry.js": "65ac09d87600c628a22aedeb631da690edb4a90b944aa4978c84c98f3c39116a",
+    "packs/sandbox/src/assets/codex/PenumbraSheetGeometry.js": "5ae2c4b8691a9cd6331ada912d6316fbe1daa740273299244949bd9012340e8d",
+    "packs/sandbox/src/assets/codex/PerigeeHaloGeometry.js": "488818b474130cceecb7cf9dc87cba16c23517648324f59317b1ed43990076bd",
+    "packs/sandbox/src/assets/codex/PermafrostBloomGeometry.js": "aa02876af3fff66d51cdfdd5359df105b657180c6e40eb02147661387164e853",
+    "packs/sandbox/src/assets/codex/PhotonWellGeometry.js": "27f2599fa4703ba5af36dfd5fbacc1b216bab25157d0d1be358d4b41e77fcc94",
+    "packs/sandbox/src/assets/codex/PlagueSwarmGeometry.js": "38d219c17a17e4b85740d616cf47971a5b6a250ee547c350040f18f70a5f72b3",
+    "packs/sandbox/src/assets/codex/PlumbSwingGeometry.js": "470538e6fbb373c3b8086d66fdbaa9602b828bea176acf74ae7c74dd1180e834",
+    "packs/sandbox/src/assets/codex/PollenNovaGeometry.js": "6506065e66cc254febff15e9aad3d7418bb47996ddb11b3d5069c766197965f1",
+    "packs/sandbox/src/assets/codex/PressCageGeometry.js": "059f4c64698061d26ea8be3ab02d7007c0facc0e076c9073c06165e5a229bf5f",
+    "packs/sandbox/src/assets/codex/PressLanceGeometry.js": "cbedb181cab08b33a4cb631330ff91ea00e589ec86b103c6e67aa2deab6a0ce3",
+    "packs/sandbox/src/assets/codex/PrismFaultGeometry.js": "65693146915e1bb25d7edcc588d12adb34621084df9a7a3eb3d12c79ec3376c3",
+    "packs/sandbox/src/assets/codex/PrismLieGeometry.js": "87ad8609296bdb14f6775e0ac573c24346bc0aed91a43f15b6acb4207e9f4a55",
+    "packs/sandbox/src/assets/codex/PulsarLashGeometry.js": "1daafa49a315ed5568512db97127488f414a2799836c54870224abbce76c4340",
+    "packs/sandbox/src/assets/codex/QuarkSpireGeometry.js": "2cb50db04e1c5115d684dbf1552e4631d9fab0c24d4210a72bd468ad4ede7710",
+    "packs/sandbox/src/assets/codex/QuartzSpireGeometry.js": "055e1d0305dbbbcfde2f9bf548f4a80ee079ffb57350014a8a3a4fec08bb72e3",
+    "packs/sandbox/src/assets/codex/QuietusHaloGeometry.js": "85af3f980b0e29d2afe90d720e1a77fe638d62ddbc9a7f2bac16948aa53f9f3b",
+    "packs/sandbox/src/assets/codex/RailgunLanceGeometry.js": "8c78ac60932181e5658ac2d491fd01d4cbdcc6e27aa3330e9c8190395a67bd41",
+    "packs/sandbox/src/assets/codex/RasterLanceGeometry.js": "b744ee276542b9466690977ccbd660e35383164d93092868f694c658cc119644",
+    "packs/sandbox/src/assets/codex/RedshiftLanceGeometry.js": "4b92f44d9abd612685c736effbe597ad043656b499b97abc83677b8ee43a5cdd",
+    "packs/sandbox/src/assets/codex/RelicLashGeometry.js": "0e19ad83795d4a18c9f57af14e51e1a769812bfaec9e33046ed67bb7cdf7710f",
+    "packs/sandbox/src/assets/codex/ReliquaryDawnGeometry.js": "5b7ec5f80ac0ba2f0518eca2a9d3779fdb6143ae6da34c919362fe94aaf3812d",
+    "packs/sandbox/src/assets/codex/RewindSnareGeometry.js": "b309ef9846abd3164090ddbd2d642741329beca0dbedf62a6cb6d3a1e73030c6",
+    "packs/sandbox/src/assets/codex/RiftPendulumGeometry.js": "9bdd1e03d51bdebf80a285e947028b3ecc8b4b8e6dcd44e275bf3a9c69b58926",
+    "packs/sandbox/src/assets/codex/RigKit.js": "2ea583c4a2cc4e904294f378b3ca9f2824013ff5044e4e193fb249c751b17cca",
+    "packs/sandbox/src/assets/codex/RimeHaloGeometry.js": "9f028da9ac0fb804bc1f64a8ba541e95b24cc527858f333cd898082c0d4526c6",
+    "packs/sandbox/src/assets/codex/RotorStackGeometry.js": "9bc6af0fbb7bbd2098badbb7101fd553a2e4d82fcb2eb098961462b7af00f1fd",
+    "packs/sandbox/src/assets/codex/RuneMeteorGeometry.js": "29ebec7506a9cd9fd96e749b95bcfe182526343a9a17e267fb0d55a5606e70d9",
+    "packs/sandbox/src/assets/codex/ScarpBreakGeometry.js": "7189bd2ddb5afe05a4e8a78897ad358c686aba17fcbf720b2af2469e7a96c3bc",
+    "packs/sandbox/src/assets/codex/SecondSelfGeometry.js": "3cb69043fceb8a5a5f38ebc536f0e431dd0f2e9734117c6412d808ce2d2cdc72",
+    "packs/sandbox/src/assets/codex/SeedstormVolleyGeometry.js": "48add20fcd5bee0224978ec0055c3d61fab93d1d75d5d37ac2e89d0434a46226",
+    "packs/sandbox/src/assets/codex/SeraphicDescentGeometry.js": "49eee3823bd481f73b1060cca8f5e0909a7d812af875ac3153fb7db1e8496a1f",
+    "packs/sandbox/src/assets/codex/ServoPylonGeometry.js": "e5752b8d8ee4bbeef2f004384e8e558fe28485500915b955111f1041e1b3f4dc",
+    "packs/sandbox/src/assets/codex/ShadePuppetsGeometry.js": "df4273f88e9c52836112613389da56ab7b2bc6151cf5f86b34f103d786661e0c",
+    "packs/sandbox/src/assets/codex/ShardChoirGeometry.js": "ecda0749b02c97f1d35ac57ea15aa9ab796fd5c6fac851992a8cbf039ebc2167",
+    "packs/sandbox/src/assets/codex/ShearForceGeometry.js": "4438ffed9f2b1864eb01fb8c2358d85d2f8b906823a501d624f11b35ac3e6f19",
+    "packs/sandbox/src/assets/codex/ShearOrbitGeometry.js": "d34ac784780f400afd923830e32642681eaa9a18e01c84bfc020c66148dcfdd3",
+    "packs/sandbox/src/assets/codex/ShearStepGeometry.js": "b1561ba01f4b898ea5f73a0f44aaaa96656f83d0e975a928087f6956d5a42f17",
+    "packs/sandbox/src/assets/codex/SigilGateGeometry.js": "d09b5aeac79327d8926476fe820014ef03771367485ed3ac2d7acdf0b362cd3e",
+    "packs/sandbox/src/assets/codex/SigilVolleyGeometry.js": "6a2398227064ffdceb5dc971dc27a897a81fe448a0a08e63724ed77ba483e054",
+    "packs/sandbox/src/assets/codex/SinterPlateGeometry.js": "dcfee97748aa63ea60f36adbf82858f547d3ab7141fdeebddaa6360130bfc6cb",
+    "packs/sandbox/src/assets/codex/SlingVolleyGeometry.js": "0771b4dbdd7da9e6ecb6c339c4384279e6f46adab7fac69e49a13d1d76222255",
+    "packs/sandbox/src/assets/codex/SlingWellGeometry.js": "12b826a80f93eefa0b1b5259bbdb4601e590e66cdfffff5171eefd0a2d52b47a",
+    "packs/sandbox/src/assets/codex/SolarLashGeometry.js": "6a4e4ca4d07517cd186f10691a749d14ec2206eced6eb684d810cba3d50ef583",
+    "packs/sandbox/src/assets/codex/SporeCoffinGeometry.js": "1728badfa10bc1a6ba92d7a94b8d30b9698c9d93ba58990122dbfa38b5ed9070",
+    "packs/sandbox/src/assets/codex/StasisBellGeometry.js": "4381fd9e26d6a0a4494216db7507e29c4cb6018a87ac06112479f180337c48ca",
+    "packs/sandbox/src/assets/codex/SubtoneLanceGeometry.js": "1808d0bc77ca3e4586732f1abc5ca1e2840e402533b58163346c549b5746bd32",
+    "packs/sandbox/src/assets/codex/SurgeWellGeometry.js": "24dc1d6c84957bacfcb8c682581c6ee0e7af33205a85465da81020cfe8e48a43",
+    "packs/sandbox/src/assets/codex/TensorCageGeometry.js": "6b864f3c587c984b43fcc3a16c495ade908c0f06ec1a48802ddc320b4a5ffd0d",
+    "packs/sandbox/src/assets/codex/ThornVolleyGeometry.js": "14623d9412bae7858a42ebac89b14f1a49d26db82977c8bf99817c48c8ba0d15",
+    "packs/sandbox/src/assets/codex/TickCageGeometry.js": "b205b955102fbdc5d76c667ca6a59d67d011a0437816db60761616267dd049f1",
+    "packs/sandbox/src/assets/codex/TideBarsGeometry.js": "0a9e9c25ccb1fb12207e76868a0225e3e55339e5c115ddbd4e73dec02c43cdb8",
+    "packs/sandbox/src/assets/codex/UmbralGuillotineGeometry.js": "c1a34e0492ff92368ff076a262f27a3c3826b3e8f76f2597e50bb0541a771c3c",
+    "packs/sandbox/src/assets/codex/UnspireGeometry.js": "5c3ef900610aaa636d4bb2df1d52e869314db3e64869798ac8726edadbc89d81",
+    "packs/sandbox/src/assets/codex/VectorHaloGeometry.js": "56ee06a08e7e27518af25d8b22aaca9a430914be26f31d550a1099e6e3239e6a",
+    "packs/sandbox/src/assets/codex/VectorLanceGeometry.js": "3eb7542f37d462d1e5c3415e51be94f737371ab96427a0863d2e146a40be0135",
+    "packs/sandbox/src/assets/codex/VeinLatticeGeometry.js": "46e7177dbd66e91027b52c7ee87c0a021ff1155c8cd18cc03b4b5e23eb6b0410",
+    "packs/sandbox/src/assets/codex/VenturiGateGeometry.js": "4b82438f21d588fcbaf55dc9546d61e533dd9f36ac64123fe8fce69edaf46799",
+    "packs/sandbox/src/assets/codex/VitriolRainGeometry.js": "203c2165a081eb230659e645fc8a402c2760b8c5214c694e5c6d1b20144ed413",
+    "packs/sandbox/src/assets/codex/VoidBloomGeometry.js": "b7d99e9ba6d03b6cd100ab418e6c984c156b99cb08300a14678d380c4b5eac8f",
+    "packs/sandbox/src/assets/codex/VowCageGeometry.js": "bce35542efba4fa981acba14dbbc7a18de812509010e44d6aa17e615902adbcc",
+    "packs/sandbox/src/assets/codex/WhisperWellGeometry.js": "375cea082daf421e25aff1da21d269b65b568cadacb652b71ba7a14532c45c02",
+    "packs/sandbox/src/assets/codex/WhiteoutNeedleGeometry.js": "dbfa82ca75c087460ef9dc80c34d765aba302f1e61d90bee70e9a5f9d7c9cb45",
+    "packs/sandbox/src/assets/codex/WraithHostGeometry.js": "48e4b15ab24fcf0d07da70d7ba61bec0a98dcfc2ecdcf9bcf4b784ea3e795526",
+    "packs/sandbox/src/assets/codex/ZodiacHaloGeometry.js": "cacb40cd703018c993c1059147a9ae2c1129ba53be5dbf889f9c8546fbe32acd",
+    "packs/sandbox/src/assets/collective/ChainArcGeometry.js": "07b92b1b1e99ad947651f491d19675af7a41ad5285b6ba892e06c474154117ff",
+    "packs/sandbox/src/assets/collective/ChronoFractureGeometry.js": "d30fc4ff09254b9adcc20522dbc8faba1f102a31ae455ecb2a763fc1da1edb48",
+    "packs/sandbox/src/assets/collective/CrimsonRiteGeometry.js": "683323272ce6b21a1695b6a7ad2662afab07e5e5b90c09b290c0c4f4ac765145",
+    "packs/sandbox/src/assets/collective/DuneScourgeGeometry.js": "164529d7e41b5cbbc07ebd61336ff659f575f93b387a10cd5340681df6b129f9",
+    "packs/sandbox/src/assets/collective/GravitonCollapseGeometry.js": "28de5cd502b9c70396442f94754046aeb0ed0a43dfa42579d03066c603f87715",
+    "packs/sandbox/src/assets/collective/SporeBloomGeometry.js": "c75552bc3a95841f415ad9d50aebd5beea518d4732edc8677bcbf8cf26f2f30e",
+    "packs/sandbox/src/assets/collective/SunfallPrismGeometry.js": "175af05bbef21d616eaf9e4df3775c5f75007a04432d81c3d5619271828ea9bc",
+    "packs/sandbox/src/assets/collective/TempestSpiralGeometry.js": "9f7bce86efbb1d05e4216371dcc64acfad62c13be2b494b98b54254cf1e853d4",
+    "packs/sandbox/src/assets/matrix-new/AetherbladeCascadeGeometry.js": "39be370deb1caf20ea27c291f7cddad574438bbe23492b3ee1d7b4fbab9b4582",
+    "packs/sandbox/src/assets/matrix-new/BloodrootThornsGeometry.js": "379532ee23b2ca00a2f0ca22ef97df79ba9687ae1195eb37b9b56334d8fbd54c",
+    "packs/sandbox/src/assets/matrix-new/CrystallineHeartGeometry.js": "c31d85b9a8a9007c93bd80c91b27d06bd6210ab425bad355ee93400abbe7cdd2",
+    "packs/sandbox/src/assets/matrix-new/EmberveilLatticeGeometry.js": "b4f43cc499aaacfa9a5fd4493dd8958237ab5e0f24ff68a0e3205de500d608db",
+    "packs/sandbox/src/assets/matrix-new/GaleSeverGeometry.js": "7d0c6d9b789e04afd43f1dc306a9f4133b0d73b59fa9efa4319582a6bd1196d6",
+    "packs/sandbox/src/assets/matrix-new/GeodeEruptionGeometry.js": "a849aef1f40fbb7d33a4d9168e530ac6e8cf61b2b4b1e4976f272be8fdd1e0de",
+    "packs/sandbox/src/assets/matrix-new/IonStormPillarGeometry.js": "2b58a362355db57a74c4c3e655e461e84c94811af7b33b9623ff5e5b5ffba06b",
+    "packs/sandbox/src/assets/matrix-new/MirageConstructGeometry.js": "4854d7930d9692cb12a6ee1daad261cf3c85d1fb47939682825bc4f760a9063a",
+    "packs/sandbox/src/assets/matrix-new/ObsidianWallGeometry.js": "af1aa2d872a4be4644964e8efac9ec90fb3c5f6f1858f6940ca20abf5f5c1906",
+    "packs/sandbox/src/assets/matrix-new/StarfallRiteGeometry.js": "9f73dc3df6ee52d9239f07b1b5e13fa46a9aaebaef3752cc48a01700e71af0f8",
+    "packs/sandbox/src/assets/matrix-new/UmbraGraspGeometry.js": "9d6ad1bffb54ac586ae25bf71d724fe40a08d966735860561980c395bf89140a",
+    "packs/sandbox/src/materials/AcidPoolMaterial.js": "bad2663ea9a4178ad1f1e18f3243a306f7368c81d693b1876bd51b41ba7f69fa",
+    "packs/sandbox/src/materials/ArcaneBloomMaterial.js": "581f74c83ecb0b0e84e648a183c26d43616f2addb0ee6e207d1063b58c29bde2",
+    "packs/sandbox/src/materials/AstralNebulaMaterial.js": "5df529ba4491280dcef5867f7789b3049d1670b431e2a18979fe262b0ff341d2",
+    "packs/sandbox/src/materials/CascadeBladeMaterial.js": "82e5f316a52fa1cd2dd8b361aa778c7fd55c29bbc42a50e8f49af4b3dd69de59",
+    "packs/sandbox/src/materials/CascadeGlowMaterial.js": "c9fcf8ddb2d1ba6b3fc42a43e45a312534e40207f40faac0bb4d6b1a25fd1cd3",
+    "packs/sandbox/src/materials/CascadeMarkMaterial.js": "506bdf6b31a44e8a48519f9e04ab8faca737237e449adf6ea45e6e491ffec081",
+    "packs/sandbox/src/materials/CascadeWispMaterial.js": "6f28a2ad9021a7cd1844f07c03654b09caf5315a0e5afb388da34d5161fca790",
+    "packs/sandbox/src/materials/CircuitFieldMaterial.js": "2907245791399d2c63d442e933fde9bf7bebd74d3834e00c93c6e40faf1b440a",
+    "packs/sandbox/src/materials/CosmicShockMaterial.js": "a5b0aa58dc11618ead3003b531784d9998e032b6896f665c77280d7109437de6",
+    "packs/sandbox/src/materials/CyberSerpentMaterial.js": "1bac727c408f86138b0b21fb4d946d5521515521cdf1396bbd9c4109e71757c4",
+    "packs/sandbox/src/materials/GrowthLanceMaterial.js": "4a6c3df6ecd9eb2d952255bd191f3668cb448d4f299e3d1ac309fc4f02c71acc",
+    "packs/sandbox/src/materials/GrowthVineMaterial.js": "aa3f99f6bff92a43adecb4349256b5e1898e9434db4752bf05eb3f50e9166c04",
+    "packs/sandbox/src/materials/InkCrownMaterial.js": "e1675f370e5b769bebd808e5d54b9a6e295e637fd1d74841748e3463ad2601ba",
+    "packs/sandbox/src/materials/InkPoolMaterial.js": "a5ed23b68732633a600d998be74ffa367308eb23041c34946ac31e26eeb8eafc",
+    "packs/sandbox/src/materials/InkVolumeMaterial.js": "b34ab9260bdd2b612b7221e1eac3a79afe760e269349597d28d77ec0b983d335",
+    "packs/sandbox/src/materials/MonolithStoneMaterial.js": "c58fa996d62a0e89462f027a6bcd8be9c0644d921b344a31605306f802b25584",
+    "packs/sandbox/src/materials/NatureSigilMaterial.js": "0db958cb17100853338ff7575fea78149452b1df70507a2a76cce6a0b61be5ab",
+    "packs/sandbox/src/materials/NeonTrailMaterial.js": "8f6957e95c58afbae99a36eda6b76390fda057a6409f90aa2aea78dddfaac451",
+    "packs/sandbox/src/materials/ObsidianMaterial.js": "994401fcfcace89e676275f9a2df24435b4ab6f0d99e2218acb3a3a01b30f185",
+    "packs/sandbox/src/materials/RendPillarMaterial.js": "6f28949dd164a913f6fde2091f6ca71bce0e84e1ca230a3d972b9e9a990d9a28",
+    "packs/sandbox/src/materials/RendShardMaterial.js": "f27f2b99383d4bcdf9008a86279cb9b0f03538dc73575be6aad424ed17118b59",
+    "packs/sandbox/src/materials/RendSigilMaterial.js": "b24379b1b53b7245dba25d2adec608fffd1a2f0010e94ecd645cea40f74dcd1a",
+    "packs/sandbox/src/materials/RendTendrilMaterial.js": "95ea126ee941547585c23b5f21a6b68942af8d4e7eedb001e62c91bfd93b7e6d",
+    "packs/sandbox/src/materials/ShatterStoneMaterial.js": "9cd35459810264592227ef9508560f2e1255bb1a16fe7b907f841f46b7afc16c",
+    "packs/sandbox/src/materials/SingularityMaterial.js": "34297e0b7bf4f242c92f05778f6b6f9e9eaef1a08e4121165f031bbc53988da9",
+    "packs/sandbox/src/materials/ToxicMistMaterial.js": "abad70cc367f0613d9a6808d7e2a6d32cd5fc980cd91087927a120e99c3063ff",
+    "packs/sandbox/src/materials/VenomCoreMaterial.js": "5dfedbb634b59d8505e0d6e2aa606421c7ec14c20727e36c65c83d37801f25ec",
+    "packs/sandbox/src/materials/VenomCrystalMaterial.js": "21bd1da6c88a02649559020a6aeb4403eb78a9395a568f8aa44f1b3c54688d15",
+    "packs/sandbox/src/materials/VoidShardMaterial.js": "bff70a1d6674abb74060d6e9e5e93d3a4d0d5c72d056fd2ff394d4a175a161b5",
+    "packs/sandbox/src/materials/WardBarrierMaterial.js": "19a2a26fa59f9f170698cd12b22f57f5346c9ba81ffe4a85b5ae8a684520abff",
+    "packs/sandbox/src/materials/WardGroundMaterial.js": "9a06c2144a9ce4a08d521b6df6410c9c6aea62879b9b3660c6d86240936cb3fc",
+    "packs/sandbox/src/materials/atlas/AegisReversalMaterials.js": "edd6dfc694491fc014ca82c8a0d1f15c31dc8f23cc0ea73e3a2e64b0d55a08af",
+    "packs/sandbox/src/materials/atlas/ArcRelayMaterials.js": "d641b9f1072a053bd2c260fe6a9caa1f29c208a1046db8e431f03e7abdc8d65c",
+    "packs/sandbox/src/materials/atlas/ChronoRecallMaterials.js": "7491433bd95e1cabb4be44900fdbbc415d12885792f65bc8e8880c87bc289429",
+    "packs/sandbox/src/materials/atlas/DawnSanctuaryMaterials.js": "cfd2a8b127644e5e4eeaaab11a8800ffd46def1295eabf9e2cfe3d5abbf56ed5",
+    "packs/sandbox/src/materials/atlas/HallOfEchoesMaterials.js": "3f74e7ed20e7cd2a5c9b62544f80d6207802d18659dd8d101e0cdb79e6118295",
+    "packs/sandbox/src/materials/atlas/ParallaxBlinkMaterials.js": "a759aa792b3d41b88e4305ec5040e5fb28682e57b0741c5dd2c4a7b794941e52",
+    "packs/sandbox/src/materials/atlas/PolarityGardenMaterials.js": "9e1828b6a2dfbe4c6ff1bb8d0f519956f2a3e06bbb97bdb058d94a60096d1758",
+    "packs/sandbox/src/materials/atlas/PrismRefractorMaterials.js": "5fa3fbf4161c62be7bcd27f7af54b64222c61621dd04093bd67acc783dcf2977",
+    "packs/sandbox/src/materials/atlas/StillpointMaterials.js": "b162e40878e3c60350083054416d103f75039ea9620ff5cc33b43b93c8232e03",
+    "packs/sandbox/src/materials/atlas/VectorChakramMaterials.js": "9ad0e30141343a90fd8d73111f39a45f7b6cd0fdf666d93e25115ce7afe0d35b",
+    "packs/sandbox/src/materials/codex/AbsenceLanceMaterials.js": "c8ce214113cc0b247bff69040d2bec7965ccc7799082e2a2d89ee5e9714598ed",
+    "packs/sandbox/src/materials/codex/AcidChoirMaterials.js": "5a32cdd7dfa7ed1ccf8a46ac8a6fcc503a781ad72fa6d2fa7a2a37769031521b",
+    "packs/sandbox/src/materials/codex/AfterimageSwingMaterials.js": "bbea84a5930044c56f3d4a8d398c0f39b5efd1cb79b019dc40f2d34ced917e68",
+    "packs/sandbox/src/materials/codex/ArterialWhipMaterials.js": "592e17b76b8712287475e1935fcff18faab749170187a5ac2925f090a302a69b",
+    "packs/sandbox/src/materials/codex/AureoleRingMaterials.js": "0c1eaefcca3b9c6a75ff71b467a9bc21a557f1db9d70d0a371d8d27c7f86ab09",
+    "packs/sandbox/src/materials/codex/AvalancheWakeMaterials.js": "4db2c6eea6bb1a36c5f59ef033ef98ec730c84900d5bc16bd4a98bcfc62c81e9",
+    "packs/sandbox/src/materials/codex/BallLightningMaterials.js": "e18b06a1dfb22bf843ac84526ce0b03bc37cb9c9de526ab7dd3f79ae1a7f40b6",
+    "packs/sandbox/src/materials/codex/BasaltColumnsMaterials.js": "a3f6f86bf21ab4ff254b8c67ccd696e130bf3d34513dbf12f1007374df22f402",
+    "packs/sandbox/src/materials/codex/BileLanceMaterials.js": "c2c94e70997fc6e95e12e9ffabd4a7b80a010289be57219e918815ff2a5b5360",
+    "packs/sandbox/src/materials/codex/BindRuneMaterials.js": "0bd2aaf9e6a6a2a3bc5cf87d0da37bf48c8d1678fab2903edf0ee0a1693d7786",
+    "packs/sandbox/src/materials/codex/BloomCrownMaterials.js": "0500b9cc2280b994f899e435efd404ac940e34e8f4ceb7fb1f7ef5cdb8c197d1",
+    "packs/sandbox/src/materials/codex/BriarCathedralMaterials.js": "762d6cdcbbda4973db7b09426a621db592b8d44830ce0acd6b999dbfbdfe1b42",
+    "packs/sandbox/src/materials/codex/BrineGeyserMaterials.js": "bf3f4c0b8eda2da884ca4e7b79e8b33a3c90fe36599d93480ace753a350209d2",
+    "packs/sandbox/src/materials/codex/CadenceVolleyMaterials.js": "5239b2676b5398eb4d6d2d1b68b9bebfa38d43664a8546c84aaed1d71119dc09",
+    "packs/sandbox/src/materials/codex/CausticLanceMaterials.js": "98395415c24fb86a4807fb2f244231206facbb04e5d2fc975204bc2f61b557c6",
+    "packs/sandbox/src/materials/codex/CenserMarchMaterials.js": "32b7e6a192aca123df2b514880d478a6bf677b2154ba2203fb3dd5328c066f00",
+    "packs/sandbox/src/materials/codex/ChronoWellMaterials.js": "f077c1591922425686734a9796b9f8ae427f6a37c746d0f63304ce67c1e442b4",
+    "packs/sandbox/src/materials/codex/ClangorCageMaterials.js": "45247d07f0b3a4b5490edcad35b746fd751c31a12a8d39f7b5098c452177cae8",
+    "packs/sandbox/src/materials/codex/ClotArmorMaterials.js": "346014eb34b2f67fe89f4dfba2f595193733604a819c3c952d10c63a46fcaf4f",
+    "packs/sandbox/src/materials/codex/CometHarpoonMaterials.js": "ffbcd01f9eb7e5a62aca6a7a46870f892f9deb0b7a7009d4eafdc2bcd933cc93",
+    "packs/sandbox/src/materials/codex/CrimsonBaptismMaterials.js": "1f12299e64e60b0c53fa09193e1fc34c1bdfeda897c03af5102ad596b4352ee4",
+    "packs/sandbox/src/materials/codex/CrosscutGustMaterials.js": "16198aa31b8d2e5dc65955a78513149086a469303cc98e11814f71626b33d12e",
+    "packs/sandbox/src/materials/codex/DarkMatterWellMaterials.js": "06e0490bf4c030f3a02d1a4f74f91f6c50bac313b5ba34718882a2f79ecbda57",
+    "packs/sandbox/src/materials/codex/DoppelLanceMaterials.js": "82325200c6e9ca5e3d43ac57840aec592042a55f8c604e6773071f2c6b6d2fdf",
+    "packs/sandbox/src/materials/codex/DownburstMaterials.js": "27461276763a7b53461da33ebca764e880d9cd3eddb17d11447cafa6132b6444",
+    "packs/sandbox/src/materials/codex/DuskSpireMaterials.js": "bc05c7188c37f94612560afeb0f750e4936f8c497d64c498c6e628a14757ce30",
+    "packs/sandbox/src/materials/codex/DustDevilMarchMaterials.js": "1cdffa64ad42e934b7cb401890e607668218900d7302f92197146c134007fd31",
+    "packs/sandbox/src/materials/codex/EclipseNeedleMaterials.js": "820ff0e77208adc7cee4f70097c859af3b6fd894f1562e1a02cce8cf125c45d5",
+    "packs/sandbox/src/materials/codex/EventCageMaterials.js": "7ec685845afcec905d91bb51313efc5c5028eee430a144102a6ac116cd4088bd",
+    "packs/sandbox/src/materials/codex/EventHorizonMaterials.js": "5689bf2796813acc2ee81fd64b52df421a53134f0935d5252120e9a42f08d8d4",
+    "packs/sandbox/src/materials/codex/FacetVolleyMaterials.js": "f28c2267b3331675568909857d869d70e93be1ed7ce10dac7472ad0d7c0f15be",
+    "packs/sandbox/src/materials/codex/FalseFloorMaterials.js": "82fa13148c87c67a30899d9600977c10ce8cbb10c1cf31f10fcb46bcabc227a9",
+    "packs/sandbox/src/materials/codex/FaultChoirMaterials.js": "64b33baaf847431a0fb0ec2ca81ae38fffd0c2466efc218359de8fc2b3419ae0",
+    "packs/sandbox/src/materials/codex/FeintCageMaterials.js": "0fac14bdcdcce5a0de507b6507f8e4f4b760edc18b55fcea144187dfb20b4f37",
+    "packs/sandbox/src/materials/codex/FilamentVolleyMaterials.js": "79f3c29ff2c6c3bd1b06b3c9613c591f491352e54ccf855e98032dc27500bd1c",
+    "packs/sandbox/src/materials/codex/FulgurCageMaterials.js": "924600f45e291c11e12b3f9159bf79e227406e38253b032bad0900aeb6847de8",
+    "packs/sandbox/src/materials/codex/GeodeCageMaterials.js": "670ef4bbab3cd168c7684c66578929141313340d6ffa02265d28b1c95142b1c1",
+    "packs/sandbox/src/materials/codex/GimbalWhipMaterials.js": "d602ce74856384f0dbd04fb631a824869b6967ec256edbf7ef85105c5439bf85",
+    "packs/sandbox/src/materials/codex/GlacierCalvingMaterials.js": "1cc4e6a0d6d4b82de328d0c035b12421301bdaf040606c9e2626108a0ec6245e",
+    "packs/sandbox/src/materials/codex/GlamourSweepMaterials.js": "2336ece4fbff1f925f18d02c8c4a779886a4f54986ab2925ff4a44af517b2015",
+    "packs/sandbox/src/materials/codex/GlassTideMaterials.js": "d2527b6344c6b82660365f6942f88faeb5724b15b7769d23e88a884f07fbac27",
+    "packs/sandbox/src/materials/codex/GlissandoSweepMaterials.js": "ca2c01656d45a68ed95dd5da262397c4de21a7393db4171ee9194e2445845ebc",
+    "packs/sandbox/src/materials/codex/GlyphBarrageMaterials.js": "87708da9c467d3e963fce2bab127d19682b5a69bb2cda38b691d55ebbc63b5c9",
+    "packs/sandbox/src/materials/codex/HaloGuillotineMaterials.js": "f3ae6b75743f88401132ae3e653657c4bb1b0ff20a177f18e44f6b6fb5ed867b",
+    "packs/sandbox/src/materials/codex/HardpointHaloMaterials.js": "2b1d14c256643b15f53b8b40042ac1e4ab7e217900a73915d86d2da794b06b07",
+    "packs/sandbox/src/materials/codex/HarmonicReedMaterials.js": "b9a3ef22f8ab674bfd3fd50886e2b6b6b33ee74fd568ae8c5683fbcc8a6c4ee8",
+    "packs/sandbox/src/materials/codex/HeartstakeMaterials.js": "ec5dcebcc38ecd9cc764f6e157934a08574249aafc90f810d3b5861baf0f4cfd",
+    "packs/sandbox/src/materials/codex/HemorrhageRingMaterials.js": "eebc8c34a72cdecb387dbdb4f1434c7a982279bb9a117d7f684c9cddf43f9f6a",
+    "packs/sandbox/src/materials/codex/HoarfrostMirrorMaterials.js": "79dbdc46c96d49ef72fb57c2e3516455507b7e42c24e34d70a39d0d6c53385bb",
+    "packs/sandbox/src/materials/codex/HollowVolleyMaterials.js": "f613c2cc6f0b71f2920fd366d53429195e01558bb6cc009085cee656f119bc8a",
+    "packs/sandbox/src/materials/codex/HourglassSunderMaterials.js": "7c0e9c54ce66a5748de39245bd07be564efd3fac0947019885bce13e861500fa",
+    "packs/sandbox/src/materials/codex/HymnWellMaterials.js": "10861d1f60e09190745d3e255ac9f5423007c7badb498de8b700b51e4848932e",
+    "packs/sandbox/src/materials/codex/ImpulseWellMaterials.js": "ea7819b354daef96cd0d9173a7e81024c3859da3148441a20578d0cacca36b4a",
+    "packs/sandbox/src/materials/codex/KatabaticSheetMaterials.js": "c6a4d30db5086a3f2a45bc74a643a2ea5a6709e7528d74c0c2ba68b5eee336f5",
+    "packs/sandbox/src/materials/codex/KeystoneDropMaterials.js": "6d7f15afce364d320682d09c802f75da9a1982cc5539be4032ce6932a5d4b264",
+    "packs/sandbox/src/materials/codex/KineticHaloMaterials.js": "f41c3d3d924ff4e597419573a364b9897640dd0ecf07b5f24f8e94a964530539",
+    "packs/sandbox/src/materials/codex/LateBoltMaterials.js": "169d084eeda8708b1324bc911fee6dac67840d3eeec56949e9e599c264706455",
+    "packs/sandbox/src/materials/codex/LatticeFlareMaterials.js": "f9fb0d33b7e654fce75a7c9ec155bde4e37bd9c9e1291ea75534bc033c43d5c6",
+    "packs/sandbox/src/materials/codex/LensWellMaterials.js": "fd295b5e728ab072ed73a3a315f80d3a388d1d00ae5060456cdfd4e3cca58e17",
+    "packs/sandbox/src/materials/codex/LeyWhipMaterials.js": "fe65fe5b0d542530d51d3c05746c037a942c98f17df1c0c2e7d5296957a17b55",
+    "packs/sandbox/src/materials/codex/LoessCurtainMaterials.js": "f6360ee326dd82ff21c0184961f17364ada4ffb4537c91585a883cc856a5d088",
+    "packs/sandbox/src/materials/codex/MaelstromVortexMaterials.js": "7c808210856df53cdb965c8af6155e1cffacc48afbb6d9c000bd787a24b1cf0b",
+    "packs/sandbox/src/materials/codex/MagnetarVolleyMaterials.js": "0a06f2c48b722e36ff9aa138b15cbfab10725e89cc4a5a0bb01a84b462e3b9c1",
+    "packs/sandbox/src/materials/codex/ManaWellMaterials.js": "934bb601d95366a5329899629f5696f5f00b443406fc533a79b3371c81608ca7",
+    "packs/sandbox/src/materials/codex/MassLanceMaterials.js": "89d679cc853a352308d9d2e1400d232ec398f2e31ddfaa25e6e52279d7f8b697",
+    "packs/sandbox/src/materials/codex/MiasmaSpitMaterials.js": "93ec95b39ba7e4e0e3a32ffcb7ff336eb9f6c268f8be24c645acb5b6c8f83e1a",
+    "packs/sandbox/src/materials/codex/MindLatticeMaterials.js": "6a702ab22fcf937b7b843b75bc940da56e97e2f1c16dc18dcfbadda369fbad0e",
+    "packs/sandbox/src/materials/codex/MirrorHaloMaterials.js": "43d31e1b242a6b23035fc958733f67cf5e9ce39131c4cf597ef3acca3607617b",
+    "packs/sandbox/src/materials/codex/MomentSwingMaterials.js": "c1f3aba679c95d71765c9ce48c4380f4489448930ad3acc49dd487938037947f",
+    "packs/sandbox/src/materials/codex/MournHaloMaterials.js": "6297b1503360304e0c01da309d278a7692a3d78c0a0bf11a50a4f65c8a595568",
+    "packs/sandbox/src/materials/codex/MyceliumWakeMaterials.js": "b3ba3d8aaa6389a7dc2e57fcf4132435716f0105968be36241e2730d2cd670f8",
+    "packs/sandbox/src/materials/codex/NebulaCollapseMaterials.js": "ae1fdaf100b9c9569e2e7a1b2d20610418bf6d5246c395301a4f59856b997e02",
+    "packs/sandbox/src/materials/codex/NeedleGlassMaterials.js": "c8c5b71f90ce37c37c4500af5b5b4d8679f611bf956fdb85041d33b67369c46c",
+    "packs/sandbox/src/materials/codex/NightfallScytheMaterials.js": "1757813b19abf4d4b73a04cfca6ebefde134c64e435ae76e15abe6a35109c4eb",
+    "packs/sandbox/src/materials/codex/NoonBladeMaterials.js": "81840676db4ae138d287e3d148a1c67caacc547f692aaaaae1e7856599d353fd",
+    "packs/sandbox/src/materials/codex/NoxiousHaloMaterials.js": "1477ecccc5d2fec4d68f858bc6d0859af1f8eb1253fc880077cce508c24f80db",
+    "packs/sandbox/src/materials/codex/NullWellMaterials.js": "8ef87b5a1892568a3525fc885bf98682d76a63cd2138a7dc103b078fc708c79f",
+    "packs/sandbox/src/materials/codex/OrbitLockMaterials.js": "371129b058554f051989cc5a57122d21e1603bcded7ed92bb79dd5250636e42b",
+    "packs/sandbox/src/materials/codex/OrbitPendulumMaterials.js": "c7b4673193e2badb14983eb7720b3a8c4aea1ab5a5fd904809601eb4582ecb15",
+    "packs/sandbox/src/materials/codex/OrbitalStrikeMaterials.js": "f4eb022b10a4038198d1e1a079ae49badb34007ff324be756b739fe8f07055fc",
+    "packs/sandbox/src/materials/codex/OvertoneHaloMaterials.js": "aa418d3aa16aefb03f07a720b97447ac773186b8581ca8b33466e48951143644",
+    "packs/sandbox/src/materials/codex/PearlTempestMaterials.js": "84deea96ea057b6fbbb41efb544c5adba021810501e6eed728bf64fb80d2a1b1",
+    "packs/sandbox/src/materials/codex/PendulumCleaverMaterials.js": "e4678b2d2962ec337b518d45b7e7aea02b3e1ba601a5e1dc1f01ed94be41187e",
+    "packs/sandbox/src/materials/codex/PenumbraSheetMaterials.js": "76391e8585494d7ceee73eda0c032ae8377a0b4954cb126462f8803bc2af0676",
+    "packs/sandbox/src/materials/codex/PerigeeHaloMaterials.js": "241d81d1da4410d5ccba152bad8be1f2e20480ca458d2cafec339c3233ce6639",
+    "packs/sandbox/src/materials/codex/PermafrostBloomMaterials.js": "7d9242dc89340dc0ffe961ea1ff5209228197824e9c25bd286a99840b004b7a7",
+    "packs/sandbox/src/materials/codex/PhotonWellMaterials.js": "a248fbaa64f0c526237e1a76b0d2f5018c9e0822a5211642d38f6c739a7c2cce",
+    "packs/sandbox/src/materials/codex/PlagueSwarmMaterials.js": "2b0f856d457479b217658d26da721c273d489e776951fc7b37e4049ae009c447",
+    "packs/sandbox/src/materials/codex/PlumbSwingMaterials.js": "0b676651c0f2a4dacdad530277dcdd0034226e0226890d2348d49aaf7f48962d",
+    "packs/sandbox/src/materials/codex/PollenNovaMaterials.js": "893550b8376613f9cf432ddd94ea26cd56746967c9382aa7078662084b631f74",
+    "packs/sandbox/src/materials/codex/PressCageMaterials.js": "5b4fa764cc74fc80f24a94a71be1adc85e403ba7703e4e618558d4aa9f74ddcb",
+    "packs/sandbox/src/materials/codex/PressLanceMaterials.js": "81d4d72d93203eaf6c7cf332093c70d34ccaeeb756de24bb83ea7c70411072c7",
+    "packs/sandbox/src/materials/codex/PrismFaultMaterials.js": "66e0a0a7602498b0d9595e744de4d17bc7dc0e769ca3f2b3616d61aa2561f3f2",
+    "packs/sandbox/src/materials/codex/PrismLieMaterials.js": "90851f2977e86ae0b448821578adf68c3be6e970a4b5ae038ddb74419ea71865",
+    "packs/sandbox/src/materials/codex/PulsarLashMaterials.js": "ea39c1a07416f8f1091ba035a0427c38e3e5d8731cbed95d0e4d0b1a49d4d6ce",
+    "packs/sandbox/src/materials/codex/QuarkSpireMaterials.js": "55fcfe8bd0c512e93f254e8cfb5c86af094d287b682fdba76538e2c3e7a3a1ff",
+    "packs/sandbox/src/materials/codex/QuartzSpireMaterials.js": "706a9d9582bc038932b6a81cfc51188b3bbec779138d849d12b56db635cdd35e",
+    "packs/sandbox/src/materials/codex/QuietusHaloMaterials.js": "25377e7fc3208c980a721ab4d48c885520c4a8bb8e5e030d5f44448639bc36c1",
+    "packs/sandbox/src/materials/codex/RailgunLanceMaterials.js": "932c2e0d890aaee31413b84aca5916d9524eb440efbe3ad5aa9e877b14bfe0bb",
+    "packs/sandbox/src/materials/codex/RasterLanceMaterials.js": "5050a3753036de2e0791c0195fc5e05ddc74e694e02c495911fd29b0b9e31509",
+    "packs/sandbox/src/materials/codex/RedshiftLanceMaterials.js": "7dfbe231b7010f1b8bf10d30be262e91e3cea5e8524859d5626088d274195083",
+    "packs/sandbox/src/materials/codex/RelicLashMaterials.js": "f3e22fcd900e0c1ff45dffe9da57098b6c483a9f4cd100f67c8fc025aa5b548c",
+    "packs/sandbox/src/materials/codex/ReliquaryDawnMaterials.js": "e323f5b1b33467dc0c7ac2cfa1e0726ca4917b40486ec302c5c5b1a57bbe4349",
+    "packs/sandbox/src/materials/codex/RewindSnareMaterials.js": "0282373750348452244965307983ea4fbacebc3b267a273585942752eb2a1c34",
+    "packs/sandbox/src/materials/codex/RiftPendulumMaterials.js": "cf19f7c146aea3aa612baebd449c8ea7871e6338c914d9bd62e646fd7b30d645",
+    "packs/sandbox/src/materials/codex/RimeHaloMaterials.js": "d33135ef4374cff9856a9ba67964c2869dac4590f22bbae28d672c6b84aa9c2d",
+    "packs/sandbox/src/materials/codex/RiptideLashMaterials.js": "8cd7883d2a36eedd002b578a0f3356d6026fbc75daf08a6c738cf36ead031213",
+    "packs/sandbox/src/materials/codex/RotorStackMaterials.js": "fe75831ffc7f4c0187eefcff64198771c1e7bd921892831058a4b6bcfa5e7296",
+    "packs/sandbox/src/materials/codex/RuneMeteorMaterials.js": "c09801d27f646abefb1eeb78df468af00f348ada65d2b77dfc7a0b06d091e476",
+    "packs/sandbox/src/materials/codex/SanguineTideMaterials.js": "9c24e1b03d74c015f5e5bfb5b0a02b7a4b9b5fa36ebc08602835817cb0f9d269",
+    "packs/sandbox/src/materials/codex/ScarpBreakMaterials.js": "63a693d7edf5eacdec7f1e73445d99544e1dbab7e2ad5cb4b89efc7445a1421d",
+    "packs/sandbox/src/materials/codex/SecondSelfMaterials.js": "d784164e6a3b6ca8ccb55e740bb3fdcf770097f290c1fbb4c80e313809c77bb8",
+    "packs/sandbox/src/materials/codex/SeedstormVolleyMaterials.js": "4b3158ab210b141baf397bb73864db2a7548a64e05b1f3d14eeeb8019a10ff44",
+    "packs/sandbox/src/materials/codex/SeraphicDescentMaterials.js": "5a64625a2445212cae8336dbfba67a7ea5c0d2116e4ba83712ad94b48fe229bc",
+    "packs/sandbox/src/materials/codex/ServoPylonMaterials.js": "00d687fb680a5f3711510a6eaca61c01cde67e365db410ac744c9f5689725060",
+    "packs/sandbox/src/materials/codex/ShadePuppetsMaterials.js": "0bb9068783ffe9a8725c1951ee84f951cb878be94c647ec145e34964b0a005b0",
+    "packs/sandbox/src/materials/codex/ShardChoirMaterials.js": "907320d53a6acd4d2d8479b9920bd10d1f6cbddb9b3c1a0b243a3d4ab7795a00",
+    "packs/sandbox/src/materials/codex/ShearForceMaterials.js": "d74bc6c207e0da964bec330ad190286aca33d5e183bccadaf4934c97c1ff5766",
+    "packs/sandbox/src/materials/codex/ShearOrbitMaterials.js": "f839211c739e55c9aed97046b92808edccd417ca8961e61105d51e647f784cdd",
+    "packs/sandbox/src/materials/codex/ShearStepMaterials.js": "b9e1d3f565d59bfa9dc02b884ce9f274389ebde14cf5c56a412b88599324402b",
+    "packs/sandbox/src/materials/codex/ShearWallMaterials.js": "7fb89dae88357da88720fcc054adc0d8ed3ce99a91c85cb120e85984ed5ac965",
+    "packs/sandbox/src/materials/codex/SigilGateMaterials.js": "ddca0db259ef979c73e1730c9834d9659066330d19813c5c793c20079d97ec95",
+    "packs/sandbox/src/materials/codex/SigilVolleyMaterials.js": "6aa20f6c8a924545a351d4dfe863e2183c88da71935852ee60010d7f59d3fa25",
+    "packs/sandbox/src/materials/codex/SinterPlateMaterials.js": "a289b73597574b725640e56c1a7fbccf23e5fd59b7bf3bba793fcec8ee105641",
+    "packs/sandbox/src/materials/codex/SirenNoteMaterials.js": "047188ac57c956099587dcd56a02d55627b97639f322981e17b0a2f69fe20d9a",
+    "packs/sandbox/src/materials/codex/SlingVolleyMaterials.js": "37e0c5bbda9e95b2d2a9913edbe60a18765068b6d8b7305706ec2693284a953e",
+    "packs/sandbox/src/materials/codex/SlingWellMaterials.js": "fcbd0cbb063f60b8dc5adda634855159fda735bedc0d90b0cb9ff4d7da6d9b38",
+    "packs/sandbox/src/materials/codex/SolarLashMaterials.js": "8e7030c72ab590c0f1f74350b1ae91b43a8ea5ff526422975fa13e7847ff98d7",
+    "packs/sandbox/src/materials/codex/SporeCoffinMaterials.js": "67a7e8fcb49063ce3ee5c626c8927352e025745b8c1049dc7b2d3efbeed2deb7",
+    "packs/sandbox/src/materials/codex/StasisBellMaterials.js": "b0aa76911c426915044f4f78dfa227d3585e05937251e08c4aec4093055db4af",
+    "packs/sandbox/src/materials/codex/SubtoneLanceMaterials.js": "6f671e0be4001746d40d6d0a6a09e5c73e4ce6761a49a228f824a1a10e816d11",
+    "packs/sandbox/src/materials/codex/SurgeWellMaterials.js": "0bc6f2741641f0c1a6d901f06c4f60c8c1d368eba70803816735c93a865e1381",
+    "packs/sandbox/src/materials/codex/TensorCageMaterials.js": "bc81f54649344ae1d2731225164d7fa92d0d90e076c4d615a57bbda3acc1fbe4",
+    "packs/sandbox/src/materials/codex/ThornVolleyMaterials.js": "fe2a7768ea53fdea109bc4c1374d83f64c00d182a35f13d72e491a9403401219",
+    "packs/sandbox/src/materials/codex/TickCageMaterials.js": "f53e8c3d40e2120a6a083ac448fcbe9610fd88225cfe2caf7c163a1503a1a7b6",
+    "packs/sandbox/src/materials/codex/TideBarsMaterials.js": "0d4f813f608aaff55acab9fef41305e088175bd1b0b1833ae8fa353a92d23ba7",
+    "packs/sandbox/src/materials/codex/UmbralGuillotineMaterials.js": "c2f799240da93675dc74d724be79b37e41713c93a09594c99d663e0d1e3f64de",
+    "packs/sandbox/src/materials/codex/UndertowChainsMaterials.js": "8bf03c7d5451c1d876f345af09a1adb8a365d351c321e071f5d525279dc58ec6",
+    "packs/sandbox/src/materials/codex/UnspireMaterials.js": "c9788730c462370225ed40260997bb46652fbc603d95dce9d6f88545942d45b1",
+    "packs/sandbox/src/materials/codex/VectorHaloMaterials.js": "092224f6655c4c9077bad6a9dcabe0b0dadbf4eaefc4af0a785c6bbd423ced82",
+    "packs/sandbox/src/materials/codex/VectorLanceMaterials.js": "9dfd050047227356bfa578dcc4524d3cf91c272f1107382f7c235bc664525a3d",
+    "packs/sandbox/src/materials/codex/VeinLatticeMaterials.js": "41c21d8434a3110a782cfffd625e35d1de1c1549c0141a9b2e5323e20ff210dd",
+    "packs/sandbox/src/materials/codex/VenturiGateMaterials.js": "2359eaec8d0885476e6f0994514687b0a1ae1fc70db5251c77c61ee75596a6bf",
+    "packs/sandbox/src/materials/codex/VitriolRainMaterials.js": "fc195bb8b31b14c8d6c75a4051ad2f39ba5fd2dc706eb2c640327f9cd915587c",
+    "packs/sandbox/src/materials/codex/VoidBloomMaterials.js": "47aeb95ebe6de23c7d27bd774be58cba9c9265237ca040a40dd08a1c93257731",
+    "packs/sandbox/src/materials/codex/VortexBellMaterials.js": "a6ec1be44aeef8710c2c6a7282b68b57c4e1647b7c7cf92e7ee3e9c0f5af7edc",
+    "packs/sandbox/src/materials/codex/VowCageMaterials.js": "ccf2f17b0730273932095e39cc54f6b0317e06613e3c46ac2b0e9a62c75ac580",
+    "packs/sandbox/src/materials/codex/WhisperWellMaterials.js": "78bea05fc151f7f9f17a0aca02e8cdf9326cb292ae16e16cf57b64854d411cb5",
+    "packs/sandbox/src/materials/codex/WhiteoutNeedleMaterials.js": "c7aea5e478291db49e4589293b17cc2f54f32230110068af37f46f81922b112f",
+    "packs/sandbox/src/materials/codex/WraithHostMaterials.js": "5d6be1bd52e3722ab4050a6b45af9e1bfd0918af0948c900e462c380a2ebbb3b",
+    "packs/sandbox/src/materials/codex/ZephyrShurikenMaterials.js": "be48efaa9906d51eab4c2fc9958cf98df3c92f7b91f9a68304043b855b94c786",
+    "packs/sandbox/src/materials/codex/ZodiacHaloMaterials.js": "101136f0d3e639d1e70bb70a534dc0b2d5da3ece80c661b1a95278f5f752e95c",
+    "packs/sandbox/src/materials/collective/AegisBulwarkMaterial.js": "e19a3319904050b211e4a5d9a70605f925eaabf031ec0c7d967f2032dcb9e43c",
+    "packs/sandbox/src/materials/collective/BlinkStepMaterials.js": "5ffe3f1e76200b9527fcdcbdefe7f670b628fe9a854a167bb587729440e81dc2",
+    "packs/sandbox/src/materials/collective/ChainArcBoltMaterial.js": "f097a446c3ea7f8fc87aa41a4227263258e23c46889249572a8c0605d14790aa",
+    "packs/sandbox/src/materials/collective/ChronoFractureMaterials.js": "bb28aa953bcee8eab9e14223c7f97b71c540b7a1e837a048b9434dd22952cbe1",
+    "packs/sandbox/src/materials/collective/CrimsonRiteMaterials.js": "270cdd7af24b4980a2860d139b6b34a4cccd105ab5afc0b54cbc895fb43ae5f9",
+    "packs/sandbox/src/materials/collective/DuneScourgeMaterial.js": "9b9c9b7a95df14cb5de34fdfebd3c36bd58ab0b45e618f9e82afe9a0c15e62d6",
+    "packs/sandbox/src/materials/collective/GravitonCollapseMaterials.js": "a59a2ad3da59e4a66cc561333945e18cf41be1b6b55500ebd5eb162b1881120f",
+    "packs/sandbox/src/materials/collective/MeteorSwarmMaterials.js": "94d513c1773c92d2ab8135b90ca2bc1244b2e9a842625357936d1d646d60d2d0",
+    "packs/sandbox/src/materials/collective/ResonancePulseMaterial.js": "aae0670daf6caf8576c922a1832f9acbd7843ff1dcadba2891f870483dfddf4a",
+    "packs/sandbox/src/materials/collective/SporeBloomMaterials.js": "762ab3b79b54a6a98a4b9dd60de18543f2834493e141e08246f1b87b1e42dea6",
+    "packs/sandbox/src/materials/collective/SunfallPrismMaterial.js": "752b637223f56705c429a059510154924e227d8b435c77472e389e640458b807",
+    "packs/sandbox/src/materials/collective/TempestSpiralMaterial.js": "aa8919437c7a5006c2acbd45fcfa1f2ae916ce095137c0a6cb41042297e321f5",
+    "packs/sandbox/src/materials/matrix-new/AetherbladeCascadeMaterials.js": "01bc3b3ac2ed5bd649b69a845254ac3337aa6ad52102056afc6569b26c8c7f52",
+    "packs/sandbox/src/materials/matrix-new/BloodrootThornsMaterials.js": "3f63970f60c434bd33e3d90588e51b2a4732ed24190f3f42f05a5b59522819f4",
+    "packs/sandbox/src/materials/matrix-new/CrystallineHeartMaterials.js": "f380b9e45f80ebe3c4fe7bd0bdf45e21c9dbf53d6d1565454eeef23ad27a7f4b",
+    "packs/sandbox/src/materials/matrix-new/EmberveilLatticeMaterials.js": "fa3405bcac0029485cd39e74a43e3a45ff33a947f5408cd002108ff6776b609a",
+    "packs/sandbox/src/materials/matrix-new/GaleSeverMaterials.js": "231e32b316aace0aefe51c8fccd7d233b99294573ae64c3c5171578e0e9ebcb6",
+    "packs/sandbox/src/materials/matrix-new/GeodeEruptionMaterials.js": "2aa55ebfa401308b0091bfd626aa3c2477110abe6aa77576a22ad29ba34e4d71",
+    "packs/sandbox/src/materials/matrix-new/IonStormPillarMaterials.js": "5ba8863e0e619da99765fbbbbca98f33a587232da57be041c01361e02eb5585b",
+    "packs/sandbox/src/materials/matrix-new/MirageConstructMaterials.js": "4183ccf96c9db15cc1dedab8d474d68d8f9b302fdaa173933f06781c07c59368",
+    "packs/sandbox/src/materials/matrix-new/ObsidianWallMaterials.js": "24b837592bc2eebce134dcad550f0582824f99127b9a66c0755264d9d40673e4",
+    "packs/sandbox/src/materials/matrix-new/StarfallRiteMaterials.js": "027d798c143a078e3034ef4c19eb4bb8025506d01e3f26aa8408332bf75ac838",
+    "packs/sandbox/src/materials/matrix-new/UmbraGraspMaterials.js": "0bdfffd2d8905bb13c4e2abe65352a97f0360c9813d6b7a7a915f932aea235ed",
+    "packs/sandbox/src/materials/matrix-new/VoidstepRiftMaterials.js": "6450e9affb9d6c10d641075d529f37f7dbe820b7022917d2c11a5602c4ada49a"
+  }
+}

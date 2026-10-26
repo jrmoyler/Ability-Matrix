@@ -23,6 +23,11 @@
   cursor: pointer;
   min-height: 28px;
 }
+.mechanic-controls:not([open]) {
+  width: auto;
+  max-width: min(200px, 45vw);
+  padding: 6px 10px;
+}
 .mechanic-controls button {
   display: block;
   text-align: left;
