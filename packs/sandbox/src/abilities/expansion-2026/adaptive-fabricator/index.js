@@ -25,6 +25,8 @@ import { Ability as BaseAbility } from '../../Ability.js';
 import { settings } from '../../../config/settings.js';
 import { LAYER } from '../../../core/Layers.js';
 import config from './config.js';
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../AuthoredImpactForce.js';
 export { config };
 export const ID = config.id;
 const UID = 'matrix-expansion/adaptive-fabricator',
@@ -201,7 +203,9 @@ export class Ability extends BaseAbility {
     this._beamAge = 999;
     this._lastTarget = null;
     this._lastElement = null;
-    this._scope = this.ctx.expansionCombat?.bind(UID, 'caster') ?? null;
+    this._scope = bindExpansionCombat(this.ctx, UID);
+    this.failure = !this._scope ? 'combat bridge unavailable' :
+      this._scope.standalone ? 'combat disabled: exposure unavailable; firing neutral tech' : null;
     this.root.visible = true;
     this._sync();
   }
@@ -235,7 +239,7 @@ export class Ability extends BaseAbility {
         radius: c.zoneRadius,
         relation: 'enemy',
       });
-    if (!near?.ok) return;
+    if (!near?.ok) { this.failure = near?.reason ?? 'target query refused'; return; }
     // Query order is stable by actor ID, not proximity. Keep that order only
     // as the tie-breaker while selecting the nearest unobstructed live actor.
     let target = null, bestDistance = Infinity;
@@ -251,7 +255,7 @@ export class Ability extends BaseAbility {
     }
     if (!target) return;
     const detail = s.getActor(target.id);
-    if (!detail?.ok) return;
+    if (!detail?.ok) { this.failure = detail?.reason ?? 'target unavailable'; return; }
     const element = choose((detail.actor.statuses ?? []).map((x) => x.tag));
     const sent = s.emit({
       type: 'hit',
@@ -261,10 +265,11 @@ export class Ability extends BaseAbility {
       // effects resolve at the struck actor rather than at the deployable.
       position: target.position,
       sourcePosition: at,
+      hitForce: impactForce(c),
       damage: c.damage,
       tags: ['adaptive-fabricator'],
     });
-    if (!sent?.ok) return;
+    if (!sent?.ok) { this.failure = sent?.reason ?? 'shot refused'; return; }
     this._shots++;
     this._lastTarget = [...target.position];
     this._lastElement = element;
@@ -360,6 +365,9 @@ export function buildEditor(gui, c) {
   f.add(c, 'zoneRadius', 2, 12, 0.1).name('scan radius');
   f.add(c, 'shotInterval', 0.2, 2, 0.05).name('shot interval');
   f.add(c, 'damage', 0, 2, 0.05).name('damage');
+  f.add(c, 'hitImpulse', 0, 24, .1).name('impact impulse');
+  f.add(c, 'hitLift', 0, 20, .1).name('impact lift');
+  f.add(c, 'hitSpin', 0, 8, .1).name('impact spin');
   f.add(c, 'impactRadius', .2, 3, .05).name('impact visual size');
   f.add(c, 'impactDuration', .1, 1, .05).name('impact visual time');
   f.addColor(c, 'metalColor').name('housing');

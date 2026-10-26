@@ -34,6 +34,7 @@
     "impactFlash": 0.08,
     "accentColor": "#ff8d43",
     "particleCount": 32,
+    "releaseParticles": 24,
     "detailHeight": 1,
     "monumentScale": 1.5,
     "monumentGlow": 1,

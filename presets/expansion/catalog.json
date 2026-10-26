@@ -407,7 +407,7 @@
       "kind": "ability",
       "element": "tech",
       "label": "Adaptive Fabricator",
-      "hint": "Tech — deploy a device that reads hostile exposure and chooses a counter-element",
+      "hint": "Tech — deploy a device that counters hostile exposure; with combat off, it fires neutral tech",
       "accent": "#7ff0ff",
       "key": "",
       "cast": "zone",

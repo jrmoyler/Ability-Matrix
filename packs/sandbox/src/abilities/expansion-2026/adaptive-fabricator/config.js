@@ -5,7 +5,7 @@ export default {
     accent: '#7ff0ff',
     element: 'tech',
     cast: 'zone',
-    hint: 'Tech — deploy a device that reads hostile exposure and chooses a counter-element',
+    hint: 'Tech — deploy a device that counters hostile exposure; with combat off, it fires neutral tech',
     glyph:
       '<path d="M50 10L84 30V70L50 90L16 70V30Z"/><circle cx="50" cy="50" r="19"/><path d="M50 25V12M50 88V75M25 50H12M88 50H75"/>',
   },
@@ -20,6 +20,9 @@ export default {
     life: 6,
     shotInterval: 0.9,
     damage: 0.35,
+    hitImpulse: 5,
+    hitLift: 2.5,
+    hitSpin: 1,
     lightColor: '#7ff0ff',
     impactShake: 0.12,
     impactFlash: 0.08,

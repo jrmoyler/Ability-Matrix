@@ -173,3 +173,86 @@ test("each chained arc fades independently from its own hit time", () => {
   a.destroy();
   a.dispose();
 });
+
+test("branching arcs originate on actual chain geometry and expire with it", () => {
+  const target = {
+    position: new Vector3(2, 0, 5),
+    alive: true,
+    kill() {
+      this.alive = false;
+    },
+  };
+  const a = new FulminantRelayAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        if (target.alive) out.push(target);
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(0.05);
+  const main = a.arcs[0].geometry.attributes.position,
+    branch = a.branches[0].geometry.attributes.position;
+  const midpoint = new Vector3(
+    (main.getX(24) + main.getX(25)) / 2,
+    (main.getY(24) + main.getY(25)) / 2,
+    (main.getZ(24) + main.getZ(25)) / 2,
+  );
+  const origin = new Vector3(
+    (branch.getX(0) + branch.getX(1)) / 2,
+    (branch.getY(0) + branch.getY(1)) / 2,
+    (branch.getZ(0) + branch.getZ(1)) / 2,
+  );
+  assert.ok(midpoint.distanceTo(origin) < 1e-5);
+  assert.equal(a.branches[0].visible, true);
+  a.update(a.config.arcLifetime + 0.1);
+  assert.equal(a.arcs[0].visible, false);
+  assert.equal(a.branches[0].visible, false);
+  let disposed = 0;
+  for (const b of a.branches)
+    b.geometry.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 8);
+});
+
+test("storm branches remain visible when the first target coincides with the seed", () => {
+  const target = {
+    position: new Vector3(0, 0, 5),
+    alive: true,
+    kill() {
+      this.alive = false;
+    },
+  };
+  const a = new FulminantRelayAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        if (target.alive) out.push(target);
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(0.05);
+  const p = a.branches[0].geometry.attributes.position;
+  const start = new Vector3(
+    (p.getX(0) + p.getX(1)) / 2,
+    0,
+    (p.getZ(0) + p.getZ(1)) / 2,
+  );
+  const end = new Vector3(
+    (p.getX(48) + p.getX(49)) / 2,
+    0,
+    (p.getZ(48) + p.getZ(49)) / 2,
+  );
+  assert.ok(start.distanceTo(end) > 0.5);
+  a.destroy();
+  a.dispose();
+});

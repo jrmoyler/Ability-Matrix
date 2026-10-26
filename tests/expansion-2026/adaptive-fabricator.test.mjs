@@ -121,3 +121,16 @@ test('adaptive arrival rings expand at the struck target and reset on reuse', ()
   assert.equal(ability.impactGroup.visible, false);
   ability.destroy(); ability.dispose();
 });
+test('standalone fabricator fails closed after a combat-mode round trip',()=>{
+  const mode={enabled:false,epoch:0};
+  const target={alive:true,position:new Vector3(6,0,0),kill(){this.alive=false;return true;}};
+  const bridge={enabled:()=>mode.enabled,modeVersion:()=>mode.epoch,bind:()=>({})};
+  const a=new Ability({character:{position:new Vector3()},dummies:{slots:[{dummy:target}]},lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  a.update(.3);
+  mode.enabled=true;mode.epoch++;mode.enabled=false;mode.epoch++;
+  a.update(1);
+  assert.equal(target.alive,true);
+  assert.equal(a.failure,'combat mode changed during cast');
+  a.destroy();a.dispose();
+});

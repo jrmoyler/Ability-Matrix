@@ -48,6 +48,7 @@ export const CONFIG = Object.freeze({
     impactFlash: 0.1,
     impactShake: 0.1,
     arcLifetime: 0.55,
+    branchLength: 0.8,
   },
 });
 const SECTIONS = 24,
@@ -145,6 +146,16 @@ export class FulminantRelayAbility extends Ability {
       this.group.add(arc);
       return arc;
     });
+    this.branches = this.arcs.map((arc) => {
+      const branch = new Mesh(arcGeometry(), arc.material);
+      branch.layers.set(LAYER.VFX);
+      branch.frustumCulled = false;
+      branch.visible = false;
+      this.group.add(branch);
+      return branch;
+    });
+    this.branchStart = new Vector3();
+    this.branchEnd = new Vector3();
     this.hit = new Set();
     this.found = [];
     this.hops = [];
@@ -190,6 +201,7 @@ export class FulminantRelayAbility extends Ability {
     this.nextJump = 0;
     this.anchor.copy(this.origin);
     for (const a of this.arcs) a.visible = false;
+    for (const b of this.branches) b.visible = false;
     for (const m of [
       this.coreMaterial,
       this.shellMaterial,
@@ -228,7 +240,12 @@ export class FulminantRelayAbility extends Ability {
       );
       arc.visible = opacity > 0;
       arc.material.uniforms.uFade.value = opacity;
-      if (arc.visible) this._writeArc(arc, hop.from, hop.to, i);
+      const branch = this.branches[i];
+      branch.visible = arc.visible && this.config.branchLength > 0;
+      if (arc.visible) {
+        this._writeArc(arc, hop.from, hop.to, i);
+        if (branch.visible) this._writeBranch(i, hop, arc, branch);
+      }
     }
     this.position.copy(this.anchor);
   }
@@ -293,7 +310,31 @@ export class FulminantRelayAbility extends Ability {
     this.anchor.copy(this.targetPoint);
     return true;
   }
-  _writeArc(mesh, from, to, index) {
+  _writeBranch(index, hop, arc, branch) {
+    const position = arc.geometry.attributes.position,
+      middle = SECTIONS;
+    this.branchStart.set(
+      (position.getX(middle) + position.getX(middle + 1)) * 0.5,
+      (position.getY(middle) + position.getY(middle + 1)) * 0.5 - 1.05,
+      (position.getZ(middle) + position.getZ(middle + 1)) * 0.5,
+    );
+    let dx = hop.to.x - hop.from.x,
+      dz = hop.to.z - hop.from.z;
+    let len = Math.hypot(dx, dz);
+    if (len < 1e-5) {
+      dx = this.direction.x;
+      dz = this.direction.z;
+      len = 1;
+    }
+    const sign = index % 2 ? 1 : -1;
+    this.branchEnd.set(
+      this.branchStart.x + sign * (-dz / len) * this.config.branchLength,
+      this.branchStart.y - 0.2,
+      this.branchStart.z + sign * (dx / len) * this.config.branchLength,
+    );
+    this._writeArc(branch, this.branchStart, this.branchEnd, index + 11, 0.04);
+  }
+  _writeArc(mesh, from, to, index, width = 0.08) {
     const p = mesh.geometry.attributes.position,
       dx = to.x - from.x,
       dz = to.z - from.z,
@@ -313,10 +354,12 @@ export class FulminantRelayAbility extends Ability {
         z = from.z + dz * t + sz * jag,
         y =
           1.05 +
+          from.y * (1 - t) +
+          to.y * t +
           Math.sin(t * Math.PI) * 0.5 +
           Math.sin(i * 4.2 + index) * wave * 0.12;
-      p.setXYZ(i * 2, x - sx * 0.08, y, z - sz * 0.08);
-      p.setXYZ(i * 2 + 1, x + sx * 0.08, y, z + sz * 0.08);
+      p.setXYZ(i * 2, x - sx * width, y, z - sz * width);
+      p.setXYZ(i * 2 + 1, x + sx * width, y, z + sz * width);
     }
     p.needsUpdate = true;
   }
@@ -350,12 +393,14 @@ export class FulminantRelayAbility extends Ability {
     this.hit.clear();
     this.hops.length = 0;
     for (const a of this.arcs) a.visible = false;
+    for (const b of this.branches) b.visible = false;
   }
   dispose() {
     for (const a of this.arcs) {
       a.geometry.dispose();
       a.material.dispose();
     }
+    for (const b of this.branches) b.geometry.dispose();
     for (const r of [
       this.coreGeometry,
       this.coreMaterial,
@@ -378,6 +423,7 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "maxJumps", 1, 8, 1, "maximum jumps");
   R(f, c, "jumpInterval", 0.1, 1, 0.05, "jump interval");
   R(f, c, "arcLifetime", 0.1, 2, 0.05, "arc lifetime");
+  R(f, c, "branchLength", 0, 3, 0.05, "branch length");
   R(f, c, "impulse", 0, 15, 0.1, "impact force");
   R(f, c, "lift", 0, 8, 0.1, "impact lift");
   R(f, c, "impactShake", 0, 1, 0.01, "impact shake");

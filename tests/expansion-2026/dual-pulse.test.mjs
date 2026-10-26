@@ -39,8 +39,8 @@ test('phase detail has distinct bounded geometry, 64 motes, and editor changes r
 
 test('cinder emits two bounded particle bursts, glacier emits one, and reduced motion freezes shader clock',()=>{
  for(const [C,c,count] of [[CinderCrownAbility,CINDER_CONFIG,2],[GlacierBellAbility,GLACIER_CONFIG,1]]){
-  const calls=[];const effect={setGradient(){},emit(n){calls.push(n);}};
-  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},particles:{get:()=>effect}});
+  const calls=[];
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},particles:{get(id){return {setGradient(){},emit(n){if(id===`expansion.${c.id}`)calls.push(n);}};}}});
   const prior=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:true});
   try{a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,3);assert.equal(calls.length,count);assert.ok(calls.every(n=>n>=0&&n<=128));assert.equal(a.detail.uniforms.clock.value,0);a.destroy();a.dispose();}
   finally{if(prior)globalThis.matchMedia=prior;else delete globalThis.matchMedia;}
@@ -196,5 +196,16 @@ test('delivery particle trail uses actual arcing position, a fixed per-frame bud
    globalThis.matchMedia=()=>({matches:false});a.update(1);assert.ok(emitted.length-previous<=1);
    a.destroy();a.dispose();
   }finally{settings[c.id].speed=before;if(prior)globalThis.matchMedia=prior;else delete globalThis.matchMedia;}
+ }
+});
+
+test('release has distinct bounded particles exactly once per cast and never on a paused frame',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const releases=[],shapes=[];
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},particles:{get(id,options){if(id.endsWith('.release'))shapes.push(options.shape);return {setGradient(){},emit(n,o){if(id.endsWith('.release'))releases.push({n,p:o.position.clone()});}};}}});
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);for(let i=0;i<180&&a.phase!=='fade';i++)a.update(1/60);assert.equal(a.phase,'fade');
+  a.update(0);assert.equal(releases.length,0);a.update(1/60);assert.equal(releases.length,1);
+  run(a,1);assert.equal(releases.length,1);assert.ok(releases[0].n<=128);assert.deepEqual(releases[0].p.toArray(),[5,0,0]);
+  a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,3);assert.equal(releases.length,2);a.destroy();a.dispose();assert.equal(shapes.length,1);
  }
 });
