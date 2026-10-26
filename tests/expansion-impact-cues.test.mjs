@@ -59,3 +59,56 @@ test("earth, crystal and storm impact cues obey global flash and shake controls"
     settings.global.cameraShake = priorShake;
   }
 });
+
+test("wind cues fire at reversal, not at launch, and respect host preferences", async () => {
+  const mod =
+    await import("../packs/sandbox/src/abilities/expansion-2026/wind/PressureInversion.js");
+  settings[mod.ID] = structuredClone(mod.CONFIG.settings);
+  const priorFlash = settings.post.flashStrength,
+    priorShake = settings.global.cameraShake;
+  const flash = new ScreenFlash();
+  let shakeCalls = 0,
+    shake = 0;
+  const ctx = {
+    flash,
+    shake: {
+      add(v) {
+        shakeCalls++;
+        shake = v;
+      },
+    },
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  };
+  const ability = new mod.PressureInversionAbility(ctx);
+  try {
+    settings.post.flashStrength = 0;
+    settings.global.cameraShake = 0;
+    ability.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+    ability.update(2);
+    assert.equal(shakeCalls, 0);
+    ability.update(ability.impactDuration * 0.7);
+    assert.equal(shakeCalls, 1);
+    assert.equal(shake, 0);
+    assert.equal(flash.strength, 0);
+    ability.destroy();
+    settings.post.flashStrength = 1;
+    settings.global.cameraShake = 1;
+    ability.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+    ability.update(2);
+    ability.update(ability.impactDuration * 0.7);
+    assert.equal(shakeCalls, 2);
+    assert.ok(shake > 0);
+    assert.ok(flash.strength > 0);
+  } finally {
+    ability.destroy();
+    ability.dispose();
+    settings.post.flashStrength = priorFlash;
+    settings.global.cameraShake = priorShake;
+  }
+});

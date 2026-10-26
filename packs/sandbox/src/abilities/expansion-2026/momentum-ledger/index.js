@@ -351,8 +351,10 @@ export function buildEditor(gui, c) {
   const f = gui.addFolder('Momentum Ledger');
   f.add(c, 'chargeDuration', 0.4, 5, 0.05).name('bank time');
   f.add(c, 'maxDistance', 1, 30, 0.1).name('distance cap');
+  f.add(c, 'maxSpeed', 1, 30, 0.5).name('maximum valid speed');
   f.add(c, 'zoneRadius', 1, 8, 0.1).name('release radius');
   f.add(c, 'bonusImpulse', 0, 30, 0.5).name('stored impulse');
+  f.add(c, 'baseImpulse', 0, 30, 0.5).name('base impulse');
   f.addColor(c, 'accentColor').name('velocity');
   f.addColor(c, 'coreColor').name('core');
   f.addColor(c, 'trailColor').name('trail');

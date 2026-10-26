@@ -12,3 +12,5 @@ test('an accepted transfer connects the old and new hosts with a brief ribbon',(
 test('shadow visuals disappear when a defeated host has no successor',()=>{const z=arena(),{a,actors}=z;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);actors.forEach(x=>x.alive=false);z.hit({targetIds:['dummy:1']});assert.equal(a.targetId,null);assert.equal(a.shade.visible,false);a.destroy();a.dispose();});
 
 test('initial shade mark selects the nearest enemy',()=>{const {a,actors}=arena();actors[0].position=[7,0,0];actors[1].position=[5,0,0];a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);assert.equal(a.targetId,'dummy:2');a.destroy();a.dispose();});
+
+test('winged shade travels before marking a host',()=>{const {a,events}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.equal(a.travelShade.visible,true);a.update(.08);assert.ok(a.travelShade.position.x>0&&a.travelShade.position.x<5);assert.equal(events.length,0);tick(a,.5);assert.equal(a.travelShade.visible,false);assert.equal(a.targetId,'dummy:1');a.destroy();a.dispose();});

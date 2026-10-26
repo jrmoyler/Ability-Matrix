@@ -32,9 +32,13 @@
     "lifetime": 5.5,
     "fade": 1,
     "stagePeriod": 1.2,
+    "travelScale": 1,
     "stageDamage": 0.25,
     "maxStages": 3,
     "vesselScale": 1,
+    "bloomStrength": 0.3,
+    "bloomTime": 0.55,
+    "releaseDuration": 0.55,
     "tetherRange": 8,
     "toxinColor": "#9be641",
     "coreColor": "#e4ff93"

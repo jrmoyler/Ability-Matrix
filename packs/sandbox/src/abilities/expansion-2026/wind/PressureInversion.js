@@ -11,6 +11,7 @@ import {
 } from "three";
 import { Ability } from "../../Ability.js";
 import { LAYER } from "../../../core/Layers.js";
+import { settings } from "../../../config/settings.js";
 export const ID = "pressure-inversion",
   UID = "matrix-expansion/pressure-inversion";
 export const CONFIG = Object.freeze({
@@ -40,6 +41,8 @@ export const CONFIG = Object.freeze({
     wellForce: 8,
     gustForce: 12,
     lift: 2,
+    gustShake: 0.12,
+    gustFlash: 0.05,
   },
 });
 const TAU = Math.PI * 2,
@@ -248,6 +251,15 @@ export class PressureInversionAbility extends Ability {
       const inverted = t >= 0.65;
       if (inverted && !this.reversed) {
         this.reversed = true;
+        this.ctx.shake?.add?.(
+          this.config.gustShake * settings.global.cameraShake,
+          5,
+          18,
+        );
+        this.ctx.flash?.trigger?.(
+          this.lightColor.set(this.config.lightColor),
+          this.config.gustFlash * settings.global.explosionIntensity,
+        );
         for (const d of this.held) {
           const p = d.bodyPoint?.(new Vector3()) ?? d.position,
             dx = p.x - this.centre.x,
@@ -299,6 +311,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "wellForce", 0, 20, 0.2, "inward force");
   R(f, c, "gustForce", 0, 25, 0.2, "release force");
   R(f, c, "lift", 0, 8, 0.1, "current lift");
+  R(f, c, "gustShake", 0, 1, 0.01, "gust shake");
+  R(f, c, "gustFlash", 0, 0.5, 0.01, "gust flash");
   f.close();
   return f;
 }

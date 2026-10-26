@@ -279,6 +279,7 @@ export class App {
         // A pack whose engine is not loaded yet stands in as one entry; landing
         // on it loads the engine and takes its first (or, going back, last) ability.
         const all = ELEMENTS.map((id) => this.uidOf(id));
+        if (this.expansionLive) all.push(...this.expansionLive.byUid.keys());
         for (const pack of Object.keys(VENDOR_PACKS)) {
           const runtime = this.runtimes.get(pack);
           if (runtime) for (const id of runtime.ids) all.push(`${pack}/${id}`);

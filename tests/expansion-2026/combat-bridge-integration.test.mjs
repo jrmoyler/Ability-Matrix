@@ -105,3 +105,22 @@ test('Adaptive Fabricator uses real actor status and submits owned counter-eleme
   a.dispose();
   bridge.dispose();
 });
+
+test('optional hit source preserves contact location and supplies damage impulse origin', () => {
+  const { manager, bridge } = arena();
+  const scope = bridge.bind('matrix-expansion/adaptive-fabricator', 'caster');
+  let observed;
+  scope.on('hit', event => { observed = event; });
+  assert.equal(scope.emit({ type:'hit', element:'tech', targetIds:['first'], position:[2,0,0], sourcePosition:[-1,0,0], damage:.1 }).ok, true);
+  assert.equal(scope.emit({ type:'hit', element:'tech', targetIds:['first'], position:[2,0,0], sourcePosition:[NaN,0,0], damage:.1 }).ok, false);
+  manager.advance();
+  const effect = manager.drain().effects.find(e => e.kind === 'damage');
+  assert.deepEqual(effect.from, [-1,0]);
+  assert.deepEqual(observed.position, [2,0,0]);
+  assert.deepEqual(observed.sourcePosition, [-1,0,0]);
+  manager.submit({ type:'hit', element:'force', abilityUid:'legacy/test', ownerId:'caster', teamId:'player', targetIds:['near'], position:[2,0,1], damage:.1 });
+  manager.advance();
+  const legacyEffect = manager.drain().effects.find(e => e.kind === 'damage');
+  assert.deepEqual(legacyEffect.from, [2,1], 'legacy hits continue using their contact position');
+  bridge.dispose();
+});

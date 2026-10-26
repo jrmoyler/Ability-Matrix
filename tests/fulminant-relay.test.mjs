@@ -48,14 +48,21 @@ test("storm relay chains once through actual dummies and releases visual resourc
   }
   assert.equal(targets.filter((d) => d.state !== "alive").length, 3);
   assert.equal(ability.hops.length, 3);
-  assert.ok(ability.arcs.slice(0, 3).every((a) => a.visible));
+  assert.ok(
+    ability.arcs.every((a) => !a.visible),
+    "completed arcs do not linger",
+  );
   let disposed = 0;
   for (const a of ability.arcs)
     a.geometry.addEventListener("dispose", () => disposed++);
+  let materialsDisposed = 0;
+  for (const a of ability.arcs)
+    a.material.addEventListener("dispose", () => materialsDisposed++);
   ability.destroy();
   assert.ok(ability.arcs.every((a) => !a.visible));
   ability.dispose();
   assert.equal(disposed, 8);
+  assert.equal(materialsDisposed, 8);
   for (const d of targets) d.dispose();
 });
 
@@ -128,6 +135,41 @@ test("storm arc geometry flickers in place without changing the linked endpoints
   assert.notDeepEqual(changed, initial);
   assert.deepEqual(changed.slice(0, 6), initial.slice(0, 6));
   assert.deepEqual(changed.slice(-6), initial.slice(-6));
+  a.destroy();
+  a.dispose();
+});
+
+test("each chained arc fades independently from its own hit time", () => {
+  const targets = [0, 2].map((x) => ({
+    position: new Vector3(x, 0, 5),
+    alive: true,
+    kill() {
+      this.alive = false;
+    },
+  }));
+  const a = new FulminantRelayAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        out.push(...targets.filter((t) => t.alive));
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a.update(2);
+  a.update(0.05);
+  assert.equal(a.hops.length, 1);
+  a.update(0.23);
+  assert.equal(a.hops.length, 2);
+  assert.ok(
+    a.arcs[0].material.uniforms.uFade.value <
+      a.arcs[1].material.uniforms.uFade.value,
+  );
+  a.update(0.35);
+  assert.equal(a.arcs[0].visible, false);
+  assert.equal(a.arcs[1].visible, true);
   a.destroy();
   a.dispose();
 });

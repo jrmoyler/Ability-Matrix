@@ -143,6 +143,7 @@ export class ExpansionCombatAdapter {
         if (!caster?.alive) return failure('unknown or dead owner');
         if (!event || !EVENT_TYPES.includes(event.type) || !isElement(event.element) ||
             (event.position !== undefined && !finitePoint(event.position)) ||
+            (event.sourcePosition !== undefined && !finitePoint(event.sourcePosition)) ||
             (event.targetIds !== undefined && (!Array.isArray(event.targetIds) || event.targetIds.length > 8 || event.targetIds.some((id) => typeof id !== 'string' || !m.entities.has(id)))) ||
             (['hit', 'status'].includes(event.type) && !event.targetIds?.length) ||
             (['spawn', 'terrain-impact'].includes(event.type) && !event.shape) ||
@@ -163,6 +164,7 @@ export class ExpansionCombatAdapter {
           type: event.type, element: event.element, abilityUid: uid, ownerId, actorId: ownerId,
           tick: m.tick + (m._dueEvents ? 1 : 0),
           teamId: caster.teamId, mechanic: 'standard', position: event.position ?? caster.position,
+          ...(event.sourcePosition !== undefined ? { sourcePosition: event.sourcePosition } : {}),
           targetIds: event.targetIds ?? [], shape: event.shape ? { ...event.shape } : null,
           damage: event.damage, intensity: event.intensity, durationTicks: event.durationTicks,
           tags: event.tags, castId: event.castId
@@ -177,7 +179,7 @@ export class ExpansionCombatAdapter {
     try { copy = snapshot({ eventId: event.eventId, tick: this.manager.tick, scheduledTick: event.tick, sequence: event.sequence,
       type: event.type, abilityUid: event.abilityUid, castId: event.castId, ownerId: event.ownerId,
       teamId: event.teamId, element: event.element, mechanic: event.mechanic,
-      targetIds: event.targetIds, position: event.position, shape: event.shape, tags: event.tags,
+      targetIds: event.targetIds, position: event.position, ...(event.sourcePosition ? { sourcePosition: event.sourcePosition } : {}), shape: event.shape, tags: event.tags,
       damage: event.damage, intensity: event.intensity, depth: event.depth }); }
     catch { return; } // An exotic legacy payload must never break the combat tick.
     for (const listener of [...this.listeners]) if (this.listeners.has(listener) && listener.type === event.type) {

@@ -34,6 +34,7 @@
     "impulse": 5,
     "lift": 2.2,
     "impactFlash": 0.1,
-    "impactShake": 0.1
+    "impactShake": 0.1,
+    "arcLifetime": 0.55
   }
 }

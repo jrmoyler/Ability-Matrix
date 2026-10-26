@@ -43,6 +43,8 @@ test('fabricator fires attributed counter-elements against live exposed targets 
     assert.ok(emitted.length >= 1);
     assert.equal(emitted[0].element, expected);
     assert.deepEqual(emitted[0].targetIds, ['target']);
+    assert.deepEqual(emitted[0].position, [6, 0, 0]);
+    assert.deepEqual(emitted[0].sourcePosition, [5, 0, 0]);
     ability.destroy();
     ability.dispose();
   }
@@ -82,5 +84,25 @@ test('six articulated emitter vanes recoil on a real attributed shot and reset o
   ability.destroy();
   ability.spawn(new Vector3(), new Vector3(1, 0, 0), 5);
   assert.equal(ability.head.position.y, rest);
+  ability.destroy(); ability.dispose();
+});
+test('fabricator chooses the nearest visible live actor instead of the first actor ID', () => {
+  const events = [];
+  const actors = [
+    {id:'a-far', alive:true, position:[8,0,0]},
+    {id:'b-blocked', alive:true, position:[5.2,0,0]},
+    {id:'c-near', alive:true, position:[6,0,0]},
+  ];
+  const scope = {
+    queryActors: () => ({ok:true, actors}),
+    isBlocked: (_from, to) => ({ok:true, blocked:to[0] === 5.2}),
+    getActor: () => ({ok:true, actor:{statuses:[]}}),
+    emit: (event) => (events.push(event), {ok:true}),
+  };
+  const ability = new Ability({lights:{acquire:()=>({}),release(){},set(){}}, expansionCombat:{bind:()=>scope}});
+  ability.spawn(new Vector3(), new Vector3(1,0,0), 5);
+  ability._fire();
+  assert.deepEqual(events[0].targetIds, ['c-near']);
+  assert.deepEqual(events[0].position, [6,0,0]);
   ability.destroy(); ability.dispose();
 });

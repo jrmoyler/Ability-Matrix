@@ -135,6 +135,7 @@ export class PredatoryCanopyAbility extends Ability {
       this.root.add(tendon); this.tendrils.push(tendon);
     }
     const thorn=ownG(canopyThornGeometry());this.thorns=[];for(let i=0;i<12;i++){const a=i*TAU/12,spike=new Mesh(thorn,this.bark);spike.position.set(Math.cos(a)*1.2,.03,Math.sin(a)*1.2);spike.rotation.set(.3*Math.sin(a),-a,-.3*Math.cos(a));this.root.add(spike);this.thorns.push(spike);}
+    this.seed=new Group();this.group.add(this.seed);this.seed.visible=false;this.seedLeaves=[];for(let i=0;i<4;i++){const leaf=new Mesh(this.leafGeo,this.leafMat);leaf.rotation.set(.7,i*TAU/4,0);leaf.scale.setScalar(.3);this.seed.add(leaf);this.seedLeaves.push(leaf);}this.seed.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
     this.crown=new Mesh(ownG(new TorusGeometry(.46,.075,8,48)),this.bark);
     this.crown.rotation.x=Math.PI/2;this.crown.position.y=4.8;this.root.add(this.crown);
     this.root.traverse((n)=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
@@ -148,16 +149,16 @@ export class PredatoryCanopyAbility extends Ability {
     this._cueA=new Color();this._cueB=new Color();this._cueDark=new Color();
   }
   onSpawn() {this.reduceMotion=prefersReducedMotion();
-    this.root.visible=false;this._target=null;this._triggerAt=-1;this._struck=false;
+    this.root.visible=false;this.seed.visible=true;this.seed.position.copy(this.origin);this._target=null;this._triggerAt=-1;this._struck=false;
     this.leafEmitter.reset(); this.moteEmitter.reset();
     const c=this.config, leaf=this._cueB.set(c.leafColor), rim=this._cueA.set(c.leafRim), bark=this._cueDark.set(c.barkColor);
     this.leafParticles?.setGradient(leaf,rim,leaf,bark);
     this.moteParticles?.setGradient(rim,leaf,bark,bark);this.lastLeafPalette=[c.leafColor,c.leafRim,c.barkColor].join('|');
     this.root.scale.setScalar(1);this.leafMat.uniforms.uFade.value=1;this.roots.uniforms.uFade.value=1;
   }
-  onTravel() {}
+  onTravel() {const c=this.config,visualTime=this.reduceMotion?0:this.age;this.seed.position.copy(this.position);this.seed.position.y=.8;this.seed.rotation.y=visualTime*3;this.seed.scale.setScalar(c.seedScale??1);this.leafMat.uniforms.uTime.value=visualTime;this.leafMat.uniforms.uFade.value=1;this.leafMat.uniforms.uColor.value.set(c.leafColor);this.leafMat.uniforms.uRim.value.set(c.leafRim);}
   onImpact() {
-    this.root.position.copy(this.position);this.root.position.y=0;this.root.visible=true;
+    this.seed.visible=false;this.root.position.copy(this.position);this.root.position.y=0;this.root.visible=true;
     this.root.updateMatrix();
   }
   onFade(dt, t) {const visualTime=this.reduceMotion?0:this.age;
@@ -212,12 +213,12 @@ export class PredatoryCanopyAbility extends Ability {
       }
     }
   }
-  onDestroy(){this.root.visible=false;this._target=null;this._found.length=0;}
+  onDestroy(){this.root.visible=false;this.seed.visible=false;this._target=null;this._found.length=0;}
   dispose(){for(const g of this.geometries)g.dispose();for(const m of this.materials)m.dispose();super.dispose();}
 }
 export const AbilityType = PredatoryCanopyAbility;
 export function buildEditor(gui, c, Editor) {
   const f=gui.addFolder('Predatory Canopy');
-  for(const [key,min,max,step] of [['zoneRadius',1,8,.1],['canopyHeight',2,9,.1],['canopySpread',1,7,.1],['armDelay',.1,3,.05],['triggerWindup',.1,1,.05],['thornLength',.25,3,.05],['leafRate',0,80,1],['moteRate',0,80,1],['leafSize',.02,.5,.01],['lifetime',2,12,.1]]) f.add(c,key,min,max,step);
+  for(const [key,min,max,step] of [['zoneRadius',1,8,.1],['canopyHeight',2,9,.1],['canopySpread',1,7,.1],['seedScale',.25,2,.05],['armDelay',.1,3,.05],['triggerWindup',.1,1,.05],['thornLength',.25,3,.05],['leafRate',0,80,1],['moteRate',0,80,1],['leafSize',.02,.5,.01],['lifetime',2,12,.1]]) f.add(c,key,min,max,step);
   addCommonEditorControls(f,c,Editor);return f;
 }

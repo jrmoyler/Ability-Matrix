@@ -223,12 +223,19 @@ export class Ability extends BaseAbility {
         relation: 'enemy',
       });
     if (!near?.ok) return;
-    const target = near.actors
-      .filter((x) => x.alive)
-      .find((x) => {
-        const check = s.isBlocked(at, x.position);
-        return check?.ok && !check.blocked;
-      });
+    // Query order is stable by actor ID, not proximity. Keep that order only
+    // as the tie-breaker while selecting the nearest unobstructed live actor.
+    let target = null, bestDistance = Infinity;
+    for (const actor of near.actors) {
+      if (!actor.alive) continue;
+      const dx = actor.position[0] - at[0], dz = actor.position[2] - at[2];
+      const distance = dx * dx + dz * dz;
+      if (distance >= bestDistance) continue;
+      const check = s.isBlocked(at, actor.position);
+      if (!check?.ok || check.blocked) continue;
+      target = actor;
+      bestDistance = distance;
+    }
     if (!target) return;
     const detail = s.getActor(target.id);
     if (!detail?.ok) return;
@@ -237,7 +244,10 @@ export class Ability extends BaseAbility {
       type: 'hit',
       element,
       targetIds: [target.id],
-      position: at,
+      // Combat hit positions describe contact, so reactions and hit-centered
+      // effects resolve at the struck actor rather than at the deployable.
+      position: target.position,
+      sourcePosition: at,
       damage: c.damage,
       tags: ['adaptive-fabricator'],
     });
@@ -319,6 +329,7 @@ export class Ability extends BaseAbility {
 }
 export function buildEditor(gui, c) {
   const f = gui.addFolder('Adaptive Fabricator');
+  f.add(c, 'life', 1, 20, 0.5).name('deploy duration');
   f.add(c, 'zoneRadius', 2, 12, 0.1).name('scan radius');
   f.add(c, 'shotInterval', 0.2, 2, 0.05).name('shot interval');
   f.add(c, 'damage', 0, 2, 0.05).name('damage');

@@ -32,6 +32,7 @@
     "lifetime": 8,
     "fade": 1.1,
     "inheritRadius": 6,
+    "travelScale": 1,
     "maxTransfers": 3,
     "trailScale": 1,
     "shadowColor": "#68409e",

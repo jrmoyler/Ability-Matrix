@@ -37,6 +37,8 @@ test('all three decoys travel but only chosen true lane hits, once', () => {
     for (let i = 0; i < 100; i++) a.update(1 / 60);
     assert.deepEqual(hits, [lane]);
     assert.equal(a.masks.length, 3);
+    assert.ok(a.masks.every((mask) => mask.children[0].geometry === a.masks[0].children[0].geometry));
+    assert.ok(a.masks.every((mask) => mask.children[0].material === a.masks[0].children[0].material));
     a.destroy();
     a.dispose();
   }

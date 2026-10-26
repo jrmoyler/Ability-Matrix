@@ -69,11 +69,14 @@ test('fabricator damage travels through combat outbox into a real sandbox dummy'
   const root = new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
   const env = { registerShadowCasterWithPatch() {} };
   const target = new Dummy({ source:root, clip:root.animations[0], scale:.01, offset:{x:0,y:0,z:0}, forwardYaw:0, environment:env });
-  target.root.position.set(0, 0, 5);
+  target.root.position.set(1, 0, 5);
+  const originalKill = target.kill.bind(target);
+  let knockback = null;
+  target.kill = (...args) => { knockback = args.slice(0,2); return originalKill(...args); };
   target.root.updateWorldMatrix(true, true);
   const manager = new CombatStateManager();
   manager.upsertEntity({id:'caster', teamId:'player', health:1});
-  manager.upsertEntity({id:'dummy:0', teamId:'enemy', health:1, position:[0,0,5]});
+  manager.upsertEntity({id:'dummy:0', teamId:'enemy', health:1, position:[1,0,5]});
   new MechanicSystems(manager);
   const bridge = new ExpansionCombatAdapter(manager);
   const { module } = BATCH_C.find(({ module }) => module.ID === 'adaptiveFabricator');
@@ -91,6 +94,7 @@ test('fabricator damage travels through combat outbox into a real sandbox dummy'
     target.update(1 / 60);
   }
   assert.equal(target.alive, false, 'committed bridge damage must reach the visible actor');
+  assert.ok(knockback[0] > .99 && Math.abs(knockback[1]) < .01, 'knockback points from turret to struck dummy');
   ability.destroy(); ability.dispose(); bridge.dispose(); target.dispose(); delete settings[module.ID];
 });
 

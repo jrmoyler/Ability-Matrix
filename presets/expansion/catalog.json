@@ -437,6 +437,44 @@
       "zoneRadius": null,
       "status": "candidate",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 15L45 50L15 85M38 15L68 50L38 85M60 15L90 50L60 85\"/></svg>"
+    },
+    {
+      "uid": "matrix-expansion/cinder-crown",
+      "pack": "matrix-expansion",
+      "id": "cinder-crown",
+      "kind": "ability",
+      "element": "fire",
+      "label": "Cinder Crown",
+      "hint": "A crown flares twice, pushing enemies from the impact.",
+      "accent": "#ff8d43",
+      "key": "",
+      "cast": "zone",
+      "castAnim": "cast2",
+      "cooldown": 6,
+      "range": 18,
+      "minRange": 0,
+      "zoneRadius": 4,
+      "status": "candidate",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 75L21 29L38 52L50 17L62 52L79 29L88 75Z\"/></svg>"
+    },
+    {
+      "uid": "matrix-expansion/glacier-bell",
+      "pack": "matrix-expansion",
+      "id": "glacier-bell",
+      "kind": "ability",
+      "element": "frost",
+      "label": "Glacier Bell",
+      "hint": "An expanding frost ring catches each enemy once as it passes.",
+      "accent": "#9ceaff",
+      "key": "",
+      "cast": "zone",
+      "castAnim": "cast2",
+      "cooldown": 6,
+      "range": 18,
+      "minRange": 0,
+      "zoneRadius": 4,
+      "status": "candidate",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 65Q50 5 88 65M17 65H83M50 20V80M33 47L67 67M67 47L33 67\"/></svg>"
     }
   ]
 }

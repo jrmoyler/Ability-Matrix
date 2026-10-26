@@ -32,6 +32,7 @@
     "lifetime": 2.2,
     "fade": 1,
     "lockTime": 0.7,
+    "travelScale": 1,
     "irisScale": 1,
     "damage": 1,
     "rayColor": "#ffe58b",

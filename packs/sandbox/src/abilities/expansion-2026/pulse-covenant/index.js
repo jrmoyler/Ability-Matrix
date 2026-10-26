@@ -336,10 +336,12 @@ export class Ability extends BaseAbility {
 }
 export function buildEditor(gui, c) {
   const f = gui.addFolder('Pulse Covenant');
+  f.add(c, 'life', 1, 20, 0.5).name('covenant duration');
   f.add(c, 'beatSeconds', 0.2, 1.5, 0.05).name('beat (s)');
   f.add(c, 'tolerance', 0.03, 0.3, 0.01).name('timing window');
   f.add(c, 'pulseRadius', 1, 8, 0.1).name('pulse radius');
   f.add(c, 'damage', 0, 2, 0.05).name('pulse damage');
+  f.add(c, 'maxTargets', 1, 8, 1).name('secondary targets');
   f.addColor(c, 'heartColor').name('heart');
   f.addColor(c, 'arteryColor').name('arteries');
   f.addColor(c, 'bloodGlow').name('pulse');

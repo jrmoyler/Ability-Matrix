@@ -24,6 +24,8 @@ export const EXPANSION_STATUS = Object.freeze({
   'matrix-expansion/borrowed-tomorrow': 'candidate',
   'matrix-expansion/momentum-ledger': 'candidate',
   'matrix-expansion/adaptive-fabricator': 'candidate',
-  'matrix-expansion/vector-breakwater': 'candidate'
+  'matrix-expansion/vector-breakwater': 'candidate',
+  'matrix-expansion/cinder-crown': 'candidate',
+  'matrix-expansion/glacier-bell': 'candidate'
 });
 export const hasLiveExpansion = () => Object.values(EXPANSION_STATUS).includes('live');

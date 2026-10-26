@@ -13,6 +13,8 @@ import {
   ExtrudeGeometry,
   Float32BufferAttribute,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   PlaneGeometry,
   ShaderMaterial,
@@ -54,6 +56,21 @@ function maskGeometry() {
     curveSegments: 24,
   });
   g.computeVertexNormals();
+  return g;
+}
+/** Delicate crown, cheek and mouth engraving shared by all three masks. */
+function filigreeGeometry() {
+  const paths = [
+    [[-.4,.53],[-.25,.61],[0,.66],[.25,.61],[.4,.53]],
+    [[-.4,.3],[-.34,.04],[-.22,-.25],[0,-.48],[.22,-.25],[.34,.04],[.4,.3]],
+    [[-.2,-.24],[0,-.31],[.2,-.24]],
+    [[-.25,.39],[0,.49],[.25,.39]],
+  ];
+  const positions = [];
+  for (const path of paths) for (let i=1;i<path.length;i++)
+    positions.push(path[i-1][0],path[i-1][1],.115,path[i][0],path[i][1],.115);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(positions, 3));
   return g;
 }
 function maskMaterial() {
@@ -108,12 +125,18 @@ export class Ability extends BaseAbility {
     this.group.add(this.root);
     this.maskMat = own(maskMaterial());
     this.wakeMat = own(wakeMaterial());
+    this.engravingMat = own(new LineBasicMaterial({
+      color: 0xfff3ff, transparent: true, opacity: .75,
+      depthWrite: false, blending: AdditiveBlending,
+    }));
+    const engraving = own(filigreeGeometry());
     const mask = own(maskGeometry()),
       plane = own(new PlaneGeometry(1, 1));
     this.masks = [];
     this.wakes = [];
     for (let i = 0; i < 3; i++) {
       const m = new Mesh(mask, this.maskMat);
+      m.add(new LineSegments(engraving, this.engravingMat));
       m.position.y = 1.2;
       m.layers.set(LAYER.VFX);
       this.root.add(m);
@@ -245,6 +268,8 @@ export class Ability extends BaseAbility {
     this.maskMat.uniforms.fade.value = fade;
     this.maskMat.uniforms.color.value.set(c.maskColor);
     this.maskMat.uniforms.edge.value.set(c.edgeColor);
+    this.engravingMat.color.set(c.edgeColor);
+    this.engravingMat.opacity = (.6 + .15 * Math.sin(this.age * 3)) * fade;
     this.wakeMat.uniforms.time.value = this.age;
     this.wakeMat.uniforms.fade.value = fade;
     this.wakeMat.uniforms.color.value.set(c.trailColor);

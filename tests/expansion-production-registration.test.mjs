@@ -117,6 +117,7 @@ test('approved candidates take the real native cast path and report their own UI
       lights:{ acquire:() => ({}), set() {}, release() {} }, expansionCombat };
     app.abilities = new AbilityManager(ctx);
     app._throwBody = () => {};
+    app._warmDraw = () => {};
     app.aim.facing = 0;
     const adapter = Object.assign(Object.create(PackAdapter.prototype), {
       app, manager:combat, enabled:true, scope:null, mechanics:{ selected:null, selectedUid:null }, _meta:new WeakMap(), _wrapped:new WeakSet(), _tracked:new Set()
@@ -125,7 +126,7 @@ test('approved candidates take the real native cast path and report their own UI
     adapter._install();
     const roster = expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]:'live' });
     const live = installProductionExpansion(app, roster);
-    await app.select(candidate.uid, { prepare:false });
+    await app.select(candidate.uid);
     app._cast(new Vector3(), new Vector3(0,0,1), 5);
     const ability = app.abilities.active[0];
     assert.ok(ability, candidate.uid);
@@ -137,4 +138,44 @@ test('approved candidates take the real native cast path and report their own UI
     live.dispose(); app.abilities.dispose(); expansionCombat.dispose();
     assert.equal(adapter._tracked.has(ability), false, candidate.uid);
   }
+});
+
+test('keyboard roster cycling reaches live expansion entries and returns to native entries', async () => {
+  const candidate = expansionRoster()[0];
+  const app = appStub();
+  const live = installProductionExpansion(app, expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]: 'live' }));
+  const armed = [];
+  app.arm = async (uid) => { armed.push(uid); app.slot = { uid }; };
+  app.slot = { uid: app.uidOf(ELEMENTS.at(-1)) };
+  app._handleAction('cycle', 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(armed.at(-1), candidate.uid);
+  app._handleAction('cycle', -1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(armed.at(-1), app.uidOf(ELEMENTS.at(-1)));
+  live.dispose();
+  app.abilities.dispose();
+});
+
+test('live expansion presets use native bridge settings and reset to registered defaults', async () => {
+  const priorWindow = globalThis.window, priorLocation = globalThis.location;
+  globalThis.location = { search: '' };
+  globalThis.window = { fetch: globalThis.fetch, addEventListener() {} };
+  try {
+    const { installMatrixBridge } = await import('../packs/sandbox/src/bridge/MatrixBridge.js');
+    const candidate = expansionRoster()[0], app = appStub();
+    app.editor.refresh = () => {};
+    const live = installProductionExpansion(app, expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]: 'live' }));
+    const bridge = installMatrixBridge(app);
+    const preset = await bridge.preset(candidate.uid);
+    assert.deepEqual(preset.settings, candidate.config.settings);
+    const key = Object.keys(preset.settings).find((k) => typeof preset.settings[k] === 'number');
+    assert.ok(key);
+    const changed = preset.settings[key] + 1;
+    assert.equal(await bridge.applyPreset(candidate.uid, { settings: { [key]: changed } }), true);
+    assert.equal((await bridge.preset(candidate.uid)).settings[key], changed);
+    assert.equal(await bridge.resetPreset(candidate.uid), true);
+    assert.deepEqual((await bridge.preset(candidate.uid)).settings, candidate.config.settings);
+    live.dispose(); app.abilities.dispose();
+  } finally { globalThis.window = priorWindow; globalThis.location = priorLocation; }
 });

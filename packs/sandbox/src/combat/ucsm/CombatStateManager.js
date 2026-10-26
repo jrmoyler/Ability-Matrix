@@ -228,6 +228,7 @@ export class CombatStateManager {
       mechanic: event.mechanic ?? 'standard',
       targetIds: [...(event.targetIds ?? [])],
       position: (event.position ?? [0, 0, 0]).map(snap),
+      ...(Array.isArray(event.sourcePosition) && event.sourcePosition.length === 3 && event.sourcePosition.every(Number.isFinite) ? { sourcePosition: event.sourcePosition.map(snap) } : {}),
       shape: event.shape ?? null,
       tags: [...(event.tags ?? [])],
       intensity: event.intensity ?? 1,
@@ -344,7 +345,8 @@ export class CombatStateManager {
       const shield = Math.min(e.shields, amount);
       e.shields -= shield; e.health = Math.max(0, e.health - (amount - shield));
       if (e.health === 0) e.alive = false;
-      this.effects.push({ kind: 'damage', effectId: `damage:${event.eventId}:${id}`, targetId: id, amount, health: e.health, from: [event.position[0], event.position[2]], element: event.element, abilityUid: event.abilityUid });
+      const source = event.sourcePosition ?? event.position;
+      this.effects.push({ kind: 'damage', effectId: `damage:${event.eventId}:${id}`, targetId: id, amount, health: e.health, from: [source[0], source[2]], element: event.element, abilityUid: event.abilityUid });
     }
   }
 

@@ -68,6 +68,7 @@ export class CelestialCartographyAbility extends Ability {
   this.starGeo=geom(starGeometry());this.beamGeo=geom(beamGeometry());this.starMat=mat(starlight());this.floorMat=mat(chart());this.flareMat=mat(starlight());
   this.floor=new Mesh(geom(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.04;this.chartGroup.add(this.floor);
   this.frame=new Mesh(geom(new TorusGeometry(1,.018,6,96)),this.starMat);this.frame.rotation.x=Math.PI/2;this.chartGroup.add(this.frame);
+  this.travelStar=new Group();this.group.add(this.travelStar);this.travelStar.visible=false;this.travelStars=[];for(let i=0;i<3;i++){const star=new Mesh(this.starGeo,this.starMat);star.rotation.set(i*TAU/3,0,i*TAU/6);star.scale.setScalar(.45);this.travelStar.add(star);this.travelStars.push(star);}const orbit=new Mesh(this.frame.geometry,this.starMat);orbit.rotation.x=Math.PI/2;orbit.scale.setScalar(.65);this.travelStar.add(orbit);this.travelStar.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
   this.stars=[];this.lines=[];this.nodes=layout.map(([x,z])=>new Vector3(x,0,z));
   for(const node of this.nodes){const star=new Mesh(this.starGeo,this.starMat);star.position.copy(node);star.rotation.x=-Math.PI/2;star.scale.setScalar(.22);this.chartGroup.add(star);this.stars.push(star);}
   for(let i=0;i<this.nodes.length;i++){const line=new Mesh(geom(band(this.nodes[i],this.nodes[(i+1)%this.nodes.length])),this.starMat);this.chartGroup.add(line);this.lines.push(line);}
@@ -79,9 +80,9 @@ export class CelestialCartographyAbility extends Ability {
   this._found=[];this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this._targetPos=new Vector3();
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'cosmic',{shape:'SOFT',colors:['#f7eaff','#bd9eff','#8067dc','#372356'],rate:26});}
- onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.chartGroup.visible=false;this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this.flare.visible=false;}
- onTravel(){}
- onImpact(){this.chartGroup.position.copy(this.position);this.chartGroup.visible=true;}
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.chartGroup.visible=false;this.travelStar.visible=true;this.travelStar.position.copy(this.origin);this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this.flare.visible=false;}
+ onTravel(){const c=this.config,visualTime=this.reduceMotion?0:this.age;this.travelStar.position.copy(this.position);this.travelStar.position.y=1.1;this.travelStar.rotation.set(visualTime*.6,visualTime*1.5,visualTime*.9);this.travelStar.scale.setScalar(c.starScale??1);this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=1;this.starMat.uniforms.uColor.value.set(c.chartColor);}
+ onImpact(){this.travelStar.visible=false;this.chartGroup.position.copy(this.position);this.chartGroup.visible=true;}
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
   const c=this.config,elapsed=this.impactTime,fade=t<=1?1:1-bound(t-1),rise=smoother(elapsed/Math.max(.01,c.armDelay)),radius=c.zoneRadius;
   this.atmosphere.syncPalette(c.chartColor,c.coreColor);
@@ -102,7 +103,7 @@ export class CelestialCartographyAbility extends Ability {
   }
   const flareAge=this._strikeAt<0?-1:elapsed-this._strikeAt;this.flare.visible=flareAge>=0&&flareAge<.5;this.flare.position.set(this._targetPos.x-this.position.x,.6,this._targetPos.z-this.position.z);this.flare.scale.setScalar((c.flareScale??1)*(1+bound(flareAge/.5)*1.5));this.flareMat.uniforms.uTime.value=visualTime;this.flareMat.uniforms.uFade.value=fade*(1-bound(flareAge/.5));this.flareMat.uniforms.uColor.value.set(c.coreColor);for(let i=0;i<this.flareRings.length;i++)this.flareRings[i].rotation.set(i*TAU/3,visualTime*(i%2?-1:1),i*TAU/6);this.flareStar.rotation.y=visualTime;
  }
- onDestroy(){this.chartGroup.visible=false;this.beam.visible=false;this._target=null;this._found.length=0;}
+ onDestroy(){this.chartGroup.visible=false;this.travelStar.visible=false;this.beam.visible=false;this._target=null;this._found.length=0;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c,Editor){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}
+export function buildEditor(gui,c,Editor){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['starScale',.25,2,.05],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}

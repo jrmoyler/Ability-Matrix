@@ -30,6 +30,7 @@
     "lightIntensity": 7,
     "lightRadius": 10,
     "chartHeight": 4.2,
+    "starScale": 1,
     "flareScale": 1,
     "armDelay": 0.45,
     "strikeDelay": 0.42,

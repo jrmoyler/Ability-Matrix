@@ -47,6 +47,7 @@ export const CONFIG = Object.freeze({
     lift: 2.2,
     impactFlash: 0.1,
     impactShake: 0.1,
+    arcLifetime: 0.55,
   },
 });
 const SECTIONS = 24,
@@ -136,9 +137,8 @@ export class FulminantRelayAbility extends Ability {
       this.group.add(ring);
       return ring;
     });
-    this.arcMaterial = boltMaterial();
     this.arcs = Array.from({ length: MAX_JUMPS }, () => {
-      const arc = new Mesh(arcGeometry(), this.arcMaterial);
+      const arc = new Mesh(arcGeometry(), boltMaterial());
       arc.layers.set(LAYER.VFX);
       arc.frustumCulled = false;
       arc.visible = false;
@@ -194,7 +194,6 @@ export class FulminantRelayAbility extends Ability {
       this.coreMaterial,
       this.shellMaterial,
       this.ringMaterial,
-      this.arcMaterial,
       this.sparkMaterial,
     ])
       m.uniforms.uFade.value = 1;
@@ -220,8 +219,17 @@ export class FulminantRelayAbility extends Ability {
     for (const m of [this.coreMaterial, this.shellMaterial, this.ringMaterial])
       m.uniforms.uTime.value = this.age;
     this.sparkMaterial.uniforms.uTime.value = this.age;
-    for (let i = 0; i < this.hops.length; i++)
-      this._writeArc(this.arcs[i], this.hops[i].from, this.hops[i].to, i);
+    for (let i = 0; i < this.hops.length; i++) {
+      const hop = this.hops[i],
+        arc = this.arcs[i];
+      const opacity = Math.max(
+        0,
+        1 - (this.age - hop.time) / Math.max(0.1, this.config.arcLifetime),
+      );
+      arc.visible = opacity > 0;
+      arc.material.uniforms.uFade.value = opacity;
+      if (arc.visible) this._writeArc(arc, hop.from, hop.to, i);
+    }
     this.position.copy(this.anchor);
   }
   onTravel() {
@@ -271,7 +279,11 @@ export class FulminantRelayAbility extends Ability {
     const arc = this.arcs[this.hops.length];
     this._writeArc(arc, this.anchor, this.targetPoint, this.hops.length);
     arc.visible = true;
-    this.hops.push({ from: this.anchor.clone(), to: this.targetPoint.clone() });
+    this.hops.push({
+      from: this.anchor.clone(),
+      to: this.targetPoint.clone(),
+      time: this.age,
+    });
     best.kill?.(
       dirX,
       dirZ,
@@ -328,7 +340,6 @@ export class FulminantRelayAbility extends Ability {
         this.coreMaterial,
         this.shellMaterial,
         this.ringMaterial,
-        this.arcMaterial,
         this.sparkMaterial,
       ])
         m.uniforms.uFade.value = fade;
@@ -341,7 +352,10 @@ export class FulminantRelayAbility extends Ability {
     for (const a of this.arcs) a.visible = false;
   }
   dispose() {
-    for (const a of this.arcs) a.geometry.dispose();
+    for (const a of this.arcs) {
+      a.geometry.dispose();
+      a.material.dispose();
+    }
     for (const r of [
       this.coreGeometry,
       this.coreMaterial,
@@ -349,7 +363,6 @@ export class FulminantRelayAbility extends Ability {
       this.shellMaterial,
       this.ringGeometry,
       this.ringMaterial,
-      this.arcMaterial,
       this.sparkGeometry,
       this.sparkMaterial,
     ])
@@ -364,6 +377,7 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "chainRadius", 1, 10, 0.1, "jump radius");
   R(f, c, "maxJumps", 1, 8, 1, "maximum jumps");
   R(f, c, "jumpInterval", 0.1, 1, 0.05, "jump interval");
+  R(f, c, "arcLifetime", 0.1, 2, 0.05, "arc lifetime");
   R(f, c, "impulse", 0, 15, 0.1, "impact force");
   R(f, c, "lift", 0, 8, 0.1, "impact lift");
   R(f, c, "impactShake", 0, 1, 0.01, "impact shake");
