@@ -112,3 +112,20 @@ test('five worldshape rigs have finite, distinctive mesh structures and release 
   }
   assert.equal(new Set(signatures).size, 5);
 });
+
+test('a budget-blocked worldshape pulse retries without presenting a phantom impact', () => {
+  const p = WORLDSHAPE_VARIANTS.find(x => x.style === 'floodplain');
+  const { m, s, region } = setup(p);
+  m.tick = region.nextPulse;
+  s.used = s.b.eventsPerTick;
+  m.cues.length = 0;
+  const expectedTick = region.nextPulse;
+  s.worldshape.update();
+  assert.equal(region.nextPulse, expectedTick, 'blocked pulse must remain due');
+  assert.equal(m.cues.some(c => c.phase === 'terrain-pulse'), false, 'no visual for a refused hit');
+  s.used = 0;
+  s.worldshape.update();
+  assert.ok(m.queue.some(e => e.type === 'hit' && e.abilityUid === p.uid), 'next available tick queues the actual pulse');
+  assert.ok(m.cues.some(c => c.phase === 'terrain-pulse'));
+  assert.ok(region.nextPulse > expectedTick);
+});

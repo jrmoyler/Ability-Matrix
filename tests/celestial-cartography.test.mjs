@@ -31,3 +31,48 @@ test('a marked strike cannot hit a pooled dummy after it is reset into a new lif
 test('a marked strike does not hit after sandbox dummies are disabled',()=>{const before=settings.dummies.enabled;try{settings.dummies.enabled=true;const {a,bodies}=arena(),d=dummy(5,0);bodies.push(d);a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.85);assert.equal(a._target,d);settings.dummies.enabled=false;tick(a,.6);assert.equal(d.hits,0);a.destroy();a.dispose();}finally{settings.dummies.enabled=before;}});
 
 test('chart does not mark a body whose center is outside its advertised radius',()=>{const {a,bodies}=arena(),d=dummy(5+a.config.zoneRadius+.1,0);bodies.push(d);a.ctx.dummies.findTargets=(x,z,r,out)=>{out.length=0;out.push(d);return out;};a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.5);assert.equal(a._target,null);assert.equal(d.hits,0);a.destroy();a.dispose();});
+
+test('constellation marks and strikes a UCSM enemy after its warning',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});m.upsertEntity({id:'enemy',teamId:'enemy',position:[5,0,0],health:5});m.upsertEntity({id:'ally',teamId:'player',position:[5,0,0],health:5});
+ const bridge=new ExpansionCombatAdapter(m),a=new CelestialCartographyAbility({lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ const seen=[],sub=bridge.bind('matrix-expansion/test').on('hit',e=>seen.push(e));
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);
+ for(let i=0;i<150;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.equal(m.entities.get('enemy').health,4);assert.equal(m.entities.get('ally').health,5);assert.equal(seen.length,1);assert.equal(seen[0].abilityUid,'matrix-expansion/celestial-cartography');
+ sub.unsubscribe();a.destroy();a.dispose();bridge.dispose();
+});
+
+test('UCSM enemy can evade the marked celestial strike',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});m.upsertEntity({id:'enemy',teamId:'enemy',position:[5,0,0],health:5});
+ const bridge=new ExpansionCombatAdapter(m),a=new CelestialCartographyAbility({lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});a.spawn(new Vector3(),new Vector3(1,0,0),5);
+ for(let i=0;i<60;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.ok(a._markedAt>=0);m.upsertEntity({id:'enemy',teamId:'enemy',position:[10,0,0],health:5});
+ for(let i=0;i<100;i++){a.update(1/60);if(i%2)m.advance();}
+ assert.equal(m.entities.get('enemy').health,5);a.destroy();a.dispose();bridge.dispose();
+});
+
+test('combat mode changes before acquisition do not let a stale celestial cast hit a dummy',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();m.upsertEntity({id:'caster',teamId:'player',health:5});
+ let enabled=true,epoch=0;const d=dummy(5,0),field={slots:[{dummy:d}],findTargets(x,z,r,out){out.length=0;if(d.alive)out.push(d);return out;}};
+ const bridge=new ExpansionCombatAdapter(m,{enabled:()=>enabled,modeVersion:()=>epoch}),a=new CelestialCartographyAbility({character:{position:new Vector3()},dummies:field,lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);enabled=false;epoch++;
+ for(let i=0;i<150;i++)a.update(1/60);
+ assert.equal(d.hits,0);assert.equal(a.failure,'combat mode changed during cast');
+ a.destroy();a.dispose();bridge.dispose();
+});
+
+test('a combat mode round trip cannot revive a standalone celestial mark',async()=>{
+ const {CombatStateManager}=await import('../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ const m=new CombatStateManager();let enabled=false,epoch=0;const d=dummy(5,0),field={slots:[{dummy:d}],findTargets(x,z,r,out){out.length=0;if(d.alive)out.push(d);return out;}};
+ const bridge=new ExpansionCombatAdapter(m,{enabled:()=>enabled,modeVersion:()=>epoch}),a=new CelestialCartographyAbility({character:{position:new Vector3()},dummies:field,lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge});
+ a.spawn(new Vector3(),new Vector3(1,0,0),5);for(let i=0;i<50;i++)a.update(1/60);assert.ok(a._markedAt>=0);
+ enabled=true;epoch++;enabled=false;epoch++;for(let i=0;i<100;i++)a.update(1/60);
+ assert.equal(d.hits,0);assert.equal(a.failure,'combat mode changed during cast');a.destroy();a.dispose();bridge.dispose();
+});

@@ -222,3 +222,33 @@ test('both pulses honor global explosion intensity for physical impact',()=>{
   }
  }finally{settings.global.explosionIntensity=previous;}
 });
+
+test('dual pulses hit UCSM enemies and preserve frost once-per-target semantics',async()=>{
+ const {CombatStateManager}=await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ for(const [C,uid,element,expected] of [[CinderCrownAbility,'matrix-expansion/cinder-crown','fire',2],[GlacierBellAbility,'matrix-expansion/glacier-bell','frost',1]]){
+  const m=new CombatStateManager();
+  for(const e of [{id:'caster',teamId:'player',health:10},{id:'near',teamId:'enemy',position:[6,0,0],health:10},{id:'far',teamId:'enemy',position:[10,0,0],health:10},{id:'ally',teamId:'player',position:[6,0,0],health:10}])m.upsertEntity(e);
+  const bridge=new ExpansionCombatAdapter(m),seen=[],sub=bridge.bind('matrix-expansion/test-observer').on('hit',e=>seen.push(e));
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},expansionCombat:bridge});a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  for(let i=0;i<180;i++){a.update(1/60);if(i%2)m.advance();}
+  assert.equal(m.entities.get('near').health,10-expected,uid);assert.equal(m.entities.get('far').health,10);assert.equal(m.entities.get('ally').health,10);
+  assert.equal(seen.length,expected);assert.ok(seen.every(e=>e.abilityUid===uid&&e.element===element));
+  sub.unsubscribe();a.destroy();a.dispose();bridge.dispose();
+ }
+});
+
+test('dual pulse standalone strikes real host targets and reject mid-cast mode changes',async()=>{
+ const {CombatStateManager}=await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+ const {ExpansionCombatAdapter}=await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+ for(const C of [CinderCrownAbility,GlacierBellAbility]){
+  let enabled=false,epoch=0,kills=0;
+  const dummy={alive:true,position:new Vector3(6,0,0),kill(){kills++;this.alive=false;return true;}};
+  const bridge=new ExpansionCombatAdapter(new CombatStateManager(),{enabled:()=>enabled,modeVersion:()=>epoch});
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},character:{position:new Vector3()},dummies:{slots:[{dummy}]},expansionCombat:bridge});
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,3);assert.equal(kills,1);
+  a.destroy();dummy.alive=true;a.spawn(new Vector3(),new Vector3(1,0,0),5);enabled=true;epoch++;enabled=false;epoch++;run(a,3);
+  assert.equal(kills,1);assert.equal(a.failure,'combat mode changed during cast');
+  a.destroy();a.dispose();bridge.dispose();
+ }
+});

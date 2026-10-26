@@ -19,3 +19,19 @@ test('committed light beam finishes its release after the target is defeated',()
 test('heliostat contact uses authored impact facets at the actual moving target',()=>{for(const g of [heliostatImpactGeometry(),heliostatImpactShardGeometry()]){const p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();}const {a,actor,state}=arena(),bursts=[],decals=[];a.ctx.bursts={spawn:(mode,pos,opt)=>bursts.push({mode,pos:pos.clone(),radius:opt.endRadius})};a.ctx.decals={spawn:(mode,pos,opt)=>decals.push({mode,pos:pos.clone(),radius:opt.radius})};a.atmosphere.cue=()=>{throw new Error('generic cue must not be used');};state.refuse=true;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.5);assert.equal(bursts.length,0);assert.equal(a.impactEffects.halo.visible,false);actor.position=[6,0,0];state.refuse=false;tick(a,.3);assert.equal(bursts.length,1);assert.equal(bursts[0].mode,BurstMode.STORM);assert.equal(decals[0].mode,DecalType.SHOCKWAVE);assert.equal(bursts[0].pos.x,6);assert.ok(bursts[0].radius<=4);assert.equal(a.impactEffects.halo.position.x,6);assert.ok(a.impactEffects.shards.every(s=>s.visible));tick(a,1);assert.equal(a.impactEffects.halo.visible,false);a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);assert.ok(a.impactEffects.shards.every(s=>!s.visible));a.destroy();a.dispose();});
 
 test('reused heliostat does not expose stale blade positions on its arrival frame',()=>{const {a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,1.5);assert.ok(a.blades.some(b=>b.visible));a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);a.update(.5);assert.equal(a.rig.visible,true);assert.equal(a.lensMat.uniforms.uFade.value,1);assert.ok(a.blades.every(b=>!b.visible));assert.ok(a.facets.every(f=>!f.visible));a.update(.01);assert.ok(a.blades.every(b=>b.visible));assert.ok(a.facets.every(f=>f.visible));a.destroy();a.dispose();});
+
+test('heliostat retains its lock and retries when a terrain query temporarily fails',()=>{
+  const {a,state,events}=arena();
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);
+  tick(a,.6);
+  assert.equal(a.targetId,'dummy:1');
+  state.unavailable=true;
+  tick(a,.7);
+  assert.equal(events.length,0);
+  assert.equal(a.targetId,'dummy:1');
+  assert.equal(a.failure,'terrain query unavailable');
+  state.unavailable=false;
+  tick(a,.3);
+  assert.equal(events.length,1);
+  a.destroy();a.dispose();
+});

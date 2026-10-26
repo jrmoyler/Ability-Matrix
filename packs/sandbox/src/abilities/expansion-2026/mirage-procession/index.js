@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
   routeExpansionTransparency,
@@ -185,6 +187,20 @@ export class Ability extends BaseAbility {
   }
   onSpawn() {
     this._previous = 0;
+    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/mirage-procession');
+    this.failure = null;
+    this._pendingContacts = new Map();
+    this._hitSubscription = null;
+    if (this._scope && !this._scope.standalone) {
+      const sub=this._scope.on('hit', event=>{
+        const position=this._pendingContacts.get(event.eventId);
+        if (!position) return;
+        this._pendingContacts.delete(event.eventId);
+        point.fromArray(position);
+        expansionBurst(this.fx,point,{count:24,size:.14,life:.6,speed:2,radius:.3});
+      });
+      if (sub.ok) this._hitSubscription=sub; else this.failure=sub.reason;
+    }
     this._trailElapsed = 0;
     this._hits.clear();
     this.root.visible = true;
@@ -236,10 +252,32 @@ export class Ability extends BaseAbility {
   _sweep(from, to) {
     const c = this.config,
       field = this.ctx.dummies;
-    if (!field?.findTargets || to <= from) return;
+    if ((!this._scope && !field?.findTargets) || to <= from) return;
     const mid = (from + to) / 2;
     this.pointAt(mid / this.length, point);
     point.addScaledVector(this.side, this._lane * c.laneGap);
+    if (this._scope) {
+      const query = this._scope.queryActors({position:[point.x, 0, point.z], radius:Math.hypot((to - from) / 2, c.hitWidth), relation:'enemy'});
+      if (!query.ok) { this.failure = query.reason; return; }
+      const force = impactForce({hitImpulse:c.impulse,hitLift:c.lift,hitSpin:c.spin}, settings.global.explosionIntensity);
+      let hits = 0;
+      for (const actor of query.actors) {
+        const dx=actor.position[0]-this.origin.x, dz=actor.position[2]-this.origin.z;
+        const along=dx*this.direction.x+dz*this.direction.z, lat=dx*this.side.x+dz*this.side.z-this._lane*c.laneGap;
+        if (along<from || along>to || Math.abs(lat)>c.hitWidth || this._hits.has(actor.id)) continue;
+        if (this._hits.size >= 64) break;
+        const sent=this._scope.emit({type:'hit', element:'illusion', targetIds:[actor.id], position:actor.position,
+          sourcePosition:[this.origin.x,0,this.origin.z], damage:1, hitForce:force, tags:['mirage-procession']});
+        if (!sent.ok) { this.failure=sent.reason; continue; }
+        this._hits.add(actor.id);
+        if (sent.standalone) {
+          point.fromArray(actor.position);
+          expansionBurst(this.fx,point,{count:24,size:.14,life:.6,speed:2,radius:.3});
+        } else if (this._hitSubscription && sent.eventId) this._pendingContacts.set(sent.eventId, [...actor.position]);
+        if (++hits>=MAX_TARGETS) break;
+      }
+      return;
+    }
     const found = field.findTargets(
         point.x,
         point.z,
@@ -328,6 +366,9 @@ export class Ability extends BaseAbility {
     this.shards.instanceMatrix.needsUpdate = true;
   }
   onDestroy() {
+    this._hitSubscription?.unsubscribe(); this._hitSubscription=null;
+    this._pendingContacts?.clear();
+    this._scope = null;
     this.root.visible = false;
     this._hits.clear();
   }

@@ -102,25 +102,32 @@ test('nature and cosmic hits on real dummies retain their candidate attribution'
   const bridge = new ExpansionCombatAdapter(combatManager);
   const ctx = { scene, particles, lights:{acquire:()=>({}),release(){},set(){}}, character:{position:new Vector3()}, dummies:field, expansionCombat:bridge };
   const abilities = new AbilityManager(ctx);
-  const app = {abilities, character:ctx.character, dummies:field, editor:{gui}, uidOf:id => `native/${id}`};
-  const host = Object.assign(Object.create(PackAdapter.prototype), { app, manager:combatManager, enabled:true, scope:null, _meta:new WeakMap(), _wrapped:new WeakSet(), _tracked:new Set(), _ids:new WeakMap(), _byId:new Map(), _nextDummy:0, mechanics:{systems:{worldshape:{blocked:()=>false}}} });
+  const app = {abilities, character:ctx.character, dummies:field, editor:{gui}, runtimes:new Map(), renderer:{gl:{domElement:{}}}, uidOf:id => `native/${id}`};
+  const host = Object.assign(Object.create(PackAdapter.prototype), { app, manager:combatManager, expansionCombat:bridge, enabled:true, scope:null, _meta:new WeakMap(), _wrapped:new WeakSet(), _tracked:new Set(), _ids:new WeakMap(), _byId:new Map(), _nextDummy:0, mechanics:{beforeStep(){},update(){},cue(){},systems:{worldshape:{blocked:()=>false}}},feed:{update(){},badges(){}} });
   app.combat = host;
   host._install();
   const harness = installExpansionHarness(app);
-  for (const item of candidates.filter(item => ['nature', 'cosmic'].includes(item.config.meta.element))) {
-    const target = new Dummy({ source:root, clip:root.animations[0], scale:.01, offset:{x:0,y:0,z:0}, forwardYaw:0, environment:env });
-    target.root.position.set(0,0,5); target.root.updateWorldMatrix(true,true);
-    field.slots = [{dummy:target, wait:0}];
-    host._dummyId(target);
-    const previousSystems = new Set(particles.systems.values());
-    harness.cast(item.ID);
-    for (let i=0; i<360 && target.alive; i++) { frame.uTime.value=i/60; abilities.update(1/60); }
-    assert.equal(target.alive, false, item.ID);
-    assert.ok(combatManager.queue.some(event => event.type === 'hit' && event.abilityUid === item.uid && event.element === item.config.meta.element), item.ID);
-    assert.ok([...particles.systems.values()].some(system => !previousSystems.has(system) && system.cursor > 0), `${item.ID}: particles emitted`);
-    abilities.clear(); target.dispose();
+  const seen = [];
+  const subscription = bridge.bind('matrix-expansion/test-observer').on('hit', event => seen.push(event));
+  let target;
+  try {
+    for (const item of candidates.filter(item => ['nature', 'cosmic'].includes(item.config.meta.element))) {
+      target = new Dummy({ source:root, clip:root.animations[0], scale:.01, offset:{x:0,y:0,z:0}, forwardYaw:0, environment:env });
+      target.root.position.set(0,0,5); target.root.updateWorldMatrix(true,true);
+      field.slots = [{dummy:target, wait:0}];
+      host.update(0);
+      const previousSystems = new Set(particles.systems.values());
+      harness.cast(item.ID);
+      for (let i=0; i<360 && target.alive; i++) { frame.uTime.value=i/60; abilities.update(1/60); host.update(1/60); }
+      assert.equal(target.alive, false, item.ID);
+      for (let i=0; i<3; i++) host.update(1/60);
+      assert.ok(seen.some(event => event.type === 'hit' && event.abilityUid === item.uid && event.element === item.config.meta.element), item.ID);
+      assert.ok([...particles.systems.values()].some(system => !previousSystems.has(system) && system.cursor > 0), `${item.ID}: particles emitted`);
+      abilities.clear(); target.dispose(); target = null;
+    }
+  } finally {
+    target?.dispose(); subscription.unsubscribe(); harness.dispose(); abilities.dispose(); particles.dispose(); bridge.dispose();
   }
-  harness.dispose(); abilities.dispose(); particles.dispose(); bridge.dispose();
 });
 
 test('live candidates are excluded without replacing or disposing their state', () => {

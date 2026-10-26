@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
   routeExpansionTransparency,
@@ -239,6 +241,8 @@ export class Ability extends BaseAbility {
     });
   }
   onSpawn() {
+    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/spellwrights-gambit');
+    this.failure = null;
     this._target.copy(this.origin).addScaledVector(this.direction, this.length);
     this._beats = 0;
     for (const release of this.releases) { release.kind = null; release.group.visible = false; }
@@ -282,10 +286,29 @@ export class Ability extends BaseAbility {
       speed: 3,
       radius: this.config.zoneRadius * 0.4,
     });
-    const c = this.config,
-      field = this.ctx.dummies;
-    if (!field?.findTargets || !['ring', 'line', 'burst'].includes(kind))
+    const c = this.config;
+    if (!['ring', 'line', 'burst'].includes(kind)) return;
+    if (this._scope) {
+      const source = [this._target.x, 0, this._target.z];
+      const targets = this._scope.queryActors({position: source, radius: c.zoneRadius, relation: 'enemy'});
+      if (!targets.ok) { this.failure = targets.reason; return; }
+      let count = 0;
+      for (const actor of targets.actors) {
+        offset.set(actor.position[0] - source[0], 0, actor.position[2] - source[2]);
+        const distance = offset.length(), lateral = offset.dot(this.side);
+        if (distance > c.zoneRadius || (kind === 'ring' && distance < Math.max(0, c.zoneRadius - c.ringWidth)) ||
+            (kind === 'line' && Math.abs(lateral) > c.lineWidth)) continue;
+        const sent = this._scope.emit({type:'hit',element:'arcane',targetIds:[actor.id],
+          position:actor.position,sourcePosition:source,damage:1,
+          hitForce:impactForce({hitImpulse:c.impulse,hitLift:c.lift,hitSpin:c.spin}, settings.global.explosionIntensity),
+          tags:['spellwrights-gambit',kind]});
+        if (!sent.ok) this.failure = sent.reason;
+        else if (++count >= MAX_TARGETS) break;
+      }
       return;
+    }
+    const field = this.ctx.dummies;
+    if (!field?.findTargets) return;
     const r = c.zoneRadius,
       found = field.findTargets(this._target.x, this._target.z, r, this._found),
       power = settings.global.explosionIntensity;
@@ -390,6 +413,7 @@ export class Ability extends BaseAbility {
     }
   }
   onDestroy() {
+    this._scope = null;
     this.root.visible = false;
     this._beats = 0;
   }

@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import { AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, RingGeometry, ShaderMaterial, Vector3 } from 'three';
 import { Ability as BaseAbility } from '../../Ability.js';
 import { settings } from '../../../config/settings.js';
@@ -52,7 +54,7 @@ class PulseAbility extends BaseAbility {
     this.found=[];this.hit=new Set();this.target=new Vector3();this._disposed=false;
   }
   createParticles(){this.fx=createExpansionFX(this.ctx,this.element,{shape:this.element===CINDER_CONFIG.id?ParticleShape.STREAK:ParticleShape.CHIP,colors:this.element===CINDER_CONFIG.id?['#fff2a6','#ff9b40','#bd2510','#341018']:['#ffffff','#a8efff','#3895c9','#203a80']});this.travelFx=createExpansionFX(this.ctx,`${this.element}.delivery`,{capacity:160,shape:this.element===CINDER_CONFIG.id?ParticleShape.STREAK:ParticleShape.CHIP,colors:this.element===CINDER_CONFIG.id?['#fff0a1','#ff7a24','#a52610','#321016']:['#ffffff','#b2f5ff','#438ec9','#173b70']});this.releaseFx=createExpansionFX(this.ctx,`${this.element}.release`,{capacity:192,shape:this.element===CINDER_CONFIG.id?ParticleShape.SMOKE:ParticleShape.CHIP,additive:this.element!==CINDER_CONFIG.id,colors:this.element===CINDER_CONFIG.id?['#ffb867','#ac4d26','#4c2b31','#1b171d']:['#ffffff','#d0f7ff','#76c3e7','#315575']});}
-  onSpawn(){this.released=false;this.travelElapsed=0;clearContacts(this.contacts);resetTravelDelivery(this.delivery);updateTravelDelivery(this.delivery,this.origin,this.direction,0,0,this.config.accentColor,this.config.deliveryScale,0,this.config.deliveryArc,prefersReducedMotion());this.hit.clear();this.second=false;this.root.visible=true;this.target.copy(this.origin).addScaledVector(this.direction,this.length);this._sync(1,0);}
+  onSpawn(){this.scope=bindExpansionCombat(this.ctx,this.fire?'matrix-expansion/cinder-crown':'matrix-expansion/glacier-bell');this.failure=null;this.released=false;this.travelElapsed=0;clearContacts(this.contacts);resetTravelDelivery(this.delivery);updateTravelDelivery(this.delivery,this.origin,this.direction,0,0,this.config.accentColor,this.config.deliveryScale,0,this.config.deliveryArc,prefersReducedMotion());this.hit.clear();this.second=false;this.root.visible=true;this.target.copy(this.origin).addScaledVector(this.direction,this.length);this._sync(1,0);}
   onTravel(dt){const reduced=prefersReducedMotion();updateTravelDelivery(this.delivery,this.position,this.direction,dt,reduced?0:this.age,this.config.accentColor,this.config.deliveryScale,this.u,this.config.deliveryArc,reduced);const rate=Math.max(0,this.config.travelRate);if(dt>0&&rate>0&&!reduced){this.travelElapsed+=dt;const interval=1/rate;if(this.travelElapsed>=interval){this.travelElapsed=Math.min(interval,this.travelElapsed-interval);expansionBurst(this.travelFx,this.delivery.group.position,{count:this.config.travelParticles,radius:.1,speed:this.fire?1.5:.6,life:.55,size:.07,spread:1});}}this._sync(1,0);}
   onImpact(){endTravelDelivery(this.delivery);this._sync(1,0);this._burst();if(this.fire)this._strike(this.config.zoneRadius,false);}
   onFade(dt,t){const q=clamp(t),fade=t>1?2-t:1;
@@ -64,7 +66,22 @@ class PulseAbility extends BaseAbility {
   _burst(){expansionBurst(this.fx,this.target,{count:this.config.particleCount,radius:this.config.zoneRadius*.6,speed:this.fire?3:1.8,life:.8,size:.12});expansionImpact(this.ctx,this.config.lightColor,this.config.impactShake,this.config.impactFlash);}
   _release(){expansionBurst(this.releaseFx,this.target,{count:this.config.releaseParticles,radius:this.config.zoneRadius*.7,speed:this.fire?.8:1.6,life:this.fire?1.3:.8,size:this.fire?.22:.1,spread:1});}
   _strike(radius,once){
-    const c=this.config;if(!this.ctx.dummies?.findTargets||radius<=0)return;
+    const c=this.config;if(radius<=0)return;
+    if(this.scope){
+      const source=[this.target.x,0,this.target.z],targets=this.scope.queryActors({position:source,radius,relation:'enemy'});
+      if(!targets.ok){this.failure=targets.reason;return;}
+      for(const actor of targets.actors){
+        if(once&&(this.hit.has(actor.id)||this.hit.size>=32))continue;
+        const dx=actor.position[0]-source[0],dz=actor.position[2]-source[2];
+        if(Math.hypot(dx,dz)>radius)continue;
+        const result=this.scope.emit({type:'hit',element:this.fire?'fire':'frost',targetIds:[actor.id],position:actor.position,sourcePosition:source,damage:1,
+          hitForce:impactForce({hitImpulse:c.impulse,hitLift:c.lift,hitSpin:0},settings.global.explosionIntensity),tags:[this.element]});
+        if(!result.ok){this.failure=result.reason;continue;}
+        addContact(this.contacts,dx,dz);if(once)this.hit.add(actor.id);
+      }
+      return;
+    }
+    if(!this.ctx.dummies?.findTargets)return;
     this.found.length=0;const found=this.ctx.dummies.findTargets(this.target.x,this.target.z,radius,this.found)||this.found;
     for(let i=0;i<Math.min(found.length,32);i++){const d=found[i];if(!d?.position||typeof d.kill!=='function'||(once&&(this.hit.has(d)||this.hit.size>=32)))continue;
       const dx=d.position.x-this.target.x,dz=d.position.z-this.target.z,dist=Math.hypot(dx,dz);if(dist>radius)continue;
@@ -73,7 +90,7 @@ class PulseAbility extends BaseAbility {
     }
   }
   _sync(fade,q){const radius=this.config.zoneRadius;this.root.position.copy(this.target);this.position.copy(this.target);const travelling=this.phase==='travel';this.surface.visible=!travelling;this.detail.surface.visible=!travelling;this.detail.points.visible=!travelling;this.authored.stage.visible=!travelling;this.monument.group.visible=!travelling;this.surface.scale.set(radius,1,radius);this.ring.scale.setScalar(radius*(travelling||this.fire?1:Math.max(.01,q)));this.surface.material.uniforms.clock.value=prefersReducedMotion()?0:this.age;this.surface.material.uniforms.fade.value=fade;this.ring.material.opacity=(travelling?.3:.8)*fade;this.ring.material.color.set(this.config.accentColor);const u=this.detail.uniforms;u.clock.value=prefersReducedMotion()?0:this.age;u.fade.value=fade;u.beat.value=this.fire?(q<.12||q>=this.config.secondPulse&&q<this.config.secondPulse+.12?1:0):q;u.tint.value.set(this.config.accentColor);this.detail.surface.scale.set(radius,1,radius);this.detail.points.scale.set(radius,1,radius);updateAuthoredStages(this.authored,{radius,q,phase:this.phase,pulse:this.config.secondPulse??0,fade,clock:prefersReducedMotion()?0:this.age,tint:this.config.coreColor,detailHeight:this.config.detailHeight});updateCandidateMonument(this.monument,{q,phase:this.phase,pulse:this.config.secondPulse??0,fade,clock:prefersReducedMotion()?0:this.age,tint:this.config.coreColor,scale:this.config.monumentScale,glow:this.config.monumentGlow});updateImpactFragments(this.fragments,{phase:this.phase,q,pulse:this.config.secondPulse??0,radius,fade,scale:this.config.fragmentScale,glow:this.config.fragmentGlow,tint:this.config.coreColor});updateElementalGround(this.ground,{phase:this.phase,q,pulse:this.config.secondPulse??0,radius,fade,clock:prefersReducedMotion()?0:this.age,tint:this.config.groundColor,glow:this.config.groundGlow,opacity:this.config.groundOpacity});updateResonance(this.resonance,{phase:this.phase,q,pulse:this.config.secondPulse??0,fade,scale:this.config.resonanceScale,amplitude:this.config.resonanceMotion,tint:this.config.coreColor,reducedMotion:prefersReducedMotion()});}
-  onDestroy(){clearContacts(this.contacts);endTravelDelivery(this.delivery);this.root.visible=false;this.hit.clear();this.second=false;this.released=false;}
+  onDestroy(){this.scope=null;clearContacts(this.contacts);endTravelDelivery(this.delivery);this.root.visible=false;this.hit.clear();this.second=false;this.released=false;}
   dispose(){if(this._disposed)return;this._disposed=true;for(const x of this.resources)x.dispose();super.dispose();}
 }
 export class CinderCrownAbility extends PulseAbility {constructor(ctx){super(CINDER_CONFIG.id,ctx,true);}}

@@ -69,3 +69,10 @@ test('standalone hits reject invalid source positions without changing a target'
   assert.equal(dummy.alive,true);
   assert.equal(scope.getActor(id).actor.health,1);
 });
+
+test('standalone terrain query validates both endpoints before reporting clear',()=>{
+  const {scope}=arena();
+  assert.deepEqual(scope.isBlocked([0,0,0],[1,0,1]),{ok:true,blocked:false});
+  assert.equal(scope.isBlocked([NaN,0,0],[1,0,1]).ok,false);
+  assert.equal(scope.isBlocked([0,0,0],[1,0]).ok,false);
+});

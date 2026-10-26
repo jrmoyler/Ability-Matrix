@@ -1,3 +1,5 @@
+import { bindExpansionCombat } from '../StandaloneCombat.js';
+import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
   routeExpansionTransparency,
@@ -223,6 +225,19 @@ export class Ability extends BaseAbility {
     });
   }
   onSpawn() {
+    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/vector-breakwater');
+    this.failure = null;
+    this._pendingContacts = new Map();
+    this._hitSubscription = null;
+    if (this._scope && !this._scope.standalone) {
+      const sub=this._scope.on('hit', event=>{
+        const cue=this._pendingContacts.get(event.eventId);
+        if (!cue) return;
+        this._pendingContacts.delete(event.eventId);
+        this._showContact(cue.i,cue.lat,cue.along,cue.position);
+      });
+      if (sub.ok) this._hitSubscription=sub; else this.failure=sub.reason;
+    }
     this._previous.fill(0);
     this._nextTrail.fill(0);
     this.contactTimes.fill(-1);
@@ -314,7 +329,7 @@ export class Ability extends BaseAbility {
   _sweep(i, from, to) {
     const c = this.config,
       field = this.ctx.dummies;
-    if (!field?.findTargets) return;
+    if (!this._scope && !field?.findTargets) return;
     const mid = (from + to) / 2;
     this.pointAt(mid / this.length, loc);
     if (to >= this._nextTrail[i]) {
@@ -326,6 +341,28 @@ export class Ability extends BaseAbility {
         radius: this.config.width * 0.25,
       });
       this._nextTrail[i] = to + 2;
+    }
+    if (this._scope) {
+      const query = this._scope.queryActors({position:[loc.x,0,loc.z], radius:Math.hypot((to-from)/2,c.width), relation:'enemy'});
+      if (!query.ok) { this.failure=query.reason; return; }
+      const force=impactForce({hitImpulse:c.impulse,hitLift:c.lift,hitSpin:c.spin},settings.global.explosionIntensity);
+      let n=0;
+      for (const actor of query.actors) {
+        const x=actor.position[0]-this.origin.x,z=actor.position[2]-this.origin.z;
+        const along=x*this.direction.x+z*this.direction.z, lat=x*this.side.x+z*this.side.z;
+        if(along<from || along>to || Math.abs(lat)>c.width || this._hitSets[i].has(actor.id)) continue;
+        if(this._hitSets[i].size>=64) break;
+        const sent=this._scope.emit({type:'hit',element:'force',targetIds:[actor.id],position:actor.position,
+          sourcePosition:[this.origin.x,0,this.origin.z],damage:1,hitForce:force,tags:['vector-breakwater']});
+        if(!sent.ok){this.failure=sent.reason;continue;}
+        this._hitSets[i].add(actor.id);
+        if(n===0){
+          if (sent.standalone) this._showContact(i,lat,along,actor.position);
+          else if (this._hitSubscription && sent.eventId) this._pendingContacts.set(sent.eventId,{i,lat,along,position:[...actor.position]});
+        }
+        if(++n>=MAX_TARGETS) break;
+      }
+      return;
     }
     const found = field.findTargets(
         loc.x,
@@ -363,7 +400,16 @@ export class Ability extends BaseAbility {
       }
     }
   }
+  _showContact(i,lat,along,position) {
+    this.contacts[i].position.set(-lat,.08+i*.01,along);
+    this.contactTimes[i]=this.age;
+    loc.fromArray(position);
+    expansionBurst(this.fx,loc,{count:12,size:.09,life:.38,speed:3,radius:.15});
+  }
   onDestroy() {
+    this._hitSubscription?.unsubscribe(); this._hitSubscription=null;
+    this._pendingContacts?.clear();
+    this._scope = null;
     this.root.visible = false;
     for (const s of this._hitSets) s.clear();
   }

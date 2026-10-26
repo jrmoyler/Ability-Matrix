@@ -115,3 +115,39 @@ test('each front shows its contact burst only when a target accepts the hit', ()
   assert.ok(b.contacts.every((contact)=>!contact.visible));
   b.destroy();b.dispose();
 });
+
+test('three fronts damage UCSM enemies once each without striking allies or outside the corridor', async () => {
+  const { CombatStateManager } = await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+  const { ExpansionCombatAdapter } = await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+  settings[ID]=structuredClone(config.settings);
+  const manager=new CombatStateManager();
+  for(const e of [{id:'caster',teamId:'player'},{id:'enemy',teamId:'enemy',position:[5,0,0]},{id:'ally',teamId:'player',position:[5,0,0]},{id:'outside',teamId:'enemy',position:[5,0,6]}]) manager.upsertEntity({...e,health:10});
+  const bridge=new ExpansionCombatAdapter(manager),events=[];
+  const sub=bridge.bind('matrix-expansion/test','caster').on('hit',e=>events.push(e));
+  const a=new Ability({lights:{acquire:()=>({}),release(){},set(){}},character:{position:new Vector3()},expansionCombat:bridge});
+  a.spawn(new Vector3(),new Vector3(1,0,0),18);
+  for(let i=0;i<180;i++){a.update(1/60);manager.advance(1/60);}
+  assert.equal(manager.entities.get('enemy').health,7);
+  assert.equal(manager.entities.get('ally').health,10);
+  assert.equal(manager.entities.get('outside').health,10);
+  assert.equal(events.filter(e=>e.abilityUid==='matrix-expansion/vector-breakwater').length,3);
+  sub.unsubscribe();a.destroy();a.dispose();bridge.dispose();
+});
+
+test('breakwater contact waits for its committed hit and ignores cancellation', async () => {
+  const {CombatStateManager}=await import('../../packs/sandbox/src/combat/ucsm/CombatStateManager.js');
+  const {ExpansionCombatAdapter}=await import('../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js');
+  settings[ID]=structuredClone(config.settings);
+  for(const cancel of [false,true]){
+    const manager=new CombatStateManager();manager.upsertEntity({id:'caster',teamId:'player'});manager.upsertEntity({id:'target',teamId:'enemy',position:[5,0,0],health:5});
+    const bridge=new ExpansionCombatAdapter(manager);
+    const a=new Ability({lights:{acquire:()=>({}),set(){},release(){}},character:{position:new Vector3()},expansionCombat:bridge});
+    a.spawn(new Vector3(),new Vector3(1,0,0),18);
+    while(!manager.queue.length)a.update(1/60);
+    assert.equal(a.contactTimes[0],-1,'enqueue must not show impact');
+    if(cancel)manager.cancelEvents(()=>true);
+    manager.advance(1/30);
+    assert.equal(a.contactTimes[0]>=0,!cancel);
+    a.destroy();a.dispose();bridge.dispose();
+  }
+});

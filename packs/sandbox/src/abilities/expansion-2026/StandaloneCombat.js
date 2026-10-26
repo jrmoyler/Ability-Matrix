@@ -64,7 +64,10 @@ function fallback(ctx,uid,modeVersion){
       actors.sort((a,b)=>a.id.localeCompare(b.id));return {ok:true,actors:actors.slice(0,32)};
     },
     getActor(id){if(id==='caster'&&ctx.character?.position){const p=ctx.character.position;return {ok:true,actor:{id,teamId:'player',position:[p.x,p.y,p.z],alive:true,health:1,statuses:[]}};}const dummy=find(id);return dummy?{ok:true,actor:snapshot(world,health,dummy,generation(dummy))}:fail('unknown standalone actor');},
-    isBlocked(){return {ok:true,blocked:false};},
+    isBlocked(from,to){
+      const validPoint=(point)=>Array.isArray(point)&&point.length===3&&point.every(Number.isFinite);
+      return validPoint(from)&&validPoint(to)?{ok:true,blocked:false}:fail('invalid terrain query');
+    },
     on(type,handler){
       if(type!=='hit'||typeof handler!=='function'||!world.host)return fail('owned hit observation unavailable');
       if(world.listeners.size>=64)return fail('subscription budget');

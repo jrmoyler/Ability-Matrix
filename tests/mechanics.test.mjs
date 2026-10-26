@@ -616,3 +616,15 @@ test('cancelling after convergence commits retains its impact cue', () => {
   s.cancel('caster');
   assert.equal(m.cues.some(cue=>cue.id===c.id&&cue.phase==='convergence'),true);
 });
+
+test('a lethal hit cancels a dead owner’s later same-tick mechanic events', () => {
+  const { m, s } = arena();
+  s.actor('caster');
+  incoming(m, { eventId: 'lethal', damage: 2 });
+  const c = { id: 'dead-owner-attack', family: 'convergence', uid: P.convergence.uid,
+    ownerId: 'caster', position: [8, 0, 0], direction: [1, 0, 0] };
+  assert.equal(s.emit(c, { type: 'hit', targetIds: ['enemy'], damage: 2 }), true);
+  m.advance();
+  assert.equal(m.entities.get('caster').alive, false);
+  assert.equal(m.entities.get('enemy').health, 10, 'an owner defeated earlier in the tick cannot land a delayed mechanic');
+});

@@ -499,9 +499,12 @@ export class WorldshapeManager {
         const p = this.s.preset(r);
         if (p.pulse && this.s.m.tick >= r.nextPulse) {
           const c = { ...r, id: `${r.id}:pulse:${this.s.m.tick}` };
-          this.s.area(c, disc(r.position, p.radius), p.damage);
-          this.s.cue('terrain-pulse', c);
-          r.nextPulse = this.s.m.tick + this.s.t(p.pulse);
+          // Keep the pulse due if the event budget is exhausted. A visual
+          // impact must not advertise damage that could not be queued.
+          if (this.s.area(c, disc(r.position, p.radius), p.damage)) {
+            this.s.cue('terrain-pulse', c);
+            r.nextPulse = this.s.m.tick + this.s.t(p.pulse);
+          }
         }
       }
   }
@@ -742,6 +745,10 @@ export class MechanicSystems {
   }
   afterEvent(e) {
     for (const id of e.consumeRegions ?? []) this.m.regions.delete(id);
+    // Damage commits before this hook. End a defeated owner's mechanics now,
+    // including events already extracted for the rest of this same tick.
+    if (e.type === 'hit') for (const id of e.targetIds)
+      if (this.actors.has(id) && !this.alive(id)) this.cancel(id);
   }
   speed(id) {
     const tags = this.m.entities.get(id)?.statuses ?? [];
