@@ -1,9 +1,11 @@
+import { createConvergenceTelegraph } from './ConvergenceTelegraph.js';
 import { Raycaster, Plane, Vector2, Vector3 } from 'three';
 import { MechanicSystems } from './MechanicSystems.js';
 import { MechanicPresentation } from './MechanicPresentation.js';
 import { MechanicControls } from './MechanicControls.js';
-import { MECHANIC_PRESETS as P } from './presets.js';
+import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
 import { shapeContains } from '../CombatStateManager.js';
+import { issueMechanicCast } from './MechanicCommand.js';
 
 /** Sandbox glue. All gameplay runs in UCSM; this owns input, audio and scene lifetime. */
 export class MechanicHost {
@@ -13,6 +15,7 @@ export class MechanicHost {
     this.systems = new MechanicSystems(adapter.manager);
     this.presentation = new MechanicPresentation(this.app.scene, this.systems);
     this.selected = null;
+    this.selectedUid = null;
     this.drill = false;
     this.sound = false;
     this.nextThreat = 0;
@@ -36,7 +39,7 @@ export class MechanicHost {
       if (!this.ray.ray.intersectPlane(this.plane, this.target)) return;
       const c = this.app.character.position,
         f = this.selected,
-        p = P[f];
+        p = MECHANIC_VARIANTS[this.selectedUid] ?? P[f];
       const direction = this.target.clone().sub(c).setY(0);
       const length = direction.length();
       if (length < 0.001) direction.set(0, 0, 1);
@@ -52,6 +55,8 @@ export class MechanicHost {
     this.preview.name = 'MechanicAim';
     this.preview.visible = false;
     this.app.scene.add(this.preview);
+    this.convergencePreview = null;
+    this.convergencePreviewUid = null;
     this.onMove = (e) => {
       const rect = this.app.canvas.getBoundingClientRect();
       this.pointer.set(
@@ -62,25 +67,30 @@ export class MechanicHost {
     this.app.canvas.addEventListener('pointermove', this.onMove);
     this.app.canvas.addEventListener('pointerdown', this.onPointer, true);
   }
-  select(family) {
+  select(family, uid = null) {
     if (!P[family]) return false;
+    if (uid && MECHANIC_VARIANTS[uid]?.family !== family) return false;
     if (this.app.paused || !this.adapter.enabled) return false;
+    this.selectedUid = uid;
+    if (family === 'convergence' && uid && this.convergencePreviewUid !== uid) {
+      if (this.convergencePreview) {
+        this.app.scene.remove(this.convergencePreview);
+        this.convergencePreview.userData.dispose();
+      }
+      this.convergencePreview = createConvergenceTelegraph(MECHANIC_VARIANTS[uid]);
+      this.convergencePreviewUid = uid;
+      this.app.scene.add(this.convergencePreview);
+    }
     if (family === 'stance' && this.systems.stance.active.has('caster')) {
-      return this.cast(family, null, [0, 0, 1], 'finish');
+      return this.cast(family, null, [0, 0, 1], 'finish', uid);
     }
     this.app.activeAim.cancel();
     this.selected = family;
-    this.app.hud.showToast(`${P[family].name} · click arena to cast`, 2200);
+    this.app.hud.showToast(`${(MECHANIC_VARIANTS[uid] ?? P[family]).name} · click arena to cast`, 2200);
     return true;
   }
-  cast(family, position, direction = [0, 0, 1], action = 'cast') {
-    if (this.app.paused || !this.adapter.enabled) return { ok: false, reason: 'combat paused or disabled' };
-    const result = this.systems.command({ family, position: position ?? undefined, direction, action });
-    if (result.ok) {
-      this.app._throwBody(Math.atan2(direction[0], direction[2]), P[family].castAnim);
-      if (family !== 'weave') this.selected = null;
-    } else this.app.hud.showToast(result.reason);
-    return result;
+  cast(family, position, direction = [0, 0, 1], action = 'cast', uid) {
+    return issueMechanicCast(this, family, position, direction, action, uid);
   }
   // Called immediately before movement, keeping shared settings unmodified.
   movement(from, to) {
@@ -180,9 +190,13 @@ export class MechanicHost {
     if (
       !this.sound ||
       c.kind !== 'mechanic' ||
-      !['anticipation', 'reversal', 'finisher', 'convergence', 'block'].includes(c.phase)
+      !['anticipation', 'reversal', 'finisher', 'convergence', 'block', 'terrain-pulse'].includes(c.phase)
     )
       return;
+    if (c.phase === 'terrain-pulse') {
+      if (this.lastTerrainAudio !== undefined && c.tick - this.lastTerrainAudio < this.systems.m.ticksFor(0.25)) return;
+      this.lastTerrainAudio = c.tick;
+    }
     const Audio = window.AudioContext || window.webkitAudioContext;
     if (!Audio) return;
     this.audio ??= new Audio();
@@ -190,7 +204,10 @@ export class MechanicHost {
     const osc = this.audio.createOscillator(),
       gain = this.audio.createGain(),
       now = this.audio.currentTime;
-    const freq = { weave: 160, stance: 100, counter: 730, worldshape: 65, convergence: 330 }[c.family] ?? 220;
+    const element = MECHANIC_VARIANTS[c.uid]?.element;
+    const freq = c.phase === 'terrain-pulse'
+      ? ({ fire: 105, frost: 480, storm: 215, water: 150, crystal: 620 }[element] ?? 180)
+      : ({ weave: 160, stance: 100, counter: 730, worldshape: 65, convergence: 330 }[c.family] ?? 220);
     osc.type = c.family === 'worldshape' ? 'triangle' : 'sine';
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(freq * 0.45, now + 0.25);
@@ -209,15 +226,21 @@ export class MechanicHost {
   update() {
     this.presentation.update();
     this.controls.update();
-    this.preview.visible = !!this.selected;
+    const customPreview = this.selected === 'convergence' && this.selectedUid === this.convergencePreviewUid && this.convergencePreview;
+    this.preview.visible = !!this.selected && !customPreview;
+    if (this.convergencePreview) this.convergencePreview.visible = !!customPreview;
     if (this.selected) {
       this.ray.setFromCamera(this.pointer, this.app.camera);
       if (this.ray.ray.intersectPlane(this.plane, this.target)) {
-        const p = P[this.selected],
+        const p = MECHANIC_VARIANTS[this.selectedUid] ?? P[this.selected],
           origin = this.app.character.position;
         const delta = this.target.clone().sub(origin).setY(0);
         delta.clampLength(0, p.range);
         this.preview.position.copy(origin).add(delta).setY(0.06);
+        if (customPreview) {
+          this.convergencePreview.position.copy(this.preview.position);
+          this.convergencePreview.rotation.y = Math.atan2(delta.x, delta.z);
+        }
         if (['stance', 'counter'].includes(this.selected)) this.preview.position.copy(origin);
         this.preview.scale.setScalar(p.radius ?? 0.7);
       }
@@ -228,12 +251,22 @@ export class MechanicHost {
     this.presentation.clear();
     this.threats = [];
     this.selected = null;
+    this.selectedUid = null;
+    // PackAdapter returns immediately after disabling UCSM, so hide these
+    // here rather than relying on another presentation update.
+    this.preview.visible = false;
+    if (this.convergencePreview) this.convergencePreview.visible = false;
   }
   dispose() {
     this.clear();
     this.controls.dispose();
     this.presentation.dispose();
     this.app.scene.remove(this.preview);
+    if (this.convergencePreview) {
+      this.app.scene.remove(this.convergencePreview);
+      this.convergencePreview.userData.dispose();
+      this.convergencePreview = null;
+    }
     this.app.canvas.removeEventListener('pointermove', this.onMove);
     this.app.canvas.removeEventListener('pointerdown', this.onPointer, true);
     void this.audio?.close();

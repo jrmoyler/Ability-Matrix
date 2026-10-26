@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CombatStateManager } from '../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
 import { MechanicSystems } from '../packs/sandbox/src/combat/ucsm/mechanics/MechanicSystems.js';
-import { MECHANIC_PRESETS as P } from '../packs/sandbox/src/combat/ucsm/mechanics/presets.js';
+import { MECHANIC_PRESETS as P, CRYOSTASIS_MESH, COUNTER_VARIANTS, MECHANIC_VARIANTS } from '../packs/sandbox/src/combat/ucsm/mechanics/presets.js';
 import { ELEMENT_OF } from '../packs/sandbox/src/config/elements.js';
 import { Scene } from 'three';
 import { MechanicPresentation } from '../packs/sandbox/src/combat/ucsm/mechanics/MechanicPresentation.js';
@@ -90,6 +90,24 @@ test('hostile existing-cast footprints destroy anchors and remove ghost links; a
   assert.equal(s.weave.links.length, 0);
 });
 
+test('Cryostasis Mesh places frost anchors and chills hostile crossers without changing Infernal Circuit', () => {
+  const { m, s } = arena();
+  const add = (position) => {
+    assert.equal(s.command({ family: 'weave', uid: CRYOSTASIS_MESH.uid, position }).ok, true);
+    ticks(m, s.t(CRYOSTASIS_MESH.anticipation) + 1);
+  };
+  add([4, 0, 0]);
+  ticks(m, 24);
+  add([12, 0, 0]);
+  m.advance();
+  assert.equal(s.weave.links.length, 1);
+  assert.ok(m.entities.get('enemy').statuses.some((x) => x.tag === 'chilled'));
+  assert.ok(m.recentEvents.some((x) => x.abilityUid === CRYOSTASIS_MESH.uid && x.element === 'frost'));
+  assert.equal(m.entities.get('ally').health, 10);
+  assert.equal(s.weave.activate({ id: 'mixed', family: 'weave', uid: P.weave.uid, ownerId: 'caster', position: [8, 0, 5] }), 'remove existing anchors before changing weave');
+  assert.equal(s.command({ family: 'counter', uid: CRYOSTASIS_MESH.uid }).ok, false);
+});
+
 test('Aegis Exemplar: drain, movement, blocked impact bank, combo grammar, finisher and restoration', () => {
   const { m, s } = arena();
   cast(s, 'stance');
@@ -165,6 +183,72 @@ test('Shatterpoint: perfect, partial, whiff, uncounterable, exactly-once and no 
   ticks(whiff.m, 20);
   assert.equal(whiff.s.counter.windows.size, 0);
   assert.ok(whiff.m.cues.some((c) => c.phase === 'whiff'));
+});
+
+test('five additional counter moves guard, return their own elemental hit, and remain hostile-only', () => {
+  for (const p of COUNTER_VARIANTS) {
+    const { m, s } = arena();
+    m.upsertEntity({ id: 'enemy2', teamId: 'enemy', position: [8, 0, 1], health: 10 });
+    assert.equal(s.command({ family: 'counter', uid: p.uid }).ok, true, p.name);
+    ticks(m, s.t(p.anticipation) + 1);
+    incoming(m);
+    m.advance();
+    assert.equal(m.entities.get('caster').health, 1, p.name);
+    m.advance();
+    assert.ok(m.entities.get('enemy').health < 10, p.name);
+    assert.equal(m.entities.get('ally').health, 10, p.name);
+    assert.ok(m.recentEvents.some((e) => e.abilityUid === p.uid && e.element === p.element && e.tags.includes('counter-return')), p.name);
+    if (p.splash) assert.ok(m.entities.get('enemy2').health < 10, p.name);
+    if (p.footprint) assert.ok([...m.regions.values()].some((r) => r.element === p.element), p.name);
+    if (p.shield) assert.equal(m.entities.get('caster').shields, p.shield, p.name);
+  }
+});
+
+test('counter variants have distinct geometry and per-move perfect and recovery timing', () => {
+  const { s, m } = arena(), v = new MechanicPresentation(new Scene(), s);
+  const signatures = new Set();
+  for (const p of COUNTER_VARIANTS) {
+    const g = v.build('counter', { uid: p.uid });
+    const shape = [];
+    g.traverse(n => { if (n.isMesh) shape.push([n.geometry.type, n.position.x.toFixed(2), n.position.y.toFixed(2), n.position.z.toFixed(2)]); });
+    assert.ok(shape.length >= 10, p.name);
+    signatures.add(JSON.stringify(shape));
+  }
+  assert.equal(signatures.size, COUNTER_VARIANTS.length);
+  const p = COUNTER_VARIANTS[0];
+  assert.equal(s.command({ family: 'counter', uid: p.uid }).ok, true);
+  ticks(m, s.t(p.anticipation + p.perfect + p.partial) + 2);
+  assert.equal(s.counter.windows.size, 0);
+  assert.ok(s.actor('caster').recoveryUntil > m.tick);
+  v.dispose();
+});
+
+test('all variant guards respect partial timing, uncounterable attacks and cancellation', () => {
+  for (const p of COUNTER_VARIANTS) {
+    const open = () => {
+      const a = arena();
+      assert.equal(a.s.command({ family: 'counter', uid: p.uid }).ok, true);
+      ticks(a.m, a.s.t(p.anticipation) + 1);
+      return a;
+    };
+    const partial = open();
+    ticks(partial.m, partial.s.t(p.perfect));
+    incoming(partial.m);
+    partial.m.advance();
+    assert.ok(Math.abs(partial.m.entities.get('caster').health - (1 - 0.4 * p.reduction)) < 1e-9, p.name);
+    partial.m.advance();
+    assert.equal(partial.m.entities.get('enemy').health, 10, `${p.name}: partial has no return`);
+    const immune = open();
+    incoming(immune.m, { tags: ['uncounterable'] });
+    immune.m.advance();
+    assert.equal(immune.m.entities.get('caster').health, 0.6, p.name);
+    const cancelled = open();
+    cancelled.s.cancel('caster');
+    incoming(cancelled.m);
+    cancelled.m.advance();
+    assert.equal(cancelled.m.entities.get('caster').health, 0.6, p.name);
+    assert.equal(cancelled.s.counter.windows.size, 0, p.name);
+  }
 });
 
 test('Continental Uprising: shared swept collision/LOS, ramp height, overlap safety and rollback', () => {
@@ -342,6 +426,18 @@ test('all five Three.js rigs have distinct real geometry and release scene/resou
   assert.equal(disposed, v.resources.length);
 });
 
+test('Cryostasis anchor has its own finite geometry and disposes shared resources', () => {
+  const { s } = arena(), scene = new Scene(), v = new MechanicPresentation(scene, s);
+  const fire = v.add('fire', 'anchor', { position: [0, 0, 0] });
+  const frost = v.add('frost', 'anchor', { uid: CRYOSTASIS_MESH.uid, position: [0, 0, 0] });
+  let count = 0;
+  frost.g.traverse((n) => { if (n.isMesh) { count++; assert.ok(n.geometry.attributes.position.count > 0); } });
+  assert.ok(count >= 10);
+  assert.notDeepEqual(frost.g.toJSON().object.children, fire.g.toJSON().object.children);
+  v.dispose();
+  assert.equal(scene.children.length, 0);
+});
+
 test('partial counter does not reduce another target, and duplicate targets never double damage', () => {
   const { m, s } = arena();
   cast(s, 'counter');
@@ -363,6 +459,51 @@ test('perfect counter does not bank phantom stance impact', () => {
   m.advance();
   assert.equal(m.entities.get('caster').health, 1);
   assert.equal(s.stance.active.get('caster').bank, 0);
+});
+
+test('partial counter and stance compose their reductions and bank only absorbed damage', () => {
+  const { m, s } = arena();
+  cast(s, 'stance');
+  ticks(m, 30);
+  cast(s, 'counter');
+  ticks(m, s.t(P.counter.perfect));
+  incoming(m);
+  m.advance();
+  assert.ok(Math.abs(m.entities.get('caster').health - 0.93) < 1e-9);
+  assert.ok(Math.abs(s.stance.active.get('caster').bank - 0.13) < 1e-9);
+});
+
+test('counter cannot erase an existing shield or cancel a strike when the return event cannot be queued', () => {
+  const full = arena();
+  const facet = COUNTER_VARIANTS.find((p) => p.uid.endsWith('/facet-reprisal'));
+  full.m.entities.get('caster').shields = 2;
+  full.s.command({ family: 'counter', uid: facet.uid });
+  ticks(full.m, full.s.t(facet.anticipation) + 1);
+  incoming(full.m);
+  full.m.advance();
+  assert.equal(full.m.entities.get('caster').shields, 2);
+  const limited = arena({}, { eventsPerTick: 0 });
+  limited.s.command({ family: 'counter' });
+  ticks(limited.m, limited.s.t(P.counter.anticipation) + 1);
+  incoming(limited.m);
+  limited.m.advance();
+  assert.equal(limited.m.entities.get('caster').health, 0.6);
+  assert.ok(limited.m.cues.some((c) => c.phase === 'refused' && c.reason === 'event budget'));
+});
+
+test('multi-event counters refuse atomically when only the primary return fits', () => {
+  for (const slug of ['feedback-execution', 'backdraft-reprisal']) {
+    const { m, s } = arena({}, { eventsPerTick: 1 });
+    const p = COUNTER_VARIANTS.find((x) => x.uid.endsWith('/' + slug));
+    m.upsertEntity({ id: 'near', teamId: 'enemy', position: [9, 0, 0], health: 10 });
+    s.command({ family: 'counter', uid: p.uid });
+    ticks(m, s.t(p.anticipation) + 1);
+    incoming(m);
+    m.advance();
+    assert.equal(m.entities.get('caster').health, 0.6, slug);
+    assert.ok(m.cues.some((c) => c.phase === 'refused' && c.reason === 'event budget'), slug);
+    assert.equal(m.entities.get('enemy').health, 10, slug);
+  }
 });
 
 test('failed terrain placement refunds reservation; shield absorbs actual damage; death restores max health', () => {
@@ -403,6 +544,11 @@ test('weave links recalculate line of sight and range; invalid terrain never tra
 test('exported mechanic presets round trip without drift', () => {
   for (const [family, p] of Object.entries(P)) {
     const json = JSON.parse(readFileSync(new URL(`../presets/mechanics/${family}.json`, import.meta.url)));
+    assert.deepEqual(json, { schemaVersion: 1, ...p });
+  }
+  for (const p of Object.values(MECHANIC_VARIANTS)) {
+    const slug = p.uid.split('/').at(-1);
+    const json = JSON.parse(readFileSync(new URL(`../presets/mechanics/${slug}.json`, import.meta.url)));
     assert.deepEqual(json, { schemaVersion: 1, ...p });
   }
 });

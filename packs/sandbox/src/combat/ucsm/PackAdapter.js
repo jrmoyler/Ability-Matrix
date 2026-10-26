@@ -110,7 +110,7 @@ export class PackAdapter {
           if (origin && current.mechanics?.systems.worldshape.blocked(origin, [this.position.x, 0, this.position.z])) return false;
         }
         const fell = original.apply(this, args);
-        if (fell && current?.enabled && current.scope) current._hit(this, current.scope);
+        if (fell && current?.enabled && current.scope) current._hit(this, current.scope, name);
         return fell;
       };
       wrapped.__ucsm = true;
@@ -207,7 +207,7 @@ export class PackAdapter {
     return id;
   }
 
-  _hit(dummy, scope) {
+  _hit(dummy, scope, outcome) {
     const id = this._dummyId(dummy);
     const p = dummy.position;
     this.manager.upsertEntity({ id, teamId: TARGETS, position: [p.x, 0, p.z] });
@@ -220,6 +220,10 @@ export class PackAdapter {
       teamId: PLAYER,
       targetIds: [id],
       position: [p.x, 0, p.z],
+      // The legacy packs report successful knockdowns/freezes, not arbitrary
+      // non-lethal contact. Keep this distinction explicit for stance procs.
+      tags: !scope.reactionId && (outcome === 'kill' || outcome === 'freeze')
+        ? [`sandbox-${outcome}`] : [],
       depth: scope.depth ?? 0,
       parentReactionId: scope.reactionId ?? null
     });
@@ -360,7 +364,7 @@ export class PackAdapter {
     return {
       manager: m,
       mechanics: this.mechanics.systems,
-      castMechanic: (family, position, direction, action) => this.mechanics.cast(family, position, direction, action),
+      castMechanic: (family, position, direction, action, uid) => this.mechanics.cast(family, position, direction, action, uid),
       preview: (a, b) => resolvePair(a, b),
       fold: (order) => foldElements(order),
       pairs: () => pairTable(),

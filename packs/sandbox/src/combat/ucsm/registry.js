@@ -4,7 +4,7 @@ import { PLAYABLE_MECHANICS } from './mechanics/presets.js';
 /**
  * The spec's proposed content (Unified Combat Spec §3–4), as data.
  *
- * Only the five explicitly implemented representatives are selectable. All
+ * Only explicitly implemented representatives are selectable. All
  * other entries remain proposed; a family manager alone does not promote content.
  * It is here so the combat manager, the tests and any explorer see one
  * registry with the spec's UID rule applied — existing uids untouched, new
@@ -89,7 +89,7 @@ export const PROPOSED_STANDARD = Object.freeze(
   })
 );
 
-/** All 115 design-roster mechanic moves, exactly five implemented. */
+/** All 115 design-roster mechanic moves; only implemented entries are selectable. */
 export const MECHANIC_REGISTRY = Object.freeze(
   Object.entries(MECHANIC_MOVES).flatMap(([mechanic, { moves, family }]) =>
     moves.map((name, i) => entry(`mechanics/${mechanic}/${slugOf(name)}`, ELEMENT_IDS[i], name, mechanic, family))

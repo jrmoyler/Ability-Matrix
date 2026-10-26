@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/stance/thundergod-conduction",
+  "family": "stance",
+  "name": "Thundergod Conduction",
+  "element": "storm",
+  "range": 18,
+  "cost": 14,
+  "cooldown": 18,
+  "anticipation": 0.5,
+  "recovery": 0.5,
+  "castAnim": "cast3",
+  "life": 15,
+  "drain": 5,
+  "bankCap": 2,
+  "speed": 1.2,
+  "reduction": 0.15,
+  "finisherRadius": 3.8,
+  "damage": 1,
+  "passive": "chain",
+  "detail": "Every second standard cast knockdown or freeze arcs to a nearby enemy."
+}

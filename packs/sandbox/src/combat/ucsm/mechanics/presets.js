@@ -1,3 +1,7 @@
+import { STANCE_VARIANTS } from './stance-presets.js';
+import { WEAVE_VARIANTS } from './WeaveVariants.js';
+import { CONVERGENCE_VARIANTS } from './ConvergenceVariants.js';
+import { WORLDSHAPE_VARIANTS } from './worldshapeVariants.js';
 /** Authoritative runtime presets. Seconds are converted to UCSM ticks once per action. */
 const move = (family, slug, name, element, data) =>
   Object.freeze({
@@ -71,7 +75,24 @@ export const MECHANIC_PRESETS = Object.freeze({
     castAnim: 'cast2'
   })
 });
-export const PLAYABLE_MECHANICS = Object.freeze(Object.values(MECHANIC_PRESETS).map((p) => p.uid));
+/** Additional moves use the same family manager but retain their own authored contract. */
+export const CRYOSTASIS_MESH = move('weave', 'cryostasis-mesh', 'Cryostasis Mesh', 'frost', {
+  cost: 10, cooldown: 22, life: 12, maxAnchors: 3, maxLink: 14,
+  width: 0.42, anchorHealth: 2, pulse: 0.9, damage: 0.65, castAnim: 'cast1'
+});
+const counter = (slug, name, element, data) => move('counter', slug, name, element, {
+  cost: 12, cooldown: 1.5, anticipation: 0.1, perfect: 0.13, partial: 0.2,
+  recovery: 0.65, reduction: 0.5, damage: 0.8, range: 24, castAnim: 'cast1', ...data
+});
+export const COUNTER_VARIANTS = Object.freeze([
+  counter('backdraft-reprisal', 'Backdraft Reprisal', 'fire', { damage: 0.85, footprint: 1.8, cooldown: 1.8 }),
+  counter('feedback-execution', 'Feedback Execution', 'storm', { damage: 0.7, splash: 3, splashDamage: 0.45, perfect: 0.1 }),
+  counter('undertow-reversal', 'Undertow Reversal', 'water', { damage: 0.6, footprint: 3, perfect: 0.17, cooldown: 1.8 }),
+  counter('faultline-retort', 'Faultline Retort', 'earth', { damage: 1.1, splash: 2, splashDamage: 0.3, perfect: 0.1, recovery: 0.8 }),
+  counter('facet-reprisal', 'Facet Reprisal', 'crystal', { damage: 0.6, shield: 0.15, partial: 0.25, cooldown: 1.8 })
+]);
+export const MECHANIC_VARIANTS = Object.freeze(Object.fromEntries([CRYOSTASIS_MESH, ...COUNTER_VARIANTS, ...STANCE_VARIANTS, ...WEAVE_VARIANTS, ...CONVERGENCE_VARIANTS, ...WORLDSHAPE_VARIANTS].map((p) => [p.uid, p])));
+export const PLAYABLE_MECHANICS = Object.freeze([...Object.values(MECHANIC_PRESETS), ...Object.values(MECHANIC_VARIANTS)].map((p) => p.uid));
 export const MECHANIC_BUDGET = Object.freeze({
   maxCommands: 64,
   commandsPerTick: 8,
