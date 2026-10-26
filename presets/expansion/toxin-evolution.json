@@ -18,6 +18,9 @@
   "status": "candidate",
   "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 12C34 31 22 42 22 60A28 28 0 0 0 78 60C78 42 66 31 50 12Z\"/><path d=\"M32 59Q50 38 68 59M35 68Q50 52 65 68\"/></svg>",
   "settings": {
+    "hitImpulse": 2.5,
+    "hitLift": 1.2,
+    "hitSpin": 0.6,
     "particleRate": 22,
     "particleSize": 0.1,
     "range": 18,

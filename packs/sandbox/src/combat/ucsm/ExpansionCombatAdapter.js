@@ -1,3 +1,4 @@
+import { validImpactForce } from '../../abilities/expansion-2026/ImpactForce.js';
 import { EVENT_TYPES, isElement } from './ontology.js';
 import { shapesOverlap } from './CombatStateManager.js';
 
@@ -153,6 +154,7 @@ export class ExpansionCombatAdapter {
             (['spawn', 'terrain-impact'].includes(event.type) && !event.shape) ||
             (event.tags !== undefined && (!Array.isArray(event.tags) || event.tags.length > 16 || event.tags.some((tag) => typeof tag !== 'string'))) ||
             (event.damage !== undefined && (!Number.isFinite(event.damage) || event.damage < 0)) ||
+            (event.hitForce !== undefined && (event.type !== 'hit' || !validImpactForce(event.hitForce))) ||
             (event.intensity !== undefined && (!Number.isFinite(event.intensity) || event.intensity < 0 || event.intensity > m.budget.maxIntensity)) ||
             (event.durationTicks !== undefined && (!Number.isSafeInteger(event.durationTicks) || event.durationTicks < 0 || event.durationTicks > m.ticksFor(60))) ||
             (event.castId !== undefined && typeof event.castId !== 'string')) return failure('invalid event');
@@ -169,6 +171,7 @@ export class ExpansionCombatAdapter {
           tick: m.tick + (m._dueEvents ? 1 : 0),
           teamId: caster.teamId, mechanic: 'standard', position: event.position ?? caster.position,
           ...(event.sourcePosition !== undefined ? { sourcePosition: event.sourcePosition } : {}),
+          ...(event.hitForce !== undefined ? { hitForce: { impulse:event.hitForce.impulse,lift:event.hitForce.lift,spin:event.hitForce.spin } } : {}),
           targetIds: event.targetIds ?? [], shape: event.shape ? { ...event.shape } : null,
           damage: event.damage, intensity: event.intensity, durationTicks: event.durationTicks,
           tags: event.tags, castId: event.castId

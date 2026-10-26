@@ -18,6 +18,9 @@
   "status": "candidate",
   "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 78H80M28 78V38Q50 10 72 38V78M38 78V44H62V78M50 22V51M38 35H62\"/></svg>",
   "settings": {
+    "hitImpulse": 3,
+    "hitLift": 3,
+    "hitSpin": 1,
     "particleRate": 24,
     "particleSize": 0.1,
     "range": 18,

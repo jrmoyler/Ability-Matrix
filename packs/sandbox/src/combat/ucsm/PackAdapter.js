@@ -318,11 +318,13 @@ export class PackAdapter {
     if (effect.kind === 'damage') {
       const dummy = this._byId.get(effect.targetId);
       if (dummy && effect.health <= 0 && dummy.alive) {
-        const dx = dummy.position.x - effect.from[0], dz = dummy.position.z - effect.from[1];
-        const d = Math.hypot(dx, dz) || 1;
+        let dx = dummy.position.x - effect.from[0], dz = dummy.position.z - effect.from[1];
+        let d = Math.hypot(dx, dz);
+        if(effect.hitForce && d<1e-8){const caster=this.app.character?.position;dx=dummy.position.x-(caster?.x??0);dz=dummy.position.z-(caster?.z??0);d=Math.hypot(dx,dz);if(d<1e-8){dx=0;dz=1;d=1;}}
+        d ||= 1;
         // UCSM has already committed this hit. Do not report it a second time.
         const outer = this.scope; this.scope = null;
-        try { dummy.kill(dx / d, dz / d, settings.dummies.hit); } finally { this.scope = outer; }
+        try { dummy.kill(dx / d, dz / d, effect.hitForce ?? settings.dummies.hit); } finally { this.scope = outer; }
       }
       if (effect.targetId === 'caster') this.app.hud.showToast(`Hit · ${Math.round(effect.health * 100)}% health`, 800);
       return;

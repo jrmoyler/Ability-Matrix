@@ -7,8 +7,8 @@ import { ExpansionCombatAdapter } from '../packs/sandbox/src/combat/ucsm/Expansi
 import { NightshadeInheritanceAbility, ID } from '../packs/sandbox/src/abilities/expansion-2026/shadow/NightshadeInheritanceAbility.js';
 import config from '../packs/sandbox/src/abilities/expansion-2026/shadow/nightshade-inheritance.config.js';
 settings[ID]=structuredClone(config.settings);
-function arena(){
-  const actors=[5,6].map(x=>({alive:true,position:new Vector3(x,0,0),kill(){if(!this.alive)return false;this.alive=false;return true;}}));
+function arena(positions=[5,6]){
+  const actors=positions.map(x=>({alive:true,position:new Vector3(x,0,0),kill(dx,dz){if(!this.alive)return false;this.lastDirection=[dx,dz];this.alive=false;return true;}}));
   const mode={enabled:false,epoch:0},manager=new CombatStateManager();
   const bridge=new ExpansionCombatAdapter(manager,{enabled:()=>mode.enabled,modeVersion:()=>mode.epoch});
   const ctx={scene:new Scene(),character:{position:new Vector3()},dummies:{slots:actors.map(dummy=>({dummy}))},lights:{acquire:()=>({}),set(){},release(){}},expansionCombat:bridge};
@@ -26,3 +26,12 @@ test('disabled sandbox dummies cannot receive a standalone mark',()=>{
 });
 
 test('a replaced marked dummy releases the mark without transferring or striking',()=>{const {actors,bridge,a}=arena();let generation=0;a.ctx.dummies.standGeneration=()=>generation;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);assert.ok(a.targetId);generation++;tick(a,.1);assert.equal(a.targetId,null);assert.equal(a.failure,'marked target was replaced');assert.equal(a.transfers,0);assert.ok(actors.every(d=>d.alive));a.destroy();a.dispose();bridge.dispose();});
+
+test('standalone inheritance sends its strike away from the defeated host, not the caster',()=>{
+  const {actors,bridge,a}=arena([5,4]);
+  a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);
+  actors[0].kill(1,0);tick(a,.1);
+  assert.equal(a.transfers,1);
+  assert.deepEqual(actors[1].lastDirection,[-1,0]);
+  a.destroy();a.dispose();bridge.dispose();
+});

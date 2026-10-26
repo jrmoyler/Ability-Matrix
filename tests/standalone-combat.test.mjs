@@ -62,3 +62,10 @@ test('disabled sandbox dummies cannot be queried or damaged by a standalone cast
     assert.equal(dummy.alive,true);
   } finally { settings.dummies.enabled=previous; }
 });
+
+test('standalone hits reject invalid source positions without changing a target',()=>{
+  const {dummy,scope}=arena(),id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;
+  assert.equal(scope.emit({type:'hit',targetIds:[id],damage:1,sourcePosition:[NaN,0,0]}).ok,false);
+  assert.equal(dummy.alive,true);
+  assert.equal(scope.getActor(id).actor.health,1);
+});

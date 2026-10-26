@@ -1,3 +1,4 @@
+import { impactForce } from '../ImpactForce.js';
 import { VigilPulses } from './VigilPulses.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
@@ -41,7 +42,7 @@ export class VigilOfEmbersAbility extends Ability{
  onImpact(){this.travelVigil.visible=false;if(!this.scope)return;this.rig.position.copy(this.position);this.rig.visible=true;}
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);if(dt>0&&this.scope&&this.phase===AbilityPhase.IMPACT&&this.impactTime>=this.nextPulse){
    const pos=this.position.toArray(),allies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'ally'}),enemies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'enemy'});
-   if(!allies?.ok||!enemies?.ok)this.failure='sanctuary query refused';let emitted=false,attempted=false;for(const [query,type] of [[allies,'status'],[enemies,'hit']]){const ids=query?.ok?query.actors.filter(a=>a.alive).slice(0,8).map(a=>a.id):[];if(ids.length){attempted=true;const ev={type,element:'holy',position:pos,targetIds:ids,intensity:1};if(type==='hit')ev.damage=c.damage;const out=this.scope.emit(ev);if(out?.ok)emitted=true;else this.failure=out?.reason??'vigil event refused';}}
+   if(!allies?.ok||!enemies?.ok)this.failure='sanctuary query refused';let emitted=false,attempted=false;for(const [query,type] of [[allies,'status'],[enemies,'hit']]){const ids=query?.ok?query.actors.filter(a=>a.alive).slice(0,8).map(a=>a.id):[];if(ids.length){attempted=true;const ev={type,element:'holy',position:pos,targetIds:ids,intensity:1};if(type==='hit'){ev.damage=c.damage;ev.hitForce=impactForce(c);}const out=this.scope.emit(ev);if(out?.ok)emitted=true;else this.failure=out?.reason??'vigil event refused';}}
    if(emitted||(!attempted&&allies?.ok&&enemies?.ok)){this.pulseAt=this.impactTime;this.curtainTimes[this.curtainNext]=this.impactTime;this.curtainNext=(this.curtainNext+1)%this.curtains.length;if(!this.reduceMotion)this.pulseEffects.fire(pos,this.impactTime,c);}this.nextPulse=this.impactTime+Math.max(.3,c.pulsePeriod);
   }
   const pulse=this.pulseAt<0?0:clamp((this.impactTime-this.pulseAt)/.65),flash=(this.pulseAt<0?0:1-clamp((this.impactTime-this.pulseAt)/.35))*(c.pulseStrength??1),release=t<=1?0:clamp(t-1),recede=release*(c.recedeDepth??1.5);

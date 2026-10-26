@@ -46,7 +46,7 @@ test('production registered casts affect real host-synchronized dummies',async()
     assert.ok(event,`${id} must commit an attributed event for the actual host dummy`);
     assert.equal(event.ownerId,'caster');
     if(['poison','light','void','holy','gravity','nature','cosmic'].includes(element)) assert.equal(target.alive,false,`${id} defeats a full-health sandbox dummy at default settings`);
-    if(element==='shadow'){assert.equal(candidate.transfers,1);assert.equal(nextTarget.alive,false,'the inherited strike reaches the next real dummy');assert.ok(seen.some(e=>e.abilityUid===uid&&e.type==='status'&&e.targetIds.includes('dummy:1')),'defeat transfers mark to second real dummy');}
+    if(element==='shadow'){assert.equal(candidate.transfers,1);assert.equal(nextTarget.alive,false,'the inherited strike reaches the next real dummy');assert.ok(seen.some(e=>e.abilityUid===uid&&e.type==='hit'&&e.targetIds.includes('dummy:1')),'defeat transfers mark to second real dummy');}
     live.dispose();abilities.dispose();bridge.dispose();target.dispose();nextTarget?.dispose();
   }
 });

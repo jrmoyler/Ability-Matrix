@@ -1,3 +1,4 @@
+import { impactForce } from '../ImpactForce.js';
 import { ToxinStages } from './ToxinStages.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
@@ -82,7 +83,7 @@ export class ToxinEvolutionAbility extends Ability {
    else{
     this.effect.position.fromArray(e.position);
     if(dt>0&&this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
-     const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
+     const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,sourcePosition:this.origin.toArray(),hitForce:impactForce(c),intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
      if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion)this.stageEffects.fire(this.stage,e.position,c);this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
     }
    }
