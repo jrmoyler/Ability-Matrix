@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/counter/backdraft-reprisal",
+  "family": "counter",
+  "name": "Backdraft Reprisal",
+  "element": "fire",
+  "range": 24,
+  "cost": 12,
+  "cooldown": 1.8,
+  "anticipation": 0.1,
+  "recovery": 0.65,
+  "castAnim": "cast1",
+  "perfect": 0.13,
+  "partial": 0.2,
+  "reduction": 0.5,
+  "damage": 0.85,
+  "footprint": 1.8
+}

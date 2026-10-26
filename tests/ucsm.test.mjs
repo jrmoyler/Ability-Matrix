@@ -246,9 +246,9 @@ test('the same events give the same reactions (determinism), and history is kept
 
 test('the expansion registry promotes only implemented mechanics', () => {
   assert.equal(PROPOSED_STANDARD.length, 46);
-  assert.equal(PROPOSED_MECHANICS.length, 109);
-  assert.equal(PROPOSED.length, 155);
-  assert.equal(IMPLEMENTED_MECHANICS.length, 6);
+  assert.equal(PROPOSED_MECHANICS.length + IMPLEMENTED_MECHANICS.length, 115);
+  assert.equal(PROPOSED.length, PROPOSED_STANDARD.length + PROPOSED_MECHANICS.length);
+  assert.equal(IMPLEMENTED_MECHANICS.length, 31);
   assert.equal(new Set(IMPLEMENTED_MECHANICS.map(p => p.mechanic)).size, 5);
   const uids = new Set(EXPANSION_REGISTRY.map((p) => p.uid));
   assert.equal(uids.size, 161);

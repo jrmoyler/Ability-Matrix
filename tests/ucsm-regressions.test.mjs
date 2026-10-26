@@ -7,6 +7,7 @@ const { PackAdapter } = await import('../packs/sandbox/src/combat/ucsm/PackAdapt
 import { Dummy } from '../packs/sandbox/src/combat/Dummy.js';
 import { CombatStateManager } from '../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
 import { MechanicSystems } from '../packs/sandbox/src/combat/ucsm/mechanics/MechanicSystems.js';
+import { STANCE_VARIANTS } from '../packs/sandbox/src/combat/ucsm/mechanics/stance-presets.js';
 
  test('line cover uses a snapshot of the attack origin after caster and ability move', () => {
   const m = new CombatStateManager();
@@ -21,6 +22,52 @@ import { MechanicSystems } from '../packs/sandbox/src/combat/ucsm/mechanics/Mech
   const dummy = { __ucsmAdapter: adapter, position: new Vector3(0, 0, 10) };
   adapter._within(ability, () => Dummy.prototype.kill.call(dummy));
   assert.deepEqual(queried, [[0, 0, 0], [0, 0, 10]]);
+});
+
+test('Thundergod chains after two real sandbox knockdown/freeze reports, excluding reactions', () => {
+  const m = new CombatStateManager();
+  m.upsertEntity({ id: 'caster', teamId: 'player', position: [0, 0, 0], health: 5 });
+  const systems = new MechanicSystems(m), profile = STANCE_VARIANTS[2];
+  const adapter = Object.create(PackAdapter.prototype);
+  Object.assign(adapter, {
+    enabled: true, manager: m, scope: null, _ids: new WeakMap(), _byId: new Map(), _nextDummy: 0,
+    mechanics: { systems }, app: { abilities: { active: [], cast() {} }, dummies: {} }
+  });
+  adapter._install();
+  const makeDummy = (x) => {
+    const d = Object.create(Dummy.prototype);
+    Object.assign(d, {
+      state: 'alive', __ucsmAdapter: adapter,
+      root: { position: new Vector3(x, 0, 0), updateWorldMatrix() {} },
+      mixer: { stopAllAction() {} }, parts: [{}], _fall() {}
+    });
+    const id = adapter._dummyId(d);
+    m.upsertEntity({ id, teamId: 'targets', position: [x, 0, 0], health: 10 });
+    return { d, id };
+  };
+  const first = makeDummy(1), second = makeDummy(2), bystander = makeDummy(3), reactionBody = makeDummy(2.5);
+  assert.equal(systems.command({ family: 'stance', uid: profile.uid }).ok, true);
+  for (let i = 0; i <= systems.t(profile.anticipation); i++) m.advance();
+  const scope = { uid: 'linear/thunder', element: 'storm', castId: 'cast:real', depth: 0, isLine: false };
+  adapter.scope = scope;
+  assert.equal(first.d.freeze(), true);
+  m.setAlive(first.id, first.d.alive); // mirrors the adapter's frame sync
+  m.advance();
+  assert.equal(systems.stance.active.get('caster').hits, 1);
+  adapter.scope = { ...scope, reactionId: 'reaction:other', depth: 1 };
+  assert.equal(reactionBody.d.kill(1, 0, {}), true);
+  m.setAlive(reactionBody.id, reactionBody.d.alive);
+  m.advance();
+  assert.equal(systems.stance.active.get('caster').hits, 1, 'reaction does not count as a standard-cast takedown');
+  adapter.scope = scope;
+  assert.equal(second.d.kill(1, 0, {}), true);
+  m.setAlive(second.id, second.d.alive);
+  m.advance(); m.advance();
+  const reports = m.recentEvents.filter((e) => e.tags.includes('sandbox-kill') || e.tags.includes('sandbox-freeze'));
+  assert.deepEqual(reports.map((e) => e.tags[0]), ['sandbox-freeze', 'sandbox-kill']);
+  const arc = m.recentEvents.find((e) => e.tags.includes('stance-arc'));
+  assert.deepEqual(arc.targetIds, [bystander.id]);
+  assert.ok(m.entities.get(bystander.id).health < 10);
 });
 
 test('same-tick interruption cancels extracted mechanic damage and terrain while preserving standard attacks', () => {

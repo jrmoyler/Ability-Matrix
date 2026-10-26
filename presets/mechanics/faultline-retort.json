@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/counter/faultline-retort",
+  "family": "counter",
+  "name": "Faultline Retort",
+  "element": "earth",
+  "range": 24,
+  "cost": 12,
+  "cooldown": 1.5,
+  "anticipation": 0.1,
+  "recovery": 0.8,
+  "castAnim": "cast1",
+  "perfect": 0.1,
+  "partial": 0.2,
+  "reduction": 0.5,
+  "damage": 1.1,
+  "splash": 2,
+  "splashDamage": 0.3
+}

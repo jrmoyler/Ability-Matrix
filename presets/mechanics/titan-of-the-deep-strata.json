@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/stance/titan-of-the-deep-strata",
+  "family": "stance",
+  "name": "Titan of the Deep Strata",
+  "element": "earth",
+  "range": 18,
+  "cost": 14,
+  "cooldown": 18,
+  "anticipation": 0.5,
+  "recovery": 0.5,
+  "castAnim": "cast3",
+  "life": 15,
+  "drain": 6,
+  "bankCap": 3,
+  "speed": 0.62,
+  "reduction": 0.7,
+  "finisherRadius": 5.8,
+  "damage": 1.15,
+  "passive": "quakes",
+  "detail": "Absorbing impact periodically releases a close tremor."
+}

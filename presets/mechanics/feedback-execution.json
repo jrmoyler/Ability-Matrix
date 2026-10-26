@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/counter/feedback-execution",
+  "family": "counter",
+  "name": "Feedback Execution",
+  "element": "storm",
+  "range": 24,
+  "cost": 12,
+  "cooldown": 1.5,
+  "anticipation": 0.1,
+  "recovery": 0.65,
+  "castAnim": "cast1",
+  "perfect": 0.1,
+  "partial": 0.2,
+  "reduction": 0.5,
+  "damage": 0.7,
+  "splash": 3,
+  "splashDamage": 0.45
+}

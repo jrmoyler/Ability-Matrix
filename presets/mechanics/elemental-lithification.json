@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/convergence/elemental-lithification",
+  "family": "convergence",
+  "name": "Elemental Lithification",
+  "element": "earth",
+  "pattern": "eruption",
+  "range": 18,
+  "cost": 20,
+  "cooldown": 6,
+  "anticipation": 0.65,
+  "recovery": 0.5,
+  "castAnim": "cast2",
+  "life": 1.8,
+  "radius": 3.4,
+  "maxIngredients": 3,
+  "damage": 1,
+  "ingredientExample": "frost"
+}

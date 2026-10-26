@@ -389,7 +389,7 @@ export class App {
    * in the right aim indicator.
    */
   async select(uid, options = {}) {
-    if (this.combat) this.combat.mechanics.selected = null;
+    if (this.combat) { this.combat.mechanics.selected = null; this.combat.mechanics.selectedUid = null; }
     const ref = this.parse(uid);
     const previous = this.activeAim;
 
@@ -437,7 +437,7 @@ export class App {
 
   /** Select an ability and arm it, unless it is still cooling down. */
   async arm(uid = this.slot?.uid) {
-    if (this.combat) this.combat.mechanics.selected = null;
+    if (this.combat) { this.combat.mechanics.selected = null; this.combat.mechanics.selectedUid = null; }
     if (!uid) return false;
     if (uid !== this.slot?.uid) await this.select(uid);
     if ((this.cooldowns.get(uid) ?? 0) > 0) {
@@ -729,8 +729,17 @@ export class App {
     this.ground.update(this.elapsed, this.character ? this.character.position : null);
     this.dust.update(this.elapsed, this.character.position);
 
+    const beforeAbilityMovement = this.character.position.toArray();
     this.abilities.update(dt);
     for (const runtime of this.runtimes.values()) runtime.update(dt, raw);
+    // Legacy movement casts run after locomotion; keep their destination out of solid terrain.
+    if (this.combat?.enabled && dt > 0 && this.combat.mechanics.systems.worldshape.regions.size) {
+      const terrain = this.combat.mechanics.systems.worldshape;
+      const resolved = terrain.resolveAbilityMovement(beforeAbilityMovement, this.character.position.toArray());
+      if (resolved[0] !== beforeAbilityMovement[0] || resolved[2] !== beforeAbilityMovement[2])
+        resolved[1] = terrain.heightAt(resolved);
+      this.character.position.fromArray(resolved);
+    }
     // The targets step first, then read the casts that were just advanced: a
     // body has to be standing in this frame's pose before it can be knocked
     // out of it.

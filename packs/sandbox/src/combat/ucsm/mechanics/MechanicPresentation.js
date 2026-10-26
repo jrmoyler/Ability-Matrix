@@ -1,3 +1,4 @@
+import { drawConvergenceArt } from './ConvergenceArt.js';
 import {
   Group,
   Mesh,
@@ -14,7 +15,10 @@ import {
   Float32BufferAttribute,
   Vector3
 } from 'three';
-import { MECHANIC_PRESETS as P } from './presets.js';
+import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
+import { buildStanceRig } from './stance-presentation.js';
+import { buildWeaveAnchor, weaveMaterial } from './WeavePresentation.js';
+import { buildWorldshapeVariant } from './worldshapeVisuals.js';
 const TAU = Math.PI * 2;
 const up = new Vector3(0, 1, 0);
 
@@ -51,6 +55,8 @@ export class MechanicPresentation {
     material('strata', 0x958069, 0, 0.05);
     material('storm', 0xd9c5ff, 0x6949b7);
     material('water', 0x279acb, 0x08425a, 0.2);
+    material('crystal', 0xe1bfff, 0x844ed0, 0.25);
+    material('wind', 0xb8fff1, 0x399b9c, 0.15);
     this.geo = {};
     const geo = (name, g) => {
       this.geo[name] = g;
@@ -144,7 +150,9 @@ export class MechanicPresentation {
     const g = new Group();
     g.name = `mechanic:${kind}`;
     const frostWeave = data.uid === 'mechanics/weave/cryostasis-mesh';
-    if (kind === 'anchor' && frostWeave) {
+    if (kind === 'anchor' && buildWeaveAnchor(this, g, data)) {
+      // Built by the variant-specific sculptor.
+    } else if (kind === 'anchor' && frostWeave) {
       this.mesh('base', 'steel', g, 0, 0, 0, 0.8, 0.7, 0.8);
       this.ring(g, 'ice', 0.7, 0.15);
       this.mesh('shard', 'ice', g, 0, 1.15, 0, 0.28, 1.05, 0.28);
@@ -177,14 +185,14 @@ export class MechanicPresentation {
         b = new Vector3(data.shape.bx, 0.65, data.shape.bz);
       const length = a.distanceTo(b),
         mid = a.clone().add(b).multiplyScalar(0.5);
-      this.mesh('shaft', frostWeave ? 'ice' : 'fire', g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
+      this.mesh('shaft', weaveMaterial(data.uid) ?? (frostWeave ? 'ice' : 'fire'), g, mid.x, mid.y, mid.z, 0.32, length, 0.32).quaternion.setFromUnitVectors(
         up,
         b.sub(a).normalize()
       );
       for (let i = 0; i < 7; i++)
         this.mesh(
           'shard',
-          frostWeave ? 'ice' : 'bronze',
+          weaveMaterial(data.uid) ?? (frostWeave ? 'ice' : 'bronze'),
           g,
           data.shape.ax + ((data.shape.bx - data.shape.ax) * i) / 6,
           0.65,
@@ -193,6 +201,8 @@ export class MechanicPresentation {
           0.13,
           0.07
         );
+    } else if (kind === 'stance' && data.uid && data.uid !== P.stance.uid && buildStanceRig(this, g, this.s.preset(data).element)) {
+      // Element-specific stance rig was built by the presentation module.
     } else if (kind === 'stance') {
       for (let i = 0; i < 6; i++) {
         const a = (i * TAU) / 6,
@@ -215,6 +225,48 @@ export class MechanicPresentation {
       }
       this.ring(g, 'gold', 0.9, 0.12);
       this.ring(g, 'force', 0.48, 2.05);
+    } else if ((kind === 'counter' || kind === 'reversal') && data.uid?.startsWith('mechanics/counter/') && data.uid !== P.counter.uid) {
+      const name = data.uid.split('/').at(-1);
+      if (name === 'backdraft-reprisal') {
+        for (let i = 0; i < 11; i++) {
+          const a = (i / 10 - 0.5) * Math.PI;
+          const flame = this.mesh('shard', i % 2 ? 'gold' : 'fire', g, Math.sin(a) * 1.05, 0.85 + 0.45 * Math.cos(a), Math.cos(a) * 1.05, 0.14, 0.55 + (i % 3) * 0.1, 0.14);
+          flame.rotation.z = -a * 0.5;
+        }
+        this.ring(g, 'fire', 1.05, 0.12);
+      } else if (name === 'feedback-execution') {
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 6 - 0.5) * Math.PI * 0.9;
+          const bolt = this.mesh('box', 'storm', g, Math.sin(a) * 1.05, 1.1, Math.cos(a) * 1.05, 0.1, 1.1, 0.1);
+          bolt.rotation.z = (i % 2 ? 1 : -1) * 0.45;
+          this.mesh('shard', 'storm', g, Math.sin(a) * 1.05, 1.75, Math.cos(a) * 1.05, 0.1, 0.22, 0.1);
+        }
+        this.ring(g, 'storm', 0.8, 0.12);
+      } else if (name === 'undertow-reversal') {
+        for (let i = 0; i < 4; i++) {
+          const ring = this.ring(g, 'water', 0.55 + i * 0.2, 0.45 + i * 0.35);
+          ring.rotation.y = i * 0.36;
+        }
+        for (let i = 0; i < 8; i++) {
+          const a = i * TAU / 8;
+          this.mesh('sphere', 'water', g, Math.sin(a) * 0.9, 0.8 + (i % 3) * 0.4, Math.cos(a) * 0.9, 0.13);
+        }
+      } else if (name === 'faultline-retort') {
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 6 - 0.5) * Math.PI;
+          const rock = this.mesh('ridge', i % 2 ? 'strata' : 'rock', g, Math.sin(a) * 1.1, 0.5, Math.cos(a) * 1.1, 0.35, 0.42, 0.35);
+          rock.rotation.y = i * 0.65;
+          this.mesh('shard', 'gold', g, Math.sin(a) * 1.05, 0.8, Math.cos(a) * 1.05, 0.06, 0.35, 0.06);
+        }
+      } else if (name === 'facet-reprisal') {
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 8 - 0.5) * Math.PI;
+          const facet = this.mesh('shard', i % 2 ? 'ice' : 'steel', g, Math.sin(a) * 1.05, 1.2, Math.cos(a) * 1.05, 0.23, 0.6, 0.12);
+          facet.rotation.y = a;
+        }
+        this.ring(g, 'ice', 0.7, 0.2);
+        this.ring(g, 'steel', 1.1, 0.15);
+      }
     } else if (kind === 'counter') {
       for (let i = 0; i < 9; i++) {
         const a = (i / 8 - 0.5) * Math.PI * 0.9;
@@ -232,6 +284,8 @@ export class MechanicPresentation {
         shard.rotation.z = -a;
       }
       this.mesh('shield', 'steel', g, 0, 1.3, 1.1, 0.65, 0.7, 0.5);
+    } else if (kind === 'worldshape' && buildWorldshapeVariant(this, g, data, MECHANIC_VARIANTS[data.uid])) {
+      // The authored variant rig is built by worldshapeVisuals.
     } else if (kind === 'worldshape') {
       this.mesh('ramp', 'strata', g, 0, P.worldshape.height / 2, 0);
       const [dx, , dz] = data.direction;
@@ -266,6 +320,8 @@ export class MechanicPresentation {
             0.3
           );
       }
+    } else if (kind === 'convergence' && data.uid && drawConvergenceArt(this, g, data.uid)) {
+      // The authored rig was built above.
     } else if (kind === 'convergence') {
       this.mesh('base', 'iron', g, 0, 0.4, 0, 0.7);
       this.mesh('shaft', 'steel', g, 0, 1.3, 0, 1, 2, 1);
@@ -281,6 +337,15 @@ export class MechanicPresentation {
           r = 1.2 + (i % 3) * 0.8;
         this.mesh('shaft', 'storm', g, Math.sin(a) * r, 0.12, Math.cos(a) * r, 0.2, 1.3, 0.2).rotation.z =
           Math.PI / 2;
+      }
+    } else if (kind === 'terrain-pulse') {
+      const spec = MECHANIC_VARIANTS[data.uid];
+      const mat = { fire: 'fire', frost: 'ice', storm: 'storm', water: 'water', crystal: 'ice' }[spec?.element] ?? 'gold';
+      this.ring(g, mat, spec?.radius ?? 4, 0.12);
+      this.ring(g, mat, (spec?.radius ?? 4) * 0.74, 0.1);
+      for (let i = 0; i < 10; i++) {
+        const a = i * TAU / 10, r = (spec?.radius ?? 4) * 0.8;
+        this.mesh('shard', mat, g, Math.sin(a) * r, 0.23, Math.cos(a) * r, 0.08, 0.22, 0.08);
       }
     } else if (kind === 'reversal') {
       for (let i = 0; i < 16; i++) {
@@ -298,6 +363,14 @@ export class MechanicPresentation {
         );
         shard.rotation.z = a;
       }
+    } else if (kind === 'weave-burst') {
+      const material = weaveMaterial(data.uid) ?? 'ice';
+      for (let i = 0; i < 12; i++) {
+        const a = i * TAU / 12;
+        const shard = this.mesh('shard', material, g, Math.sin(a), 0.35, Math.cos(a), 0.12, 0.45, 0.12);
+        shard.rotation.z = -a;
+      }
+      this.ring(g, material, 1, 0.12);
     } else if (kind === 'threat') {
       this.mesh('shard', 'fire', g, 0, 1.1, 0, 0.15, 0.45, 0.15).rotation.x = Math.PI / 2;
       this.ring(g, 'fire', 0.6, 0.08);
@@ -333,13 +406,15 @@ export class MechanicPresentation {
   cue(c) {
     if (c.kind !== 'mechanic') return;
     const durations = {
-      anticipation: P[c.family]?.anticipation ?? 0.4,
+      anticipation: (MECHANIC_VARIANTS[c.uid] ?? P[c.family])?.anticipation ?? 0.4,
       reversal: 0.7,
       finisher: 0.65,
-      convergence: P.convergence.life,
+      convergence: (MECHANIC_VARIANTS[c.uid] ?? P.convergence).life,
       block: 0.25,
       partial: 0.3,
-      'anchor-break': 0.5
+      'anchor-break': 0.5,
+      'weave-burst': 0.6,
+      'terrain-pulse': 0.35
     };
     if (!(c.phase in durations)) return;
     if (this.effects.length >= 32) this.remove(this.effects.shift());
@@ -398,7 +473,24 @@ export class MechanicPresentation {
               (1 - scale) * 0.7 + (!this.reducedMotion ? 0.035 * Math.sin(age * 3 + n.userData.hinge) : 0);
         });
       if (i.kind === 'stance' && !this.reducedMotion) i.g.rotation.y += Math.sin(age * 1.5) * 0.08;
-      if (i.kind === 'convergence' && !this.reducedMotion) i.g.rotation.y = age * 1.8;
+      if (i.kind === 'stance' && !this.reducedMotion)
+        i.g.traverse((n) => { if (n.userData.orbit) n.rotation.z = n.userData.orbitBase + age * 0.5 * n.userData.orbit; });
+      if (i.kind === 'weave-burst') i.g.scale.setScalar(0.5 + age * 3);
+      if (i.kind === 'convergence' && !this.reducedMotion) {
+        const direction = i.data.direction ?? [0, 0, 1];
+        i.g.rotation.y = Math.atan2(direction[0], direction[2]);
+        if (!i.data.uid || i.data.uid.endsWith('/storm-catalyst')) i.g.rotation.y += age * 1.8;
+        i.g.traverse((n) => {
+          const motion = n.userData.convergenceMotion;
+          if (!motion) return;
+          const { kind, phase, scale, position } = motion;
+          if (kind === 'flame') n.scale.y = scale.y * (0.8 + 0.2 * Math.sin(age * 15 + phase));
+          else if (kind === 'crystal') n.scale.y = scale.y * Math.min(1, Math.max(0.02, (age - phase * 0.04) / 0.3));
+          else if (kind === 'droplet') n.position.y = position.y + 0.13 * Math.sin(age * 7 + phase * 0.8);
+          else if (kind === 'eruption') n.scale.y = scale.y * Math.min(1, Math.max(0.02, (age - phase * 0.12) / 0.28));
+          else if (kind === 'prism') n.scale.copy(scale).multiplyScalar(0.8 + 0.2 * Math.sin(age * 9 - phase));
+        });
+      }
       if (i.kind === 'finisher') i.g.scale.setScalar(1 + age * 7);
       if (i.kind === 'reversal') i.g.scale.setScalar(0.5 + age * 2);
       if (i.kind === 'worldshape') i.g.scale.set(1, Math.min(1, age / 0.35), 1);

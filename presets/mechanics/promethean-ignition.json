@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "uid": "mechanics/convergence/promethean-ignition",
+  "family": "convergence",
+  "name": "Promethean Ignition",
+  "element": "fire",
+  "pattern": "nova",
+  "range": 18,
+  "cost": 20,
+  "cooldown": 6,
+  "anticipation": 0.5,
+  "recovery": 0.5,
+  "castAnim": "cast2",
+  "life": 1.8,
+  "radius": 3.6,
+  "maxIngredients": 3,
+  "damage": 1.1,
+  "ingredientExample": "water"
+}
