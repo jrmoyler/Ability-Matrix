@@ -185,3 +185,23 @@ test("wind delivery cue travels before the well activates and resets on reuse", 
   a.destroy();
   a.dispose();
 });
+
+test('a previous wind well never carries or releases a pooled dummy after reset', () => {
+  let generation = 1, carries = 0, releases = 0;
+  const target = {position: new Vector3(1, 0, 5), alive: true, state: 'alive',
+    kill() {this.alive = false; this.state = 'dead'; return true;},
+    carry() {carries++;}, release() {releases++;}};
+  const a = new PressureInversionAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {standGeneration: () => generation, findTargets(_x, _z, _r, out) {out.length = 0; if (target.alive) out.push(target); return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  a._apply(.1);
+  assert.equal(carries, 1);
+  generation++; // The field reset the body and a different cast has claimed it.
+  a._apply(.1);
+  assert.equal(carries, 1);
+  a.destroy();
+  assert.equal(releases, 0);
+  a.dispose();
+});

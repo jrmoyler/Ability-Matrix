@@ -9,6 +9,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  Quaternion,
   ShaderMaterial,
   Vector2,
   Vector3,
@@ -210,6 +211,8 @@ export class AshenDoppelgangerAbility extends Ability {
     this.found = [];
     this.tmp = new Vector3();
     this.last = new Vector3();
+    this.poseQuaternion = new Quaternion();
+    this.posePosition = new Vector3();
     this.echoRig = null;
     this.poseSources = [];
     this.poseCopies = [];
@@ -330,28 +333,38 @@ export class AshenDoppelgangerAbility extends Ability {
       this.sampleClock %= 0.05;
     }
     const targetTime = Math.max(0, this.age - this.config.delay);
-    let idx =
-      (this.writeIndex - this.count + this.samples.length) %
-      this.samples.length;
-    for (let n = 0; n < this.count; n++) {
-      const i =
-        (this.writeIndex - 1 - n + this.samples.length) % this.samples.length;
-      if (this.sampleTimes[i] <= targetTime) {
-        idx = i;
-        break;
-      }
+    // Bracket the desired time in the circular history. Interpolate rather
+    // than stepping between 20 Hz samples, including across the ±π yaw seam.
+    const size = this.samples.length;
+    let lower = (this.writeIndex - this.count + size) % size;
+    let upper = lower;
+    for (let n = 1; n < this.count; n++) {
+      const i = (lower + 1) % size;
+      if (this.sampleTimes[i] > targetTime) { upper = i; break; }
+      lower = i;
+      upper = i;
     }
+    const span = this.sampleTimes[upper] - this.sampleTimes[lower];
+    const blend = span > 0 ? Math.max(0, Math.min(1, (targetTime - this.sampleTimes[lower]) / span)) : 0;
     this.last.copy(this.echo.position);
-    this.echo.position.copy(this.samples[idx]);
+    this.echo.position.copy(this.samples[lower]).lerp(this.samples[upper], blend);
     this.echo.position.y = 0;
     const dx = this.echo.position.x - this.last.x,
       dz = this.echo.position.z - this.last.z;
     if (this.echoRig) {
-      this.echo.rotation.y = this.yawHistory[idx];
-      const base = idx * this.poseCopies.length * 7;
+      const yaw = this.yawHistory[lower];
+      const deltaYaw = Math.atan2(Math.sin(this.yawHistory[upper] - yaw), Math.cos(this.yawHistory[upper] - yaw));
+      this.echo.rotation.y = yaw + deltaYaw * blend;
+      const lowerBase = lower * this.poseCopies.length * 7;
+      const upperBase = upper * this.poseCopies.length * 7;
       this.poseCopies.forEach((bone, i) => {
-        bone.quaternion.fromArray(this.poseHistory, base + i * 7);
-        bone.position.fromArray(this.poseHistory, base + i * 7 + 4);
+        const offset = i * 7;
+        bone.quaternion.fromArray(this.poseHistory, lowerBase + offset).normalize();
+        this.poseQuaternion.fromArray(this.poseHistory, upperBase + offset).normalize();
+        bone.quaternion.slerp(this.poseQuaternion, blend);
+        bone.position.fromArray(this.poseHistory, lowerBase + offset + 4);
+        this.posePosition.fromArray(this.poseHistory, upperBase + offset + 4);
+        bone.position.lerp(this.posePosition, blend);
       });
     } else if (dx * dx + dz * dz > 1e-6)
       this.echo.rotation.y = Math.atan2(dx, dz);

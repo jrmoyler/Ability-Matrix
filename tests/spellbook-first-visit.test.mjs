@@ -26,3 +26,13 @@ test('aim filters include live ground and self mechanics and ignore empty or arc
   const values = vm.runInNewContext(match[1], { c });
   assert.deepEqual(Array.from(values), ['line', 'ground', 'self']);
 });
+
+test('descriptions have a keyboard-accessible disclosure on mobile and stage status stays at the edge', () => {
+  assert.match(html, /<button\b[^>]*id="descriptionToggle"[^>]*aria-expanded="false"[^>]*aria-controls="nowHint"/);
+  assert.match(html, /<p id="nowHint" hidden>/);
+  assert.match(html, /\$\('descriptionToggle'\)\.onclick/);
+  assert.doesNotMatch(html, /\.now p, \.stage \.note\s*\{\s*display:\s*none/);
+  const loadingRule = html.match(/\.screen \.loading\s*\{([^}]+)\}/)?.[1] ?? '';
+  assert.match(loadingRule, /top:\s*\d/);
+  assert.doesNotMatch(loadingRule, /inset:\s*0|place-items:\s*center/);
+});

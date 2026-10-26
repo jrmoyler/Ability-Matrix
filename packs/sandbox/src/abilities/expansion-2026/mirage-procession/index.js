@@ -192,8 +192,9 @@ export class Ability extends BaseAbility {
     this._sync();
   }
   onTravel(dt) {
-    this._sweep(this._previous, this.front);
-    this._previous = this.front;
+    const front = Math.min(this.length, this.front);
+    this._sweep(this._previous, front);
+    this._previous = front;
     this._trailElapsed += dt;
     if (this._trailElapsed >= .12) {
       this._trailElapsed %= .12;
@@ -298,6 +299,7 @@ export class Ability extends BaseAbility {
     this.shardMat.color.set(c.edgeColor);
     this.shardMat.opacity = .7 * fade;
     const departure = this.phase === 'travel' ? 0 : clamp(this.impactTime / this.impactDuration);
+    const front = Math.min(this.length, this.front);
     for (let i = 0; i < 3; i++) {
       const lane = i - 1,
         m = this.masks[i],
@@ -305,18 +307,18 @@ export class Ability extends BaseAbility {
       m.position.set(
         lane * c.laneGap,
         1.15 + Math.sin(this.age * 3 + i) * 0.14,
-        this.front,
+        front,
       );
       m.rotation.y = Math.sin(this.age * 2 + i) * 0.16;
       m.scale.setScalar(1 - departure * .75);
-      w.position.set(lane * c.laneGap, 0.04, this.front * 0.5);
-      w.scale.set(c.hitWidth * 2, Math.max(0.01, this.front), 1);
+      w.position.set(lane * c.laneGap, 0.04, front * 0.5);
+      w.scale.set(c.hitWidth * 2, Math.max(0.01, front), 1);
       for (let j = 0; j < SHARDS_PER_LANE; j++) {
         const angle = j * Math.PI * 2 / SHARDS_PER_LANE + this.age * 1.8;
         const orbit = .55 + departure * (c.shardSpread ?? 1.2);
         shardTransform.position.set(lane * c.laneGap + Math.cos(angle) * orbit,
           m.position.y + Math.sin(angle) * orbit * .8,
-          this.front + Math.sin(angle * 2) * .18 + departure * (j % 2 ? .45 : -.45));
+          front + Math.sin(angle * 2) * .18 + departure * (j % 2 ? .45 : -.45));
         shardTransform.rotation.set(angle * .4, angle, this.age * 2 + j);
         shardTransform.scale.setScalar((c.shardSize ?? .12) * (1 - departure * .6) * fade);
         shardTransform.updateMatrix();

@@ -77,13 +77,14 @@ export class PackAdapter {
     this._meta = new WeakMap();
     this._wrapped = new WeakSet();
     this._ids = new WeakMap();
+    this._dummyGenerations = new WeakMap();
     this._byId = new Map();
     this._tracked = new Set();
     this._nextDummy = 0;
     this.feed = new CombatFeed(document.body);
     this._install();
     this.mechanics = new MechanicHost(this);
-    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, modeVersion: () => this.combatModeEpoch, isTargetable: (id) => this._expansionTargetable(id) });
+    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, modeVersion: () => this.combatModeEpoch, isTargetable: (id) => this._expansionTargetable(id), actorGeneration: (id) => { const dummy = this._byId.get(id); return dummy ? this.app.dummies.standGeneration?.(dummy) : undefined; } });
     app.abilities.ctx.expansionCombat = this.expansionCombat;
   }
 
@@ -281,6 +282,16 @@ export class PackAdapter {
     for (const slot of app.dummies.slots) {
       const d = slot.dummy;
       const id = this._dummyId(d);
+      const generation = app.dummies.standGeneration?.(d);
+      const generations = this._dummyGenerations ??= new WeakMap();
+      const previous = generations.get(d);
+      if (generation !== undefined) generations.set(d, generation);
+      // Reset can replace a still-living pooled body; the manager would otherwise
+      // retain the previous life's partial health and elemental statuses.
+      if (previous !== undefined && generation !== undefined && generation !== previous && m.entities.has(id)) {
+        m.setAlive(id, false);
+        if (d.alive) m.setAlive(id, true);
+      }
       m.upsertEntity({ id, teamId: TARGETS, position: [d.position.x, 0, d.position.z], alive: d.alive });
     }
 

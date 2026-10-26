@@ -73,7 +73,7 @@ export class ToxinEvolutionAbility extends Ability {
   this.scope=null;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'poison',{shape:'BUBBLE',colors:['#e8ffad','#9be641','#5c9830','#24431b'],rate:22});this.stageEffects.atmosphere=this.atmosphere;}
- onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;this.releaseAt=-1;this.stageTimes.fill(-1);for(const coil of this.coils)coil.visible=false;for(const vessel of this.vessels)vessel.visible=false;this.stageEffects.reset();
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.targetGeneration=null;this.stage=0;this.nextStage=0;this.failure=null;this.releaseAt=-1;this.stageTimes.fill(-1);for(const coil of this.coils)coil.visible=false;for(const vessel of this.vessels)vessel.visible=false;this.stageEffects.reset();
   const bridge=this.ctx.expansionCombat;this.scope=bindExpansionCombat(this.ctx,UID);if(!this.scope)this.failure='combat bridge unavailable';this.travelPod.visible=!!this.scope;this.travelPod.position.copy(this.origin);
  }
  onTravel(dt){const c=this.config,t=this.reduceMotion?0:this.age;this.atmosphere.rate=c.particleRate??this.atmosphere.rate;this.atmosphere.size=c.particleSize??this.atmosphere.size;this.atmosphere.syncPalette(c.toxinColor,c.coreColor);this.travelPod.position.copy(this.position);this.travelPod.position.y=.7;this.travelPod.rotation.y=t*2;this.travelPod.scale.setScalar(c.travelScale??1);if(!this.reduceMotion&&this.travelPod.visible)this.atmosphere.update(dt,this.travelPod.position,c.travelDensity??.6);this.vesselMat.uniforms.uTime.value=t;this.vesselMat.uniforms.uFade.value=1;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);this.bodyMat.uniforms.uFade.value=1;this.bodyMat.uniforms.uPulse.value=0;this.bodyMat.uniforms.uTime.value=t;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);for(let i=0;i<this.travelSpores.length;i++){const a=i*TAU/this.travelSpores.length+t*2;this.travelSpores[i].position.set(Math.cos(a)*.5,.2+(i%3)*.18,Math.sin(a)*.5);}}
@@ -81,14 +81,15 @@ export class ToxinEvolutionAbility extends Ability {
   this.travelPod.visible=false;if(!this.scope)return;
   const q=this.scope.queryActors({position:this.position.toArray(),radius:this.config.zoneRadius,relation:'enemy'});
   if(!q?.ok){this.failure=q?.reason??'query unavailable';return;}
-  const target=q.actors.filter(x=>x.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0];this.targetId=target?.id??null;if(!target){this.failure='no eligible target';return;}
+  const target=q.actors.filter(x=>x.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0];this.targetId=target?.id??null;this.targetGeneration=target?.standGeneration??null;if(!target){this.failure='no eligible target';return;}
   this.effect.position.fromArray(target.position);this.effect.visible=true;this.nextStage=0;this.onFade(0,0);
  }
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
   const c=this.config;let fade=t<=1?1:1-clamp(t-1);
   if(this.targetId && this.scope && this.phase===AbilityPhase.IMPACT){
    const actor=this.scope.getActor(this.targetId);const e=actor?.actor;
-   if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.releaseAt=this.stagedTime;this.failure='target left toxin range';}
+   if(this.targetGeneration!==null&&e?.standGeneration!==this.targetGeneration){this.targetId=null;this.releaseAt=this.stagedTime;this.failure='target was replaced';}
+   else if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.releaseAt=this.stagedTime;this.failure='target left toxin range';}
    else{
     this.effect.position.fromArray(e.position);
     if(dt>0&&this.stagedTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){

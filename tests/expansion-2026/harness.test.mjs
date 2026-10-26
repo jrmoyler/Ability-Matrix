@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Scene, Vector3 } from 'three';
 import { candidates, installExpansionHarness } from '../../packs/sandbox/src/dev/ExpansionHarness.js';
+import { expansionRoster } from '../../packs/sandbox/src/abilities/expansion-2026/ProductionRoster.js';
 import { settings, ELEMENTS } from '../../packs/sandbox/src/config/settings.js';
 import { AbilityManager } from '../../packs/sandbox/src/abilities/AbilityManager.js';
 import { CombatStateManager } from '../../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
@@ -24,7 +25,8 @@ test('opt-in harness installs all candidates, editors and real combat adapter wi
   const host = Object.assign(Object.create(PackAdapter.prototype), { app, manager: combatManager, enabled: true, scope: null, _meta: new WeakMap(), _wrapped: new WeakSet(), _tracked: new Set() });
   app.combat = host;
   const harness = installExpansionHarness(app);
-  assert.equal(candidates.length, 23);
+  assert.equal(candidates.length, 25);
+  assert.deepEqual(new Set(candidates.map(x => x.uid)), new Set(expansionRoster().map(x => x.uid)));
   assert.equal(new Set(candidates.map(x=>x.config.meta.element)).size, 23);
   assert.deepEqual(ELEMENTS, original);
   const errors=[];

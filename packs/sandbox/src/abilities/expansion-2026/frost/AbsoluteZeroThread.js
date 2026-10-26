@@ -268,6 +268,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
         this.hit.add(d);
         this.pending.push({
           dummy: d,
+          generation: this.ctx.dummies?.standGeneration?.(d) ?? null,
           time: this.age + this.config.freezeDelay,
         });
       }
@@ -278,7 +279,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
       const f = this.frozen[i];
       const owned = frozenOwners.get(f.dummy) === f;
       const changedState =
-        typeof f.dummy.state === "string" && f.dummy.state !== "frozen";
+        (typeof f.dummy.state === "string" && f.dummy.state !== "frozen") ||
+        (f.generation !== null && this.ctx.dummies?.standGeneration?.(f.dummy) !== f.generation);
       if (!owned || changedState || f.until <= this.age) {
         if (owned && !changedState) {
           this._shatter(f.ring.position);
@@ -293,7 +295,9 @@ export class AbsoluteZeroThreadAbility extends Ability {
     for (let i = this.pending.length - 1; i >= 0; i--) {
       // A delayed freeze belongs to the actor that was hit, not a later life
       // of a pooled slot. Cancel as soon as that actor is no longer alive.
-      if (this.pending[i].dummy.alive === false) {
+      if (this.pending[i].dummy.alive === false ||
+        (this.pending[i].generation !== null &&
+          this.ctx.dummies?.standGeneration?.(this.pending[i].dummy) !== this.pending[i].generation)) {
         this.pending.splice(i, 1);
         continue;
       }
@@ -326,6 +330,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
           this.group.add(ring);
           const frozen = {
             dummy: d,
+            generation: this.pending[i].generation,
             figure,
             ring,
             until: this.age + this.config.freezeDuration,
@@ -406,7 +411,9 @@ export class AbsoluteZeroThreadAbility extends Ability {
     for (const f of this.frozen) {
       if (frozenOwners.get(f.dummy) === f) {
         frozenOwners.delete(f.dummy);
-        f.dummy.vanish?.();
+        const sameLife = f.generation === null || this.ctx.dummies?.standGeneration?.(f.dummy) === f.generation;
+        const stillFrozen = typeof f.dummy.state !== "string" || f.dummy.state === "frozen";
+        if (sameLife && stillFrozen) f.dummy.vanish?.();
       }
       this.group.remove(f.figure);
       this.group.remove(f.ring);

@@ -289,9 +289,10 @@ export class PrismChoirAbility extends Ability {
         ez = pz - u * dz;
       if (ex * ex + ez * ez > r * r) continue;
       this.hit.add(target);
+      const distance = Math.sqrt(len);
       target.kill?.(
-        this.direction.x,
-        this.direction.z,
+        distance > 1e-5 ? dx / distance : this.direction.x,
+        distance > 1e-5 ? dz / distance : this.direction.z,
         { impulse: this.config.impulse, lift: this.config.lift, spin: 0.5 },
         false,
       );

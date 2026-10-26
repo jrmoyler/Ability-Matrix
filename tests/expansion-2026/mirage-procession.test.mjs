@@ -89,3 +89,19 @@ test('identical pooled mirror shards expand as masks dissolve at the end', () =>
   assert.ok(a.masks[1].scale.x < 1);
   a.destroy(); a.dispose();
 });
+
+test('a coarse final frame cannot strike beyond the aimed range', () => {
+  settings[ID] = structuredClone(config.settings);
+  const hits = [];
+  const targets = [
+    {position: new Vector3(9, 0, 0), kill(){hits.push('inside'); return true;}},
+    {position: new Vector3(12, 0, 0), kill(){hits.push('beyond'); return true;}},
+  ];
+  const a = new Ability({lights:{acquire:()=>({}),set(){},release(){}},dummies:{findTargets(_x,_z,_r,out){out.length=0;out.push(...targets);return out;}}});
+  a.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
+  a.update(1);
+  assert.deepEqual(hits, ['inside']);
+  assert.ok(a.masks.every(mask => mask.position.z === 10), 'the masks stop at the aimed endpoint');
+  assert.ok(a.wakes.every(wake => wake.scale.y === 10), 'wakes do not extend beyond the endpoint');
+  a.destroy(); a.dispose();
+});

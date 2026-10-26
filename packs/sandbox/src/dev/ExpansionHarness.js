@@ -4,15 +4,9 @@ import { Vector3 } from 'three';
 import { Editor } from '../ui/Editor.js';
 import { ObjectPool } from '../utils/ObjectPool.js';
 import { settings, ELEMENT_META } from '../config/settings.js';
-import { EXPANSION_CONFIGS, EXPANSION_ABILITIES } from '../abilities/expansion-2026/index.js';
-import { BATCH_B_CONFIGS, BATCH_B_ABILITIES } from '../abilities/expansion-2026/batch-b.js';
-import { BATCH_C } from '../abilities/expansion-2026/batch-c.js';
+import { expansionRoster } from '../abilities/expansion-2026/ProductionRoster.js';
 
-export const candidates = [
-  ...EXPANSION_ABILITIES.map((item, i) => ({ ...item, config: EXPANSION_CONFIGS[i] })),
-  ...BATCH_B_ABILITIES.map((item, i) => ({ ...item, uid: BATCH_B_CONFIGS[i].uid, config: BATCH_B_CONFIGS[i] })),
-  ...BATCH_C.map(({ uid, module }) => ({ ...module, uid })),
-];
+export const candidates = expansionRoster();
 
 export function installExpansionHarness(app) {
   const byId = new Map();

@@ -126,3 +126,18 @@ test("split shards have individually tuned spectra and release their materials",
   a.dispose();
   assert.equal(disposed, 3);
 });
+
+test('a split shard knocks targets along its own trajectory', () => {
+  let hitDirection;
+  const target = {position: new Vector3(2, 0, 7), kill(x, z) { hitDirection = new Vector3(x, 0, z); return true; }};
+  const a = new PrismChoirAbility({
+    lights: {acquire: () => ({}), set() {}, release() {}},
+    dummies: {findTargets(_x, _z, _r, out) {out.length = 0; out.push(target); return out;}},
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  const start = new Vector3(0, 0, 5), end = new Vector3(4, 0, 9);
+  a._hitSegment(start, end);
+  assert.ok(hitDirection.dot(end.clone().sub(start).normalize()) > 0.999);
+  a.destroy();
+  a.dispose();
+});

@@ -209,3 +209,16 @@ test('release has distinct bounded particles exactly once per cast and never on 
   a.destroy();a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,3);assert.equal(releases.length,2);a.destroy();a.dispose();assert.equal(shapes.length,1);
  }
 });
+
+test('both pulses honor global explosion intensity for physical impact',()=>{
+ const previous=settings.global.explosionIntensity;
+ settings.global.explosionIntensity=.5;
+ try{
+  for(const C of [CinderCrownAbility,GlacierBellAbility]){
+   const {a,hits}=fixture(C);run(a,2);
+   assert.ok(hits.length>0);
+   assert.ok(hits.every(h=>h.force.impulse===a.config.impulse*.5 && h.force.lift===a.config.lift*.5));
+   a.destroy();a.dispose();
+  }
+ }finally{settings.global.explosionIntensity=previous;}
+});

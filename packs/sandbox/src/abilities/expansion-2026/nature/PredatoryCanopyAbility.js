@@ -195,14 +195,14 @@ export class PredatoryCanopyAbility extends Ability {
       if(field?.findTargets){
         const found=field.findTargets(this.position.x,this.position.z,c.zoneRadius,this._found);
         let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance>c.zoneRadius)continue;if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;
-        if(this._target) this._triggerAt=elapsed;
+        if(this._target) { this._triggerAt=elapsed; this._targetGeneration=field.standGeneration?.(this._target)??null; }
         this._found.length=0;
       }
     }
     const wind=this._triggerAt<0?0:clamp01((elapsed-this._triggerAt)/Math.max(.01,c.triggerWindup));
     this.roots.uniforms.uTrigger.value=wind;
-    const target=this._target,dist=target?Math.hypot(target.position.x-this.position.x,target.position.z-this.position.z):Infinity,release=this._strikeAt<0?1:1-clamp01((elapsed-this._strikeAt)/Math.max(.1,c.strikeDuration??.6));
-    this.strikeRig.visible=!!target&&wind>0&&release>0&&dist<=c.zoneRadius;
+    const target=this._target,field=this.ctx.dummies,targetCurrent=!!target&&settings.dummies.enabled&&(this._targetGeneration===null||field?.standGeneration?.(target)===this._targetGeneration)&&(!Array.isArray(field?.slots)||field.slots.some(slot=>slot?.dummy===target)),dist=targetCurrent?Math.hypot(target.position.x-this.position.x,target.position.z-this.position.z):Infinity,release=this._strikeAt<0?1:1-clamp01((elapsed-this._strikeAt)/Math.max(.1,c.strikeDuration??.6));
+    this.strikeRig.visible=targetCurrent&&wind>0&&release>0&&dist<=c.zoneRadius;
     if(this.strikeRig.visible){for(let i=0;i<this.strikeMaterials.length;i++){const a=i*TAU/3,mat=this.strikeMaterials[i];mat.uniforms.uAnchor.value.set(Math.cos(a)*c.canopySpread*.28,h,Math.sin(a)*c.canopySpread*.28);mat.uniforms.uTarget.value.set(target.position.x-this.position.x,.35,target.position.z-this.position.z);mat.uniforms.uProgress.value=wind;mat.uniforms.uWidth.value=c.strikeWidth??.12;mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade*release;mat.uniforms.uColor.value.set(c.barkColor);mat.uniforms.uVein.value.set(c.rootColor);}}
 
     syncParticleGlobals(this.leafParticles);syncParticleGlobals(this.moteParticles);
@@ -220,7 +220,7 @@ export class PredatoryCanopyAbility extends Ability {
     if(dt>0 && this._target && !this._struck && wind>=1){
       this._struck=true;this._strikeAt=elapsed;
       const d=this._target;
-      if(d.alive && Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z)<=c.zoneRadius){
+      if(targetCurrent && d.alive && Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z)<=c.zoneRadius){
         temp.set(this.position.x-d.position.x,0,this.position.z-d.position.z);
         if(temp.lengthSq()<1e-6) temp.copy(this.direction);temp.normalize();
         const hit=d.kill(temp.x,temp.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin});

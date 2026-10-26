@@ -67,14 +67,14 @@ button { cursor: pointer; }
   touch-action: none;
 }
 .screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.screen .loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: var(--muted); font: 13px var(--mono); pointer-events: none; }
+.screen .loading { position: absolute; top: 10px; left: 10px; z-index: 1; max-width: calc(100% - 20px); padding: 5px 8px; border-radius: 6px; background: rgba(5, 6, 10, .82); color: var(--fg); font: 12px var(--mono); pointer-events: none; }
 .screen .loading[hidden] { display: none; }
 .now { display: flex; gap: 12px; align-items: center; min-width: 0; }
 .now .sigil { width: 46px; height: 46px; flex: none; color: var(--a, var(--accent)); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: var(--panel); }
 .now .sigil svg { width: 30px; height: 30px; }
-.now h2 { margin: 0; font: 650 14px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; cursor: pointer; }
+.now h2 { margin: 0; font: 650 14px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; text-wrap: balance; }
 .now p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-body:not(.name-open) .now p { display: none; }
+.now .details-toggle { border: 0; padding: 2px 0; background: transparent; color: var(--muted); font: 11px var(--mono); text-decoration: underline; text-underline-offset: 3px; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px; font: 11px var(--mono); }
 .facts span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
 .facts b { color: var(--fg); font-weight: 600; }
@@ -157,7 +157,7 @@ td .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; mar
   }
   .now h2 { font-size: 13px; }
   .now .sigil { width: 34px; height: 34px; }
-  .now p, .stage .note { display: none; }
+  .stage .note { display: none; }
   .filters-toggle { display: inline-block; }
   body:not(.filters-open) .extra-filters { display: none; }
   /* The spellbook scrolls as one column on a phone, and every chip group is a
@@ -260,7 +260,8 @@ dialog.guide::backdrop { background: rgba(5, 6, 10, 0.72); backdrop-filter: blur
       <div class="sigil" id="nowSigil"></div>
       <div style="min-width:0">
         <h2 id="nowName">&mdash;</h2>
-        <p id="nowHint"></p>
+        <button type="button" class="details-toggle" id="descriptionToggle" aria-expanded="false" aria-controls="nowHint">Details</button>
+        <p id="nowHint" hidden></p>
       </div>
     </div>
     <div class="facts" id="facts"></div>
@@ -710,10 +711,12 @@ $('advancedBtn').onclick = () => {
   else if (current) select(current);
   else render();
 };
-$('now').addEventListener('click', (e) => {
-  if (e.target.closest('button')) return;
-  document.body.classList.toggle('name-open');
-});
+$('descriptionToggle').onclick = () => {
+  const hint = $('nowHint');
+  hint.hidden = !hint.hidden;
+  $('descriptionToggle').setAttribute('aria-expanded', String(!hint.hidden));
+  $('descriptionToggle').textContent = hint.hidden ? 'Details' : 'Hide details';
+};
 $('filtersToggle').onclick = () => {
   const open = document.body.classList.toggle('filters-open');
   $('filtersToggle').setAttribute('aria-expanded', open ? 'true' : 'false');

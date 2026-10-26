@@ -30,26 +30,7 @@ export class MechanicHost {
       if (!this.selected || e.button !== 0) return;
       e.stopImmediatePropagation();
       e.preventDefault();
-      const rect = this.app.canvas.getBoundingClientRect();
-      this.pointer.set(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        1 - ((e.clientY - rect.top) / rect.height) * 2
-      );
-      this.ray.setFromCamera(this.pointer, this.app.camera);
-      if (!this.ray.ray.intersectPlane(this.plane, this.target)) return;
-      const c = this.app.character.position,
-        f = this.selected,
-        p = MECHANIC_VARIANTS[this.selectedUid] ?? P[f];
-      const direction = this.target.clone().sub(c).setY(0);
-      const length = direction.length();
-      if (length < 0.001) direction.set(0, 0, 1);
-      else direction.normalize();
-      const at = c.clone().addScaledVector(direction, Math.min(p.range, length));
-      this.cast(f, ['stance', 'counter'].includes(f) ? [c.x, c.y, c.z] : [at.x, 0, at.z], [
-        direction.x,
-        0,
-        direction.z
-      ]);
+      this.castAt(e.clientX, e.clientY);
     };
     this.preview = this.presentation.build('anticipation', { family: 'worldshape' });
     this.preview.name = 'MechanicAim';
@@ -66,6 +47,30 @@ export class MechanicHost {
     };
     this.app.canvas.addEventListener('pointermove', this.onMove);
     this.app.canvas.addEventListener('pointerdown', this.onPointer, true);
+  }
+  /** Shared arena aiming for mouse clicks and touch cast gestures. */
+  castAt(clientX, clientY) {
+    if (!this.selected || !this.adapter.enabled || this.app.paused) return false;
+    const rect = this.app.canvas.getBoundingClientRect();
+    this.pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      1 - ((clientY - rect.top) / rect.height) * 2
+    );
+    this.ray.setFromCamera(this.pointer, this.app.camera);
+    if (!this.ray.ray.intersectPlane(this.plane, this.target)) return false;
+    const c = this.app.character.position,
+      f = this.selected,
+      p = MECHANIC_VARIANTS[this.selectedUid] ?? P[f];
+    const direction = this.target.clone().sub(c).setY(0);
+    const length = direction.length();
+    if (length < 0.001) direction.set(0, 0, 1);
+    else direction.normalize();
+    const at = c.clone().addScaledVector(direction, Math.min(p.range, length));
+    return this.cast(f, ['stance', 'counter'].includes(f) ? [c.x, c.y, c.z] : [at.x, 0, at.z], [
+      direction.x,
+      0,
+      direction.z
+    ]);
   }
   select(family, uid = null) {
     if (!P[family]) return false;

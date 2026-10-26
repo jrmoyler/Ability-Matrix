@@ -108,6 +108,7 @@ export class PressureInversionAbility extends Ability {
     this.centre = new Vector3();
     this.found = [];
     this.held = new Set();
+    this.heldGeneration = new WeakMap();
     this._field = (x, y, z, out) => {
       const dx = this.centre.x - x,
         dz = this.centre.z - z,
@@ -227,16 +228,23 @@ export class PressureInversionAbility extends Ability {
       material.uniforms.uPolarity.value = this.reversed ? -1 : 1;
     }
   }
-  _apply(dt) {
-    if (!this.ctx.dummies?.findTargets) return;
-    // Slots are pooled. Once a body disappears or a slot is reused, it no
-    // longer belongs to this current; release it before finding new targets.
+  _sameLife(d) {
+    const captured = this.heldGeneration.get(d);
+    return captured === null || captured === undefined || this.ctx.dummies?.standGeneration?.(d) === captured;
+  }
+  _pruneHeld() {
     for (const d of this.held) {
-      if (d.state === "gone" || d.alive === true) {
-        d.release?.();
+      const sameLife = this._sameLife(d);
+      if (!sameLife || d.state === "gone" || d.alive === true) {
+        if (sameLife) d.release?.();
         this.held.delete(d);
+        this.heldGeneration.delete(d);
       }
     }
+  }
+  _apply(dt) {
+    if (!this.ctx.dummies?.findTargets) return;
+    this._pruneHeld();
     const found = this.ctx.dummies.findTargets(
       this.centre.x,
       this.centre.z,
@@ -250,7 +258,10 @@ export class PressureInversionAbility extends Ability {
           dz = this.centre.z - d.position.z,
           r = Math.hypot(dx, dz) || 1;
         if (d.kill?.(dx / r, dz / r, { impulse: 1, lift: 1, spin: 0.4 }, false))
-          this.held.add(d);
+          {
+            this.held.add(d);
+            this.heldGeneration.set(d, this.ctx.dummies?.standGeneration?.(d) ?? null);
+          }
       }
     }
     for (const d of this.held)
@@ -281,6 +292,7 @@ export class PressureInversionAbility extends Ability {
           this.lightColor.set(this.config.lightColor),
           this.config.gustFlash * settings.global.explosionIntensity,
         );
+        this._pruneHeld();
         for (const d of this.held) {
           const p = d.bodyPoint?.(new Vector3()) ?? d.position,
             dx = p.x - this.centre.x,
@@ -314,7 +326,10 @@ export class PressureInversionAbility extends Ability {
     this.mat.uniforms.uFade.value = 1;
   }
   _releaseHeld() {
-    for (const d of this.held) d.release?.();
+    for (const d of this.held) {
+      if (this._sameLife(d)) d.release?.();
+      this.heldGeneration.delete(d);
+    }
     this.held.clear();
   }
   dispose() {

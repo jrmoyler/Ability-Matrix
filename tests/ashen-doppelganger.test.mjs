@@ -213,3 +213,56 @@ test("echo stains a target only after a successful pulse hit", () => {
   a.destroy();
   a.dispose();
 });
+
+test('echo interpolates delayed position and yaw between recorded poses', () => {
+  const { ability: a } = setup();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 1);
+  a.config.delay = 0.4;
+  a.age = 0.9;
+  a.count = 2;
+  a.writeIndex = 2;
+  a.sampleTimes[0] = 0;
+  a.sampleTimes[1] = 1;
+  a.samples[0].set(0, 0, 0);
+  a.samples[1].set(10, 0, 0);
+  // A rig activates recorded facing instead of inferred velocity.
+  a.echoRig = {};
+  a.yawHistory[0] = Math.PI - 0.2;
+  a.yawHistory[1] = -Math.PI + 0.2;
+  a.nextPulse = 100;
+  a._updateEcho(0);
+  assert.ok(Math.abs(a.echo.position.x - 5) < 1e-6);
+  assert.ok(Math.abs(Math.abs(a.echo.rotation.y) - Math.PI) < 1e-6);
+  a.config.delay = CONFIG.settings.delay;
+  a.destroy();
+  a.dispose();
+});
+
+test('echo interpolates skeletal pose without modifying the recorded endpoints', async () => {
+  const { Bone, Quaternion } = await import('three');
+  const { ability: a } = setup();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 1);
+  a.config.delay = 0.4;
+  a.age = 0.9;
+  a.count = 2;
+  a.writeIndex = 2;
+  a.sampleTimes[0] = 0;
+  a.sampleTimes[1] = 1;
+  a.echoRig = {};
+  const bone = new Bone();
+  a.poseCopies = [bone];
+  a.poseHistory = new Float32Array(96 * 7);
+  const start = new Quaternion();
+  const end = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
+  start.toArray(a.poseHistory, 0);
+  end.toArray(a.poseHistory, 7);
+  a.poseHistory[11] = 4;
+  a.nextPulse = 100;
+  a._updateEcho(0);
+  assert.ok(Math.abs(bone.position.x - 2) < 1e-6);
+  assert.ok(bone.quaternion.angleTo(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 4)) < 1e-5);
+  assert.equal(a.poseHistory[11], 4);
+  a.config.delay = CONFIG.settings.delay;
+  a.destroy();
+  a.dispose();
+});

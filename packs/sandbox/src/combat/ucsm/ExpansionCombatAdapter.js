@@ -28,13 +28,15 @@ const failure = (reason) => ({ ok: false, reason });
  * projectile, force, construct, mass or damage-redirection support.
  */
 export class ExpansionCombatAdapter {
-  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true, modeVersion = () => 0, isTargetable = () => true } = {}) {
+  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true, modeVersion = () => 0, isTargetable = () => true, actorGeneration = () => undefined } = {}) {
     this.manager = manager;
     this.maxSubscriptions = Number.isSafeInteger(maxSubscriptions) && maxSubscriptions >= 0 ? maxSubscriptions : 0;
     this.eventsPerTick = Number.isSafeInteger(eventsPerTick) && eventsPerTick >= 0 ? eventsPerTick : 0;
     this.enabled = enabled;
     this.modeVersion = modeVersion;
     this.isTargetable = isTargetable;
+    this.actorGeneration = actorGeneration;
+    this.targetGenerations = new WeakMap();
     this.listeners = new Set();
     this.budgetTick = -1;
     this.used = 0;
@@ -67,7 +69,7 @@ export class ExpansionCombatAdapter {
         const e = adapter.manager.entities.get(id);
         if (!e) return failure('unknown actor');
         if (!adapter.isTargetable(id)) return failure('target unavailable');
-        return { ok: true, actor: snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, maxHealth: e.maxHealth, shields: e.shields, alive: e.alive, statuses: e.statuses }) };
+        return { ok: true, actor: snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, maxHealth: e.maxHealth, shields: e.shields, alive: e.alive, statuses: e.statuses, standGeneration: adapter.actorGeneration(e.id) }) };
       },
       positionAt(id, ticksAgo = 0) {
         if (!Number.isSafeInteger(ticksAgo) || ticksAgo < 0 || !adapter.isTargetable(id)) return null;
@@ -81,7 +83,7 @@ export class ExpansionCombatAdapter {
           (relation === 'any' || (relation === 'ally' ? e.teamId === caster.teamId : e.teamId !== caster.teamId)) &&
           Math.hypot(e.position[0] - position[0], e.position[2] - position[2]) <= radius)
           .sort((a, b) => a.id.localeCompare(b.id)).slice(0, 32)
-          .map((e) => snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, shields: e.shields, alive: e.alive }));
+          .map((e) => snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, shields: e.shields, alive: e.alive, standGeneration: adapter.actorGeneration(e.id) }));
         return { ok: true, actors: Object.freeze(actors) };
       },
       queryRegions({ position, radius } = {}) {
@@ -176,6 +178,10 @@ export class ExpansionCombatAdapter {
           damage: event.damage, intensity: event.intensity, durationTicks: event.durationTicks,
           tags: event.tags, castId: event.castId
         });
+        const queued = m.queue[m.queue.length - 1];
+        if (queued?.eventId === eventId && ['hit', 'status'].includes(event.type)) {
+          adapter.targetGenerations.set(queued, new Map((event.targetIds ?? []).map((id) => [id, adapter.actorGeneration(id)])));
+        }
         return { ok: true, eventId };
       }
     });
@@ -185,7 +191,9 @@ export class ExpansionCombatAdapter {
     const manager = this.manager;
     for (const event of manager.queue) {
       if (typeof event.abilityUid !== 'string' || !event.abilityUid.startsWith('matrix-expansion/') || !['hit', 'status'].includes(event.type)) continue;
-      event.targetIds = event.targetIds.filter((id) => this.isTargetable(id));
+      const generations = this.targetGenerations.get(event);
+      event.targetIds = event.targetIds.filter((id) => this.isTargetable(id) &&
+        (!generations || generations.get(id) === this.actorGeneration(id)));
     }
     manager.cancelEvents((event) => typeof event.abilityUid === 'string' && event.abilityUid.startsWith('matrix-expansion/') && ['hit', 'status'].includes(event.type) && event.targetIds.length === 0);
   }
