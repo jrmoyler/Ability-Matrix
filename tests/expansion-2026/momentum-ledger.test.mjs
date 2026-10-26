@@ -88,3 +88,22 @@ test('movement wake records a bounded world trajectory, clears on teleport and r
   assert.equal(a.wake.geometry.drawRange.count, 0);
   a.dispose();
 });
+test('release waves show the strike radius and fade after the measured charge resolves', () => {
+  const character = {position:new Vector3()};
+  const a = new Ability({character, lights:{acquire:()=>({}), release(){}, set(){}}});
+  a.spawn(new Vector3(), new Vector3(1,0,0), 5);
+  assert.ok(a.releaseRings.every((ring) => !ring.visible));
+  for (let i = 0; i < 240 && !a._released; i++) {
+    character.position.x += .04;
+    a.update(1 / 60);
+  }
+  assert.equal(a._released, true);
+  assert.equal(a.releaseRings[0].visible, true);
+  assert.equal(a.releaseRings[0].scale.x, config.settings.zoneRadius);
+  const before = a.releaseRings[1].scale.x;
+  for (let i = 0; i < 10; i++) a.update(1 / 60);
+  assert.ok(a.releaseRings[1].scale.x > before);
+  for (let i = 0; i < 60; i++) a.update(1 / 60);
+  assert.ok(a.releaseRings.every((ring) => !ring.visible));
+  a.destroy(); a.dispose();
+});

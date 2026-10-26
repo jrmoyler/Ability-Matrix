@@ -129,6 +129,17 @@ export class Ability extends BaseAbility {
       this.root.add(o);
       this.rings.push(o);
     }
+    this.releaseGlow = own(new MeshBasicMaterial({color:0xfff1d3, transparent:true,
+      opacity:0, depthWrite:false, blending:AdditiveBlending}));
+    this.releaseRings = [];
+    for (let i = 0; i < 2; i++) {
+      const o = new Mesh(ring, this.releaseGlow);
+      o.rotation.x = Math.PI / 2;
+      o.position.y = .19 + i * .025;
+      o.visible = false;
+      this.root.add(o);
+      this.releaseRings.push(o);
+    }
     const wakeGeometry = own(new BufferGeometry());
     const wakePositions = new Float32BufferAttribute(
       new Float32Array(64 * 3),
@@ -316,6 +327,16 @@ export class Ability extends BaseAbility {
       this.rings[i].scale.setScalar(r * (0.55 + i * 0.17));
       this.rings[i].rotation.z = this.age * (i % 2 ? -0.9 : 0.65);
     }
+    const releaseAge = this.impactTime - c.chargeDuration + (this.phase === 'fade' ? this.fadeTime : 0);
+    const waveProgress = clamp(releaseAge / Math.max(.05, c.releaseWaveLife ?? .6));
+    this.releaseGlow.color.set(c.coreColor);
+    this.releaseGlow.opacity = (.35 + q * .45) * (1 - waveProgress) * fade;
+    for (let i = 0; i < this.releaseRings.length; i++) {
+      const wave = this.releaseRings[i];
+      wave.visible = this._released && waveProgress < 1;
+      wave.scale.setScalar(r * (i ? .12 + waveProgress * .88 : 1));
+      wave.rotation.z = this.age * (i ? 2 : -2);
+    }
     for (let i = 0; i < MAX_VECTORS; i++) {
       let a = (i * TAU) / MAX_VECTORS + this.age * (0.4 + q),
         radius = r * (0.42 + (i % 3) * 0.16);
@@ -364,6 +385,7 @@ export function buildEditor(gui, c) {
   f.add(c, 'zoneRadius', 1, 8, 0.1).name('release radius');
   f.add(c, 'bonusImpulse', 0, 30, 0.5).name('stored impulse');
   f.add(c, 'baseImpulse', 0, 30, 0.5).name('base impulse');
+  f.add(c, 'releaseWaveLife', .1, 1.2, .05).name('release visual time');
   f.addColor(c, 'accentColor').name('velocity');
   f.addColor(c, 'coreColor').name('core');
   f.addColor(c, 'trailColor').name('trail');

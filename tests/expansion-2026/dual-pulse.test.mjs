@@ -119,3 +119,17 @@ test('delivery follows front, maintains bounded trail, pauses cleanly, and reset
   }finally{settings[c.id].speed=speed;}
  }
 });
+
+test('impact fragments follow the actual pulse and wave and remain bounded',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const {a}=fixture(C);assert.equal(a.fragments.group.visible,false);run(a,.35);
+  assert.equal(a.fragments.group.visible,true);assert.equal(a.fragments.mesh.count,24);
+  const array=a.fragments.mesh.instanceMatrix.array;for(const x of array)assert.ok(Number.isFinite(x));
+  const r=Math.hypot(array[12],array[14]);
+  if(!a.fire)assert.ok(Math.abs(r-a.config.zoneRadius*a.impactTime/a.impactDuration)<1e-5);
+  else assert.ok(r<=a.config.zoneRadius);
+  settings[c.id].fragmentGlow=2;settings[c.id].fragmentScale=1.5;a.update(1/60);
+  assert.equal(a.fragments.mesh.material.uniforms.glow.value,2);
+  a.destroy();a.dispose();settings[c.id].fragmentGlow=c.settings.fragmentGlow;settings[c.id].fragmentScale=c.settings.fragmentScale;
+ }
+});

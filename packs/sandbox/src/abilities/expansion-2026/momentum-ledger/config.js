@@ -32,5 +32,6 @@ export default {
     accentColor: '#ff9a50',
     coreColor: '#fff1d3',
     trailColor: '#a8383d',
+    releaseWaveLife: 0.6,
   },
 };
