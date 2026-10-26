@@ -69,7 +69,7 @@ export class PackAdapter {
     this.feed = new CombatFeed(document.body);
     this._install();
     this.mechanics = new MechanicHost(this);
-    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled });
+    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, isTargetable: (id) => this._expansionTargetable(id) });
     app.abilities.ctx.expansionCombat = this.expansionCombat;
   }
 
@@ -119,6 +119,12 @@ export class PackAdapter {
       wrapped.__ucsm = true;
       Dummy.prototype[name] = wrapped;
     }
+  }
+
+  /** Expansion queries must not find disabled or removed sandbox bodies. */
+  _expansionTargetable(id) {
+    const dummy = this._byId.get(id);
+    return !dummy || (settings.dummies.enabled && this.app.dummies.slots.some((slot) => slot.dummy === dummy));
   }
 
   /** Hosted runtimes load lazily; wrap each the first time it is seen. */
@@ -266,6 +272,7 @@ export class PackAdapter {
     }
 
     if (dt > 0) this.mechanics.beforeStep();
+    this.expansionCombat?.filterQueuedTargets();
     m.step(dt);
     const { effects, cues } = m.drain();
     for (const effect of effects) this._applyEffect(effect);

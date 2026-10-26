@@ -27,11 +27,12 @@ const failure = (reason) => ({ ok: false, reason });
  * projectile, force, construct, mass or damage-redirection support.
  */
 export class ExpansionCombatAdapter {
-  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true } = {}) {
+  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true, isTargetable = () => true } = {}) {
     this.manager = manager;
     this.maxSubscriptions = Number.isSafeInteger(maxSubscriptions) && maxSubscriptions >= 0 ? maxSubscriptions : 0;
     this.eventsPerTick = Number.isSafeInteger(eventsPerTick) && eventsPerTick >= 0 ? eventsPerTick : 0;
     this.enabled = enabled;
+    this.isTargetable = isTargetable;
     this.listeners = new Set();
     this.budgetTick = -1;
     this.used = 0;
@@ -62,17 +63,19 @@ export class ExpansionCombatAdapter {
       },
       getActor(id) {
         const e = adapter.manager.entities.get(id);
-        return e ? { ok: true, actor: snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, maxHealth: e.maxHealth, shields: e.shields, alive: e.alive, statuses: e.statuses }) } : failure('unknown actor');
+        if (!e) return failure('unknown actor');
+        if (!adapter.isTargetable(id)) return failure('target unavailable');
+        return { ok: true, actor: snapshot({ id: e.id, teamId: e.teamId, kind: e.kind, position: e.position, health: e.health, maxHealth: e.maxHealth, shields: e.shields, alive: e.alive, statuses: e.statuses }) };
       },
       positionAt(id, ticksAgo = 0) {
-        if (!Number.isSafeInteger(ticksAgo) || ticksAgo < 0) return null;
+        if (!Number.isSafeInteger(ticksAgo) || ticksAgo < 0 || !adapter.isTargetable(id)) return null;
         const pos = adapter.manager.positionAt(id, ticksAgo);
         return pos ? point(pos) : null;
       },
       queryActors({ position, radius, relation = 'enemy' } = {}) {
         const caster = owner();
         if (!caster || !finitePoint(position) || !finiteRadius(radius) || !['ally', 'enemy', 'any'].includes(relation)) return failure('invalid actor query');
-        const actors = [...adapter.manager.entities.values()].filter((e) => e.alive &&
+        const actors = [...adapter.manager.entities.values()].filter((e) => e.alive && adapter.isTargetable(e.id) &&
           (relation === 'any' || (relation === 'ally' ? e.teamId === caster.teamId : e.teamId !== caster.teamId)) &&
           Math.hypot(e.position[0] - position[0], e.position[2] - position[2]) <= radius)
           .sort((a, b) => a.id.localeCompare(b.id)).slice(0, 32)
@@ -144,7 +147,7 @@ export class ExpansionCombatAdapter {
         if (!event || !EVENT_TYPES.includes(event.type) || !isElement(event.element) ||
             (event.position !== undefined && !finitePoint(event.position)) ||
             (event.sourcePosition !== undefined && !finitePoint(event.sourcePosition)) ||
-            (event.targetIds !== undefined && (!Array.isArray(event.targetIds) || event.targetIds.length > 8 || event.targetIds.some((id) => typeof id !== 'string' || !m.entities.has(id)))) ||
+            (event.targetIds !== undefined && (!Array.isArray(event.targetIds) || event.targetIds.length > 8 || event.targetIds.some((id) => typeof id !== 'string' || !m.entities.has(id) || !adapter.isTargetable(id)))) ||
             (['hit', 'status'].includes(event.type) && !event.targetIds?.length) ||
             (['spawn', 'terrain-impact'].includes(event.type) && !event.shape) ||
             (event.tags !== undefined && (!Array.isArray(event.tags) || event.tags.length > 16 || event.tags.some((tag) => typeof tag !== 'string'))) ||
@@ -172,6 +175,15 @@ export class ExpansionCombatAdapter {
         return { ok: true, eventId };
       }
     });
+  }
+  /** Drop hidden/removed host targets before queued expansion events commit. */
+  filterQueuedTargets() {
+    const manager = this.manager;
+    for (const event of manager.queue) {
+      if (typeof event.abilityUid !== 'string' || !event.abilityUid.startsWith('matrix-expansion/') || !['hit', 'status'].includes(event.type)) continue;
+      event.targetIds = event.targetIds.filter((id) => this.isTargetable(id));
+    }
+    manager.cancelEvents((event) => typeof event.abilityUid === 'string' && event.abilityUid.startsWith('matrix-expansion/') && ['hit', 'status'].includes(event.type) && event.targetIds.length === 0);
   }
   onEvent(event) {
     if (this.disposed || !this.enabled() || !this.listeners.size) return;

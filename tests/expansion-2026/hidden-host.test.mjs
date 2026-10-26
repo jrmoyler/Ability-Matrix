@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+import { settings } from '../../packs/sandbox/src/config/settings.js';
+import { CombatStateManager } from '../../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
+import { ExpansionCombatAdapter } from '../../packs/sandbox/src/combat/ucsm/ExpansionCombatAdapter.js';
+registerHooks({load(url, context, next) { return url.endsWith('.css') ? {format:'module', source:'', shortCircuit:true} : next(url,context); }});
+const { PackAdapter } = await import('../../packs/sandbox/src/combat/ucsm/PackAdapter.js');
+
+test('live host expansion queries and queued damage ignore disabled or removed dummies without resetting them', () => {
+  const original = settings.dummies.enabled;
+  settings.dummies.enabled = true;
+  const dummy = { alive:true, position:{x:2,y:0,z:0} };
+  const app = {dummies:{slots:[{dummy}]}};
+  const host = Object.assign(Object.create(PackAdapter.prototype), {app, _byId:new Map([['dummy:0',dummy]])});
+  const manager = new CombatStateManager();
+  manager.upsertEntity({id:'caster',teamId:'player',health:1});
+  const entity = manager.upsertEntity({id:'dummy:0',teamId:'enemy',health:1,position:[2,0,0]});
+  const bridge = new ExpansionCombatAdapter(manager, {isTargetable:id => host._expansionTargetable(id)});
+  const scope = bridge.bind('matrix-expansion/test', 'caster');
+  const query = () => scope.queryActors({position:[0,0,0],radius:5,relation:'enemy'}).actors;
+  const event = {type:'hit',element:'force',targetIds:['dummy:0'],position:[2,0,0],damage:1};
+  try {
+    assert.equal(query().length,1);
+    assert.equal(scope.emit(event).ok,true);
+    settings.dummies.enabled = false;
+    assert.deepEqual(query(),[]);
+    assert.deepEqual(scope.getActor('dummy:0'), {ok:false,reason:'target unavailable'});
+    assert.equal(scope.positionAt('dummy:0'),null);
+    assert.equal(scope.emit(event).ok,false);
+    bridge.filterQueuedTargets(); manager.advance();
+    assert.equal(entity.health,1);
+    assert.equal(entity.alive,true);
+    assert.equal(manager.drain().effects.length,0);
+    settings.dummies.enabled = true;
+    assert.equal(query().length,1);
+    assert.equal(scope.getActor('dummy:0').actor.alive,true);
+    const other = {alive:true,position:{x:3,y:0,z:0}};
+    host._byId.set('dummy:1',other);
+    app.dummies.slots.push({dummy:other});
+    const otherEntity = manager.upsertEntity({id:'dummy:1',teamId:'enemy',health:1,position:[3,0,0]});
+    assert.equal(scope.emit({...event,targetIds:['dummy:0','dummy:1'],damage:.25}).ok,true);
+    app.dummies.slots.shift();
+    bridge.filterQueuedTargets(); manager.advance();
+    assert.equal(entity.health,1);
+    assert.equal(otherEntity.health,.75, 'eligible targets of a mixed hit still receive damage');
+    app.dummies.slots.length = 0;
+    assert.deepEqual(query(),[]);
+    assert.equal(scope.emit(event).ok,false);
+    assert.deepEqual(scope.getActor('dummy:0'), {ok:false,reason:'target unavailable'});
+    assert.equal(entity.health,1);
+  } finally { settings.dummies.enabled = original; bridge.dispose(); }
+});

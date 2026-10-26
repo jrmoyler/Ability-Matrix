@@ -36,6 +36,9 @@
     "maxTransfers": 3,
     "trailScale": 1,
     "trailDuration": 0.5,
+    "sealScale": 1,
+    "sealDuration": 0.7,
+    "sealGlow": 0.8,
     "releaseDuration": 0.55,
     "shadowColor": "#68409e",
     "edgeColor": "#c7a7ff"

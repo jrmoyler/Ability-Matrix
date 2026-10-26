@@ -6,6 +6,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { Dummy } from '../packs/sandbox/src/combat/Dummy.js';
 import { DummyField } from '../packs/sandbox/src/combat/DummyField.js';
 import { bindExpansionCombat } from '../packs/sandbox/src/abilities/expansion-2026/StandaloneCombat.js';
+import { settings } from '../packs/sandbox/src/config/settings.js';
 
 function arena(){
   const dummy={alive:true,position:new Vector3(2,0,0),kills:0,kill(x,z,force){assert.ok(Number.isFinite(x)&&Number.isFinite(z));assert.ok(force.impulse>0);if(!this.alive)return false;this.kills++;this.alive=false;return true;}};
@@ -47,4 +48,17 @@ test('resetting a real pooled dummy clears partial damage inside the same active
   assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);
   assert.equal(dummy.alive,true,'fresh life survives one partial hit');
   dummy.dispose();
+});
+
+test('disabled sandbox dummies cannot be queried or damaged by a standalone cast',()=>{
+  const {dummy,scope}=arena(), previous=settings.dummies.enabled;
+  try {
+    settings.dummies.enabled=true;
+    const id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;
+    settings.dummies.enabled=false;
+    assert.deepEqual(scope.queryActors({position:[2,0,0],radius:1}).actors,[]);
+    assert.equal(scope.getActor(id).ok,false);
+    assert.equal(scope.emit({type:'hit',targetIds:[id],damage:1}).ok,false);
+    assert.equal(dummy.alive,true);
+  } finally { settings.dummies.enabled=previous; }
 });

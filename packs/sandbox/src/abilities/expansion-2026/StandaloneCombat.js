@@ -4,6 +4,8 @@
  * against the sandbox dummy's normal one-hit health, and only a real Dummy.kill
  * is presented as a knockdown. Damage accumulation is scoped to one cast so a recycled dummy cannot inherit another cast's partial damage.
  */
+import { settings } from '../../config/settings.js';
+
 const worlds = new WeakMap();
 const fail = (reason) => ({ok:false,reason});
 function worldFor(ctx) {
@@ -14,6 +16,7 @@ function worldFor(ctx) {
 function idFor(world,dummy){let id=world.ids.get(dummy);if(!id){id=`standalone:${world.nextId++}`;world.ids.set(dummy,id);}return id;}
 function activeDummies(ctx){
   if(!Array.isArray(ctx.dummies?.slots))return null;
+  if(!settings.dummies.enabled)return [];
   return ctx.dummies.slots.map(slot=>slot?.dummy).filter(dummy=>dummy?.position&&typeof dummy.kill==='function');
 }
 function snapshot(world,health,dummy,generation){

@@ -38,6 +38,8 @@
     "waveHeight": 2.2,
     "waveDuration": 0.7,
     "curtainGlow": 0.55,
+    "glyphGlow": 0.75,
+    "glyphRise": 0.1,
     "pulseStrength": 1,
     "recedeDepth": 1.5,
     "holyColor": "#ffe9ac",
