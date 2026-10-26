@@ -62,7 +62,7 @@ export class ToxinEvolutionAbility extends Ability {
   this.bodyMat=m(material());this.sigilMat=m(sigil());this.vesselMat=m(vesselMaterial());this.body=new Mesh(g(toxinMembraneGeometry()),this.bodyMat);this.effect.add(this.body);
   this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.sigilMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.045;this.effect.add(this.floor);
   this.coils=[];this.coilMaterials=[];for(let i=0;i<3;i++){const material=m(toxinCoilMaterial(i)),x=new Mesh(g(toxinCoilGeometry(i*TAU/3,i)),material);x.visible=false;this.effect.add(x);this.coils.push(x);this.coilMaterials.push(material);}
-  const vessel=g(toxinVesselGeometry());this.vessels=[];for(let i=0;i<3;i++){const v=new Mesh(vessel,this.vesselMat);this.effect.add(v);this.vessels.push(v);}this.stageTimes=[-1,-1,-1];
+  const vessel=g(toxinVesselGeometry());this.vessels=[];for(let i=0;i<3;i++){const v=new Mesh(vessel,this.vesselMat);v.visible=false;this.effect.add(v);this.vessels.push(v);}this.stageTimes=[-1,-1,-1];
   this.stageEffects=new ToxinStages(this.effect,this.ctx,this.atmosphere,g,m);
   const spore=g(new SphereGeometry(.045,10,6));this.spores=[];for(let i=0;i<24;i++){const s=new Mesh(spore,this.bodyMat);this.effect.add(s);this.spores.push(s);}
   this.travelPod=new Group();this.group.add(this.travelPod);this.travelPod.visible=false;const pod=new Mesh(vessel,this.vesselMat);pod.scale.setScalar(.75);this.travelPod.add(pod);this.travelSpores=[];for(let i=0;i<6;i++){const sp=new Mesh(spore,this.bodyMat);this.travelPod.add(sp);this.travelSpores.push(sp);}this.travelPod.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
@@ -70,7 +70,7 @@ export class ToxinEvolutionAbility extends Ability {
   this.scope=null;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'poison',{shape:'BUBBLE',colors:['#e8ffad','#9be641','#5c9830','#24431b'],rate:22});this.stageEffects.atmosphere=this.atmosphere;}
- onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;this.releaseAt=-1;this.stageTimes.fill(-1);for(const coil of this.coils)coil.visible=false;this.stageEffects.reset();
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;this.releaseAt=-1;this.stageTimes.fill(-1);for(const coil of this.coils)coil.visible=false;for(const vessel of this.vessels)vessel.visible=false;this.stageEffects.reset();
   const bridge=this.ctx.expansionCombat;this.scope=bindExpansionCombat(this.ctx,UID);if(!this.scope)this.failure='combat bridge unavailable';this.travelPod.visible=!!this.scope;this.travelPod.position.copy(this.origin);
  }
  onTravel(dt){const c=this.config,t=this.reduceMotion?0:this.age;this.atmosphere.rate=c.particleRate??this.atmosphere.rate;this.atmosphere.size=c.particleSize??this.atmosphere.size;this.atmosphere.syncPalette(c.toxinColor,c.coreColor);this.travelPod.position.copy(this.position);this.travelPod.position.y=.7;this.travelPod.rotation.y=t*2;this.travelPod.scale.setScalar(c.travelScale??1);if(!this.reduceMotion&&this.travelPod.visible)this.atmosphere.update(dt,this.travelPod.position,c.travelDensity??.6);this.vesselMat.uniforms.uTime.value=t;this.vesselMat.uniforms.uFade.value=1;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);this.bodyMat.uniforms.uFade.value=1;this.bodyMat.uniforms.uPulse.value=0;this.bodyMat.uniforms.uTime.value=t;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);for(let i=0;i<this.travelSpores.length;i++){const a=i*TAU/this.travelSpores.length+t*2;this.travelSpores[i].position.set(Math.cos(a)*.5,.2+(i%3)*.18,Math.sin(a)*.5);}}
@@ -78,8 +78,8 @@ export class ToxinEvolutionAbility extends Ability {
   this.travelPod.visible=false;if(!this.scope)return;
   const q=this.scope.queryActors({position:this.position.toArray(),radius:this.config.zoneRadius,relation:'enemy'});
   if(!q?.ok){this.failure=q?.reason??'query unavailable';return;}
-  this.targetId=q.actors.filter(x=>x.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0]?.id??null;if(!this.targetId){this.failure='no eligible target';return;}
-  this.effect.visible=true;this.nextStage=0;
+  const target=q.actors.filter(x=>x.alive).sort((a,b)=>Math.hypot(a.position[0]-this.position.x,a.position[2]-this.position.z)-Math.hypot(b.position[0]-this.position.x,b.position[2]-this.position.z)||a.id.localeCompare(b.id))[0];this.targetId=target?.id??null;if(!target){this.failure='no eligible target';return;}
+  this.effect.position.fromArray(target.position);this.effect.visible=true;this.nextStage=0;this.onFade(0,0);
  }
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
   const c=this.config;let fade=t<=1?1:1-clamp(t-1);
