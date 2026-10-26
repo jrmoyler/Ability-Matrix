@@ -27,11 +27,12 @@ const failure = (reason) => ({ ok: false, reason });
  * projectile, force, construct, mass or damage-redirection support.
  */
 export class ExpansionCombatAdapter {
-  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true, isTargetable = () => true } = {}) {
+  constructor(manager, { maxSubscriptions = 64, eventsPerTick = 24, enabled = () => true, modeVersion = () => 0, isTargetable = () => true } = {}) {
     this.manager = manager;
     this.maxSubscriptions = Number.isSafeInteger(maxSubscriptions) && maxSubscriptions >= 0 ? maxSubscriptions : 0;
     this.eventsPerTick = Number.isSafeInteger(eventsPerTick) && eventsPerTick >= 0 ? eventsPerTick : 0;
     this.enabled = enabled;
+    this.modeVersion = modeVersion;
     this.isTargetable = isTargetable;
     this.listeners = new Set();
     this.budgetTick = -1;

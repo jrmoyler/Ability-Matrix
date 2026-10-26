@@ -52,6 +52,19 @@ const _q = new Vector3();
 let castCounter = 0;
 
 export class PackAdapter {
+  /** Monotonic so active expansion casts cannot resume after a mode round trip. */
+  get enabled() { return this._enabled ?? true; }
+  set enabled(value) {
+    const next = !!value;
+    if (this._enabled !== undefined && next !== this._enabled) {
+      this._combatModeEpoch = (this._combatModeEpoch ?? 0) + 1;
+      // A pending expansion event belongs to the prior mode even if the user
+      // toggles back before the next fixed tick. Preserve legacy events.
+      this.manager?.cancelEvents?.((event) => event.abilityUid?.startsWith('matrix-expansion/'));
+    }
+    this._enabled = next;
+  }
+  get combatModeEpoch() { return this._combatModeEpoch ?? 0; }
   constructor(app, budget = {}) {
     this.app = app;
     this.manager = new CombatStateManager(budget);
@@ -69,7 +82,7 @@ export class PackAdapter {
     this.feed = new CombatFeed(document.body);
     this._install();
     this.mechanics = new MechanicHost(this);
-    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, isTargetable: (id) => this._expansionTargetable(id) });
+    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled, modeVersion: () => this.combatModeEpoch, isTargetable: (id) => this._expansionTargetable(id) });
     app.abilities.ctx.expansionCombat = this.expansionCombat;
   }
 

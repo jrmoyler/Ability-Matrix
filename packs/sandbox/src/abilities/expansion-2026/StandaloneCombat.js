@@ -65,10 +65,14 @@ export function bindExpansionCombat(ctx,uid){
   const live=bridge.bind(uid,'caster'),direct=fallback(ctx);
   const standalone=()=>typeof bridge.enabled==='function'&&bridge.enabled()===false;
   const initialStandalone=standalone();
-  const route=(method,args)=>{if(standalone()!==initialStandalone)return fail('combat mode changed during cast');return initialStandalone?direct[method](...args):live[method](...args);};
+  const initialVersion=typeof bridge.modeVersion==='function'?bridge.modeVersion():null;
+  const stable=()=>standalone()===initialStandalone&&(initialVersion===null||bridge.modeVersion()===initialVersion);
+  const route=(method,args)=>{if(!stable())return fail('combat mode changed during cast');return initialStandalone?direct[method](...args):live[method](...args);};
   return {
     get standalone(){return standalone();},
     queryActors:(...args)=>route('queryActors',args),getActor:(...args)=>route('getActor',args),
-    isBlocked:(...args)=>route('isBlocked',args),on:(...args)=>route('on',args),emit:(...args)=>route('emit',args)
+    isBlocked:(...args)=>route('isBlocked',args),
+    on:(type,handler)=>route('on',[type,typeof handler==='function'?(...args)=>{if(stable())handler(...args);}:handler]),
+    emit:(...args)=>route('emit',args)
   };
 }
