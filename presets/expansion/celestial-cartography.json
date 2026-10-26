@@ -41,6 +41,8 @@
     "meteorWidth": 1,
     "meteorGlow": 1,
     "meteorTrailRate": 28,
+    "convergenceWidth": 0.45,
+    "convergenceGlow": 0.65,
     "strikeRadius": 1,
     "impactScale": 1,
     "impactGlow": 0.8,

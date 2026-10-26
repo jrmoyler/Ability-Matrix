@@ -1,3 +1,4 @@
+import { settings } from '../../../config/settings.js';
 import { impactForce } from '../AuthoredImpactForce.js';
 import { ToxinStages } from './ToxinStages.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
@@ -53,8 +54,10 @@ function toxinCoilMaterial(tier){return new ShaderMaterial({transparent:true,dep
 export class ToxinEvolutionAbility extends Ability {
  constructor(ctx){super(ID,ctx);}
  get handlesOwnHits(){return true;}
- get impactDuration(){return this.config.lifetime;}
- get fadeDuration(){return this.config.fade;}
+ get impactDuration(){return this.config.lifetime*this.lifetimeScale;}
+ get lifetimeScale(){return Math.max(.1,settings.global.lifetime);}
+ get stagedTime(){return this.impactTime/this.lifetimeScale;}
+ get fadeDuration(){return this.config.fade*this.lifetimeScale;}
  get instanceCount(){return this.coils.length+this.spores.length+2;}
  createShaders(){this._lightSaved=new Vector3();
   this.effect=new Group();this.group.add(this.effect);this.effect.visible=false;this.gs=[];this.ms=[];
@@ -85,24 +88,24 @@ export class ToxinEvolutionAbility extends Ability {
   const c=this.config;let fade=t<=1?1:1-clamp(t-1);
   if(this.targetId && this.scope && this.phase===AbilityPhase.IMPACT){
    const actor=this.scope.getActor(this.targetId);const e=actor?.actor;
-   if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.releaseAt=this.impactTime;this.failure='target left toxin range';}
+   if(!actor?.ok||!e?.alive||Math.hypot(e.position[0]-this.position.x,e.position[2]-this.position.z)>c.tetherRange){this.targetId=null;this.releaseAt=this.stagedTime;this.failure='target left toxin range';}
    else{
     this.effect.position.fromArray(e.position);
-    if(dt>0&&this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
+    if(dt>0&&this.stagedTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
      const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,sourcePosition:this.origin.toArray(),hitForce:impactForce(c),intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
-     if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion)this.stageEffects.fire(this.stage,e.position,c);this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
+     if(result?.ok){this.stageTimes[this.stage]=this.stagedTime;this.stage++;if(!this.reduceMotion)this.stageEffects.fire(this.stage,e.position,c);this.nextStage=this.stagedTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.stagedTime+.2;}
     }
    }
   }
-  if(this.releaseAt>=0){const release=clamp((this.impactTime-this.releaseAt)/Math.max(.1,c.releaseDuration??.55));fade=Math.min(fade,1-release);if(release>=1)this.effect.visible=false;}
-  const latest=this.stage>0?this.stageTimes[this.stage-1]:-1,stagePulse=this.reduceMotion||latest<0?0:1-clamp((this.impactTime-latest)/Math.max(.1,c.bloomTime??.55)),retract=fade;
-  this.atmosphere.syncPalette(c.toxinColor,c.coreColor);this.stageEffects.update(this.stageTimes,this.impactTime,visualTime,fade,c,this.reduceMotion);
+  if(this.releaseAt>=0){const release=clamp((this.stagedTime-this.releaseAt)/Math.max(.1,c.releaseDuration??.55));fade=Math.min(fade,1-release);if(release>=1)this.effect.visible=false;}
+  const latest=this.stage>0?this.stageTimes[this.stage-1]:-1,stagePulse=this.reduceMotion||latest<0?0:1-clamp((this.stagedTime-latest)/Math.max(.1,c.bloomTime??.55)),retract=fade;
+  this.atmosphere.syncPalette(c.toxinColor,c.coreColor);this.stageEffects.update(this.stageTimes,this.stagedTime,visualTime,fade,c,this.reduceMotion);
   this.bodyMat.uniforms.uPulse.value=stagePulse;this.bodyMat.uniforms.uTime.value=visualTime;this.bodyMat.uniforms.uStage.value=this.stage;this.bodyMat.uniforms.uFade.value=fade;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);
   this.sigilMat.uniforms.uTime.value=visualTime;this.sigilMat.uniforms.uStage.value=this.stage;this.sigilMat.uniforms.uFade.value=fade;this.sigilMat.uniforms.uColor.value.set(c.toxinColor);
   this.vesselMat.uniforms.uTime.value=visualTime;this.vesselMat.uniforms.uFade.value=fade;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);
-  for(let i=0;i<this.vessels.length;i++){const v=this.vessels[i],a=i*TAU/3+visualTime*(i%2?-.25:.25),age=this.stageTimes[i]<0?-1:this.impactTime-this.stageTimes[i];v.visible=age>=0;v.position.set(Math.cos(a)*.72,.45+i*.37,Math.sin(a)*.72);v.rotation.set(.3*Math.cos(a),-a,.3*Math.sin(a));const vesselPulse=this.reduceMotion||age<0?0:1-clamp(age/Math.max(.1,c.bloomTime??.55));v.scale.setScalar((c.vesselScale??1)*clamp(age/.25)*retract*(1+vesselPulse*(c.bloomStrength??.3)));}
+  for(let i=0;i<this.vessels.length;i++){const v=this.vessels[i],a=i*TAU/3+visualTime*(i%2?-.25:.25),age=this.stageTimes[i]<0?-1:this.stagedTime-this.stageTimes[i];v.visible=age>=0;v.position.set(Math.cos(a)*.72,.45+i*.37,Math.sin(a)*.72);v.rotation.set(.3*Math.cos(a),-a,.3*Math.sin(a));const vesselPulse=this.reduceMotion||age<0?0:1-clamp(age/Math.max(.1,c.bloomTime??.55));v.scale.setScalar((c.vesselScale??1)*clamp(age/.25)*retract*(1+vesselPulse*(c.bloomStrength??.3)));}
   const grow=(.7+this.stage*.12)*(1+stagePulse*(c.bloomStrength??.3))*retract;this.body.scale.set(grow,(1+this.stage*.1)*retract,grow);this.floor.scale.set((1.25+this.stage*.25)*retract,(1.25+this.stage*.25)*retract,1);
-  for(let i=0;i<this.coils.length;i++){const coil=this.coils[i],mat=this.coilMaterials[i],age=this.stageTimes[i]<0?-1:this.impactTime-this.stageTimes[i],growth=age<0?0:this.reduceMotion?1:clamp(age/Math.max(.1,c.coilGrowTime??.45)),localPulse=this.reduceMotion||age<0?0:1-clamp(age/Math.max(.1,c.bloomTime??.55));coil.visible=age>=0;coil.rotation.y=visualTime*(c.coilTwistSpeed??1)*(.7+i*.15)*(i%2?-1:1);coil.scale.set(grow*(c.coilSpread??1),growth*retract,grow*(c.coilSpread??1));mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade;mat.uniforms.uPulse.value=localPulse;mat.uniforms.uColor.value.set(c.toxinColor);mat.uniforms.uCore.value.set(c.coreColor);}
+  for(let i=0;i<this.coils.length;i++){const coil=this.coils[i],mat=this.coilMaterials[i],age=this.stageTimes[i]<0?-1:this.stagedTime-this.stageTimes[i],growth=age<0?0:this.reduceMotion?1:clamp(age/Math.max(.1,c.coilGrowTime??.45)),localPulse=this.reduceMotion||age<0?0:1-clamp(age/Math.max(.1,c.bloomTime??.55));coil.visible=age>=0;coil.rotation.y=visualTime*(c.coilTwistSpeed??1)*(.7+i*.15)*(i%2?-1:1);coil.scale.set(grow*(c.coilSpread??1),growth*retract,grow*(c.coilSpread??1));mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade;mat.uniforms.uPulse.value=localPulse;mat.uniforms.uColor.value.set(c.toxinColor);mat.uniforms.uCore.value.set(c.coreColor);}
   for(let i=0;i<this.spores.length;i++){const a=i*2.399963+visualTime*.8,r=.7+(i%4)*.16;this.spores[i].position.set(Math.cos(a)*r,.2+((i*.31+visualTime*.45)%2.3),Math.sin(a)*r);}
  }
  _updateLight(dt,scale){if(this.phase===AbilityPhase.TRAVEL||!this.effect.visible)return super._updateLight(dt,scale);this._lightSaved.copy(this.position);this.position.copy(this.effect.position);try{super._updateLight(dt,scale);}finally{this.position.copy(this._lightSaved);}}

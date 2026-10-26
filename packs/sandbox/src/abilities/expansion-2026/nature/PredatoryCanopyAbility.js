@@ -116,8 +116,10 @@ function twig(angle, radius, height, seed) {
 export class PredatoryCanopyAbility extends Ability {
   constructor(ctx) { super(ID, ctx); }
   get handlesOwnHits() { return true; }
-  get impactDuration() { return this.config.lifetime; }
-  get fadeDuration() { return this.config.fade; }
+  get impactDuration(){return this.config.lifetime*this.lifetimeScale;}
+ get lifetimeScale(){return Math.max(.1,settings.global.lifetime);}
+ get stagedTime(){return this.impactTime/this.lifetimeScale;}
+  get fadeDuration(){return this.config.fade*this.lifetimeScale;}
   get instanceCount() { return this.leaves.length + this.branches.length + this.tendrils.length; }
   createShaders() {
     this.root = new Group(); this.root.name = 'predatory-canopy'; this.group.add(this.root);
@@ -174,7 +176,7 @@ export class PredatoryCanopyAbility extends Ability {
     this.root.updateMatrix();this.onFade(0,0);
   }
   onFade(dt, t) {const visualTime=this.reduceMotion?0:this.age;
-    const c=this.config, elapsed=this.impactTime;
+    const c=this.config, elapsed=this.stagedTime;
     const palette=[c.leafColor,c.leafRim,c.barkColor].join('|');if(palette!==this.lastLeafPalette){const leaf=this._cueB.set(c.leafColor),rim=this._cueA.set(c.leafRim),bark=this._cueDark.set(c.barkColor);this.leafParticles?.setGradient(leaf,rim,leaf,bark);this.moteParticles?.setGradient(rim,leaf,bark,bark);this.lastLeafPalette=palette;}
     const fade=t <= 1 ? 1 : 1-clamp01(t-1);
     const opening=ease(elapsed / Math.max(.01,c.armDelay)),closing=t<=1?0:clamp01(t-1),width=opening*(1-closing*clamp01(c.retreatStrength??.8));

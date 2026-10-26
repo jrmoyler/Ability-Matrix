@@ -29,6 +29,7 @@ import { Ability as BaseAbility } from '../../Ability.js';
 import { settings } from '../../../config/settings.js';
 import { LAYER } from '../../../core/Layers.js';
 import config from './config.js';
+import { bindExpansionCombat } from '../StandaloneCombat.js';
 export { config };
 export const ID = config.id;
 const UID = 'matrix-expansion/pulse-covenant',
@@ -201,7 +202,7 @@ export class Ability extends BaseAbility {
       this._bridgeUnavailable = true;
       return;
     }
-    const scope = bridge.bind(UID, 'caster');
+    const scope = bindExpansionCombat(this.ctx, UID);
     this._scope = scope;
     this._bridgeUnavailable = false;
     const sub = scope.on('hit', (e) => this._onHit(e));

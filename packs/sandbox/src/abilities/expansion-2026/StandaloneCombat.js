@@ -11,7 +11,7 @@ const worlds = new WeakMap();
 const fail = (reason) => ({ok:false,reason});
 function worldFor(ctx) {
   let world=worlds.get(ctx);
-  if(!world){world={ids:new WeakMap(),nextId:0};worlds.set(ctx,world);}
+  if(!world){world={ids:new WeakMap(),nextId:0,nextHit:0,listeners:new Set(),host:null};worlds.set(ctx,world);}
   return world;
 }
 function idFor(world,dummy){let id=world.ids.get(dummy);if(!id){id=`standalone:${world.nextId++}`;world.ids.set(dummy,id);}return id;}
@@ -27,7 +27,27 @@ function snapshot(world,health,dummy,generation){
   if(dummy.alive&&hp!==undefined&&hp<=0){hp=1;health.set(dummy,{hp,generation});}
   return {id:idFor(world,dummy),teamId:'targets',kind:'actor',position:[dummy.position.x,0,dummy.position.z],health:hp??1,maxHealth:1,shields:0,alive:!!dummy.alive,statuses:[],standGeneration:generation};
 }
-function fallback(ctx){
+/** Bind the existing host's scoped physical-hit observer, not invented damage events. */
+export function attachStandaloneHitObserver(ctx,host){
+  const world=worldFor(ctx);
+  world.host=host;
+  return ()=>{if(world.host===host){world.host=null;world.listeners.clear();}};
+}
+export function notifyStandaloneHit(ctx,host,dummy,scope){
+  const world=worlds.get(ctx);
+  if(!world||world.host!==host||host.enabled||!world.listeners.size||!settings.dummies.enabled||
+    !scope||typeof scope.uid!=='string'||!scope.uid||typeof scope.castId!=='string'||!scope.castId||scope.reactionId)return;
+  if(!activeDummies(ctx)?.includes(dummy))return;
+  const event=Object.freeze({eventId:`standalone-hit:${world.nextHit++}`,
+    tick:Math.round((host._standaloneTime??0)*30),ownerId:'caster',
+    abilityUid:scope.uid,castId:scope.castId,element:scope.element,
+    targetIds:Object.freeze([idFor(world,dummy)]),
+    position:Object.freeze([dummy.position.x,0,dummy.position.z])});
+  for(const listener of [...world.listeners])if(world.listeners.has(listener)){
+    try{listener(event);}catch{/* an extension must not interrupt a physical hit */}
+  }
+}
+function fallback(ctx,uid){
   const world=worldFor(ctx),health=new WeakMap();
   const generation=(dummy)=>ctx.dummies?.standGeneration?.(dummy)??0;
   const find=(id)=>activeDummies(ctx)?.find(dummy=>idFor(world,dummy)===id);
@@ -42,7 +62,12 @@ function fallback(ctx){
     },
     getActor(id){if(id==='caster'&&ctx.character?.position){const p=ctx.character.position;return {ok:true,actor:{id,teamId:'player',position:[p.x,p.y,p.z],alive:true,health:1,statuses:[]}};}const dummy=find(id);return dummy?{ok:true,actor:snapshot(world,health,dummy,generation(dummy))}:fail('unknown standalone actor');},
     isBlocked(){return {ok:true,blocked:false};},
-    on(){return fail('status and hit subscriptions require combat');},
+    on(type,handler){
+      if(type!=='hit'||typeof handler!=='function'||!world.host)return fail('owned hit observation unavailable');
+      if(world.listeners.size>=64)return fail('subscription budget');
+      world.listeners.add(handler);let active=true;
+      return {ok:true,unsubscribe(){if(active){active=false;world.listeners.delete(handler);}}};
+    },
     emit(event){
       if(event?.type!=='hit')return fail('status effects require combat');
       if(!Array.isArray(event.targetIds)||!event.targetIds.length||event.targetIds.length>8||new Set(event.targetIds).size!==event.targetIds.length||!Number.isFinite(event.damage)||event.damage<0||(event.hitForce!==undefined&&!validImpactForce(event.hitForce))||(event.position!==undefined&&(!Array.isArray(event.position)||event.position.length!==3||!event.position.every(Number.isFinite)))||(event.sourcePosition!==undefined&&(!Array.isArray(event.sourcePosition)||event.sourcePosition.length!==3||!event.sourcePosition.every(Number.isFinite))))return fail('invalid standalone hit');
@@ -56,7 +81,14 @@ function fallback(ctx){
         let length=Math.hypot(dx,dz);
         if(length<1e-8&&event.hitForce){dx=dummy.position.x-(caster?.x??0);dz=dummy.position.z-(caster?.z??0);length=Math.hypot(dx,dz);}
         if(length<1e-8){dx=0;dz=1;}else{dx/=length;dz/=length;}
-        if(dummy.kill(dx,dz,event.hitForce??{impulse:3,lift:2,spin:1})){health.set(dummy,{hp:0,generation:version});accepted++;}
+        // Only retain an existing scope if it actually belongs to this emitter.
+        // A nested Pulse proc must not inherit the triggering cast's identity.
+        const host=world.host,outer=host?.scope;
+        if(host&&outer?.uid!==uid)host.scope=null;
+        let fell;
+        try{fell=dummy.kill(dx,dz,event.hitForce??{impulse:3,lift:2,spin:1});}
+        finally{if(host&&outer?.uid!==uid)host.scope=outer;}
+        if(fell){health.set(dummy,{hp:0,generation:version});accepted++;}
       }
       return accepted?{ok:true,standalone:true}:fail('standalone hit could not affect a dummy');
     }
@@ -67,7 +99,7 @@ function fallback(ctx){
 export function bindExpansionCombat(ctx,uid){
   const bridge=ctx.expansionCombat;
   if(!bridge?.bind)return null;
-  const live=bridge.bind(uid,'caster'),direct=fallback(ctx);
+  const live=bridge.bind(uid,'caster'),direct=fallback(ctx,uid);
   const standalone=()=>typeof bridge.enabled==='function'&&bridge.enabled()===false;
   const initialStandalone=standalone();
   const initialVersion=typeof bridge.modeVersion==='function'?bridge.modeVersion():null;
@@ -75,6 +107,7 @@ export function bindExpansionCombat(ctx,uid){
   const route=(method,args)=>{if(!stable())return fail('combat mode changed during cast');return initialStandalone?direct[method](...args):live[method](...args);};
   return {
     get standalone(){return standalone();},
+    get tickRate(){return initialStandalone?30:live.tickRate;},
     queryActors:(...args)=>route('queryActors',args),getActor:(...args)=>route('getActor',args),
     isBlocked:(...args)=>route('isBlocked',args),
     on:(type,handler)=>route('on',[type,typeof handler==='function'?(...args)=>{if(stable())handler(...args);}:handler]),

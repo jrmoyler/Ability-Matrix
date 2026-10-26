@@ -11,6 +11,7 @@ import { EXPANSION_REGISTRY, MECHANIC_FAMILIES } from './registry.js';
 import { CombatFeed } from './CombatFeed.js';
 import { MechanicHost } from './mechanics/MechanicHost.js';
 import { ExpansionCombatAdapter } from './ExpansionCombatAdapter.js';
+import { attachStandaloneHitObserver, notifyStandaloneHit } from '../../abilities/expansion-2026/StandaloneCombat.js';
 
 /**
  * Plugs the sandbox — every pack, all 230 castables — into the combat manager.
@@ -93,6 +94,7 @@ export class PackAdapter {
   _install() {
     const adapter = this;
     const app = this.app;
+    if(app.abilities.ctx)this._detachStandaloneHits = attachStandaloneHitObserver(app.abilities.ctx, this);
 
     // Native casts.
     const nativeCast = app.abilities.cast.bind(app.abilities);
@@ -108,9 +110,11 @@ export class PackAdapter {
     const applyHits = DummyField.prototype.applyHits;
     const applyHitsWith = DummyField.prototype.applyHitsWith;
     field.applyHits = function (abilities) {
+      if(!adapter.enabled)for(const slot of this.slots??[])adapter._dummyId(slot.dummy);
       for (const ability of abilities) adapter._within(ability, () => applyHits.call(this, [ability]));
     };
     field.applyHitsWith = function (abilities, shapeOf, radiusOf) {
+      if(!adapter.enabled)for(const slot of this.slots??[])adapter._dummyId(slot.dummy);
       for (const ability of abilities) adapter._within(ability, () => applyHitsWith.call(this, [ability], shapeOf, radiusOf));
     };
 
@@ -127,6 +131,8 @@ export class PackAdapter {
         }
         const fell = original.apply(this, args);
         if (fell && current?.enabled && current.scope) current._hit(this, current.scope, name);
+        else if (fell && current && !current.enabled && current.scope)
+          notifyStandaloneHit(current.app.abilities.ctx,current,this,current.scope);
         return fell;
       };
       wrapped.__ucsm = true;
@@ -205,6 +211,9 @@ export class PackAdapter {
   _within(ability, run) {
     const meta = this._meta.get(ability);
     if (!meta) return run();
+    // Ability updates precede the host update in App.frame. Bind newly added
+    // dummies before an ability can synchronously hit them during that update.
+    if (!this.enabled) for (const slot of this.app.dummies.slots ?? []) this._dummyId(slot.dummy);
     const outer = this.scope;
     this.scope = meta;
     try {
@@ -256,6 +265,10 @@ export class PackAdapter {
     if (!this.enabled) {
       if (this._wasEnabled !== false) this.mechanics.clear();
       this._wasEnabled = false;
+      if (Number.isFinite(dt) && dt > 0) this._standaloneTime=(this._standaloneTime??0)+dt;
+      // Dummies can be created while combat is off; the existing physical-hit
+      // hook needs their host binding even though the manager is not updated.
+      for(const slot of this.app.dummies.slots??[])this._dummyId(slot.dummy);
       return;
     }
     this._wasEnabled = true;
@@ -402,6 +415,7 @@ export class PackAdapter {
   }
 
   dispose() {
+    this._detachStandaloneHits?.();
     for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter;
     this.expansionCombat.dispose();
     if (this.app.abilities.ctx.expansionCombat === this.expansionCombat) delete this.app.abilities.ctx.expansionCombat;
