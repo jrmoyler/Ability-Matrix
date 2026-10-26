@@ -104,7 +104,7 @@ test('five worldshape rigs have finite, distinctive mesh structures and release 
     const { s, region } = setup(p), scene = new Scene(), view = new MechanicPresentation(scene, s);
     const item = view.add('shape', 'worldshape', region);
     const shapes = [];
-    item.g.traverse(node => { if (node.isMesh) { assert.ok(node.geometry.attributes.position.count > 0); shapes.push([node.geometry.type, node.material.color.getHex(), ...node.scale.toArray()]); } });
+    item.g.traverse(node => { if (node.isMesh) { assert.ok(node.geometry.attributes.position.count > 0); const color = node.material.color ?? node.material.uniforms?.tint?.value; assert.ok(color, p.uid); shapes.push([node.geometry.type, color.getHex(), ...node.scale.toArray()]); } });
     assert.ok(shapes.length >= 10, p.uid);
     signatures.push(JSON.stringify(shapes));
     view.dispose();

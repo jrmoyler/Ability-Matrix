@@ -10,6 +10,7 @@ import { resolvePair, pairTable, foldElements } from './reactions.js';
 import { EXPANSION_REGISTRY, MECHANIC_FAMILIES } from './registry.js';
 import { CombatFeed } from './CombatFeed.js';
 import { MechanicHost } from './mechanics/MechanicHost.js';
+import { ExpansionCombatAdapter } from './ExpansionCombatAdapter.js';
 
 /**
  * Plugs the sandbox — every pack, all 230 castables — into the combat manager.
@@ -68,6 +69,8 @@ export class PackAdapter {
     this.feed = new CombatFeed(document.body);
     this._install();
     this.mechanics = new MechanicHost(this);
+    this.expansionCombat = new ExpansionCombatAdapter(this.manager, { enabled: () => this.enabled });
+    app.abilities.ctx.expansionCombat = this.expansionCombat;
   }
 
   /* ------------------------------------------------------------------ */
@@ -376,7 +379,12 @@ export class PackAdapter {
     };
   }
 
-  dispose() { for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter; this.mechanics.dispose(); this.feed.root?.remove(); this.feed.layer?.remove(); }
+  dispose() {
+    for (const dummy of this._byId.values()) delete dummy.__ucsmAdapter;
+    this.expansionCombat.dispose();
+    if (this.app.abilities.ctx.expansionCombat === this.expansionCombat) delete this.app.abilities.ctx.expansionCombat;
+    this.mechanics.dispose(); this.feed.root?.remove(); this.feed.layer?.remove();
+  }
 
   /** Editor folder: switches and the budget. */
   buildEditor(gui) {

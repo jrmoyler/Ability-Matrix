@@ -67,7 +67,7 @@ test('all five authored convergence rigs contain finite geometry and can be disp
   for(const p of CONVERGENCE_VARIANTS) {
     const rig=v.build('convergence',{uid:p.uid,position:[0,0,0],direction:[0,0,1]});
     const meshes=[];
-    rig.traverse(n=>{if(n.isMesh){assert.ok(n.geometry.attributes.position.count>0); meshes.push(`${n.geometry.type}:${n.material.color.getHexString()}`);}});
+    rig.traverse(n=>{if(n.isMesh){assert.ok(n.geometry.attributes.position.count>0); const color=n.material.color ?? n.material.uniforms?.tint?.value; assert.ok(color, p.name); meshes.push(`${n.geometry.type}:${color.getHexString()}`);}});
     assert.ok(meshes.length>=10,p.name); signatures.push(meshes.join(','));
   }
   assert.equal(new Set(signatures).size,5);

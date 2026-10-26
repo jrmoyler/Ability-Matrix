@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {BATCH_B_CONFIGS,BATCH_B_ABILITIES} from '../packs/sandbox/src/abilities/expansion-2026/batch-b.js';
+test('batch B exposes explicit unique configs and matching constructor contracts',()=>{assert.equal(BATCH_B_CONFIGS.length,8);assert.equal(new Set(BATCH_B_CONFIGS.map(x=>x.id)).size,8);assert.deepEqual(BATCH_B_CONFIGS.map(x=>x.id),BATCH_B_ABILITIES.map(x=>x.ID));for(const c of BATCH_B_CONFIGS){assert.ok(c.uid.startsWith('matrix-expansion/'));assert.ok(['nature','cosmic','poison','shadow','light','holy','gravity','void'].includes(c.meta.element));}for(const m of BATCH_B_ABILITIES){assert.equal(typeof m.Ability,'function');assert.equal(typeof m.buildEditor,'function');}});

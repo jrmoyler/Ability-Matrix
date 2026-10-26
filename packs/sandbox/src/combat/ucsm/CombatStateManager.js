@@ -326,6 +326,7 @@ export class CombatStateManager {
       this._damage(event);
       for (const contact of contacts) this._react(event, contact, tick);
       this.mechanics?.afterEvent(event);
+      this.expansionObserver?.onEvent(event);
     }
 
     this._dueEvents = null;

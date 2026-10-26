@@ -1,5 +1,7 @@
 import { buildCounterGuard, buildCounterReversal, animateCounterVisual } from './CounterVisuals.js';
 import { drawConvergenceArt, drawConvergenceCharge } from './ConvergenceArt.js';
+import { addConvergenceHero } from './ConvergenceHeroGeometry.js';
+import { addWorldshapeHero } from './WorldshapeHeroGeometry.js';
 import {
   Group,
   Mesh,
@@ -19,7 +21,7 @@ import {
 } from 'three';
 import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
 import { buildStanceRig, buildStancePhase, initStanceResources } from './stance-presentation.js';
-import { buildWeaveAnchor, buildWeaveLink, buildWeaveCue, weaveMaterial } from './WeavePresentation.js';
+import { buildWeaveAnchor, buildWeaveAnchorSurface, buildWeaveLink, buildWeaveCue, weaveMaterial } from './WeavePresentation.js';
 import { buildWorldshapeVariant, buildWorldshapePulse, animateWorldshape } from './worldshapeVisuals.js';
 const TAU = Math.PI * 2;
 const up = new Vector3(0, 1, 0);
@@ -373,6 +375,9 @@ export class MechanicPresentation {
         this.mesh('shard', 'gold', g, Math.sin(a), 0.1, Math.cos(a), 0.1, 0.04, 0.1);
       }
     }
+    if (kind === 'anchor') buildWeaveAnchorSurface(this, g, data.uid);
+    if (kind === 'convergence') addConvergenceHero(this, g, data.uid);
+    if (kind === 'worldshape') addWorldshapeHero(this, g, data.uid, (MECHANIC_VARIANTS[data.uid] ?? P.worldshape).radius);
     return g;
   }
   add(id, kind, data, life = null) {
@@ -425,6 +430,7 @@ export class MechanicPresentation {
       let item = this.items.get(id);
       if (!item) item = this.add(id, kind, data);
       item.data = data;
+      if (kind === 'worldshape') item.g.position.fromArray(data.position);
       return item;
     };
     for (const a of s.weave.anchors.values()) sync(a.id, 'anchor', a);
