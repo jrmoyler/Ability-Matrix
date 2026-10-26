@@ -217,6 +217,7 @@ export class Ability extends BaseAbility {
     this.root.add(this.shards);
     this._force = { impulse: 0, lift: 0, spin: 0 };
     this._found = [];
+    this._mote = new Vector3();
     routeExpansionTransparency(this.group);
     this._disposed = false;
   }
@@ -228,6 +229,7 @@ export class Ability extends BaseAbility {
   }
   onSpawn() {
     this._released = false;
+    this._moteTimer = 0;
     this._releaseCount = 0;
     this.root.visible = true;
     this.root.scale.setScalar(0.01);
@@ -241,8 +243,20 @@ export class Ability extends BaseAbility {
     this.position.y = 0;
     this._sync();
   }
-  onFade() {
+  onFade(dt) {
     const c = this.config;
+    if (this.phase === 'impact' && !this._released) {
+      this._moteTimer += dt;
+      if (this._moteTimer >= .14) {
+        this._moteTimer %= .14;
+        const angle = this.age * c.rotationSpeed * 2;
+        this._mote.set(this.position.x + Math.cos(angle) * c.zoneRadius * .7,
+          .15, this.position.z + Math.sin(angle) * c.zoneRadius * .7);
+        expansionBurst(this.fx, this._mote, {
+          count: 3, size: .07, life: .55, speed: .55, spread: .4, radius: .12,
+        });
+      }
+    }
     if (!this._released && this.impactTime >= c.delay) {
       this._released = true;
       this._releaseCount++;

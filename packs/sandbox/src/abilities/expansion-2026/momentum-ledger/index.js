@@ -183,6 +183,7 @@ export class Ability extends BaseAbility {
     this._last.copy(p);
     this._target.copy(this.origin).addScaledVector(this.direction, this.length);
     this._distance = 0;
+    this._trailElapsed = 0;
     this._released = false;
     this._wakeHead = 0;
     this._wakeCount = 0;
@@ -219,6 +220,14 @@ export class Ability extends BaseAbility {
     const n = delta.length();
     if (n <= this.config.maxSpeed * dt + 0.02) {
       this._distance = Math.min(this.config.maxDistance, this._distance + n);
+      this._trailElapsed += dt;
+      if (n > .001 && this._trailElapsed >= .14) {
+        this._trailElapsed %= .14;
+        expansionBurst(this.fx, p, {
+          count: 3, size: .055, life: .45, speed: 1.2, spread: .3,
+          radius: .12, direction: delta.normalize(),
+        });
+      }
       const last =
         this._wakePoints[
           (this._wakeHead + this._wakeCount - 1) % this._wakePoints.length

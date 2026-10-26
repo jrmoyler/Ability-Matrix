@@ -35,6 +35,7 @@
     "travelScale": 1,
     "maxTransfers": 3,
     "trailScale": 1,
+    "releaseDuration": 0.55,
     "shadowColor": "#68409e",
     "edgeColor": "#c7a7ff"
   }

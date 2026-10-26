@@ -23,3 +23,26 @@ test('glacier bell catches each target once as its expanding radius reaches them
 test('candidate shapes are finite and the visual ring tracks the hit radius',()=>{
  for(const C of [CinderCrownAbility,GlacierBellAbility]){const {a}=fixture(C);for(const v of a.surface.geometry.attributes.position.array)assert.ok(Number.isFinite(v));run(a,1);assert.ok(a.ring.scale.x<=a.config.zoneRadius);a.destroy();a.dispose();}
 });
+
+test('phase detail has distinct bounded geometry, 64 motes, and editor changes reach uniforms',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const {a}=fixture(C), detail=a.detail;
+  assert.equal(detail.points.geometry.attributes.position.count,64);
+  for(const v of detail.surface.geometry.attributes.position.array)assert.ok(Number.isFinite(v));
+  const attr=detail.points.geometry.attributes.position;
+  for(let i=0;i<attr.count;i++)assert.ok(Math.hypot(attr.getX(i),attr.getZ(i))<=1);
+  settings[c.id].accentColor='#123456';a.update(1/60);assert.equal(detail.uniforms.tint.value.getHexString(),'123456');
+  settings[c.id].accentColor=c.settings.accentColor;
+  a.destroy();a.dispose();
+ }
+});
+
+test('cinder emits two bounded particle bursts, glacier emits one, and reduced motion freezes shader clock',()=>{
+ for(const [C,c,count] of [[CinderCrownAbility,CINDER_CONFIG,2],[GlacierBellAbility,GLACIER_CONFIG,1]]){
+  const calls=[];const effect={setGradient(){},emit(n){calls.push(n);}};
+  const a=new C({lights:{acquire:()=>({}),release(){},set(){}},particles:{get:()=>effect}});
+  const prior=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:true});
+  try{a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,3);assert.equal(calls.length,count);assert.ok(calls.every(n=>n>=0&&n<=128));assert.equal(a.detail.uniforms.clock.value,0);a.destroy();a.dispose();}
+  finally{if(prior)globalThis.matchMedia=prior;else delete globalThis.matchMedia;}
+ }
+});

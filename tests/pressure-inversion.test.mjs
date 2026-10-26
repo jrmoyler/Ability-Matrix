@@ -155,3 +155,33 @@ test("inversion restores gravity when the gust ends rather than after visual fad
   a.dispose();
   assert.equal(releases, 1);
 });
+
+test("wind delivery cue travels before the well activates and resets on reuse", () => {
+  const a = new PressureInversionAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.carrier.visible, true);
+  assert.equal(a.floor.visible, false);
+  assert.equal(a.dust.visible, false);
+  a.update(0.1);
+  assert.ok(a.carrier.position.z > 0 && a.carrier.position.z < 10);
+  a.update(2);
+  assert.equal(a.carrier.visible, false);
+  assert.equal(a.floor.visible, true);
+  assert.equal(a.dust.visible, true);
+  assert.ok(a.ribbons.every((r) => r.visible));
+  a.destroy();
+  assert.ok(a.ribbons.every((r) => !r.visible));
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.carrier.visible, true);
+  assert.equal(a.floor.visible, false);
+  a.destroy();
+  a.dispose();
+});

@@ -140,6 +140,10 @@ export class PressureInversionAbility extends Ability {
     this.floor.layers.set(LAYER.VFX);
     this.floor.rotation.x = -Math.PI / 2;
     this.group.add(this.floor);
+    this.carrier = new Mesh(this.floorGeometry, this.floorMaterial);
+    this.carrier.layers.set(LAYER.VFX);
+    this.carrier.rotation.x = -Math.PI / 2;
+    this.group.add(this.carrier);
   }
   createParticles() {
     const count = 128,
@@ -188,7 +192,19 @@ export class PressureInversionAbility extends Ability {
     this.dustMaterial.uniforms.uRadius.value = this.config.radius;
     this.floorMaterial.uniforms.uFade.value = 1;
     this.dustMaterial.uniforms.uFade.value = 1;
+    this.carrier.visible = true;
+    this.floor.visible = false;
+    this.dust.visible = false;
+    for (const ribbon of this.ribbons) ribbon.visible = false;
     this._draw(0);
+    this._drawCarrier();
+  }
+  _drawCarrier() {
+    this.pointAt(this.u, this.carrier.position);
+    this.carrier.position.y = 0.08;
+    this.carrier.scale.setScalar(0.3 + 0.08 * Math.sin(this.age * 10));
+    this.carrier.rotation.z = this.age * 3;
+    this.floorMaterial.uniforms.uTime.value = this.age;
   }
   _draw(t) {
     const a = this.geo.attributes.position;
@@ -241,10 +257,15 @@ export class PressureInversionAbility extends Ability {
       d.carry?.(this._field, Math.min(1, dt * 4), Math.min(1, dt * 3), 0.3);
   }
   onTravel() {
-    this._draw(0);
+    this._drawCarrier();
   }
   onImpact() {
     this.position.copy(this.centre);
+    this.carrier.visible = false;
+    this.floor.visible = true;
+    this.dust.visible = true;
+    for (const ribbon of this.ribbons) ribbon.visible = true;
+    this._draw(0);
   }
   onFade(dt, t) {
     if (t <= 1) {
@@ -286,6 +307,10 @@ export class PressureInversionAbility extends Ability {
   }
   onDestroy() {
     this._releaseHeld();
+    this.carrier.visible = false;
+    this.floor.visible = false;
+    this.dust.visible = false;
+    for (const ribbon of this.ribbons) ribbon.visible = false;
     this.mat.uniforms.uFade.value = 1;
   }
   _releaseHeld() {

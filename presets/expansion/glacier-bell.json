@@ -31,6 +31,8 @@
     "lightIntensity": 4,
     "lightRadius": 8,
     "impactShake": 0.1,
-    "impactFlash": 0.08
+    "impactFlash": 0.08,
+    "accentColor": "#9ceaff",
+    "particleCount": 32
   }
 }

@@ -113,3 +113,33 @@ test("three harmonic fronts carry independent colors, phases and disposal", () =
   a.dispose();
   assert.equal(disposed, 3);
 });
+
+test("sound carrier follows the cast front and hands off to the resonator", () => {
+  const a = new OvertoneSpiralAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
+  assert.equal(a.carrier.visible, true);
+  assert.equal(a.notes.visible, false);
+  a.update(0.1);
+  assert.ok(a.carrier.position.x > 0 && a.carrier.position.x < 10);
+  a.update(2);
+  assert.equal(a.carrier.visible, false);
+  assert.equal(a.notes.visible, true);
+  let disposed = 0;
+  for (const resource of [a.carrierGeometry, a.carrierMaterial])
+    resource.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.carrier.visible, true);
+  assert.equal(a.notes.visible, false);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});

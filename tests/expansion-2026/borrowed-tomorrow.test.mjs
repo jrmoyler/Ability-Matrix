@@ -95,3 +95,16 @@ test('clock fragments scatter after the deferred hit and pooling clears the rele
   assert.equal(ability._released, false);
   ability.destroy(); ability.dispose();
 });
+test('clock gathers bounded orbiting particles before the delayed strike', () => {
+  const { ability, hits } = setup();
+  const counts = [];
+  ability.fx = { emit(count) { counts.push(count); } };
+  ability.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
+  for (let i = 0; i < 60; i++) ability.update(1 / 60);
+  assert.equal(hits.length, 0);
+  assert.ok(counts.length > 0 && counts.every((count) => count === 3));
+  for (let i = 0; i < 75; i++) ability.update(1 / 60);
+  assert.equal(hits.length, 1);
+  assert.ok(counts.includes(64));
+  ability.destroy(); ability.dispose();
+});

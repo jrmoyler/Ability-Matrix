@@ -34,6 +34,8 @@
     "lockTime": 0.7,
     "travelScale": 1,
     "irisScale": 1,
+    "beamDuration": 0.6,
+    "releaseDuration": 0.45,
     "damage": 1,
     "rayColor": "#ffe58b",
     "coreColor": "#ffffff"

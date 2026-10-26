@@ -2,9 +2,11 @@ import { AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, G
 import { Ability as BaseAbility } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { prefersReducedMotion } from '../ExpansionAtmosphere.js';
+import { createPhaseEffects } from './PhaseEffects.js';
+import { createExpansionFX, expansionBurst, expansionImpact, ParticleShape } from '../ExpansionFX.js';
 
 const clamp=(n)=>Math.max(0,Math.min(1,n));
-function config(id,label,element,accent,hint,glyph){return {id,meta:{label,element,accent,hint,glyph,cast:'zone',key:''},settings:{range:18,minRange:0,speed:28,cooldown:6,castAnim:'cast2',zoneRadius:4,lifetime:1.4,impulse:6,lift:3,lightColor:accent,lightIntensity:4,lightRadius:8,impactShake:.1,impactFlash:.08}};}
+function config(id,label,element,accent,hint,glyph){return {id,meta:{label,element,accent,hint,glyph,cast:'zone',key:''},settings:{range:18,minRange:0,speed:28,cooldown:6,castAnim:'cast2',zoneRadius:4,lifetime:1.4,impulse:6,lift:3,lightColor:accent,lightIntensity:4,lightRadius:8,impactShake:.1,impactFlash:.08,accentColor:accent,particleCount:32}};}
 export const CINDER_CONFIG=config('cinder-crown','Cinder Crown','fire','#ff8d43','A crown flares twice, pushing enemies from the impact.','<path d="M12 75L21 29L38 52L50 17L62 52L79 29L88 75Z"/>');
 export const GLACIER_CONFIG=config('glacier-bell','Glacier Bell','frost','#9ceaff','An expanding frost ring catches each enemy once as it passes.','<path d="M12 65Q50 5 88 65M17 65H83M50 20V80M33 47L67 67M67 47L33 67"/>');
 
@@ -31,15 +33,18 @@ class PulseAbility extends BaseAbility {
     this.surface=new Mesh(own(sculpture(fire)),own(material(fire)));this.surface.layers.set(LAYER.VFX);this.root.add(this.surface);
     this.ring=new Mesh(own(new RingGeometry(.96,1,96)),own(new MeshBasicMaterial({color:fire?0xffc95c:0xc9f8ff,transparent:true,opacity:.9,depthWrite:false,side:DoubleSide,blending:AdditiveBlending})));
     this.ring.rotation.x=-Math.PI/2;this.ring.position.y=.05;this.ring.layers.set(LAYER.VFX);this.root.add(this.ring);
+    this.detail=createPhaseEffects(this.root,this.resources,fire);
     this.found=[];this.hit=new Set();this.target=new Vector3();this._disposed=false;
   }
+  createParticles(){this.fx=createExpansionFX(this.ctx,this.element,{shape:this.element===CINDER_CONFIG.id?ParticleShape.STREAK:ParticleShape.CHIP,colors:this.element===CINDER_CONFIG.id?['#fff2a6','#ff9b40','#bd2510','#341018']:['#ffffff','#a8efff','#3895c9','#203a80']});}
   onSpawn(){this.hit.clear();this.second=false;this.root.visible=true;this.target.copy(this.origin).addScaledVector(this.direction,this.length);this._sync(1,0);}
   onTravel(){this._sync(1,0);}
-  onImpact(){if(this.fire)this._strike(this.config.zoneRadius,false);}
+  onImpact(){this._burst();if(this.fire)this._strike(this.config.zoneRadius,false);}
   onFade(dt,t){const q=clamp(t),fade=t>1?2-t:1;
-    if(t<=1){if(this.fire&&!this.second&&q>=.55){this.second=true;this._strike(this.config.zoneRadius,false);}else if(!this.fire)this._strike(this.config.zoneRadius*q,true);}
+    if(t<=1){if(this.fire&&!this.second&&q>=.55){this.second=true;this._burst();this._strike(this.config.zoneRadius,false);}else if(!this.fire)this._strike(this.config.zoneRadius*q,true);}
     this._sync(fade,q);
   }
+  _burst(){expansionBurst(this.fx,this.target,{count:this.config.particleCount,radius:this.config.zoneRadius*.6,speed:this.fire?3:1.8,life:.8,size:.12});expansionImpact(this.ctx,this.config.lightColor,this.config.impactShake,this.config.impactFlash);}
   _strike(radius,once){
     const c=this.config;if(!this.ctx.dummies?.findTargets||radius<=0)return;
     this.found.length=0;const found=this.ctx.dummies.findTargets(this.target.x,this.target.z,radius,this.found)||this.found;
@@ -49,13 +54,13 @@ class PulseAbility extends BaseAbility {
       if(d.kill(x,z,{impulse:c.impulse,lift:c.lift,spin:0})&&once)this.hit.add(d);
     }
   }
-  _sync(fade,q){const radius=this.config.zoneRadius;this.root.position.copy(this.target);this.position.copy(this.target);this.surface.scale.set(radius,1,radius);this.ring.scale.setScalar(radius*(this.fire?1:Math.max(.01,q)));this.surface.material.uniforms.clock.value=prefersReducedMotion()?0:this.age;this.surface.material.uniforms.fade.value=fade;this.ring.material.opacity=.8*fade;}
+  _sync(fade,q){const radius=this.config.zoneRadius;this.root.position.copy(this.target);this.position.copy(this.target);this.surface.scale.set(radius,1,radius);this.ring.scale.setScalar(radius*(this.fire?1:Math.max(.01,q)));this.surface.material.uniforms.clock.value=prefersReducedMotion()?0:this.age;this.surface.material.uniforms.fade.value=fade;this.ring.material.opacity=.8*fade;this.ring.material.color.set(this.config.accentColor);const u=this.detail.uniforms;u.clock.value=prefersReducedMotion()?0:this.age;u.fade.value=fade;u.beat.value=this.fire?(q<.12||q>=.55&&q<.67?1:0):q;u.tint.value.set(this.config.accentColor);this.detail.surface.scale.set(radius,1,radius);this.detail.points.scale.set(radius,1,radius);}
   onDestroy(){this.root.visible=false;this.hit.clear();this.second=false;}
   dispose(){if(this._disposed)return;this._disposed=true;for(const x of this.resources)x.dispose();super.dispose();}
 }
 export class CinderCrownAbility extends PulseAbility {constructor(ctx){super(CINDER_CONFIG.id,ctx,true);}}
 export class GlacierBellAbility extends PulseAbility {constructor(ctx){super(GLACIER_CONFIG.id,ctx,false);}}
-function editor(label,gui,c){const f=gui.addFolder(label);f.add(c,'zoneRadius',1,8,.1).name('radius');f.add(c,'lifetime',.3,3,.1).name('duration');f.add(c,'impulse',0,20,.5).name('impulse');f.add(c,'lift',0,12,.5).name('lift');f.addColor(c,'lightColor').name('light');return f;}
+function editor(label,gui,c){const f=gui.addFolder(label);f.add(c,'zoneRadius',1,8,.1).name('radius');f.add(c,'lifetime',.3,3,.1).name('duration');f.add(c,'impulse',0,20,.5).name('impulse');f.add(c,'lift',0,12,.5).name('lift');f.addColor(c,'lightColor').name('light');f.addColor(c,'accentColor').name('accent');f.add(c,'particleCount',0,64,1).name('burst particles');f.add(c,'impactShake',0,1,.01).name('impact shake');f.add(c,'impactFlash',0,1,.01).name('impact flash');return f;}
 export const cinderEditor=(gui,c)=>editor('Cinder Crown',gui,c);
 export const glacierEditor=(gui,c)=>editor('Glacier Bell',gui,c);
 export const DUAL_CANDIDATES=Object.freeze([

@@ -33,6 +33,8 @@
     "starScale": 1,
     "flareScale": 1,
     "armDelay": 0.45,
+    "drawTime": 0.45,
+    "collapseStrength": 0.8,
     "strikeDelay": 0.42,
     "lifetime": 6,
     "fade": 1.2,

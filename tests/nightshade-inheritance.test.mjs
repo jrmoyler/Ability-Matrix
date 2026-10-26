@@ -9,7 +9,7 @@ test('wing mesh is finite and disposal releases owned resources',()=>{const g=sh
 
 test('an accepted transfer connects the old and new hosts with a brief ribbon',()=>{const g=inheritanceRibbonGeometry(),p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();const z=arena(),{a,actors}=z;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);actors[0].alive=false;z.hit({targetIds:['dummy:1']});tick(a,.05);assert.equal(a.ribbon.visible,true);assert.equal(a.ribbon.position.x,5);assert.equal(a.ribbon.scale.x,3);tick(a,.6);assert.equal(a.ribbon.visible,false);a.destroy();a.dispose();});
 
-test('shadow visuals disappear when a defeated host has no successor',()=>{const z=arena(),{a,actors}=z;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);actors.forEach(x=>x.alive=false);z.hit({targetIds:['dummy:1']});assert.equal(a.targetId,null);assert.equal(a.shade.visible,false);a.destroy();a.dispose();});
+test('shadow visuals retract when a defeated host has no successor',()=>{const z=arena(),{a,actors}=z;a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);actors.forEach(x=>x.alive=false);z.hit({targetIds:['dummy:1']});assert.equal(a.targetId,null);assert.equal(a.shade.visible,true);const size=a.shade.scale.x;tick(a,.25);assert.ok(a.shade.scale.x<size);tick(a,.5);assert.equal(a.shade.visible,false);a.destroy();a.dispose();});
 
 test('initial shade mark selects the nearest enemy',()=>{const {a,actors}=arena();actors[0].position=[7,0,0];actors[1].position=[5,0,0];a.spawn(new Vector3(),new Vector3(1,0,0),5);tick(a,.7);assert.equal(a.targetId,'dummy:2');a.destroy();a.dispose();});
 

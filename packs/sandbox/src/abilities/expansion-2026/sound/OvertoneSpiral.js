@@ -7,6 +7,7 @@ import {
   DoubleSide,
   Mesh,
   Points,
+  RingGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -118,6 +119,14 @@ export class OvertoneSpiralAbility extends Ability {
     this.found = [];
     this.hit = [new Set(), new Set(), new Set()];
     this.previous = [0, 0, 0];
+    // A travelling carrier makes the delivery of the zone visible before the
+    // resonator forms and releases its three independent fronts.
+    this.carrierGeometry = new RingGeometry(0.6, 1, 64);
+    this.carrierMaterial = harmonicMaterial(new Vector3(0.48, 0.96, 0.74), 2);
+    this.carrier = new Mesh(this.carrierGeometry, this.carrierMaterial);
+    this.carrier.layers.set(LAYER.VFX);
+    this.carrier.rotation.x = -Math.PI / 2;
+    this.group.add(this.carrier);
     // The standing resonator gives the travelling fronts a physical source.
     this.forkGeometry = new BoxGeometry(0.12, 1, 0.12);
     this.stemGeometry = new CylinderGeometry(0.06, 0.1, 0.65, 8);
@@ -172,6 +181,9 @@ export class OvertoneSpiralAbility extends Ability {
     for (const material of this.ringMaterials)
       material.uniforms.uFade.value = 1;
     this.noteMaterial.uniforms.uFade.value = 1;
+    this.carrier.visible = true;
+    this.carrierMaterial.uniforms.uFade.value = 1;
+    this._drawCarrier();
     this.notes.position.copy(this.centre);
     this.noteMaterial.uniforms.uRadius.value = this.config.radius;
     this.notes.visible = false;
@@ -182,9 +194,20 @@ export class OvertoneSpiralAbility extends Ability {
       r.position.copy(this.centre);
     }
   }
-  onTravel() {}
+  _drawCarrier() {
+    this.pointAt(this.u, this.carrier.position);
+    this.carrier.position.y = 0.28;
+    const size = 0.35 + 0.1 * Math.sin(this.age * 12);
+    this.carrier.scale.setScalar(size);
+    this.carrier.rotation.z = this.age * 2;
+    this.carrierMaterial.uniforms.uTime.value = this.age;
+  }
+  onTravel() {
+    this._drawCarrier();
+  }
   onImpact() {
     this.position.copy(this.centre);
+    this.carrier.visible = false;
     this.notes.visible = true;
     this.stem.visible = true;
     for (const fork of this.forks) fork.visible = true;
@@ -284,6 +307,7 @@ export class OvertoneSpiralAbility extends Ability {
     }
   }
   onDestroy() {
+    this.carrier.visible = false;
     for (const r of this.rings) r.visible = false;
     for (const s of this.hit) s.clear();
   }
@@ -294,6 +318,8 @@ export class OvertoneSpiralAbility extends Ability {
     this.stemGeometry.dispose();
     this.noteGeometry.dispose();
     this.noteMaterial.dispose();
+    this.carrierGeometry.dispose();
+    this.carrierMaterial.dispose();
     this.mat.dispose();
     super.dispose();
   }

@@ -165,10 +165,10 @@ export class PredatoryCanopyAbility extends Ability {
     const c=this.config, elapsed=this.impactTime;
     const palette=[c.leafColor,c.leafRim,c.barkColor].join('|');if(palette!==this.lastLeafPalette){const leaf=this._cueB.set(c.leafColor),rim=this._cueA.set(c.leafRim),bark=this._cueDark.set(c.barkColor);this.leafParticles?.setGradient(leaf,rim,leaf,bark);this.moteParticles?.setGradient(rim,leaf,bark,bark);this.lastLeafPalette=palette;}
     const fade=t <= 1 ? 1 : 1-clamp01(t-1);
-    const opening=ease(elapsed / Math.max(.01,c.armDelay));
-    this.root.scale.set(Math.max(.01,opening),1,Math.max(.01,opening));
+    const opening=ease(elapsed / Math.max(.01,c.armDelay)),closing=t<=1?0:clamp01(t-1),width=opening*(1-closing*clamp01(c.retreatStrength??.8));
+    this.root.scale.set(Math.max(.01,width),1,Math.max(.01,width));
     this.ground.scale.set(c.zoneRadius,c.zoneRadius,1);
-    const h=Math.max(1,c.canopyHeight), spread=Math.max(.5,c.canopySpread)/4;
+    const h=Math.max(1,c.canopyHeight-closing*(c.dropDistance??1.5)), spread=Math.max(.5,c.canopySpread)/4;
     for(const branch of this.branches){branch.position.y=h;branch.scale.set(spread,1,spread);}
     for(const leaf of this.leaves){leaf.position.set(leaf.userData.canopyX*spread,h+leaf.userData.canopyYOffset,leaf.userData.canopyZ*spread);}
     for(const vine of this.tendrils){vine.position.set(vine.userData.canopyX*spread,h,vine.userData.canopyZ*spread);vine.scale.y=h/4.8;}
@@ -219,6 +219,6 @@ export class PredatoryCanopyAbility extends Ability {
 export const AbilityType = PredatoryCanopyAbility;
 export function buildEditor(gui, c, Editor) {
   const f=gui.addFolder('Predatory Canopy');
-  for(const [key,min,max,step] of [['zoneRadius',1,8,.1],['canopyHeight',2,9,.1],['canopySpread',1,7,.1],['seedScale',.25,2,.05],['armDelay',.1,3,.05],['triggerWindup',.1,1,.05],['thornLength',.25,3,.05],['leafRate',0,80,1],['moteRate',0,80,1],['leafSize',.02,.5,.01],['lifetime',2,12,.1]]) f.add(c,key,min,max,step);
+  for(const [key,min,max,step] of [['zoneRadius',1,8,.1],['canopyHeight',2,9,.1],['canopySpread',1,7,.1],['seedScale',.25,2,.05],['armDelay',.1,3,.05],['triggerWindup',.1,1,.05],['thornLength',.25,3,.05],['retreatStrength',0,1,.05],['dropDistance',0,4,.1],['leafRate',0,80,1],['moteRate',0,80,1],['leafSize',.02,.5,.01],['lifetime',2,12,.1]]) f.add(c,key,min,max,step);
   addCommonEditorControls(f,c,Editor);return f;
 }

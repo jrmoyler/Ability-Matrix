@@ -33,6 +33,8 @@
     "canopyHeight": 4.8,
     "canopySpread": 4,
     "seedScale": 1,
+    "retreatStrength": 0.8,
+    "dropDistance": 1.5,
     "armDelay": 0.55,
     "triggerWindup": 0.32,
     "thornLength": 1.5,

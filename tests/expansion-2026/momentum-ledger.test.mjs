@@ -70,15 +70,20 @@ test('movement wake records a bounded world trajectory, clears on teleport and r
       lights: { acquire: () => ({}), release: () => {}, set: () => {} },
     });
   a.spawn(new Vector3(), new Vector3(1, 0, 0), 5);
+  let particleBursts = 0;
+  a.fx = { emit() { particleBursts++; } };
   for (let i = 0; i < 90; i++) {
     character.position.x += 0.05;
     a.update(1 / 60);
   }
   assert.ok(a.wake.geometry.drawRange.count > 1);
   assert.ok(a.wake.geometry.drawRange.count <= 64);
+  assert.ok(particleBursts > 0);
+  const beforeTeleport = particleBursts;
   character.position.x += 50;
   a.update(1 / 60);
   assert.equal(a.wake.geometry.drawRange.count, 1);
+  assert.equal(particleBursts, beforeTeleport);
   a.destroy();
   assert.equal(a.wake.geometry.drawRange.count, 0);
   a.dispose();

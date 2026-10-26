@@ -38,6 +38,11 @@ function starlight(){return new ShaderMaterial({transparent:true,depthWrite:fals
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
  }`});}
+/** Each link reveals independently as the chart is written across the sky. */
+function chartLinkMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uReveal:{value:0},uColor:{value:new Color('#d5bbff')}},vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade,uReveal;uniform vec3 uColor;void main(){float drawn=1.-smoothstep(uReveal-.025,uReveal+.025,vUv.y);float edge=1.-abs(vUv.x*2.-1.);float spark=pow(max(0.,cos(vUv.y*25.-uTime*4.)),12.);gl_FragColor=vec4(uColor,(edge*.6+spark*.25)*drawn*uFade);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`});}
 function chart(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,
  uniforms:{uTime:{value:0},uFade:{value:1},uColor:{value:new Color('#ac84ff')},uCharge:{value:0}},
  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
@@ -69,9 +74,9 @@ export class CelestialCartographyAbility extends Ability {
   this.floor=new Mesh(geom(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.04;this.chartGroup.add(this.floor);
   this.frame=new Mesh(geom(new TorusGeometry(1,.018,6,96)),this.starMat);this.frame.rotation.x=Math.PI/2;this.chartGroup.add(this.frame);
   this.travelStar=new Group();this.group.add(this.travelStar);this.travelStar.visible=false;this.travelStars=[];for(let i=0;i<3;i++){const star=new Mesh(this.starGeo,this.starMat);star.rotation.set(i*TAU/3,0,i*TAU/6);star.scale.setScalar(.45);this.travelStar.add(star);this.travelStars.push(star);}const orbit=new Mesh(this.frame.geometry,this.starMat);orbit.rotation.x=Math.PI/2;orbit.scale.setScalar(.65);this.travelStar.add(orbit);this.travelStar.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
-  this.stars=[];this.lines=[];this.nodes=layout.map(([x,z])=>new Vector3(x,0,z));
+  this.stars=[];this.lines=[];this.lineMaterials=[];this.nodes=layout.map(([x,z])=>new Vector3(x,0,z));
   for(const node of this.nodes){const star=new Mesh(this.starGeo,this.starMat);star.position.copy(node);star.rotation.x=-Math.PI/2;star.scale.setScalar(.22);this.chartGroup.add(star);this.stars.push(star);}
-  for(let i=0;i<this.nodes.length;i++){const line=new Mesh(geom(band(this.nodes[i],this.nodes[(i+1)%this.nodes.length])),this.starMat);this.chartGroup.add(line);this.lines.push(line);}
+  for(let i=0;i<this.nodes.length;i++){const material=mat(chartLinkMaterial()),line=new Mesh(geom(band(this.nodes[i],this.nodes[(i+1)%this.nodes.length])),material);this.chartGroup.add(line);this.lines.push(line);this.lineMaterials.push(material);}
   this.beam=new Mesh(this.beamGeo,this.starMat);this.chartGroup.add(this.beam);this.beam.visible=false;
   this.flare=new Group();this.chartGroup.add(this.flare);this.flare.visible=false;const flareRing=geom(new TorusGeometry(.5,.018,6,64));this.flareRings=[];for(let i=0;i<3;i++){const ring=new Mesh(flareRing,this.flareMat);this.flare.add(ring);this.flareRings.push(ring);}const flareStar=new Mesh(this.starGeo,this.flareMat);this.flare.add(flareStar);this.flareStar=flareStar;
   const orb=geom(new SphereGeometry(.025,8,6));this.dust=[];
@@ -84,12 +89,12 @@ export class CelestialCartographyAbility extends Ability {
  onTravel(){const c=this.config,visualTime=this.reduceMotion?0:this.age;this.travelStar.position.copy(this.position);this.travelStar.position.y=1.1;this.travelStar.rotation.set(visualTime*.6,visualTime*1.5,visualTime*.9);this.travelStar.scale.setScalar(c.starScale??1);this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=1;this.starMat.uniforms.uColor.value.set(c.chartColor);}
  onImpact(){this.travelStar.visible=false;this.chartGroup.position.copy(this.position);this.chartGroup.visible=true;}
  onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
-  const c=this.config,elapsed=this.impactTime,fade=t<=1?1:1-bound(t-1),rise=smoother(elapsed/Math.max(.01,c.armDelay)),radius=c.zoneRadius;
+  const c=this.config,elapsed=this.impactTime,fade=t<=1?1:1-bound(t-1),rise=smoother(elapsed/Math.max(.01,c.armDelay)),collapse=1-(1-fade)*bound(c.collapseStrength??.8),radius=c.zoneRadius*collapse,draw=bound(elapsed/Math.max(.1,c.drawTime??.45));
   this.atmosphere.syncPalette(c.chartColor,c.coreColor);
-  this.floor.scale.set(radius,radius,1);this.frame.position.y=c.chartHeight;this.frame.scale.setScalar(radius);
-  for(let i=0;i<this.stars.length;i++){const s=this.stars[i];s.position.set(this.nodes[i].x*radius,c.chartHeight,this.nodes[i].z*radius);s.scale.setScalar(.22*(.8+.2*Math.sin(visualTime*3+i)));}
-  for(const line of this.lines){line.position.y=c.chartHeight;line.scale.set(radius,1,radius);}
-  for(let i=0;i<this.dust.length;i++){const a=i*2.399963,r=radius*(.18+.78*((i*37%41)/40));this.dust[i].position.set(Math.cos(a)*r,c.chartHeight+(i%7)*.03+.08*Math.sin(visualTime*2+i),Math.sin(a)*r);}
+  this.floor.scale.set(radius,radius,1);this.frame.position.y=c.chartHeight*(.5+.5*collapse);this.frame.scale.setScalar(radius);
+  for(let i=0;i<this.stars.length;i++){const s=this.stars[i];s.position.set(this.nodes[i].x*radius,c.chartHeight*(.5+.5*collapse),this.nodes[i].z*radius);s.scale.setScalar(.22*(.8+.2*Math.sin(visualTime*3+i)));}
+  for(let i=0;i<this.lines.length;i++){const line=this.lines[i],material=this.lineMaterials[i];line.position.y=c.chartHeight*(.5+.5*collapse);line.scale.set(radius,1,radius);material.uniforms.uTime.value=visualTime;material.uniforms.uFade.value=fade;material.uniforms.uReveal.value=bound(draw*this.lines.length-i);material.uniforms.uColor.value.set(c.chartColor);}
+  for(let i=0;i<this.dust.length;i++){const a=i*2.399963,r=radius*(.18+.78*((i*37%41)/40));this.dust[i].position.set(Math.cos(a)*r,c.chartHeight*(.5+.5*collapse)+(i%7)*.03+.08*Math.sin(visualTime*2+i),Math.sin(a)*r);}
   this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=fade*rise;this.starMat.uniforms.uColor.value.set(c.chartColor);
   this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade*rise;this.floorMat.uniforms.uColor.value.set(c.rayColor);
   if(dt>0 && this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._markedAt<0){
@@ -106,4 +111,4 @@ export class CelestialCartographyAbility extends Ability {
  onDestroy(){this.chartGroup.visible=false;this.travelStar.visible=false;this.beam.visible=false;this._target=null;this._found.length=0;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c,Editor){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['starScale',.25,2,.05],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}
+export function buildEditor(gui,c,Editor){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['starScale',.25,2,.05],['armDelay',.1,3,.05],['drawTime',.1,3,.05],['collapseStrength',0,1,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}
