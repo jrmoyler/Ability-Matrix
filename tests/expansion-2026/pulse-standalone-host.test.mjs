@@ -132,3 +132,26 @@ test('two actual original Dune casts trigger Pulse via sandbox collision with co
   assert.equal(manager.queue.length,0);
   pulse.destroy();pulse.dispose();abilities.clear();abilities.dispose();host._detachStandaloneHits();bridge.dispose();particles.dispose();for(const d of targets)d.dispose();delete settings[ID];
 });
+
+test('standalone damage persists across casts but resets on a new dummy life',()=>{
+  const x=arena();
+  const first=bindExpansionCombat(x.ctx,'matrix-expansion/first');
+  const id=first.queryActors({position:[0,0,5],radius:.1}).actors[0].id;
+  assert.equal(first.emit({type:'hit',targetIds:[id],damage:.4}).ok,true);
+  const second=bindExpansionCombat(x.ctx,'matrix-expansion/second');
+  assert.ok(Math.abs(second.getActor(id).actor.health-.6)<1e-9);
+  assert.equal(second.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);
+  assert.equal(x.dummies[0].alive,false);
+  x.ctx.dummies.reset();
+  assert.equal(bindExpansionCombat(x.ctx,'matrix-expansion/third').getActor(id).actor.health,1);
+  x.close();
+});
+
+test('standalone partial damage is discarded after a combat mode change',()=>{
+  const x=arena(), first=bindExpansionCombat(x.ctx,'matrix-expansion/first');
+  const id=first.queryActors({position:[0,0,5],radius:.1}).actors[0].id;
+  first.emit({type:'hit',targetIds:[id],damage:.4});
+  x.host.enabled=true;x.host.enabled=false;
+  assert.equal(bindExpansionCombat(x.ctx,'matrix-expansion/second').getActor(id).actor.health,1);
+  x.close();
+});

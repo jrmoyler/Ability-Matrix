@@ -27,7 +27,7 @@ test('scope fails closed on a mid-cast toggle and without a dummy world',()=>{
   const noWorld=bindExpansionCombat({expansionCombat:{enabled:()=>false,bind:()=>({})}},'matrix-expansion/example');assert.equal(noWorld.queryActors({position:[0,0,0],radius:1}).ok,false);
 });
 
-test('partial standalone damage does not leak into another cast or a reused dummy',()=>{const {ctx,scope}=arena(),id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);const next=bindExpansionCombat(ctx,'matrix-expansion/example');assert.equal(next.getActor(id).actor.health,1);});
+test('partial standalone damage carries into another cast on the same dummy life',()=>{const {ctx,scope}=arena(),id=scope.queryActors({position:[2,0,0],radius:1}).actors[0].id;assert.equal(scope.emit({type:'hit',targetIds:[id],damage:.6}).ok,true);const next=bindExpansionCombat(ctx,'matrix-expansion/example');assert.ok(Math.abs(next.getActor(id).actor.health-.4)<1e-8);});
 
 test('observed defeats clear partial standalone damage before a dummy respawns',()=>{const {dummy,scope}=arena(),query=()=>scope.queryActors({position:[2,0,0],radius:1}),id=query().actors[0].id;scope.emit({type:'hit',targetIds:[id],damage:.6});dummy.alive=false;assert.equal(query().actors.length,0);dummy.alive=true;assert.equal(query().actors[0].health,1);});
 

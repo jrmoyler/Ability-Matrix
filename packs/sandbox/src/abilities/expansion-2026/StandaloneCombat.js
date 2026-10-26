@@ -2,7 +2,8 @@
  * Expansion-only direct-dummy fallback when the optional combat manager is off.
  * It never invents statuses, terrain, or reaction events. Damage is accumulated
  * against the sandbox dummy's normal one-hit health, and only a real Dummy.kill
- * is presented as a knockdown. Damage accumulation is scoped to one cast so a recycled dummy cannot inherit another cast's partial damage.
+ * is presented as a knockdown. Damage persists across casts in the same combat mode and dummy life. A recycled
+ * dummy or combat mode change starts a fresh health pool.
  */
 import { settings } from '../../config/settings.js';
 import { validImpactForce } from './ImpactForce.js';
@@ -47,8 +48,10 @@ export function notifyStandaloneHit(ctx,host,dummy,scope){
     try{listener(event);}catch{/* an extension must not interrupt a physical hit */}
   }
 }
-function fallback(ctx,uid){
-  const world=worldFor(ctx),health=new WeakMap();
+function fallback(ctx,uid,modeVersion){
+  const world=worldFor(ctx);
+  if(!world.health || world.healthModeVersion!==modeVersion){world.health=new WeakMap();world.healthModeVersion=modeVersion;}
+  const health=world.health;
   const generation=(dummy)=>ctx.dummies?.standGeneration?.(dummy)??0;
   const find=(id)=>activeDummies(ctx)?.find(dummy=>idFor(world,dummy)===id);
   return {
@@ -99,10 +102,11 @@ function fallback(ctx,uid){
 export function bindExpansionCombat(ctx,uid){
   const bridge=ctx.expansionCombat;
   if(!bridge?.bind)return null;
-  const live=bridge.bind(uid,'caster'),direct=fallback(ctx,uid);
+  const live=bridge.bind(uid,'caster');
   const standalone=()=>typeof bridge.enabled==='function'&&bridge.enabled()===false;
   const initialStandalone=standalone();
   const initialVersion=typeof bridge.modeVersion==='function'?bridge.modeVersion():null;
+  const direct=fallback(ctx,uid,initialVersion);
   const stable=()=>standalone()===initialStandalone&&(initialVersion===null||bridge.modeVersion()===initialVersion);
   const route=(method,args)=>{if(!stable())return fail('combat mode changed during cast');return initialStandalone?direct[method](...args):live[method](...args);};
   return {
