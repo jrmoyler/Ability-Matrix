@@ -45,15 +45,16 @@ function fallback(ctx){
     on(){return fail('status and hit subscriptions require combat');},
     emit(event){
       if(event?.type!=='hit')return fail('status effects require combat');
-      if(!Array.isArray(event.targetIds)||!event.targetIds.length||event.targetIds.length>8||new Set(event.targetIds).size!==event.targetIds.length||!Number.isFinite(event.damage)||event.damage<0||(event.hitForce!==undefined&&!validImpactForce(event.hitForce))||(event.sourcePosition!==undefined&&(!Array.isArray(event.sourcePosition)||event.sourcePosition.length!==3||!event.sourcePosition.every(Number.isFinite))))return fail('invalid standalone hit');
+      if(!Array.isArray(event.targetIds)||!event.targetIds.length||event.targetIds.length>8||new Set(event.targetIds).size!==event.targetIds.length||!Number.isFinite(event.damage)||event.damage<0||(event.hitForce!==undefined&&!validImpactForce(event.hitForce))||(event.position!==undefined&&(!Array.isArray(event.position)||event.position.length!==3||!event.position.every(Number.isFinite)))||(event.sourcePosition!==undefined&&(!Array.isArray(event.sourcePosition)||event.sourcePosition.length!==3||!event.sourcePosition.every(Number.isFinite))))return fail('invalid standalone hit');
       const targets=event.targetIds.map(find);if(targets.some(d=>!d||!d.alive))return fail('unknown or defeated standalone target');
       let accepted=0;
       for(const dummy of targets){
         const version=generation(dummy),prior=snapshot(world,health,dummy,version).health, next=Math.max(0,prior-Math.min(10,event.damage));
         if(next>0){health.set(dummy,{hp:next,generation:version});accepted++;continue;}
-        const caster=ctx.character?.position,source=event.sourcePosition??[caster?.x??0,0,caster?.z??0];
+        const caster=ctx.character?.position,source=event.sourcePosition??event.position??[caster?.x??0,0,caster?.z??0];
         let dx=dummy.position.x-source[0],dz=dummy.position.z-source[2];
-        const length=Math.hypot(dx,dz);
+        let length=Math.hypot(dx,dz);
+        if(length<1e-8&&event.hitForce){dx=dummy.position.x-(caster?.x??0);dz=dummy.position.z-(caster?.z??0);length=Math.hypot(dx,dz);}
         if(length<1e-8){dx=0;dz=1;}else{dx/=length;dz/=length;}
         if(dummy.kill(dx,dz,event.hitForce??{impulse:3,lift:2,spin:1})){health.set(dummy,{hp:0,generation:version});accepted++;}
       }

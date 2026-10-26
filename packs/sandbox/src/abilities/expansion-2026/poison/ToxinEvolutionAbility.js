@@ -1,4 +1,4 @@
-import { impactForce } from '../ImpactForce.js';
+import { impactForce } from '../AuthoredImpactForce.js';
 import { ToxinStages } from './ToxinStages.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';

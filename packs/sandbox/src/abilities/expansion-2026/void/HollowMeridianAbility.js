@@ -1,4 +1,4 @@
-import { impactForce } from '../ImpactForce.js';
+import { impactForce } from '../AuthoredImpactForce.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
 import { MeridianFractures, MeridianParticles } from './HollowMeridianFX.js';

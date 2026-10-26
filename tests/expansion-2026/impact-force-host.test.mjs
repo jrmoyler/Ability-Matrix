@@ -21,6 +21,9 @@ class Element { constructor(){this.children=[];this.style={};this.value='';} app
 const gui={addFolder(){return {add(){return {name(){return this;}}},addColor(){return {name(){return this;}}},close(){},destroy(){}}}};
 
 test('production casts apply their authored force to real dummies in both combat modes',async()=>{
+  const previousIntensity=settings.global.explosionIntensity;
+  settings.global.explosionIntensity=2;
+  try {
   globalThis.document={createElement:()=>new Element(),body:new Element()};
   const bytes=readFileSync(new URL('../../packs/sandbox/public/models/dummy.fbx',import.meta.url));
   const model=new FBXLoader().parse(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
@@ -43,8 +46,9 @@ test('production casts apply their authored force to real dummies in both combat
     await app.select(item.uid,{prepare:false});app._cast(new Vector3(),new Vector3(0,0,1),5);const candidate=abilities.active[0];assert.ok(candidate,id);
     for(let i=0;i<240;i++){abilities.update(1/60);if(element==='shadow'&&i===60)host._within(candidate,()=>target.kill(0,1,{impulse:1,lift:1,spin:1}));host.update(1/60);}
     assert.equal(victim.alive,false,`${id}, enabled=${enabled}`);assert.equal(observed.length,1,`${id}, enabled=${enabled}`);
-    assert.deepEqual(observed[0].force,{impulse:4,lift:2,spin:.5},`${id}, enabled=${enabled}`);
+    assert.deepEqual(observed[0].force,{impulse:8,lift:4,spin:.5},`${id}, enabled=${enabled}`);
     assert.ok(Number.isFinite(observed[0].x)&&Number.isFinite(observed[0].z));if(element==='shadow'){assert.ok(observed[0].x>.99&&Math.abs(observed[0].z)<.01,`shadow direction, enabled=${enabled}`);}else assert.ok(observed[0].z>.99,`${id} direction, enabled=${enabled}`);
     live.dispose();abilities.dispose();bridge.dispose();target.dispose();nextTarget?.dispose();
   }
+  } finally { settings.global.explosionIntensity=previousIntensity; }
 });

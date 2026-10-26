@@ -5,4 +5,11 @@ export function validImpactForce(force){
     Number.isFinite(force.lift)&&force.lift>=0&&force.lift<=20&&
     Number.isFinite(force.spin)&&force.spin>=0&&force.spin<=8;
 }
-export function impactForce(config){return {impulse:config.hitImpulse??6,lift:config.hitLift??3.4,spin:config.hitSpin??1.4};}
+/** Scale impulse and lift like established casts, without exceeding the bridge bounds. */
+export function impactForce(config,intensity=1){
+  const force={impulse:config.hitImpulse??6,lift:config.hitLift??3.4,spin:config.hitSpin??1.4};
+  // Preserve invalid authored input for the bridge to reject rather than silently repairing it.
+  if(!validImpactForce(force))return force;
+  const scale=Number.isFinite(intensity)?Math.max(0,Math.min(3,intensity)):1;
+  return {impulse:Math.min(24,force.impulse*scale),lift:Math.min(20,force.lift*scale),spin:force.spin};
+}

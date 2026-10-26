@@ -1,4 +1,4 @@
-import { impactForce } from '../ImpactForce.js';
+import { impactForce } from '../AuthoredImpactForce.js';
 import { GravityContacts } from './GravityContacts.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
