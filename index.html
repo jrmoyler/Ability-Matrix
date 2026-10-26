@@ -922,7 +922,7 @@ Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets
   sortCatalog();
   chips($('kindChips'), Object.entries(KINDS), filters.kind);
   chips($('elementChips'), ELEMENTS.map((e) => [e.id, e.label]), filters.element, Object.fromEntries(ELEMENTS.map((e) => [e.id, e.accent])));
-  const casts = [...new Set(c.abilities.filter((a) => a.kind === 'ability').map((a) => a.cast))];
+  const casts = [...new Set(c.abilities.filter((a) => a.status === 'live' && (a.kind === 'ability' || a.kind === 'mechanic')).map((a) => a.cast).filter(Boolean))];
   chips($('castChips'), casts.map((x) => [x, `${x} aim`]), filters.cast);
   chips($('packChips'), PACK_ORDER.filter((p) => packs[p] && p !== 'moves').map((p) => [p, NEW_PACKS.includes(p) ? `${p} (new)` : p]), filters.pack);
   $('groupElement').setAttribute('aria-pressed', filters.group === 'element'); $('groupPack').setAttribute('aria-pressed', filters.group === 'pack');
@@ -931,7 +931,6 @@ Promise.all([fetch('presets/catalog.json').then((r) => r.json()), fetch('presets
   const hash = location.hash.slice(1);
   const start = c.abilities.find((a) => a.uid.replace(/[^A-Za-z0-9._~-]/g, '_') === hash) || c.abilities.find((a) => a.uid === 'collective/tempest');
   select(start, { cast: true });
-  if (!store.get('onboarded', false)) openGuide(0);
 }).catch(() => { $('tally').textContent = 'Could not load presets/catalog.json — serve this folder over http.'; });
 </script>
 </body>

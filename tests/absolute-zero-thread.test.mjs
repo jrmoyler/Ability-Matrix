@@ -48,3 +48,28 @@ test("thread sweeps line and freezes after a delay once per body", () => {
   a.destroy();
   a.dispose();
 });
+
+test("frost motes advance with the filament and ring resources are reclaimed", () => {
+  const a = new AbsoluteZeroThreadAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.motesMat.uniforms.uLength.value, 0);
+  a.update(0.1);
+  assert.ok(
+    a.motesMat.uniforms.uLength.value > 0 &&
+      a.motesMat.uniforms.uLength.value < 10,
+  );
+  let disposed = 0;
+  for (const r of [a.frostRingGeometry, a.frostRingMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});

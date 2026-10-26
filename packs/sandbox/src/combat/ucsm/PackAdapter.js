@@ -163,7 +163,7 @@ export class PackAdapter {
     for (const ability of active) {
       if (before.has(ability)) continue;
       const uid = uidOf(ability);
-      const element = elementOf(uid);
+      const element = elementOf(uid) ?? this.app.expansionDev?.byUid.get(uid)?.config.meta.element;
       if (!element) continue;
       const meta = { uid, element, origin: [ability.origin.x, 0, ability.origin.z], isLine: (runtime ? runtime.castShapeOf(ability.element) : castShapeOf(ability.element)) !== CastShape.ZONE, castId: `cast:${++castCounter}`, landed: false, runtime, depth: 0 };
       this._meta.set(ability, meta);

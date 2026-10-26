@@ -1,10 +1,16 @@
-import { ExpansionAtmosphere } from '../ExpansionAtmosphere.js';
+import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
 import {AdditiveBlending,BufferAttribute,BufferGeometry,Color,DoubleSide,Group,Mesh,PlaneGeometry,ShaderMaterial,SphereGeometry,Vector3} from 'three';
 import {Ability,AbilityPhase} from '../../Ability.js';import {LAYER} from '../../../core/Layers.js';
 export const ID='exp-nightshade-inheritance',UID='matrix-expansion/nightshade-inheritance';
 const TAU=Math.PI*2,clamp=x=>Math.max(0,Math.min(1,x));
 /** A folded, tapered wing surface rather than a billboard. */
 export function shadeWingGeometry(){const pos=[],uv=[],idx=[],rows=25,cols=9;for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const t=j/(rows-1),u=i/(cols-1),w=Math.sin(Math.PI*t)*(.65+.22*Math.sin(t*6));pos.push(t*1.9,u*w,Math.sin(Math.PI*t)*u*(1-u)*.45);uv.push(t,u);if(j<rows-1&&i<cols-1){const n=j*cols+i;idx.push(n,n+cols,n+1,n+1,n+cols,n+cols+1);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(pos),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;}
+/** A raised ribbon, tapering to points at both hosts. */
+export function inheritanceRibbonGeometry(){const p=[],uv=[],idx=[],rows=49;for(let j=0;j<rows;j++){const t=j/(rows-1),width=Math.sin(Math.PI*t)*.22;for(let side=0;side<2;side++){p.push(t,Math.sin(Math.PI*t)*.55,(side?1:-1)*width);uv.push(t,side);}if(j<rows-1){const n=j*2;idx.push(n,n+2,n+1,n+1,n+2,n+3);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;}
+function inheritanceMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:0},uColor:{value:new Color('#c7a7ff')}},vertexShader:`varying vec2 vUv;uniform float uTime;void main(){vUv=uv;vec3 p=position;p.y+=sin(uv.x*12.-uTime*5.)*.06*sin(uv.x*3.14159);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade;uniform vec3 uColor;void main(){float vein=pow(max(0.,cos(vUv.x*25.-uTime*8.)),12.);float edge=pow(abs(vUv.y*2.-1.),3.);gl_FragColor=vec4(uColor,(.2+vein*.4+edge*.3)*sin(vUv.x*3.14159)*uFade);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`});}
 function shadeMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uColor:{value:new Color('#68409e')},uEdge:{value:new Color('#c7a7ff')}},vertexShader:`varying vec2 vUv;uniform float uTime;void main(){vUv=uv;vec3 p=position;p.z+=sin(uTime*2.5+uv.x*5.)*.12*uv.x;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade;uniform vec3 uColor,uEdge;void main(){float veins=pow(max(0.,cos(vUv.x*22.-vUv.y*8.+uTime)),24.);float edge=pow(abs(vUv.y-.5)*2.,3.);float a=(.10+veins*.3+edge*.24)*sin(vUv.x*3.14159)*uFade;gl_FragColor=vec4(mix(uColor,uEdge,edge*.65+veins*.25),a);
 #include <tonemapping_fragment>
 #include <colorspace_fragment>
@@ -19,12 +25,12 @@ export class NightshadeInheritanceAbility extends Ability {
  get handlesOwnHits(){return true;}get impactDuration(){return this.config.lifetime;}get fadeDuration(){return this.config.fade;}
  get instanceCount(){return this.wings.length+this.motes.length+1;}
  createShaders(){this.shade=new Group();this.group.add(this.shade);this.shade.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
-  this.mat=m(shadeMaterial());this.floorMat=m(floorMaterial());this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.045;this.shade.add(this.floor);
+  this.mat=m(shadeMaterial());this.floorMat=m(floorMaterial());this.ribbonMat=m(inheritanceMaterial());this.ribbon=new Mesh(g(inheritanceRibbonGeometry()),this.ribbonMat);this.ribbon.layers.set(LAYER.VFX);this.ribbon.frustumCulled=false;this.ribbon.visible=false;this.group.add(this.ribbon);this.transferAt=-1;this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.045;this.shade.add(this.floor);
   const wing=g(shadeWingGeometry());this.wings=[];for(let i=0;i<8;i++){const w=new Mesh(wing,this.mat);w.rotation.y=i*TAU/8;w.rotation.z=.5+(i%2)*.3;w.position.y=1.2;this.shade.add(w);this.wings.push(w);}
   const mote=g(new SphereGeometry(.04,8,6));this.motes=[];for(let i=0;i<24;i++){const o=new Mesh(mote,this.mat);this.shade.add(o);this.motes.push(o);}
   this.shade.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});this.scope=null;this.targetId=null;this.unsubscribe=null;this.visited=new Set();this.transfers=0;this.failure=null;}
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'shadow',{shape:'SMOKE',colors:['#d2baff','#7654ad','#382052','#160c25'],rate:24});}
- onSpawn(){this.atmosphere.reset();this.shade.visible=false;this.targetId=null;this.visited.clear();this.transfers=0;this.failure=null;this.scope=this.ctx.expansionCombat?.bind?.(UID,'caster')??null;if(!this.scope){this.failure='combat bridge unavailable';return;}
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.shade.visible=false;this.ribbon.visible=false;this.transferAt=-1;this.targetId=null;this.visited.clear();this.transfers=0;this.failure=null;this.scope=this.ctx.expansionCombat?.bind?.(UID,'caster')??null;if(!this.scope){this.failure='combat bridge unavailable';return;}
   const sub=this.scope.on('hit',e=>this.onCommittedHit(e));if(!sub?.ok){this.failure=sub?.reason??'event subscription refused';this.scope=null;return;}this.unsubscribe=sub.unsubscribe;
  }
  onTravel(){}
@@ -40,14 +46,16 @@ export class NightshadeInheritanceAbility extends Ability {
   const next=candidates[0];if(!next){this.targetId=null;return;}
   const result=this.scope.emit({type:'status',element:'shadow',targetIds:[next.id],position:next.position,intensity:Math.min(2,1+this.transfers*.25)});
   if(!result?.ok){this.failure=result?.reason??'inheritance refused';this.targetId=null;return;}
-  this.targetId=next.id;this.visited.add(next.id);this.transfers++;this.shade.position.fromArray(next.position);
+  const dx=next.position[0]-point[0],dz=next.position[2]-point[2];this.ribbon.position.set(point[0],.7,point[2]);this.ribbon.rotation.y=-Math.atan2(dz,dx);this.ribbon.scale.set(Math.hypot(dx,dz),this.config.trailScale??1,this.config.trailScale??1);this.transferAt=this.impactTime;
+  this.targetId=next.id;this.visited.add(next.id);this.transfers++;this.shade.position.fromArray(next.position);if(!this.reduceMotion)this.atmosphere.cue(next.position,1.5);
  }
- onFade(dt,t){if(this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.shade.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);this.mat.uniforms.uTime.value=this.age;this.mat.uniforms.uFade.value=fade;this.mat.uniforms.uColor.value.set(c.shadowColor);this.mat.uniforms.uEdge.value.set(c.edgeColor);this.floorMat.uniforms.uTime.value=this.age;this.floorMat.uniforms.uFade.value=fade;this.floorMat.uniforms.uColor.value.set(c.shadowColor);
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.shade.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);this.mat.uniforms.uTime.value=visualTime;this.mat.uniforms.uFade.value=fade;this.mat.uniforms.uColor.value.set(c.shadowColor);this.mat.uniforms.uEdge.value.set(c.edgeColor);this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade;this.floorMat.uniforms.uColor.value.set(c.shadowColor);
+  const transferAge=this.transferAt<0?-1:this.impactTime-this.transferAt;this.ribbon.visible=transferAge>=0&&transferAge<.5;this.ribbonMat.uniforms.uTime.value=visualTime;this.ribbonMat.uniforms.uFade.value=fade*(1-clamp(transferAge/.5));this.ribbonMat.uniforms.uColor.value.set(c.edgeColor);
   if(this.targetId&&this.scope){const actor=this.scope.getActor(this.targetId);if(actor?.ok&&actor.actor.alive)this.shade.position.fromArray(actor.actor.position);}
-  for(let i=0;i<this.wings.length;i++){const w=this.wings[i];w.rotation.y=i*TAU/8+this.age*.25;w.rotation.z=.5+(i%2)*.3+.12*Math.sin(this.age*2+i);}
-  for(let i=0;i<this.motes.length;i++){const a=i*2.399963+this.age*.6,r=.7+(i%5)*.16;this.motes[i].position.set(Math.cos(a)*r,.2+((i*.29+this.age*.4)%2.3),Math.sin(a)*r);}
+  for(let i=0;i<this.wings.length;i++){const w=this.wings[i];w.rotation.y=i*TAU/8+visualTime*.25;w.rotation.z=.5+(i%2)*.3+.12*Math.sin(visualTime*2+i);}
+  for(let i=0;i<this.motes.length;i++){const a=i*2.399963+visualTime*.6,r=.7+(i%5)*.16;this.motes[i].position.set(Math.cos(a)*r,.2+((i*.29+visualTime*.4)%2.3),Math.sin(a)*r);}
  }
- onDestroy(){this.unsubscribe?.();this.unsubscribe=null;this.shade.visible=false;this.targetId=null;this.scope=null;this.visited.clear();}
+ onDestroy(){this.unsubscribe?.();this.unsubscribe=null;this.shade.visible=false;this.ribbon.visible=false;this.targetId=null;this.scope=null;this.visited.clear();}
  dispose(){this.unsubscribe?.();this.unsubscribe=null;for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Nightshade Inheritance');for(const[k,a,b,s]of[['zoneRadius',1,8,.1],['inheritRadius',1,12,.1],['maxTransfers',0,3,1],['lifetime',2,12,.1]])f.add(c,k,a,b,s);return f;}
+export function buildEditor(gui,c){const f=gui.addFolder('Nightshade Inheritance');for(const[k,a,b,s]of[['zoneRadius',1,8,.1],['inheritRadius',1,12,.1],['maxTransfers',0,3,1],['trailScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}

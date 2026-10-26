@@ -178,8 +178,12 @@ export class AshenDoppelgangerAbility extends Ability {
       transparent: true,
       depthWrite: false,
       blending: AdditiveBlending,
-      uniforms: { uTime: { value: 0 }, uOpacity: { value: 0 } },
-      vertexShader: `attribute float aSeed; uniform float uTime; varying float vSeed; void main(){vSeed=aSeed;vec3 p=position;p.y=mod(p.y+uTime*(.25+aSeed*.6),2.2);p.xz*=.8+.2*sin(uTime*2.0+aSeed*15.0);vec4 mv=modelViewMatrix*vec4(p,1.0);gl_PointSize=clamp(18.0/max(1.0,-mv.z),1.0,7.0);gl_Position=projectionMatrix*mv;}`,
+      uniforms: {
+        uTime: { value: 0 },
+        uOpacity: { value: 0 },
+        uRate: { value: 1 },
+      },
+      vertexShader: `attribute float aSeed; uniform float uTime,uRate; varying float vSeed; void main(){vSeed=aSeed;vec3 p=position;p.y=mod(p.y+uTime*uRate*(.25+aSeed*.6),2.2);p.xz*=.8+.2*sin(uTime*2.0+aSeed*15.0);vec4 mv=modelViewMatrix*vec4(p,1.0);gl_PointSize=clamp(18.0/max(1.0,-mv.z),1.0,7.0);gl_Position=projectionMatrix*mv;}`,
       fragmentShader: `uniform float uOpacity;varying float vSeed;void main(){float a=(1.0-smoothstep(.0,.5,length(gl_PointCoord-.5)))*uOpacity;gl_FragColor=vec4(mix(vec3(1.,.12,.01),vec3(1.,.7,.16),vSeed),a);}`,
     });
     // THREE.Points is obtained through the mesh constructor imported below.
@@ -212,6 +216,10 @@ export class AshenDoppelgangerAbility extends Ability {
     this.nextPulse = this.config.delay;
     this.last.copy(this.origin);
     this.echo.position.copy(this.origin);
+    this.skin.uniforms.uOpacity.value = this.config.echoOpacity;
+    this.sparkMat.uniforms.uOpacity.value = 0.8;
+    this.sparkMat.uniforms.uRate.value = this.config.emberRate;
+    this.groundMat.uniforms.uOpacity.value = 0.32;
     this._sample();
   }
   _ensureRig() {
@@ -427,7 +435,9 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "duration", 1, 8, 0.1, "duration");
   R(f, c, "pulseRadius", 0.5, 5, 0.1, "pulse radius");
   R(f, c, "pulseInterval", 0.2, 2, 0.05, "pulse interval");
+  R(f, c, "pulseForce", 0, 12, 0.1, "pulse force");
   R(f, c, "echoOpacity", 0, 1, 0.01, "echo opacity");
+  R(f, c, "emberRate", 0, 6, 0.1, "ember drift");
   f.close();
   return f;
 }

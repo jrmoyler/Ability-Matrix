@@ -50,3 +50,32 @@ test("three expanding harmonic fronts apply separate impulses and stop on cleanu
   assert.ok(a.rings.every((r) => !r.visible));
   a.dispose();
 });
+
+test("resonator appears on impact and releases its tuning-fork and note layers", () => {
+  const a = new OvertoneSpiralAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 5);
+  assert.equal(a.notes.visible, false);
+  a.update(2);
+  a.update(0.1);
+  assert.equal(a.notes.visible, true);
+  assert.ok(a.forks.every((f) => f.visible));
+  let disposed = 0;
+  for (const r of [
+    a.forkGeometry,
+    a.stemGeometry,
+    a.noteGeometry,
+    a.noteMaterial,
+  ])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 4);
+});

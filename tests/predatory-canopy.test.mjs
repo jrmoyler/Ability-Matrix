@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Scene, Vector3 } from 'three';
 import { settings } from '../packs/sandbox/src/config/settings.js';
-import { PredatoryCanopyAbility, ID, canopyLeafGeometry } from '../packs/sandbox/src/abilities/expansion-2026/nature/PredatoryCanopyAbility.js';
+import { PredatoryCanopyAbility, ID, canopyLeafGeometry, canopyThornGeometry } from '../packs/sandbox/src/abilities/expansion-2026/nature/PredatoryCanopyAbility.js';
 import config from '../packs/sandbox/src/abilities/expansion-2026/nature/predatory-canopy.config.js';
 settings[ID] = structuredClone(config.settings);
 const target = (x,z) => ({ alive: true, position: new Vector3(x,0,z), hits: 0, kill() {this.hits++;this.alive=false;return true;} });
@@ -30,3 +30,7 @@ test('authored foliage is finite and every owned GPU resource is disposed',()=>{
   const {ability:a,scene}=arena();let disposed=0;for(const r of [...a.geometries,...a.materials])r.addEventListener('dispose',()=>disposed++);
   a.dispose();assert.equal(disposed,a.geometries.length+a.materials.length);assert.equal(scene.children.length,0);
 });
+
+test('canopy spread moves branches, leaves, and tendrils together',()=>{const {ability:a}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);ticks(a,1);const leaf=a.leaves[0].position.x,vine=a.tendrils[0].position.x,branch=a.branches[0].scale.x;a.config.canopySpread=6;ticks(a,.1);assert.equal(a.leaves[0].position.x,leaf*1.5);assert.equal(a.tendrils[0].position.x,vine*1.5);assert.equal(a.branches[0].scale.x,branch*1.5);a.config.canopySpread=4;a.destroy();a.dispose();});
+
+test('triggered canopy raises its custom thorns during the windup',()=>{const g=canopyThornGeometry(),p=g.attributes.position;for(let i=0;i<p.count;i++)assert.ok(Number.isFinite(p.getX(i))&&Number.isFinite(p.getY(i))&&Number.isFinite(p.getZ(i)));g.dispose();const {ability:a,bodies}=arena();a.spawn(new Vector3(),new Vector3(1,0,0),5);ticks(a,1);assert.ok(a.thorns.every(t=>!t.visible));bodies.push(target(5,0));ticks(a,.15);assert.ok(a.thorns.every(t=>t.visible));const height=a.thorns[0].scale.y;ticks(a,.3);assert.ok(a.thorns[0].scale.y>height);a.destroy();a.dispose();});

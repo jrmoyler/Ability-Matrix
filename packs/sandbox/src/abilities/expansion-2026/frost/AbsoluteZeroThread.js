@@ -7,6 +7,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   Points,
+  RingGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -96,7 +97,13 @@ export class AbsoluteZeroThreadAbility extends Ability {
     return 0.25;
   }
   get fadeDuration() {
-    return Math.max(0.2, this.config.lifetime);
+    // Targets at the end of the cast still need time to freeze and remain
+    // frozen for the configured duration before the pool tears down the cast.
+    return Math.max(
+      0.2,
+      this.config.lifetime,
+      this.config.freezeDelay + this.config.freezeDuration + 0.1,
+    );
   }
   createShaders() {
     this.geometry = ribbon();
@@ -130,6 +137,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
       transparent: true,
       opacity: 0.78,
     });
+    this.frostRingGeometry = new RingGeometry(0.36, 0.8, 32);
+    this.frostRingMaterial = iceMaterial();
     this.hit = new Set();
     this.pending = [];
     this.frozen = [];
@@ -145,13 +154,12 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this._redraw(0);
     this.motes.position.copy(this.origin);
     this.motes.rotation.y = Math.atan2(this.direction.x, this.direction.z);
-    this.motesMat.uniforms.uLength.value = this.length;
   }
   _redraw(front) {
     const arr = this.geometry.attributes.position;
     for (let i = 0; i <= N; i++) {
       const u = i / N,
-        d = Math.min(front, u * this.length),
+        d = u * front,
         wave = Math.sin(u * 31 - this.age * 5) * 0.08,
         height = 0.32 + Math.sin(u * Math.PI) * 0.45;
       const x = this.origin.x + this.direction.x * d + this.side.x * wave,
@@ -163,6 +171,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
     arr.needsUpdate = true;
     this.material.uniforms.uTime.value = this.age;
     this.motesMat.uniforms.uTime.value = this.age;
+    this.motesMat.uniforms.uLength.value = front;
   }
   _scan(from, to) {
     if (!this.ctx.dummies?.findTargets) return;
@@ -195,15 +204,25 @@ export class AbsoluteZeroThreadAbility extends Ability {
       if (f.until <= this.age) {
         f.dummy.vanish?.();
         this.group.remove(f.figure);
+        this.group.remove(f.ring);
         this.frozen.splice(i, 1);
       }
     }
     for (let i = this.pending.length - 1; i >= 0; i--) {
       if (this.pending[i].time <= this.age) {
         const d = this.pending[i].dummy;
-        if (d.root && this.frozen.length < 8 && d.freeze?.()) {
+        if (d.root && this.frozen.length < 8) {
+          // Stopping the animation restores its bind pose. Copy the visible
+          // pose first, and only show it if the target accepts the freeze.
           const figure = cloneSkeleton(d.root);
+          if (!d.freeze?.()) {
+            this.pending.splice(i, 1);
+            continue;
+          }
           figure.visible = true;
+          // freeze() preserves the live rig; the ice clone replaces it until
+          // vanish() frees the dummy slot, rather than drawing both together.
+          d.root.visible = false;
           figure.traverse((n) => {
             if (n.isMesh) {
               n.material = this.statueMaterial;
@@ -212,9 +231,15 @@ export class AbsoluteZeroThreadAbility extends Ability {
             }
           });
           this.group.add(figure);
+          const ring = new Mesh(this.frostRingGeometry, this.frostRingMaterial);
+          ring.layers.set(LAYER.VFX);
+          ring.rotation.x = -Math.PI / 2;
+          ring.position.set(d.position.x, 0.035, d.position.z);
+          this.group.add(ring);
           this.frozen.push({
             dummy: d,
             figure,
+            ring,
             until: this.age + this.config.freezeDuration,
           });
         }
@@ -224,9 +249,10 @@ export class AbsoluteZeroThreadAbility extends Ability {
   }
   onTravel() {
     const before = this.prevFront ?? 0;
-    this._scan(before, this.front);
-    this.prevFront = this.front;
-    this._redraw(this.front);
+    const front = Math.min(this.length, this.front);
+    this._scan(before, front);
+    this.prevFront = front;
+    this._redraw(front);
     this._flush();
   }
   onImpact() {
@@ -238,11 +264,14 @@ export class AbsoluteZeroThreadAbility extends Ability {
     const f = t > 1 ? Math.max(0, 2 - t) : 1;
     this.material.uniforms.uFade.value = f;
     this.motesMat.uniforms.uFade.value = f;
+    this.frostRingMaterial.uniforms.uTime.value = this.age;
+    this.frostRingMaterial.uniforms.uFade.value = f;
   }
   onDestroy() {
     for (const f of this.frozen) {
       f.dummy.vanish?.();
       this.group.remove(f.figure);
+      this.group.remove(f.ring);
     }
     this.frozen.length = 0;
     this.hit.clear();
@@ -250,6 +279,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.prevFront = 0;
     this.material.uniforms.uFade.value = 1;
     this.motesMat.uniforms.uFade.value = 1;
+    this.frostRingMaterial.uniforms.uFade.value = 1;
   }
   dispose() {
     this.onDestroy();
@@ -258,6 +288,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.motesGeo.dispose();
     this.motesMat.dispose();
     this.statueMaterial.dispose();
+    this.frostRingGeometry.dispose();
+    this.frostRingMaterial.dispose();
     super.dispose();
   }
 }
@@ -267,6 +299,7 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "width", 0.02, 0.5, 0.01, "filament width");
   R(f, c, "reach", 0.1, 3, 0.05, "freeze reach");
   R(f, c, "freezeDelay", 0, 2, 0.05, "freeze delay");
+  R(f, c, "freezeDuration", 0.1, 6, 0.1, "statue duration");
   f.close();
   return f;
 }

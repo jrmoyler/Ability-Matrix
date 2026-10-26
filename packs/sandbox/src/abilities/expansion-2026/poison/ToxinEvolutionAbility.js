@@ -1,4 +1,4 @@
-import { ExpansionAtmosphere } from '../ExpansionAtmosphere.js';
+import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
 import {AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, PlaneGeometry, ShaderMaterial, SphereGeometry, TubeGeometry, CatmullRomCurve3, Vector3} from 'three';
 import {Ability, AbilityPhase} from '../../Ability.js';
 import {LAYER} from '../../../core/Layers.js';
@@ -14,6 +14,12 @@ export function toxinMembraneGeometry(){
  }
  const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(pos),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;
 }
+/** Seed vessel with a pointed crown and asymmetrical ribbed sides. */
+export function toxinVesselGeometry(){const p=[],uv=[],idx=[],rows=29,cols=25;for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const t=j/(rows-1),a=i*TAU/(cols-1),radius=Math.pow(Math.sin(Math.PI*t),.7)*(.28+.045*Math.cos(a*5+t*4));p.push(Math.cos(a)*radius,t*.9,Math.sin(a)*radius);uv.push(i/(cols-1),t);if(j<rows-1&&i<cols-1){const n=j*cols+i;idx.push(n,n+cols,n+1,n+1,n+cols,n+cols+1);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;}
+function vesselMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uColor:{value:new Color('#9be641')},uCore:{value:new Color('#e4ff93')}},vertexShader:`varying vec2 vUv;uniform float uTime;void main(){vUv=uv;vec3 p=position;p.xz*=1.+.04*sin(uTime*3.+uv.y*10.);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade;uniform vec3 uColor,uCore;void main(){float ribs=pow(max(0.,cos(vUv.x*31.42+sin(vUv.y*9.-uTime))),16.);float seed=exp(-abs(vUv.y-.55)*8.);gl_FragColor=vec4(mix(uColor,uCore,seed*.35+ribs*.45),(.2+seed*.2+ribs*.35)*uFade);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`});}
 function material(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,
  uniforms:{uTime:{value:0},uStage:{value:0},uFade:{value:1},uColor:{value:new Color('#9be641')},uCore:{value:new Color('#e4ff93')}},
  vertexShader:`varying vec2 vUv;varying vec3 vN;uniform float uTime,uStage;void main(){vUv=uv;vN=normalize(normalMatrix*normal);vec3 p=position;float wave=sin(uv.y*19.-uTime*4.+uv.x*12.)*.035*(1.+uStage*.3);p.xz*=1.+wave;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
@@ -44,15 +50,16 @@ export class ToxinEvolutionAbility extends Ability {
  createShaders(){
   this.effect=new Group();this.group.add(this.effect);this.effect.visible=false;this.gs=[];this.ms=[];
   const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
-  this.bodyMat=m(material());this.sigilMat=m(sigil());this.body=new Mesh(g(toxinMembraneGeometry()),this.bodyMat);this.effect.add(this.body);
+  this.bodyMat=m(material());this.sigilMat=m(sigil());this.vesselMat=m(vesselMaterial());this.body=new Mesh(g(toxinMembraneGeometry()),this.bodyMat);this.effect.add(this.body);
   this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.sigilMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.045;this.effect.add(this.floor);
   this.coils=[];for(let i=0;i<3;i++){const x=new Mesh(g(coil(i*TAU/3)),this.bodyMat);this.effect.add(x);this.coils.push(x);}
+  const vessel=g(toxinVesselGeometry());this.vessels=[];for(let i=0;i<3;i++){const v=new Mesh(vessel,this.vesselMat);this.effect.add(v);this.vessels.push(v);}this.stageTimes=[-1,-1,-1];
   const spore=g(new SphereGeometry(.045,10,6));this.spores=[];for(let i=0;i<24;i++){const s=new Mesh(spore,this.bodyMat);this.effect.add(s);this.spores.push(s);}
   this.effect.traverse(x=>{if(x.isMesh){x.layers.set(LAYER.VFX);x.frustumCulled=false;}});
   this.scope=null;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'poison',{shape:'BUBBLE',colors:['#e8ffad','#9be641','#5c9830','#24431b'],rate:22});}
- onSpawn(){this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.effect.visible=false;this.targetId=null;this.stage=0;this.nextStage=0;this.failure=null;this.stageTimes.fill(-1);
   const bridge=this.ctx.expansionCombat;this.scope=bridge?.bind?.(UID,'caster') ?? null;if(!this.scope)this.failure='combat bridge unavailable';
  }
  onTravel(){}
@@ -63,7 +70,7 @@ export class ToxinEvolutionAbility extends Ability {
   this.targetId=q.actors.find(x=>x.alive)?.id??null;if(!this.targetId){this.failure='no eligible target';return;}
   this.effect.visible=true;this.nextStage=0;
  }
- onFade(dt,t){if(this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.targetId && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.effect.position);
   const fade=t<=1?1:1-clamp(t-1),c=this.config;
   if(this.targetId && this.scope && this.phase===AbilityPhase.IMPACT){
    const actor=this.scope.getActor(this.targetId);const e=actor?.actor;
@@ -71,18 +78,20 @@ export class ToxinEvolutionAbility extends Ability {
    else{
     this.effect.position.fromArray(e.position);
     if(this.impactTime>=this.nextStage&&this.stage<Math.min(3,Math.max(1,Math.floor(c.maxStages)))){
-     const result=this.scope.emit({type:'status',element:'poison',targetIds:[this.targetId],position:e.position,intensity:1+this.stage*.4});
-     if(result?.ok){this.stage++;this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
+     const result=this.scope.emit({type:'hit',element:'poison',targetIds:[this.targetId],position:e.position,intensity:1+this.stage*.4,damage:(c.stageDamage??.25)*(1+this.stage*.4)});
+     if(result?.ok){this.stageTimes[this.stage]=this.impactTime;this.stage++;if(!this.reduceMotion)this.atmosphere.cue(e.position,1+this.stage*.25);this.nextStage=this.impactTime+Math.max(.3,c.stagePeriod);}else {this.failure=result?.reason??'toxin event refused';this.nextStage=this.impactTime+.2;}
     }
    }
   }
-  this.bodyMat.uniforms.uTime.value=this.age;this.bodyMat.uniforms.uStage.value=this.stage;this.bodyMat.uniforms.uFade.value=fade;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);
-  this.sigilMat.uniforms.uTime.value=this.age;this.sigilMat.uniforms.uStage.value=this.stage;this.sigilMat.uniforms.uFade.value=fade;this.sigilMat.uniforms.uColor.value.set(c.toxinColor);
+  this.bodyMat.uniforms.uTime.value=visualTime;this.bodyMat.uniforms.uStage.value=this.stage;this.bodyMat.uniforms.uFade.value=fade;this.bodyMat.uniforms.uColor.value.set(c.toxinColor);this.bodyMat.uniforms.uCore.value.set(c.coreColor);
+  this.sigilMat.uniforms.uTime.value=visualTime;this.sigilMat.uniforms.uStage.value=this.stage;this.sigilMat.uniforms.uFade.value=fade;this.sigilMat.uniforms.uColor.value.set(c.toxinColor);
+  this.vesselMat.uniforms.uTime.value=visualTime;this.vesselMat.uniforms.uFade.value=fade;this.vesselMat.uniforms.uColor.value.set(c.toxinColor);this.vesselMat.uniforms.uCore.value.set(c.coreColor);
+  for(let i=0;i<this.vessels.length;i++){const v=this.vessels[i],a=i*TAU/3+visualTime*(i%2?-.25:.25),age=this.stageTimes[i]<0?-1:this.impactTime-this.stageTimes[i];v.visible=age>=0;v.position.set(Math.cos(a)*.72,.45+i*.37,Math.sin(a)*.72);v.rotation.set(.3*Math.cos(a),-a,.3*Math.sin(a));v.scale.setScalar((c.vesselScale??1)*clamp(age/.25));}
   const grow=.7+this.stage*.12;this.body.scale.set(grow,1+this.stage*.1,grow);this.floor.scale.set(1.25+this.stage*.25,1.25+this.stage*.25,1);
-  for(let i=0;i<this.coils.length;i++){this.coils[i].rotation.y=this.age*(.7+i*.15)*(i%2?-1:1);this.coils[i].scale.setScalar(grow);}
-  for(let i=0;i<this.spores.length;i++){const a=i*2.399963+this.age*.8,r=.7+(i%4)*.16;this.spores[i].position.set(Math.cos(a)*r,.2+((i*.31+this.age*.45)%2.3),Math.sin(a)*r);}
+  for(let i=0;i<this.coils.length;i++){this.coils[i].rotation.y=visualTime*(.7+i*.15)*(i%2?-1:1);this.coils[i].scale.setScalar(grow);}
+  for(let i=0;i<this.spores.length;i++){const a=i*2.399963+visualTime*.8,r=.7+(i%4)*.16;this.spores[i].position.set(Math.cos(a)*r,.2+((i*.31+visualTime*.45)%2.3),Math.sin(a)*r);}
  }
  onDestroy(){this.effect.visible=false;this.targetId=null;this.scope=null;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Toxin Evolution');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['stagePeriod',.3,3,.1],['maxStages',1,3,1],['tetherRange',2,16,.1],['lifetime',2,12,.1]])f.add(c,k,a,b,s);return f;}
+export function buildEditor(gui,c){const f=gui.addFolder('Toxin Evolution');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['stagePeriod',.3,3,.1],['stageDamage',.05,1,.05],['maxStages',1,3,1],['vesselScale',.25,2,.05],['tetherRange',2,16,.1],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}

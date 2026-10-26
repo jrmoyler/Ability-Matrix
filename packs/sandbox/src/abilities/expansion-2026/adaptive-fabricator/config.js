@@ -1,1 +1,32 @@
-export default {id:'adaptiveFabricator',meta:{label:'Adaptive Fabricator',accent:'#7ff0ff',element:'tech',cast:'zone',hint:'Tech — deploy a device that reads hostile exposure and chooses a counter-element',glyph:'<path d="M50 10L84 30V70L50 90L16 70V30Z"/><circle cx="50" cy="50" r="19"/><path d="M50 25V12M50 88V75M25 50H12M88 50H75"/>'},settings:{range:18,minRange:1,speed:30,cooldown:8,castAnim:'cast2',zoneRadius:6,lifetime:6,life:6,scanRadius:6,shotInterval:.9,damage:.35,lightColor:'#7ff0ff',impactShake:.12,impactFlash:.08,lightIntensity:5,lightRadius:9,metalColor:'#284258',coreColor:'#7ff0ff',beamColor:'#d6ffff'}};
+export default {
+  id: 'adaptiveFabricator',
+  meta: {
+    label: 'Adaptive Fabricator',
+    accent: '#7ff0ff',
+    element: 'tech',
+    cast: 'zone',
+    hint: 'Tech — deploy a device that reads hostile exposure and chooses a counter-element',
+    glyph:
+      '<path d="M50 10L84 30V70L50 90L16 70V30Z"/><circle cx="50" cy="50" r="19"/><path d="M50 25V12M50 88V75M25 50H12M88 50H75"/>',
+  },
+  settings: {
+    range: 18,
+    minRange: 1,
+    speed: 30,
+    cooldown: 8,
+    castAnim: 'cast2',
+    zoneRadius: 6,
+    lifetime: 6,
+    life: 6,
+    shotInterval: 0.9,
+    damage: 0.35,
+    lightColor: '#7ff0ff',
+    impactShake: 0.12,
+    impactFlash: 0.08,
+    lightIntensity: 5,
+    lightRadius: 9,
+    metalColor: '#284258',
+    coreColor: '#7ff0ff',
+    beamColor: '#d6ffff',
+  },
+};

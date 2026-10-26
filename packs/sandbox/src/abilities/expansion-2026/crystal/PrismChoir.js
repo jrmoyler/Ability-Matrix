@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   DoubleSide,
   Mesh,
+  Points,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -131,7 +132,40 @@ export class PrismChoirAbility extends Ability {
     this.splitEnd = new Vector3();
     this.splitPrevious = 0;
   }
-  createParticles() {}
+  createParticles() {
+    const count = 120,
+      p = new Float32Array(count * 3),
+      seed = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const a = i * 2.399963,
+        y = 1 - (2 * (i + 0.5)) / count,
+        r = Math.sqrt(1 - y * y);
+      p.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
+      seed[i] = (i * 0.618034) % 1;
+    }
+    this.splinterGeometry = new BufferGeometry();
+    this.splinterGeometry.setAttribute("position", new BufferAttribute(p, 3));
+    this.splinterGeometry.setAttribute("seed", new BufferAttribute(seed, 1));
+    this.splinterMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uBurst: { value: 0 },
+        uFade: { value: 1 },
+      },
+      vertexShader:
+        "attribute float seed;uniform float uTime,uBurst;varying float vA;varying float vSeed;void main(){float travel=uBurst*(1.+seed*3.);vec3 q=position*travel;q.y-=uBurst*uBurst*.65;vA=(1.-uBurst)*(.5+.5*sin(uTime*8.+seed*40.));vSeed=seed;vec4 mv=modelViewMatrix*vec4(q,1.);gl_PointSize=clamp((12.+seed*12.)/-mv.z,1.,7.);gl_Position=projectionMatrix*mv;}",
+      fragmentShader:
+        "uniform float uFade;varying float vA,vSeed;void main(){vec2 p=abs(gl_PointCoord-.5)*2.;float diamond=1.-smoothstep(.6,1.,p.x+p.y);vec3 c=mix(vec3(.5,.85,1.),vec3(1.,.4,.95),vSeed);gl_FragColor=vec4(c,diamond*vA*uFade);}",
+    });
+    this.splinters = new Points(this.splinterGeometry, this.splinterMaterial);
+    this.splinters.layers.set(LAYER.VFX);
+    this.splinters.frustumCulled = false;
+    this.splinters.visible = false;
+    this.group.add(this.splinters);
+  }
   onSpawn() {
     this.hit.clear();
     this.prev = 0;
@@ -140,6 +174,9 @@ export class PrismChoirAbility extends Ability {
     for (const t of this.trails) t.visible = false;
     this.mat.uniforms.uFade.value = 1;
     this.trailMat.uniforms.uFade.value = 1;
+    this.splinterMaterial.uniforms.uFade.value = 1;
+    this.splinterMaterial.uniforms.uBurst.value = 0;
+    this.splinters.visible = false;
     this._drawPrimary(0);
   }
   _drawPrimary(d) {
@@ -181,6 +218,8 @@ export class PrismChoirAbility extends Ability {
       this.pointAt(Math.min(1, d / this.length), this.tmp);
       this._hitShape(this.tmp, this.config.reach);
     }
+    this.pointAt(end / this.length, this.tmp);
+    this._hitShape(this.tmp, this.config.reach);
     this.prev = end;
     this._drawPrimary(end);
   }
@@ -188,6 +227,9 @@ export class PrismChoirAbility extends Ability {
     this.splitPrevious = 0;
     this.pointAt(1, this.splitOrigin);
     this.primary.visible = false;
+    this.splinters.position.copy(this.splitOrigin);
+    this.splinters.position.y = 1;
+    this.splinters.visible = true;
     for (const s of this.shards) s.visible = true;
     for (const t of this.trails) t.visible = true;
   }
@@ -261,14 +303,18 @@ export class PrismChoirAbility extends Ability {
         trail.scale.set(1, 1, Math.max(0.001, d));
       }
       this.splitPrevious = this.config.splitDistance * t;
+      this.splinterMaterial.uniforms.uBurst.value = t;
     } else {
       this.mat.uniforms.uFade.value = 2 - t;
       this.trailMat.uniforms.uFade.value = 2 - t;
+      this.splinterMaterial.uniforms.uFade.value = 2 - t;
     }
     this.mat.uniforms.uTime.value = this.age;
+    this.splinterMaterial.uniforms.uTime.value = this.age;
   }
   onDestroy() {
     this.hit.clear();
+    this.splinters.visible = false;
     this.primary.visible = false;
     for (const s of this.shards) s.visible = false;
     for (const t of this.trails) t.visible = false;
@@ -278,6 +324,8 @@ export class PrismChoirAbility extends Ability {
     this.mat.dispose();
     this.trailGeo.dispose();
     this.trailMat.dispose();
+    this.splinterGeometry.dispose();
+    this.splinterMaterial.dispose();
     super.dispose();
   }
 }
@@ -287,6 +335,9 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "size", 0.2, 2, 0.05, "crystal size");
   R(f, c, "splitDistance", 1, 12, 0.1, "split reach");
   R(f, c, "splitDuration", 0.2, 3, 0.05, "split time");
+  R(f, c, "reach", 0.1, 3, 0.05, "shard reach");
+  R(f, c, "impulse", 0, 15, 0.1, "shard force");
+  R(f, c, "lift", 0, 8, 0.1, "shard lift");
   f.close();
   return f;
 }

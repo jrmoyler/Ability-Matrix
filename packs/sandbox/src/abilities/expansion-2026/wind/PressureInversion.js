@@ -4,6 +4,8 @@ import {
   BufferGeometry,
   DoubleSide,
   Mesh,
+  Points,
+  RingGeometry,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -115,12 +117,74 @@ export class PressureInversionAbility extends Ability {
         (dz / r) * force * sign,
       );
     };
+    this.floorGeometry = new RingGeometry(0.91, 1, 96);
+    this.floorMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uFade: { value: 1 },
+        uPolarity: { value: 1 },
+      },
+      vertexShader:
+        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+      fragmentShader:
+        "varying vec2 vUv;uniform float uTime,uFade,uPolarity;void main(){vec2 p=vUv-.5;float a=atan(p.y,p.x);float sweep=pow(max(0.,sin(a*14.-uTime*5.*uPolarity)),7.);gl_FragColor=vec4(.32,.85,.78,(.16+sweep*.55)*uFade);}",
+    });
+    this.floor = new Mesh(this.floorGeometry, this.floorMaterial);
+    this.floor.layers.set(LAYER.VFX);
+    this.floor.rotation.x = -Math.PI / 2;
+    this.group.add(this.floor);
   }
-  createParticles() {}
+  createParticles() {
+    const count = 128,
+      p = new Float32Array(count * 3),
+      phase = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const angle = i * 2.399963,
+        radius = Math.sqrt((i + 0.5) / count);
+      p.set(
+        [Math.cos(angle) * radius, (i % 11) / 11, Math.sin(angle) * radius],
+        i * 3,
+      );
+      phase[i] = (i * 0.618034) % 1;
+    }
+    this.dustGeometry = new BufferGeometry();
+    this.dustGeometry.setAttribute("position", new BufferAttribute(p, 3));
+    this.dustGeometry.setAttribute("phase", new BufferAttribute(phase, 1));
+    this.dustMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uFade: { value: 1 },
+        uRadius: { value: 1 },
+        uPolarity: { value: 1 },
+      },
+      vertexShader:
+        "attribute float phase;uniform float uTime,uRadius,uPolarity;varying float vA;void main(){float t=fract(phase+uTime*.22);float r=mix(1.,.1,t);if(uPolarity<0.)r=1.-r;float a=uTime*2.*uPolarity+t*5.;mat2 rot=mat2(cos(a),-sin(a),sin(a),cos(a));vec2 xz=rot*position.xz*uRadius*r;vec3 q=vec3(xz.x,.15+position.y*1.8+t,xz.y);vA=sin(t*3.14159);vec4 mv=modelViewMatrix*vec4(q,1.);gl_PointSize=clamp(17./-mv.z,1.,5.);gl_Position=projectionMatrix*mv;}",
+      fragmentShader:
+        "uniform float uFade;varying float vA;void main(){float r=length(gl_PointCoord-.5)*2.;gl_FragColor=vec4(.55,1.,.85,(1.-smoothstep(.15,1.,r))*vA*uFade);}",
+    });
+    this.dust = new Points(this.dustGeometry, this.dustMaterial);
+    this.dust.layers.set(LAYER.VFX);
+    this.dust.frustumCulled = false;
+    this.group.add(this.dust);
+  }
   onSpawn() {
     this.held.clear();
     this.reversed = false;
     this.centre.copy(this.origin).addScaledVector(this.direction, this.length);
+    this.floor.position.copy(this.centre);
+    this.floor.position.y = 0.035;
+    this.floor.scale.setScalar(this.config.radius);
+    this.dust.position.copy(this.centre);
+    this.dustMaterial.uniforms.uRadius.value = this.config.radius;
+    this.floorMaterial.uniforms.uFade.value = 1;
+    this.dustMaterial.uniforms.uFade.value = 1;
     this._draw(0);
   }
   _draw(t) {
@@ -139,9 +203,21 @@ export class PressureInversionAbility extends Ability {
     for (const ribbon of this.ribbons) ribbon.position.copy(this.centre);
     this.mat.uniforms.uTime.value = this.age;
     this.mat.uniforms.uPolarity.value = this.reversed ? -1 : 1;
+    for (const material of [this.floorMaterial, this.dustMaterial]) {
+      material.uniforms.uTime.value = this.age;
+      material.uniforms.uPolarity.value = this.reversed ? -1 : 1;
+    }
   }
   _apply(dt) {
     if (!this.ctx.dummies?.findTargets) return;
+    // Slots are pooled. Once a body disappears or a slot is reused, it no
+    // longer belongs to this current; release it before finding new targets.
+    for (const d of this.held) {
+      if (d.state === "gone" || d.alive === true) {
+        d.release?.();
+        this.held.delete(d);
+      }
+    }
     const found = this.ctx.dummies.findTargets(
       this.centre.x,
       this.centre.z,
@@ -186,7 +262,12 @@ export class PressureInversionAbility extends Ability {
       }
       this._apply(dt);
       this._draw(t);
-    } else this.mat.uniforms.uFade.value = 2 - t;
+    } else {
+      this.mat.uniforms.uFade.value = 2 - t;
+      this.floorMaterial.uniforms.uFade.value = 2 - t;
+      this.dustMaterial.uniforms.uFade.value = 2 - t;
+      this._draw(t);
+    }
   }
   onDestroy() {
     for (const d of this.held) d.release?.();
@@ -197,6 +278,10 @@ export class PressureInversionAbility extends Ability {
     this.onDestroy();
     this.geo.dispose();
     this.mat.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
+    this.dustGeometry.dispose();
+    this.dustMaterial.dispose();
     super.dispose();
   }
 }
@@ -207,6 +292,7 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "duration", 1, 8, 0.1, "well duration");
   R(f, c, "wellForce", 0, 20, 0.2, "inward force");
   R(f, c, "gustForce", 0, 25, 0.2, "release force");
+  R(f, c, "lift", 0, 8, 0.1, "current lift");
   f.close();
   return f;
 }

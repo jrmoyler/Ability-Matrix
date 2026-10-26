@@ -2,12 +2,16 @@ import { Color, Vector3 } from 'three';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
 import { frame } from '../../core/FrameUniforms.js';
+import { BurstMode } from '../../effects/BurstSphere.js';
+import { DecalType } from '../../effects/GroundDecals.js';
 
 // Shared bounded particle transport, not a shared spell design. Each cast
 // provides its own geometry, shader, cadence, shape and palette. The sandbox's
 // ParticleEngine owns these pooled systems and disposes them with the app.
 export class ExpansionAtmosphere {
   constructor(ctx, key, {shape='SOFT', colors, rate=18, speed=.5, size=.1, life=1.2, spread=.6, radius=1, direction=[0,1,0], additive=true}) {
+    this.ctx=ctx;this.key=key;this.point=new Vector3();this.colors=(colors ?? ['#ffffff']).map(c=>new Color(c));
+    while(this.colors.length<3)this.colors.push(this.colors.at(-1));
     this.rate=rate;this.speed=speed;this.size=size;this.life=life;this.spread=spread;this.radius=radius;
     this.direction=new Vector3(...direction).normalize();this.emitter=new RateEmitter();
     this.system=ctx.particles?.get(`expansion.${key}`,{capacity:480,shape:ParticleShape[shape]??ParticleShape.SOFT,additive,lit:!additive,curl:true,softFade:.3})??null;
@@ -22,4 +26,24 @@ export class ExpansionAtmosphere {
     const n=this.emitter.tick(dt,Math.max(0,Math.min(100,this.rate*rateScale)));
     if(n)this.system.emit(n,{position,radius:this.radius,direction:this.direction,speed:this.speed,spread:this.spread,size:this.size,life:this.life,spin:2,time:frame.uTime.value});
   }
+  /** One bounded contact beat, issued only by the owning cast's accepted event. */
+  cue(position, radius=1.5) {
+    if (!position) return;
+    if(Array.isArray(position))this.point.fromArray(position);else this.point.copy(position);
+    const r=Math.max(.2,Math.min(5,Number.isFinite(radius)?radius:1.5));
+    const modes={cosmic:BurstMode.STORM,poison:BurstMode.AIR,shadow:BurstMode.AIR,light:BurstMode.STORM,holy:BurstMode.AIR,gravity:BurstMode.EARTH,void:BurstMode.AIR};
+    const marks={cosmic:DecalType.ARC,poison:DecalType.DUSTRING,shadow:DecalType.SHOCKWAVE,light:DecalType.ARC,holy:DecalType.SHOCKWAVE,gravity:DecalType.CRACK,void:DecalType.SHOCKWAVE};
+    this.ctx.bursts?.spawn(modes[this.key]??BurstMode.AIR,this.point,{radius:.12,endRadius:r,life:.55,intensity:.55,opacity:.6,colorA:this.colors[0],colorB:this.colors[1],colorC:this.colors[2]});
+    this.ctx.decals?.spawn(marks[this.key]??DecalType.SHOCKWAVE,this.point,{radius:r,life:.7,intensity:.65,width:.06,colorA:this.colors[0],colorB:this.colors[1]});
+  }
+}
+
+/** A reduced-motion user still gets gameplay timing, with ambient motion held. */
+export const prefersReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Common live cast and color controls; spell-specific geometry stays in its own folder. */
+export function addCommonEditorControls(folder, c) {
+  const entries=[['range',1,48,.1],['minRange',0,20,.1],['speed',1,60,.1],['cooldown',0,30,.1],['fade',.1,5,.1],['lightIntensity',0,30,.1],['lightRadius',1,40,.1],['hitImpulse',0,24,.1],['hitLift',0,20,.1],['hitSpin',0,8,.05]];
+  for(const [key,min,max,step] of entries) if(typeof c[key]==='number') folder.add(c,key,min,max,step);
+  for(const [key,value] of Object.entries(c)) if(typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)) folder.addColor(c,key);
 }

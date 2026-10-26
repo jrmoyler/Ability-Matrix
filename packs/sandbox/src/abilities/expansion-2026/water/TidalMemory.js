@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   DoubleSide,
   Mesh,
+  Points,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -75,10 +76,14 @@ function wakeMaterial() {
     depthWrite: false,
     side: DoubleSide,
     blending: AdditiveBlending,
-    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uFade: { value: 1 },
+      uCoverage: { value: 0 },
+    },
     vertexShader:
       "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-    fragmentShader: `varying vec2 vUv;uniform float uTime,uFade;void main(){float x=abs(vUv.y-.5)*2.;float ripple=pow(max(0.,sin(vUv.x*60.-uTime*7.+x*6.)),12.);float a=(1.-smoothstep(.4,1.,x))*ripple*.35*uFade;gl_FragColor=vec4(.08,.55,.85,a);}`,
+    fragmentShader: `varying vec2 vUv;uniform float uTime,uFade,uCoverage;void main(){float x=abs(vUv.y-.5)*2.;float ripple=pow(max(0.,sin(vUv.x*60.-uTime*7.+x*6.)),12.);float a=(1.-smoothstep(.4,1.,x))*ripple*.35*uFade*(1.-smoothstep(uCoverage,uCoverage+.025,vUv.x));gl_FragColor=vec4(.08,.55,.85,a);}`,
   });
 }
 export class TidalMemoryAbility extends Ability {
@@ -117,12 +122,54 @@ export class TidalMemoryAbility extends Ability {
     this.bodyPoint = new Vector3();
     this.backDistance = 0;
   }
-  createParticles() {}
+  createParticles() {
+    const count = 112,
+      p = new Float32Array(count * 3),
+      phase = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      p.set(
+        [
+          ((i * 0.618034) % 1) * 2 - 1,
+          (i * 0.414214) % 1,
+          ((i * 0.73205) % 1) * 2 - 1,
+        ],
+        i * 3,
+      );
+      phase[i] = (i * 0.754877) % 1;
+    }
+    this.sprayGeometry = new BufferGeometry();
+    this.sprayGeometry.setAttribute("position", new BufferAttribute(p, 3));
+    this.sprayGeometry.setAttribute("phase", new BufferAttribute(phase, 1));
+    this.sprayMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uFade: { value: 1 },
+        uWidth: { value: 1 },
+        uHeight: { value: 1 },
+      },
+      vertexShader:
+        "attribute float phase;uniform float uTime,uWidth,uHeight;varying float vA;void main(){float t=fract(phase+uTime*.7);vec3 q=vec3(position.x*uWidth,position.y*uHeight+t*(1.-t)*2.,position.z*(.2+t*.7));vA=sin(t*3.14159);vec4 mv=modelViewMatrix*vec4(q,1.);gl_PointSize=clamp(22./-mv.z,1.,5.);gl_Position=projectionMatrix*mv;}",
+      fragmentShader:
+        "uniform float uFade;varying float vA;void main(){float d=length(gl_PointCoord-.5)*2.;gl_FragColor=vec4(.55,.9,1.,(1.-smoothstep(.2,1.,d))*vA*uFade);}",
+    });
+    this.spray = new Points(this.sprayGeometry, this.sprayMaterial);
+    this.spray.layers.set(LAYER.VFX);
+    this.spray.frustumCulled = false;
+    this.group.add(this.spray);
+  }
   onSpawn() {
     this.hitOut.clear();
     this.hitBack.clear();
     this.prev = 0;
     this.backDistance = this.length;
+    this.coverage = 0;
+    this.wakeMat.uniforms.uCoverage.value = 0;
+    this.sprayMaterial.uniforms.uFade.value = 1;
+    this.sprayMaterial.uniforms.uWidth.value = this.config.width;
+    this.sprayMaterial.uniforms.uHeight.value = this.config.height;
     for (let i = 0; i <= N; i++) {
       const u = i / N;
       this.samples[i * 2] =
@@ -177,6 +224,10 @@ export class TidalMemoryAbility extends Ability {
     wa.needsUpdate = true;
     this.mat.uniforms.uTime.value = this.age;
     this.wakeMat.uniforms.uTime.value = this.age;
+    this.wakeMat.uniforms.uCoverage.value = this.coverage;
+    this.spray.position.copy(this.frontPoint);
+    this.spray.rotation.y = Math.atan2(this.direction.x, this.direction.z);
+    this.sprayMaterial.uniforms.uTime.value = this.age;
     this.position.copy(this.frontPoint);
   }
   _sweep(a, b, seen) {
@@ -227,9 +278,11 @@ export class TidalMemoryAbility extends Ability {
     }
   }
   onTravel() {
-    this._sweep(this.prev, this.front, this.hitOut);
-    this.prev = this.front;
-    this._draw(this.front);
+    const front = Math.min(this.length, this.front);
+    this.coverage = front / this.length;
+    this._sweep(this.prev, front, this.hitOut);
+    this.prev = front;
+    this._draw(front);
   }
   onImpact() {
     this.backDistance = this.length;
@@ -244,6 +297,7 @@ export class TidalMemoryAbility extends Ability {
       const f = 2 - t;
       this.mat.uniforms.uFade.value = f;
       this.wakeMat.uniforms.uFade.value = f;
+      this.sprayMaterial.uniforms.uFade.value = f;
     }
   }
   onDestroy() {
@@ -257,6 +311,8 @@ export class TidalMemoryAbility extends Ability {
     this.mat.dispose();
     this.wakeGeo.dispose();
     this.wakeMat.dispose();
+    this.sprayGeometry.dispose();
+    this.sprayMaterial.dispose();
     super.dispose();
   }
 }
@@ -266,6 +322,8 @@ export function buildEditor(gui, c, Editor) {
   R(f, c, "width", 0.4, 4, 0.05, "wave width");
   R(f, c, "height", 0.2, 4, 0.05, "crest height");
   R(f, c, "returnDuration", 0.2, 4, 0.05, "return time");
+  R(f, c, "impulse", 0, 15, 0.1, "wave force");
+  R(f, c, "lift", 0, 8, 0.1, "wave lift");
   f.close();
   return f;
 }

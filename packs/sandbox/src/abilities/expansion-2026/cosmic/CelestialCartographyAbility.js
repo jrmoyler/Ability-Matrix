@@ -1,4 +1,4 @@
-import { ExpansionAtmosphere } from '../ExpansionAtmosphere.js';
+import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
 import {AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, PlaneGeometry, ShaderMaterial, SphereGeometry, TorusGeometry, Vector3} from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
@@ -65,41 +65,43 @@ export class CelestialCartographyAbility extends Ability {
  createShaders(){
   this.chartGroup=new Group();this.group.add(this.chartGroup);this.chartGroup.visible=false;this.gs=[];this.ms=[];
   const geom=g=>(this.gs.push(g),g),mat=m=>(this.ms.push(m),m);
-  this.starGeo=geom(starGeometry());this.beamGeo=geom(beamGeometry());this.starMat=mat(starlight());this.floorMat=mat(chart());
+  this.starGeo=geom(starGeometry());this.beamGeo=geom(beamGeometry());this.starMat=mat(starlight());this.floorMat=mat(chart());this.flareMat=mat(starlight());
   this.floor=new Mesh(geom(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.04;this.chartGroup.add(this.floor);
   this.frame=new Mesh(geom(new TorusGeometry(1,.018,6,96)),this.starMat);this.frame.rotation.x=Math.PI/2;this.chartGroup.add(this.frame);
   this.stars=[];this.lines=[];this.nodes=layout.map(([x,z])=>new Vector3(x,0,z));
   for(const node of this.nodes){const star=new Mesh(this.starGeo,this.starMat);star.position.copy(node);star.rotation.x=-Math.PI/2;star.scale.setScalar(.22);this.chartGroup.add(star);this.stars.push(star);}
   for(let i=0;i<this.nodes.length;i++){const line=new Mesh(geom(band(this.nodes[i],this.nodes[(i+1)%this.nodes.length])),this.starMat);this.chartGroup.add(line);this.lines.push(line);}
   this.beam=new Mesh(this.beamGeo,this.starMat);this.chartGroup.add(this.beam);this.beam.visible=false;
+  this.flare=new Group();this.chartGroup.add(this.flare);this.flare.visible=false;const flareRing=geom(new TorusGeometry(.5,.018,6,64));this.flareRings=[];for(let i=0;i<3;i++){const ring=new Mesh(flareRing,this.flareMat);this.flare.add(ring);this.flareRings.push(ring);}const flareStar=new Mesh(this.starGeo,this.flareMat);this.flare.add(flareStar);this.flareStar=flareStar;
   const orb=geom(new SphereGeometry(.025,8,6));this.dust=[];
   for(let i=0;i<40;i++){const dot=new Mesh(orb,this.starMat),a=i*2.399963,r=.18+.78*((i*37%41)/40);dot.position.set(Math.cos(a)*r,(i%7)*.03,Math.sin(a)*r);this.chartGroup.add(dot);this.dust.push(dot);}
   this.chartGroup.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
-  this._found=[];this._target=null;this._markedAt=-1;this._struck=false;this._targetPos=new Vector3();
+  this._found=[];this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this._targetPos=new Vector3();
  }
  createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'cosmic',{shape:'SOFT',colors:['#f7eaff','#bd9eff','#8067dc','#372356'],rate:26});}
- onSpawn(){this.atmosphere.reset();this.chartGroup.visible=false;this._target=null;this._markedAt=-1;this._struck=false;}
+ onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.chartGroup.visible=false;this._target=null;this._markedAt=-1;this._struck=false;this._strikeAt=-1;this.flare.visible=false;}
  onTravel(){}
  onImpact(){this.chartGroup.position.copy(this.position);this.chartGroup.visible=true;}
- onFade(dt,t){if(this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
+ onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);
   const c=this.config,elapsed=this.impactTime,fade=t<=1?1:1-bound(t-1),rise=smoother(elapsed/Math.max(.01,c.armDelay)),radius=c.zoneRadius;
   this.floor.scale.set(radius,radius,1);this.frame.position.y=c.chartHeight;this.frame.scale.setScalar(radius);
-  for(let i=0;i<this.stars.length;i++){const s=this.stars[i];s.position.set(this.nodes[i].x*radius,c.chartHeight,this.nodes[i].z*radius);s.scale.setScalar(.22*(.8+.2*Math.sin(this.age*3+i)));}
+  for(let i=0;i<this.stars.length;i++){const s=this.stars[i];s.position.set(this.nodes[i].x*radius,c.chartHeight,this.nodes[i].z*radius);s.scale.setScalar(.22*(.8+.2*Math.sin(visualTime*3+i)));}
   for(const line of this.lines){line.position.y=c.chartHeight;line.scale.set(radius,1,radius);}
-  for(let i=0;i<this.dust.length;i++){const a=i*2.399963,r=radius*(.18+.78*((i*37%41)/40));this.dust[i].position.set(Math.cos(a)*r,c.chartHeight+(i%7)*.03+.08*Math.sin(this.age*2+i),Math.sin(a)*r);}
-  this.starMat.uniforms.uTime.value=this.age;this.starMat.uniforms.uFade.value=fade*rise;this.starMat.uniforms.uColor.value.set(c.chartColor);
-  this.floorMat.uniforms.uTime.value=this.age;this.floorMat.uniforms.uFade.value=fade*rise;this.floorMat.uniforms.uColor.value.set(c.rayColor);
+  for(let i=0;i<this.dust.length;i++){const a=i*2.399963,r=radius*(.18+.78*((i*37%41)/40));this.dust[i].position.set(Math.cos(a)*r,c.chartHeight+(i%7)*.03+.08*Math.sin(visualTime*2+i),Math.sin(a)*r);}
+  this.starMat.uniforms.uTime.value=visualTime;this.starMat.uniforms.uFade.value=fade*rise;this.starMat.uniforms.uColor.value.set(c.chartColor);
+  this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade*rise;this.floorMat.uniforms.uColor.value.set(c.rayColor);
   if(this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._markedAt<0){
    const field=this.ctx.dummies;if(field?.findTargets){const found=field.findTargets(this.position.x,this.position.z,radius,this._found);this._target=found.find(d=>d.alive)??null;if(this._target){this._markedAt=elapsed;this._targetPos.copy(this._target.position);}this._found.length=0;}
   }
   const charge=this._markedAt<0?0:bound((elapsed-this._markedAt)/Math.max(.01,c.strikeDelay));this.floorMat.uniforms.uCharge.value=charge;
   this.beam.visible=this._markedAt>=0 && !this._struck;
   if(this.beam.visible){this.beam.position.set(this._targetPos.x-this.position.x,0,this._targetPos.z-this.position.z);this.beam.scale.set(1,c.chartHeight*charge,1);}
-  if(this._target && !this._struck && charge>=1){this._struck=true;const d=this._target;
-   if(d.alive && Math.hypot(d.position.x-this._targetPos.x,d.position.z-this._targetPos.z)<=1){V.copy(this.direction);d.kill(V.x,V.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin});}
+  if(this._target && !this._struck && charge>=1){this._struck=true;this._strikeAt=elapsed;const d=this._target;
+   if(d.alive && Math.hypot(d.position.x-this._targetPos.x,d.position.z-this._targetPos.z)<=1){V.copy(this.direction);if(d.kill(V.x,V.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin})&&!this.reduceMotion)this.atmosphere.cue(this._targetPos,c.zoneRadius*.5);}
   }
+  const flareAge=this._strikeAt<0?-1:elapsed-this._strikeAt;this.flare.visible=flareAge>=0&&flareAge<.5;this.flare.position.set(this._targetPos.x-this.position.x,.6,this._targetPos.z-this.position.z);this.flare.scale.setScalar((c.flareScale??1)*(1+bound(flareAge/.5)*1.5));this.flareMat.uniforms.uTime.value=visualTime;this.flareMat.uniforms.uFade.value=fade*(1-bound(flareAge/.5));this.flareMat.uniforms.uColor.value.set(c.coreColor);for(let i=0;i<this.flareRings.length;i++)this.flareRings[i].rotation.set(i*TAU/3,visualTime*(i%2?-1:1),i*TAU/6);this.flareStar.rotation.y=visualTime;
  }
  onDestroy(){this.chartGroup.visible=false;this.beam.visible=false;this._target=null;this._found.length=0;}
  dispose(){for(const g of this.gs)g.dispose();for(const m of this.ms)m.dispose();super.dispose();}
 }
-export function buildEditor(gui,c){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);return f;}
+export function buildEditor(gui,c){const f=gui.addFolder('Celestial Cartography');for(const [k,a,b,s] of [['zoneRadius',1,8,.1],['chartHeight',2,9,.1],['armDelay',.1,3,.05],['strikeDelay',.1,1,.05],['flareScale',.25,2,.05],['lifetime',2,12,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c);return f;}

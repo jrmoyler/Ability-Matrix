@@ -37,3 +37,30 @@ test("tidal memory traces the same wave path forward and back with per-pass targ
   a.destroy();
   a.dispose();
 });
+
+test("wake only reveals travelled water and spray resources recycle", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  assert.equal(a.wakeMat.uniforms.uCoverage.value, 0);
+  a.update(0.2);
+  assert.ok(
+    a.wakeMat.uniforms.uCoverage.value > 0 &&
+      a.wakeMat.uniforms.uCoverage.value < 1,
+  );
+  a.update(2);
+  assert.equal(a.wakeMat.uniforms.uCoverage.value, 1);
+  let disposed = 0;
+  for (const r of [a.sprayGeometry, a.sprayMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 2);
+});

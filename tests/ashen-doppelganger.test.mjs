@@ -137,3 +137,19 @@ test("echo snapshots a rigged caster pose and plays it back without mutating the
   geometry.dispose();
   originalMaterial.dispose();
 });
+
+test("echo restores visibility and applies ember drift on each reuse", () => {
+  const a = new AshenDoppelgangerAbility({
+    character: { position: new Vector3() },
+    lights: { acquire: () => ({}), set() {}, release() {} },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 3);
+  a.sparkMat.uniforms.uOpacity.value = 0;
+  a.destroy();
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 3);
+  assert.equal(a.sparkMat.uniforms.uOpacity.value, 0.8);
+  assert.equal(a.sparkMat.uniforms.uRate.value, a.config.emberRate);
+  assert.equal(a.skin.uniforms.uOpacity.value, a.config.echoOpacity);
+  a.destroy();
+  a.dispose();
+});

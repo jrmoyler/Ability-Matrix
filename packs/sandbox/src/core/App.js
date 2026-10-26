@@ -791,6 +791,7 @@ export class App {
 
   dispose() {
     this.stop();
+    this.expansionDev?.dispose();
     this.combat?.dispose();
     this.input.dispose();
     this.aim.dispose();

@@ -2,6 +2,7 @@ import { buildCounterGuard, buildCounterReversal, animateCounterVisual } from '.
 import { drawConvergenceArt, drawConvergenceCharge } from './ConvergenceArt.js';
 import { addConvergenceHero } from './ConvergenceHeroGeometry.js';
 import { addWorldshapeHero } from './WorldshapeHeroGeometry.js';
+import { addStanceHero } from './StanceHeroGeometry.js';
 import {
   Group,
   Mesh,
@@ -378,6 +379,7 @@ export class MechanicPresentation {
     if (kind === 'anchor') buildWeaveAnchorSurface(this, g, data.uid);
     if (kind === 'convergence') addConvergenceHero(this, g, data.uid);
     if (kind === 'worldshape') addWorldshapeHero(this, g, data.uid, (MECHANIC_VARIANTS[data.uid] ?? P.worldshape).radius);
+    if (kind === 'stance') addStanceHero(this, g, data.uid);
     return g;
   }
   add(id, kind, data, life = null) {

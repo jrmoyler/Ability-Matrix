@@ -1,7 +1,7 @@
 /** Isolated native expansion modules. Registration is deliberately separate. */
 import * as fire from "./fire/AshenDoppelganger.js";
 import * as frost from "./frost/AbsoluteZeroThread.js";
-import * as storm from "./storm/ThunderheadParasite.js";
+import * as storm from "./storm/FulminantRelay.js";
 import * as water from "./water/TidalMemory.js";
 import * as earth from "./earth/FaultwakeBastion.js";
 import * as crystal from "./crystal/PrismChoir.js";
