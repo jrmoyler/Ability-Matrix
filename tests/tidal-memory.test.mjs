@@ -119,3 +119,39 @@ test("turnaround ripple appears at the endpoint, decays, and resets", () => {
   a.dispose();
   assert.equal(disposed, 2);
 });
+
+test("two crest foam bands trail the wave in each direction and release geometry", () => {
+  const a = new TidalMemoryAbility({
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    dummies: {
+      findTargets(_x, _z, _r, out) {
+        out.length = 0;
+        return out;
+      },
+    },
+  });
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 10);
+  a.update(0.1);
+  const centerIndex = 40 * 2 * 3 + 2;
+  assert.equal(a.crestBands.length, 2);
+  assert.ok(
+    a.crestBands[0].geometry.attributes.position.array[centerIndex] <
+      a.frontPoint.z,
+  );
+  a.update(2);
+  a.update(0.1);
+  assert.ok(
+    a.crestBands[0].geometry.attributes.position.array[centerIndex] >
+      a.frontPoint.z,
+  );
+  assert.ok(
+    a.crestBands[1].geometry.attributes.position.array[centerIndex] >
+      a.crestBands[0].geometry.attributes.position.array[centerIndex],
+  );
+  let disposed = 0;
+  for (const r of [...a.crestBands.map((b) => b.geometry), a.crestMaterial])
+    r.addEventListener("dispose", () => disposed++);
+  a.destroy();
+  a.dispose();
+  assert.equal(disposed, 3);
+});

@@ -144,3 +144,14 @@ test('contacts appear only on successful targets, use local position, pause and 
  const a=new GlacierBellAbility({lights:{acquire:()=>({}),release(){},set(){}},dummies:{findTargets(x,z,r,out){out.length=0;out.push({position:new Vector3(5,0,0),kill:()=>false});return out;}}});
  a.spawn(new Vector3(),new Vector3(1,0,0),5);run(a,1);assert.ok(a.contacts.states.every(s=>!s.live));a.destroy();a.dispose();
 });
+
+test('distinct ground seals follow gameplay phase, actual radius and live editor settings',()=>{
+ for(const [C,c] of [[CinderCrownAbility,CINDER_CONFIG],[GlacierBellAbility,GLACIER_CONFIG]]){
+  const {a}=fixture(C);assert.equal(a.ground.visible,false);run(a,.6);
+  assert.equal(a.ground.visible,true);assert.equal(a.ground.scale.x,a.config.zoneRadius);
+  assert.ok(Math.abs(a.ground.material.uniforms.progress.value-a.impactTime/a.impactDuration)<1e-7);
+  settings[c.id].groundColor='#123456';settings[c.id].groundGlow=2;settings[c.id].groundOpacity=.2;a.update(0);
+  assert.equal(a.ground.material.uniforms.tint.value.getHexString(),'123456');assert.equal(a.ground.material.uniforms.glow.value,2);assert.equal(a.ground.material.uniforms.opacity.value,.2);
+  a.destroy();a.dispose();settings[c.id].groundColor=c.settings.groundColor;settings[c.id].groundGlow=c.settings.groundGlow;settings[c.id].groundOpacity=c.settings.groundOpacity;
+ }
+});

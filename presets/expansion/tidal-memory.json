@@ -35,6 +35,9 @@
     "turnRadius": 2.4,
     "turnDuration": 0.45,
     "turnFlash": 0.06,
-    "turnShake": 0.06
+    "turnShake": 0.06,
+    "crestColor": "#a6f3ff",
+    "crestWidth": 0.14,
+    "crestOpacity": 0.75
   }
 }

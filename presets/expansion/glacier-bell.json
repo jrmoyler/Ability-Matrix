@@ -41,6 +41,9 @@
     "fragmentScale": 1,
     "fragmentGlow": 1,
     "contactScale": 1,
+    "groundGlow": 1,
+    "groundOpacity": 0.65,
+    "groundColor": "#8edcff",
     "coreColor": "#cdf6ff"
   }
 }

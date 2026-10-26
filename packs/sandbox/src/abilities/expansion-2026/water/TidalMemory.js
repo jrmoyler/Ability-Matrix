@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
+  Color,
   DoubleSide,
   Mesh,
   Points,
@@ -45,6 +46,9 @@ export const CONFIG = Object.freeze({
     turnDuration: 0.45,
     turnFlash: 0.06,
     turnShake: 0.06,
+    crestColor: "#a6f3ff",
+    crestWidth: 0.14,
+    crestOpacity: 0.75,
   },
 });
 const N = 80;
@@ -119,6 +123,32 @@ export class TidalMemoryAbility extends Ability {
     this.wake.frustumCulled = false;
     this.wake.layers.set(LAYER.VFX);
     this.group.add(this.wake);
+    // Two independently shaped foam bands ride the wave's crest and lag
+    // behind it. Their direction reverses when the recorded wave returns.
+    this.crestMaterial = new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      uniforms: {
+        uTime: { value: 0 },
+        uFade: { value: 1 },
+        uColor: { value: new Color(0xa6f3ff) },
+        uOpacity: { value: 1 },
+      },
+      vertexShader:
+        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+      fragmentShader:
+        "varying vec2 vUv;uniform float uTime,uFade,uOpacity;uniform vec3 uColor;void main(){float edge=pow(max(0.,1.-abs(vUv.x-.5)*2.),.7);float stripe=pow(max(0.,sin(vUv.x*63.-uTime*8.)),7.);float across=1.-abs(vUv.y-.5)*2.;gl_FragColor=vec4(uColor*(.65+stripe),edge*across*(.4+stripe*.6)*uFade*uOpacity);}",
+    });
+    this.crestBands = [];
+    for (let i = 0; i < 2; i++) {
+      const band = new Mesh(waveGeometry(), this.crestMaterial);
+      band.layers.set(LAYER.VFX);
+      band.frustumCulled = false;
+      this.group.add(band);
+      this.crestBands.push(band);
+    }
     this.turnGeometry = new RingGeometry(0.82, 1, 72);
     this.turnMaterial = new ShaderMaterial({
       transparent: true,
@@ -197,6 +227,7 @@ export class TidalMemoryAbility extends Ability {
     this.sprayMaterial.uniforms.uFade.value = 1;
     this.sprayMaterial.uniforms.uWidth.value = this.config.width;
     this.sprayMaterial.uniforms.uHeight.value = this.config.height;
+    this.crestMaterial.uniforms.uFade.value = 1;
     for (let i = 0; i <= N; i++) {
       const u = i / N;
       this.samples[i * 2] =
@@ -240,6 +271,26 @@ export class TidalMemoryAbility extends Ability {
       );
     }
     attr.needsUpdate = true;
+    const sign = this.returning ? -1 : 1;
+    for (let band = 0; band < this.crestBands.length; band++) {
+      const p = this.crestBands[band].geometry.attributes.position;
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * 2 - 1,
+          x = u * this.config.width,
+          h = this.config.height * Math.max(0, 1 - u * u),
+          roll = Math.sin(u * 7 + this.age * 4) * 0.1,
+          lag = sign * (0.12 + band * 0.24),
+          width = this.config.crestWidth * (1 - band * 0.25);
+        for (let j = 0; j < 2; j++)
+          p.setXYZ(
+            i * 2 + j,
+            this.tmp.x + this.side.x * x + this.direction.x * (roll - lag),
+            h + (j ? width : 0),
+            this.tmp.z + this.side.z * x + this.direction.z * (roll - lag),
+          );
+      }
+      p.needsUpdate = true;
+    }
     const wa = this.wakeGeo.attributes.position;
     for (let i = 0; i <= N; i++) {
       const dist = (this.length * i) / N,
@@ -257,6 +308,9 @@ export class TidalMemoryAbility extends Ability {
       Math.atan2(this.direction.x, this.direction.z) +
       (this.returning ? Math.PI : 0);
     this.sprayMaterial.uniforms.uTime.value = this.age;
+    this.crestMaterial.uniforms.uTime.value = this.age;
+    this.crestMaterial.uniforms.uColor.value.set(this.config.crestColor);
+    this.crestMaterial.uniforms.uOpacity.value = this.config.crestOpacity;
     this.position.copy(this.frontPoint);
   }
   _sweep(a, b, seen) {
@@ -352,6 +406,7 @@ export class TidalMemoryAbility extends Ability {
       this.mat.uniforms.uFade.value = f;
       this.wakeMat.uniforms.uFade.value = f;
       this.sprayMaterial.uniforms.uFade.value = f;
+      this.crestMaterial.uniforms.uFade.value = f;
     }
   }
   onDestroy() {
@@ -368,6 +423,8 @@ export class TidalMemoryAbility extends Ability {
     this.wakeMat.dispose();
     this.sprayGeometry.dispose();
     this.sprayMaterial.dispose();
+    for (const band of this.crestBands) band.geometry.dispose();
+    this.crestMaterial.dispose();
     this.turnGeometry.dispose();
     this.turnMaterial.dispose();
     super.dispose();
@@ -378,6 +435,9 @@ export function buildEditor(gui, c, Editor) {
     R = Editor.range;
   R(f, c, "width", 0.4, 4, 0.05, "wave width");
   R(f, c, "height", 0.2, 4, 0.05, "crest height");
+  R(f, c, "crestWidth", 0.02, 0.6, 0.01, "foam width");
+  R(f, c, "crestOpacity", 0, 1, 0.01, "foam opacity");
+  f.addColor(c, "crestColor").name("foam color");
   R(f, c, "returnDuration", 0.2, 4, 0.05, "return time");
   R(f, c, "turnRadius", 0.2, 6, 0.1, "turn ripple radius");
   R(f, c, "turnDuration", 0.1, 2, 0.05, "turn ripple time");
