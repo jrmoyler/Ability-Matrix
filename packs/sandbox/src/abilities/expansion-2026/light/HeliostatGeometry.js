@@ -356,3 +356,202 @@ export function heliostatCoreGeometry() {
   }
   return b.build();
 }
+
+/* ---------------------------------------------------------------------- */
+/* The heliostat field — the mirror pylons that ring the court              */
+/* ---------------------------------------------------------------------- */
+
+/** Push a flat-shaded quad (own four vertices, so the facet keeps a hard edge). */
+function flatQuad(b, a, c, d, e, uv0 = [0, 0], uv1 = [1, 1]) {
+  const i0 = b.vertex(a[0], a[1], a[2], uv0[0], uv0[1]);
+  const i1 = b.vertex(c[0], c[1], c[2], uv1[0], uv0[1]);
+  const i2 = b.vertex(d[0], d[1], d[2], uv1[0], uv1[1]);
+  const i3 = b.vertex(e[0], e[1], e[2], uv0[0], uv1[1]);
+  b.quad(i0, i1, i2, i3);
+}
+
+/** An axis-aligned box from (x0,y0,z0) to (x1,y1,z1), six flat faces. */
+function flatBox(b, x0, y0, z0, x1, y1, z1) {
+  flatQuad(b, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]); // +z
+  flatQuad(b, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]); // -z
+  flatQuad(b, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]); // +x
+  flatQuad(b, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]); // -x
+  flatQuad(b, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]); // +y
+  flatQuad(b, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]); // -y
+}
+
+/**
+ * A heliostat pylon post: a lathed bronze column 1 unit tall (the ability
+ * scales Y to `postHeight` metres; radii stay in metres). A stepped plinth
+ * that flares onto the floor, a fluted shaft that tapers as it climbs, a
+ * collar two thirds up and a drum bearing at the top for the panel's yoke.
+ * Eight flutes are cut into the shaft so the sun rakes it in stripes.
+ */
+export function heliostatPostGeometry() {
+  const b = new MeshBuilder();
+  // (radius m, height 0..1) — read from the foot up.
+  const profile = [
+    [0.0, 0.0], [0.42, 0.0], [0.42, 0.035], [0.34, 0.05], [0.34, 0.085], [0.22, 0.11],
+    [0.15, 0.16], [0.12, 0.3], [0.105, 0.62], [0.15, 0.64], [0.15, 0.68], [0.1, 0.7],
+    [0.085, 0.9], [0.13, 0.92], [0.13, 0.99], [0.0, 1.0]
+  ];
+  const sides = 24;
+  const stride = sides + 1;
+  for (let j = 0; j < profile.length; j++) {
+    const [r, y] = profile[j];
+    // Flutes on the shaft only (between the plinth and the bearing).
+    const fluted = y > 0.16 && y < 0.9 && !(y > 0.62 && y < 0.7);
+    for (let i = 0; i <= sides; i++) {
+      const u = i / sides;
+      const a = u * TAU;
+      const flute = fluted ? 1 - 0.14 * Math.pow(Math.abs(Math.cos(a * 4)), 6) : 1;
+      b.vertex(Math.cos(a) * r * flute, y, Math.sin(a) * r * flute, u, y);
+    }
+  }
+  for (let j = 0; j < profile.length - 1; j++) {
+    for (let i = 0; i < sides; i++) {
+      const a = j * stride + i;
+      b.quad(a, a + stride, a + stride + 1, a + 1);
+    }
+  }
+  return b.build();
+}
+
+/**
+ * One heliostat panel: a concave mirror of six tiles (3 × 2) on a bronze back
+ * plate, with a strut and a horizontal trunnion axle behind it. Metres, at
+ * `panelScale` 1 it is 1.8 m wide and 1.2 m tall. The glass faces +Z, so an
+ * `Object3D.lookAt` aims the mirror's normal at a point. Geometry group 0 is
+ * the glass, group 1 the bronze (frame, back plate, rim walls, strut, axle).
+ */
+export function heliostatPanelGeometry() {
+  const W = 1.8;
+  const H = 1.2;
+  const sag = 0.1; // concavity at the corners, metres
+  const z = (x, y) => -sag * ((x * x) / (0.25 * W * W) + (y * y) / (0.25 * H * H)) * 0.5;
+  const b = new MeshBuilder();
+
+  /* glass: six curved tiles, each a 4 × 4 patch, inset from the frame */
+  const tilesX = 3;
+  const tilesY = 2;
+  const gap = 0.035;
+  const seg = 4;
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0 = -W / 2 + (tx * W) / tilesX + gap;
+      const x1 = -W / 2 + ((tx + 1) * W) / tilesX - gap;
+      const y0 = -H / 2 + (ty * H) / tilesY + gap;
+      const y1 = -H / 2 + ((ty + 1) * H) / tilesY - gap;
+      const base = b.positions.length / 3;
+      for (let j = 0; j <= seg; j++) {
+        for (let i = 0; i <= seg; i++) {
+          const x = x0 + ((x1 - x0) * i) / seg;
+          const y = y0 + ((y1 - y0) * j) / seg;
+          b.vertex(x, y, z(x, y) + 0.012, (x + W / 2) / W, (y + H / 2) / H);
+        }
+      }
+      for (let j = 0; j < seg; j++) {
+        for (let i = 0; i < seg; i++) {
+          const a = base + j * (seg + 1) + i;
+          b.quad(a, a + 1, a + seg + 2, a + seg + 1);
+        }
+      }
+    }
+  }
+  const glassCount = b.indices.length;
+
+  /* bronze back plate: the front face shows through the gaps as mullions */
+  const segX = 12;
+  const segY = 8;
+  const frontBase = b.positions.length / 3;
+  for (let j = 0; j <= segY; j++) {
+    for (let i = 0; i <= segX; i++) {
+      const x = -W / 2 + (W * i) / segX;
+      const y = -H / 2 + (H * j) / segY;
+      b.vertex(x, y, z(x, y), i / segX, j / segY);
+    }
+  }
+  for (let j = 0; j < segY; j++) {
+    for (let i = 0; i < segX; i++) {
+      const a = frontBase + j * (segX + 1) + i;
+      b.quad(a, a + 1, a + segX + 2, a + segX + 1);
+    }
+  }
+  const T = 0.07; // plate thickness
+  const backBase = b.positions.length / 3;
+  for (let j = 0; j <= segY; j++) {
+    for (let i = 0; i <= segX; i++) {
+      const x = -W / 2 + (W * i) / segX;
+      const y = -H / 2 + (H * j) / segY;
+      b.vertex(x, y, z(x, y) - T, i / segX, j / segY);
+    }
+  }
+  for (let j = 0; j < segY; j++) {
+    for (let i = 0; i < segX; i++) {
+      const a = backBase + j * (segX + 1) + i;
+      b.quad(a, a + segX + 1, a + segX + 2, a + 1);
+    }
+  }
+  // Rim walls round the four edges.
+  const edge = (x, y) => [[x, y, z(x, y)], [x, y, z(x, y) - T]];
+  const ring = [];
+  for (let i = 0; i <= segX; i++) ring.push([-W / 2 + (W * i) / segX, -H / 2]);
+  for (let j = 1; j <= segY; j++) ring.push([W / 2, -H / 2 + (H * j) / segY]);
+  for (let i = segX - 1; i >= 0; i--) ring.push([-W / 2 + (W * i) / segX, H / 2]);
+  for (let j = segY - 1; j >= 1; j--) ring.push([-W / 2, -H / 2 + (H * j) / segY]);
+  ring.push(ring[0]);
+  for (let k = 0; k < ring.length - 1; k++) {
+    const [p0, q0] = edge(ring[k][0], ring[k][1]);
+    const [p1, q1] = edge(ring[k + 1][0], ring[k + 1][1]);
+    flatQuad(b, q0, q1, p1, p0);
+  }
+  // A raised frame lip round the glass, so the panel has a bevelled edge.
+  const L = 0.06;
+  const lip = 0.03;
+  for (const [x0, y0, x1, y1] of [
+    [-W / 2, -H / 2, W / 2, -H / 2 + L],
+    [-W / 2, H / 2 - L, W / 2, H / 2],
+    [-W / 2, -H / 2 + L, -W / 2 + L, H / 2 - L],
+    [W / 2 - L, -H / 2 + L, W / 2, H / 2 - L]
+  ]) {
+    const zc = z((x0 + x1) / 2, (y0 + y1) / 2);
+    flatBox(b, x0, y0, zc - 0.01, x1, y1, zc + lip);
+  }
+  // Strut and trunnion axle behind the plate.
+  flatBox(b, -0.09, -0.32, -T - 0.26, 0.09, 0.32, -T + 0.01);
+  flatBox(b, -0.42, -0.07, -T - 0.34, 0.42, 0.07, -T - 0.2);
+
+  const geometry = b.build();
+  geometry.addGroup(0, glassCount, 0);
+  geometry.addGroup(glassCount, b.indices.length - glassCount, 1);
+  return geometry;
+}
+
+/**
+ * A reflected sun shaft: two crossed ribbons 0..1 long on +Y, wide at the
+ * mirror (v = 0, half-width 0.5) and pinched at the focus (v = 1, 0.16), so
+ * every shaft reads as light being gathered. `uv.x` runs across a ribbon.
+ */
+export function heliostatShaftGeometry() {
+  const b = new MeshBuilder();
+  const rows = 24;
+  for (let plane = 0; plane < 2; plane++) {
+    const base = b.positions.length / 3;
+    for (let j = 0; j <= rows; j++) {
+      const v = j / rows;
+      const half = 0.5 + (0.16 - 0.5) * Math.pow(v, 0.7);
+      if (plane === 0) {
+        b.vertex(-half, v, 0, 0, v);
+        b.vertex(half, v, 0, 1, v);
+      } else {
+        b.vertex(0, v, -half, 0, v);
+        b.vertex(0, v, half, 1, v);
+      }
+    }
+    for (let j = 0; j < rows; j++) {
+      const a = base + j * 2;
+      b.quad(a, a + 1, a + 3, a + 2);
+    }
+  }
+  return b.build();
+}

@@ -15,7 +15,8 @@ import {
   createBandMaterial,
   createBeamMaterial,
   createSigilMaterial,
-  createWarpMaterial
+  createWarpMaterial,
+  createGroundMaterial
 } from '../../materials/codex/RuneMeteorMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -255,6 +256,8 @@ export class RuneMeteorAbility extends Ability {
     this.quadGeometry = createQuadGeometry();
     this.sigilMaterial = createSigilMaterial();
     this.sigil = this._mesh(this.quadGeometry, this.sigilMaterial, LAYER.VFX, 2);
+    this.groundMaterial = createGroundMaterial();
+    this.ground = this._mesh(this.quadGeometry, this.groundMaterial, LAYER.VFX, 1);
     this.warpMaterial = createWarpMaterial();
     this.warp = this._mesh(this.quadGeometry, this.warpMaterial, LAYER.DISTORTION, 0);
 
@@ -263,6 +266,8 @@ export class RuneMeteorAbility extends Ability {
     this._orbPos = new Vector3();
     this._orbState = { swirl: 0, flare: 0, seed: 0 };
     this._bandState = { center: new Vector3(), axisA: new Vector3(), axisB: new Vector3(), radius: 1, spin: 0, fade: 1, seed: 0 };
+    this._groundState = { center: this._center, shade: 0, crater: 0, heat: 0, fade: 1, seed: 0 };
+    this._landT = -1;
     this._sigilState = { center: this._center, draw: 0, star: 0, blaze: 0, stones: 7, spin: 0, fade: 1, seed: 0 };
     this._warpState = { center: new Vector3(), size: 5, progress: 0 };
     this._stoneTop = [];
@@ -414,6 +419,9 @@ export class RuneMeteorAbility extends Ability {
     this._orbState.seed = this._seed;
     this._bandState.seed = this._seed;
     this._sigilState.seed = this._seed;
+    this._groundState.seed = this._seed;
+    this._landT = -1;
+    this.ground.visible = true;
 
     this.orb.visible = true;
     this.stones.visible = true;
@@ -555,6 +563,17 @@ export class RuneMeteorAbility extends Ability {
     ss.spin = this._spin;
     ss.fade = 1 - smoothstep(0.2, 1, this._fadeK);
     this.sigilMaterial.userData.sync(ss);
+
+    /* ---- the ground: shadow gathering, then the crater ---- */
+    const gs = this._groundState;
+    gs.shade = t < T.land ? Math.pow(saturate(t / Math.max(0.05, T.land)), 1.5) : 1 - smoothstep(T.land, T.land + 0.6, t) * 0.6;
+    const since = this._landedOrb ? t - T.land : -1;
+    gs.crater = since >= 0 ? c.craterRadius * Easing.outCubic(saturate(since / 0.15)) : 0;
+    // Hot at the landing, cooling; re-lit by the henge's charge and the nova.
+    const charge = t > T.planted && !this._novaDone ? smoothstep(T.planted, T.nova, t) : 0;
+    gs.heat = since >= 0 ? Math.exp(-since / Math.max(0.05, c.crackCool)) + charge * 0.8 + this._blaze * 0.6 : 0;
+    gs.fade = 1 - smoothstep(0.35, 1, this._fadeK);
+    this.groundMaterial.userData.sync(gs);
 
     /* ---- the warp ---- */
     const ws = this._warpState;
@@ -971,6 +990,7 @@ export class RuneMeteorAbility extends Ability {
     this.bands[1].visible = false;
     this.beams.visible = false;
     this.sigil.visible = false;
+    this.ground.visible = false;
     this.warp.visible = false;
     this._warpT = -1;
   }
@@ -987,6 +1007,7 @@ export class RuneMeteorAbility extends Ability {
     this.bandMaterials.forEach((m) => m.dispose());
     this.beamMaterial.dispose();
     this.sigilMaterial.dispose();
+    this.groundMaterial.dispose();
     this.warpMaterial.dispose();
     super.dispose();
   }
@@ -1084,6 +1105,15 @@ export function buildEditor(gui, c, Editor) {
   R(sigil, c, 'floorOpacity', 0, 1, 0.01, 'opacity');
   sigil.addColor(c, 'colorSigil').name('sigil');
   sigil.addColor(c, 'colorSigilHot').name('sigil ablaze');
+  const ground = folder.addFolder('6b · Ground');
+  R(ground, c, 'groundOpacity', 0, 1, 0.01, 'opacity');
+  R(ground, c, 'groundShadow', 0, 1, 0.01, 'shadow under the fall');
+  R(ground, c, 'crackCount', 1, 24, 1, 'fissures');
+  R(ground, c, 'crackReach', 0.5, 4, 0.05, 'fissure reach (× crater)');
+  R(ground, c, 'crackCool', 0.05, 4, 0.05, 'fissures cool over (s)');
+  ground.addColor(c, 'colorGroundDeep').name('deep');
+  ground.addColor(c, 'colorGroundBody').name('lip');
+  ground.addColor(c, 'colorCrackHot').name('fissure glow');
 
   const fx = folder.addFolder('7 · Particles');
   R(fx, c, 'moteRate', 0, 500, 1, 'motes/second');

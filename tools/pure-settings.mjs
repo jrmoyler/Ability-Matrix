@@ -298,7 +298,7 @@ export function settingsFor(spell) {
     groundLand: zone ? 0.32 : 0.2,
     groundHeat: p.solid ? 1.1 : 1.5,
     groundCoat: GROUND_COAT[spell.element],
-    groundTelegraph: zone ? 0.32 : 0.12,
+    ...(zone ? { groundTelegraph: 0.32 } : {}),
     groundStain: 0.9,
     groundStainReach: zone ? 1.05 : 0.9,
     colorGroundA: body,
@@ -331,7 +331,7 @@ export function settingsFor(spell) {
     heroGlow: 1.1 * p.glow,
     heroEdge: 1.2,
     heroOpacity: p.solid ? 1 : 0.9,
-    heroDeep: 0.75,
+    heroDeep: spell.element === 'light' || spell.element === 'holy' ? 0.5 : 0.75,
     heroMaxHeight: 5,
     ...(zone ? { heroFit: 0.72 } : { heroMinSpan: 1.5 }),
     ...(matter ? { heroRough: matter.rough, heroMetal: matter.metal, heroShadow: 1 } : {}),
@@ -474,7 +474,7 @@ const GROUPS = [
 ];
 
 /** Keys only some casts have: zone/line framing, and the PBR of solid elements. */
-const OPTIONAL = new Set(['heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'detailRough', 'detailMetal', 'detailShadow']);
+const OPTIONAL = new Set(['groundTelegraph', 'heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'detailRough', 'detailMetal', 'detailShadow']);
 
 const NOTE = {
   range: 'maximum cast distance, metres',

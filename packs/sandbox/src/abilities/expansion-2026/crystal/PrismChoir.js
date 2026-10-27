@@ -6,14 +6,18 @@ import {
   createTrailGeometry,
   createSplinterGeometry,
   createLightfallGeometry,
-  createLensGeometry
+  createLensGeometry,
+  createChoirSpireGeometry
 } from './PrismChoirGeometry.js';
 import {
   createPrismMaterial,
   createBeamMaterial,
   createSplinterMaterial,
   createLightfallMaterial,
-  createLensMaterial
+  createLensMaterial,
+  createChoirSolidMaterial,
+  createChoirGlowMaterial,
+  createChoirRimeMaterial
 } from './PrismChoirMaterials.js';
 import { ParticleShape } from '../../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../../particles/ParticleEngine.js';
@@ -44,7 +48,7 @@ export const CONFIG = Object.freeze({
     range: 20, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
     speed: 20, // how fast the lance flies, metres/second
-    lifetime: 1.2, // seconds the split shards hang before they burn out
+    lifetime: 1.9, // seconds the split shards hang before they burn out
     cooldown: 4, // seconds before the ability can be armed again
     castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
 
@@ -57,17 +61,17 @@ export const CONFIG = Object.freeze({
     /* 1 · THE LANCE                                                     */
     /* ================================================================ */
 
-    size: 0.65, // lance scale (the crystal is ~2.4 m long at 1)
-    flightHeight: 1, // metres above the floor it flies
+    size: 1.15, // lance scale (the crystal is ~2.4 m long at 1)
+    flightHeight: 1.35, // metres above the floor it flies
     formTime: 0.12, // seconds it takes to condense out of the air at the caster
     spinRate: 2, // radians/second it turns about its own axis in flight
-    lanceTrailLength: 4, // metres of comet behind it
-    lanceTrailWidth: 0.22, // metres
-    lanceTrailGlow: 1.6,
+    lanceTrailLength: 7, // metres of comet behind it
+    lanceTrailWidth: 0.42, // metres
+    lanceTrailGlow: 2.2,
 
     /* --- the crystal (lance and shards share it) --- */
     crystalGlow: 1.4, // overall brightness (bloom picks up > 1)
-    crystalOpacity: 0.85,
+    crystalOpacity: 0.95,
     fresnelPower: 2.2, // lower spreads the spectral rim further over the faces
     dispersion: 1, // how far the rim's colour shifts with angle
     edgeGlow: 2, // facet edge brightness
@@ -81,19 +85,19 @@ export const CONFIG = Object.freeze({
     /* 2 · THE SPLIT                                                     */
     /* ================================================================ */
 
-    splitDistance: 5, // metres each shard flies from the split
+    splitDistance: 6, // metres each shard flies from the split
     splitDuration: 0.9, // seconds that flight takes
     splitAngle: 0.52, // radians the outer shards fan off the line
-    shardScale: 0.7, // shard size, × lance size
-    shardHeight: 1, // metres above the floor the shards fly
+    shardScale: 0.75, // shard size, × lance size
+    shardHeight: 1.5, // metres above the floor the shards fly
     shardSpin: 3, // radians/second a shard turns in flight
     shatterTime: 0.15, // fraction of the split over which the lance shatters away
-    trailWidth: 0.16, // shard beam width, metres
-    trailGlow: 1.8,
+    trailWidth: 0.4, // shard beam width, metres
+    trailGlow: 2.6,
 
     /* --- splinters thrown out of the split (120 GPU points) --- */
     splinterReach: 1, // how far they fly, × their own speed
-    splinterSize: 1,
+    splinterSize: 1.6,
     splinterGlow: 1.5,
 
     /* ================================================================ */
@@ -102,11 +106,11 @@ export const CONFIG = Object.freeze({
 
     causticGlow: 1.2, // caustics thrown on the floor
     causticScale: 1.6, // caustic web frequency, 1/metres
-    causticRadius: 1.4, // pool under the lance, metres
-    fanGlow: 1.4, // the three spectral rays on the floor
-    fanWidth: 0.5, // ray width at the shard, metres
+    causticRadius: 2.2, // pool under the lance, metres
+    fanGlow: 2.2, // the three spectral rays on the floor
+    fanWidth: 1.1, // ray width at the shard, metres
     lensStrength: 0.5, // the lance bending the scene behind it
-    lensSize: 1.4, // lens billboard radius, metres
+    lensSize: 2.4, // lens billboard radius, metres
     splitRingStrength: 0.8, // the ring of bent air at the split
 
     /* ================================================================ */
@@ -115,7 +119,7 @@ export const CONFIG = Object.freeze({
 
     /* --- glints shed by the flying lance (pooled SOFT) --- */
     glintRate: 90,
-    glintSize: 0.05,
+    glintSize: 0.08,
     glintLife: 0.6,
     glintGlow: 2.4,
     colorGlintA: '#ffffff',
@@ -127,7 +131,7 @@ export const CONFIG = Object.freeze({
     streakCount: 40, // sprayed at the split
     streakRate: 30, // per shard, per second, in flight
     streakSpeed: 7,
-    streakSize: 0.04,
+    streakSize: 0.07,
     streakLife: 0.45,
     streakStretch: 0.35,
     streakGlow: 2.5,
@@ -139,7 +143,7 @@ export const CONFIG = Object.freeze({
     /* --- glassy chips at the split (pooled CHIP) --- */
     chipCount: 30,
     chipSpeed: 4,
-    chipSize: 0.07,
+    chipSize: 0.13,
     chipLife: 0.9,
     chipGravity: 9,
     colorChipA: '#f2ecff',
@@ -151,17 +155,43 @@ export const CONFIG = Object.freeze({
     /* 5 · THE SPLIT BEAT                                                */
     /* ================================================================ */
 
-    impactFlash: 0.08, // screen flash as the lance splits
-    impactShake: 0.08, // camera knock as the lance splits
+    impactFlash: 0.16, // screen flash as the lance splits
+    impactShake: 0.22, // camera knock as the lance splits
     splitLight: 3, // light punch, × lightIntensity
-    burstSize: 1.6, // FROST plate shell, metres
+    burstSize: 3, // FROST plate shell, metres
     burstIntensity: 1.2,
-    shockRadius: 3.2, // SHOCKWAVE decal, metres
-    frostRadius: 2.4, // crystalline FROST decal, metres
+    shockRadius: 5, // SHOCKWAVE decal, metres
+    frostRadius: 3.4, // crystalline FROST decal, metres
     colorFlash: '#e9dcff',
     colorBurstA: '#ffffff',
     colorBurstB: '#c9b8ff',
     colorBurstC: '#5d48c8',
+
+    /* ================================================================ */
+    /* 7 · THE CHOIR — crystal pipes where the shards land               */
+    /* ================================================================ */
+
+    spireScale: 1.15, // cluster size (the middle pipe is 2.4 m at 1)
+    spireWidth: 1, // cluster width, × its height scale
+    spireStart: 0.55, // fraction of the split at which the pipes break the floor
+    spireGrow: 0.35, // fraction of the split they take to stand
+    spireSink: 0.35, // last fraction of the hang over which they sink and burn out
+    spireGlow: 0.9, // the solid's emissive at rest (bloom picks up > 1)
+    spireSing: 1.4, // how loud the choir rings during the hang
+    spireSingRate: 1.6, // rings per second climbing each pipe
+    spireBands: 1, // ring tightness
+    spireTint: 0.35, // how much of its hue the quartz body takes
+    spireDeep: 0.22, // body brightness (the deep tone)
+    spireRoughness: 0.12,
+    spireMetalness: 0.25,
+    spireChips: 20, // chips each cluster throws as it breaks the floor
+
+    /* --- the rime the choir grows from (floor) --- */
+    rimeRadius: 2.2, // metres round each cluster
+    rimeFacets: 2.2, // crystal flagstones per metre
+    rimeGlow: 1.1,
+    rimeOpacity: 0.85,
+    fanLinger: 0.65, // the spectral rays keep this much light through the hang
 
     /* ================================================================ */
     /* 6 · HITS                                                          */
@@ -209,6 +239,22 @@ const _up = new Vector3(0, 1, 0);
  *      and the shards, glassy chips at the split.
  *   5. **the split beat** — flash, camera knock, light punch, FROST shell,
  *      SHOCKWAVE and FROST decals.
+ *
+ * ## The choir (the linger)
+ *
+ *   6. **the choir** (`createChoirSpireGeometry`, `createChoirSolidMaterial`,
+ *      `createChoirGlowMaterial`) — where each shard's flight ends, a cluster
+ *      of seven quartz pipes, graded like an organ front with the middle pipe
+ *      2.4 m tall, breaks out of the floor in that shard's colour (lit, flat
+ *      facets, `LAYER.WORLD`, casting shadows) and *sings*: through the hang
+ *      a ring of light climbs each pipe in turn and flares at its tip, so the
+ *      three clusters ring across the fan like a chord. Its place is derived
+ *      every frame from the split point, the live split angle and reach. At
+ *      the exit the pipes sink back and burn out from the tips down.
+ *   7. **the rime** (`createChoirRimeMaterial`) — a faceted crystal floor
+ *      spreading under each cluster in its hue, deep in the cells and bright
+ *      on the seams, with spectral cracks pulsing outward with the song. It
+ *      stays for the whole hang, so the fan is written on the ground.
  *
  * ## Hits (`handlesOwnHits`)
  *
@@ -291,6 +337,37 @@ export class PrismChoirAbility extends Ability {
     this.lensMaterial = createLensMaterial();
     this.lens = this._mesh(this.lensGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
 
+    /* ---- layer 6: the choir — one cluster per shard ---- */
+    this.spireGeometry = createChoirSpireGeometry();
+    this.spireSolids = [];
+    this.spireSolidMaterials = [];
+    this.spireGlows = [];
+    this.spireGlowMaterials = [];
+    this._centres = [];
+    for (let i = 0; i < SHARDS; i++) {
+      const solidMat = createChoirSolidMaterial();
+      const solid = this._mesh(this.spireGeometry, solidMat, LAYER.WORLD, 5);
+      solid.castShadow = true;
+      solid.receiveShadow = true;
+      const glowMat = createChoirGlowMaterial();
+      const glow = this._mesh(this.spireGeometry, glowMat, LAYER.VFX, 6);
+      this.spireSolidMaterials.push(solidMat);
+      this.spireSolids.push(solid);
+      this.spireGlowMaterials.push(glowMat);
+      this.spireGlows.push(glow);
+      this._centres.push(new Vector3());
+    }
+    /* ---- layer 7: the rime under the choir (same quad as the lightfall) ---- */
+    this.rimeMaterial = createChoirRimeMaterial();
+    this.rime = this._mesh(this.lightfallGeometry, this.rimeMaterial, LAYER.VFX, 0);
+    this._spireState = { hue: 0, sing: 0, fade: 1 };
+    this._spireGlowState = { time: 0, hue: 0, sing: 0, fade: 1 };
+    this._rimeState = { time: 0, centres: this._centres, arms: null, hues: null, grow: 0, dissolve: 0, sing: 0 };
+    /** Whether the clusters have broken the floor / started sinking this cast. */
+    this._spiresBroke = false;
+    this._spiresSank = false;
+    this._broke = 0;
+
     /** Scratch handed to the materials each frame — one object apiece. */
     this._crystalState = { time: 0, fade: 1, form: 1, hue: 0 };
     this._beamState = { time: 0, fade: 1, hue: 0, length: 1, tail: 4, width: 0.2, glow: 1 };
@@ -309,6 +386,8 @@ export class PrismChoirAbility extends Ability {
       fanPower: 0
     };
     this._lensState = { size: 1, strength: 0, ring: 0 };
+    this._rimeState.arms = this._arms;
+    this._rimeState.hues = this._hues;
 
     this.hit = new Set();
     this.found = [];
@@ -414,6 +493,11 @@ export class PrismChoirAbility extends Ability {
     for (const s of this.shards) s.visible = false;
     for (const t of this.trails) t.visible = false;
     this.splinters.visible = false;
+    for (const m of this.spireSolids) m.visible = false;
+    for (const m of this.spireGlows) m.visible = false;
+    this.rime.visible = false;
+    this._spiresBroke = false;
+    this._spiresSank = false;
 
     // Every material back to whole, before the first frame draws.
     const cs = this._crystalState;
@@ -466,7 +550,11 @@ export class PrismChoirAbility extends Ability {
     this.lightfall.position.copy(this.origin).addScaledVector(this.direction, (this.length + c.splitDistance) / 2);
     this.lightfall.position.y = 0.04;
     this.lightfall.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), 0);
-    this.lightfall.scale.set(2 * Math.max(fanHalf, c.causticRadius + 0.5), 1, extent);
+    this.lightfall.scale.set(2 * Math.max(fanHalf + c.rimeRadius * 0.6, c.causticRadius + 0.5), 1, extent + c.rimeRadius);
+    this.rime.position.copy(this.lightfall.position);
+    this.rime.position.y = 0.035;
+    this.rime.rotation.copy(this.lightfall.rotation);
+    this.rime.scale.copy(this.lightfall.scale);
   }
 
   /** Pose the lance `d` metres down the line. */
@@ -699,7 +787,9 @@ export class PrismChoirAbility extends Ability {
           dz = arm.z;
         this.tmp.set(this.splitOrigin.x + dx * travel, 0, this.splitOrigin.z + dz * travel);
         const s = this.shards[i];
-        s.position.set(this.tmp.x, c.shardHeight, this.tmp.z);
+        // As its pipes break the floor the shard climbs to crown them.
+        const crowning = Easing.outCubic(saturate((t - c.spireStart) / Math.max(0.02, c.spireGrow)));
+        s.position.set(this.tmp.x, c.shardHeight + (this._crownHeight() - c.shardHeight) * crowning, this.tmp.z);
         s.scale.setScalar(Math.max(0.001, c.size * c.shardScale * (0.3 + 0.7 * grow)));
         this._orient(s, dx, dz, this.age * c.shardSpin * g.animationSpeed + i);
         this.splitStart.set(this.splitOrigin.x + dx * this.splitPrevious, 0, this.splitOrigin.z + dz * this.splitPrevious);
@@ -733,6 +823,10 @@ export class PrismChoirAbility extends Ability {
       lf.fanPower = Easing.outCubic(saturate(t * 3));
       lf.armLength = travel;
 
+      // The choir breaks the floor as the shards arrive.
+      const grow = saturate((t - c.spireStart) / Math.max(0.02, c.spireGrow));
+      this._updateChoir(dt, grow, 0, 1);
+
       // The lens leaves the lance and becomes the split's pressure ring.
       const ls = this._lensState;
       this.lens.position.copy(this.splitOrigin);
@@ -751,7 +845,7 @@ export class PrismChoirAbility extends Ability {
         const s = this.shards[i];
         s.position.set(
           this.splitOrigin.x + arm.x * c.splitDistance,
-          c.shardHeight + 0.15 * Math.sin(ft * 3 + i * 2.1),
+          this._crownHeight() + 0.15 * Math.sin(ft * 3 + i * 2.1),
           this.splitOrigin.z + arm.z * c.splitDistance
         );
         s.scale.setScalar(Math.max(0.001, c.size * c.shardScale * (1 + 0.15 * ft)));
@@ -766,8 +860,12 @@ export class PrismChoirAbility extends Ability {
       this.lens.visible = false;
       const lf = this._lightfallState;
       lf.lancePower = 0;
-      lf.fanPower = fade;
+      lf.fanPower = Math.max(fade, c.fanLinger * (1 - saturate((ft - (1 - c.spireSink)) / Math.max(0.02, c.spireSink))));
       lf.armLength = c.splitDistance;
+
+      // The choir sings through the hang, then sinks.
+      const sink = saturate((ft - (1 - c.spireSink)) / Math.max(0.02, c.spireSink));
+      this._updateChoir(dt, 1, sink, 1);
     }
     this._splinterState.time = this.age;
     this.splinterMaterial.userData.sync(this._splinterState);
@@ -775,6 +873,86 @@ export class PrismChoirAbility extends Ability {
     this._syncParticles();
     this.pointAt(1, this.position);
     this.position.y = c.flightHeight;
+  }
+
+  /**
+   * The three clusters and the rime, resolved from the live settings: each
+   * stands at the end of its arm (split point + arm × splitDistance), turned
+   * to face back down the arm, grown by `grow` (0..1, overshooting) and sunk
+   * by `sink` (0..1). Sings once it stands.
+   */
+  _updateChoir(dt, grow, sink, _fade) {
+    const c = this.config;
+    const g = settings.global;
+    const stand = grow > 0 && sink < 1;
+    const up = Easing.outBack(grow);
+    const down = Easing.inQuad(sink);
+    const sing = c.spireSing * saturate(grow * 1.5 - 0.5) * (1 - down) + 0.6 * Math.exp(-Math.max(0, this.age - this._broke) * 4) * (this._spiresBroke ? 1 : 0);
+    for (let i = 0; i < SHARDS; i++) {
+      const arm = this._arms[i];
+      const centre = this._centres[i];
+      centre.set(this.splitOrigin.x + arm.x * c.splitDistance, 0, this.splitOrigin.z + arm.z * c.splitDistance);
+      const solid = this.spireSolids[i];
+      const glow = this.spireGlows[i];
+      solid.visible = stand;
+      glow.visible = stand;
+      if (!stand) continue;
+      const h = c.spireScale * Math.max(0.001, up) * (1 - down);
+      const w = c.spireScale * c.spireWidth * (0.7 + 0.3 * Math.min(1, up));
+      solid.position.copy(centre);
+      solid.position.y = -0.25 * down;
+      solid.rotation.set(0, Math.atan2(arm.x, arm.z) + Math.PI, 0);
+      solid.scale.set(w, Math.max(0.001, h), w);
+      glow.position.copy(solid.position);
+      glow.rotation.copy(solid.rotation);
+      glow.scale.copy(solid.scale);
+      const hue = this._hue(i);
+      const ss = this._spireState;
+      ss.hue = hue;
+      ss.sing = sing * (0.75 + 0.25 * Math.sin(this.age * 6 + i * 2.1));
+      ss.fade = 1 - down;
+      this.spireSolidMaterials[i].userData.sync(ss);
+      const gs = this._spireGlowState;
+      gs.time = this.age + i * 0.33;
+      gs.hue = hue;
+      gs.sing = sing;
+      gs.fade = 1 - 0.85 * down;
+      this.spireGlowMaterials[i].userData.sync(gs);
+    }
+
+    // Breaking the floor, and starting to sink: one chip burst each, per cluster.
+    if (grow > 0 && !this._spiresBroke) {
+      this._spiresBroke = true;
+      this._broke = this.age;
+      this._syncParticles();
+      for (let i = 0; i < SHARDS; i++) {
+        _pos.copy(this._centres[i]).setY(0.3);
+        this._chipBurst(_pos, Math.round(c.spireChips * g.particleCount));
+      }
+      this.ctx.shake?.add?.(c.impactShake * 0.5 * g.cameraShake, 7, 18);
+      this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.splitLight * 0.5 * g.explosionIntensity);
+    }
+    if (sink > 0 && !this._spiresSank) {
+      this._spiresSank = true;
+      this._syncParticles();
+      for (let i = 0; i < SHARDS; i++) {
+        _pos.copy(this._centres[i]).setY(1.2 * c.spireScale);
+        this._chipBurst(_pos, Math.round(c.spireChips * 0.6 * g.particleCount));
+      }
+    }
+
+    const rs = this._rimeState;
+    rs.time = this.age;
+    rs.grow = Easing.outCubic(saturate(grow * 1.4));
+    rs.dissolve = Easing.inQuad(sink);
+    rs.sing = sing;
+    this.rime.visible = grow > 0 && sink < 1;
+    this.rimeMaterial.userData.sync(rs);
+  }
+
+  /** Where a shard hangs over its cluster: just above the tallest pipe. */
+  _crownHeight() {
+    return 2.4 * this.config.spireScale + 0.55;
   }
 
   /** Every shard's material at the same fade, each at its own hue. */
@@ -950,6 +1128,9 @@ export class PrismChoirAbility extends Ability {
     this.lens.visible = false;
     for (const s of this.shards) s.visible = false;
     for (const t of this.trails) t.visible = false;
+    for (const m of this.spireSolids) m.visible = false;
+    for (const m of this.spireGlows) m.visible = false;
+    this.rime.visible = false;
   }
 
   dispose() {
@@ -966,6 +1147,10 @@ export class PrismChoirAbility extends Ability {
     this.lightfallMaterial.dispose();
     this.lensGeometry.dispose();
     this.lensMaterial.dispose();
+    this.spireGeometry.dispose();
+    for (const m of this.spireSolidMaterials) m.dispose();
+    for (const m of this.spireGlowMaterials) m.dispose();
+    this.rimeMaterial.dispose();
     super.dispose();
   }
 }
@@ -1086,6 +1271,27 @@ export function buildEditor(gui, c, Editor) {
   color(beat, c, 'colorBurstA', 'shell inner');
   color(beat, c, 'colorBurstB', 'shell mid');
   color(beat, c, 'colorBurstC', 'shell outer');
+
+  const choir = sub(folder, '7 · The choir');
+  R(choir, c, 'spireScale', 0.2, 3, 0.01, 'cluster size');
+  R(choir, c, 'spireWidth', 0.3, 2.5, 0.01, 'cluster width');
+  R(choir, c, 'spireStart', 0, 1, 0.01, 'breaks the floor at (× split)');
+  R(choir, c, 'spireGrow', 0.02, 1, 0.01, 'stands over (× split)');
+  R(choir, c, 'spireSink', 0.02, 1, 0.01, 'sinks over (× hang)');
+  R(choir, c, 'spireGlow', 0, 4, 0.05, 'quartz glow');
+  R(choir, c, 'spireSing', 0, 4, 0.05, 'song');
+  R(choir, c, 'spireSingRate', 0, 6, 0.05, 'rings / s');
+  R(choir, c, 'spireBands', 0.2, 4, 0.05, 'ring tightness');
+  R(choir, c, 'spireTint', 0, 1, 0.01, 'hue in the quartz');
+  R(choir, c, 'spireDeep', 0, 1, 0.01, 'body brightness');
+  R(choir, c, 'spireRoughness', 0, 1, 0.01, 'roughness');
+  R(choir, c, 'spireMetalness', 0, 1, 0.01, 'metalness');
+  R(choir, c, 'spireChips', 0, 80, 1, 'chips per cluster');
+  R(choir, c, 'rimeRadius', 0.2, 6, 0.05, 'rime radius (m)');
+  R(choir, c, 'rimeFacets', 0.3, 8, 0.05, 'rime facets / m');
+  R(choir, c, 'rimeGlow', 0, 4, 0.05, 'rime glow');
+  R(choir, c, 'rimeOpacity', 0, 1, 0.01, 'rime opacity');
+  R(choir, c, 'fanLinger', 0, 1, 0.01, 'rays held through the hang');
 
   const hits = sub(folder, '6 · Hits');
   R(hits, c, 'reach', 0.1, 3, 0.05, 'shard reach');

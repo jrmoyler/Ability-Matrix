@@ -45,12 +45,12 @@ export default {
     /* ================================================================ */
     /* 1 · THE FALL                                                      */
     /* ================================================================ */
-    dropHeight: 26, // metres above the circle the star kindles
+    dropHeight: 12, // metres above the circle the star kindles (in frame at 8 m)
     fallTime: 1.15, // seconds from kindling to landing (at least the travel)
     fallCurve: 2.2, // >1: hangs, then plummets
     orbRadius: 0.55, // the crystal star, metres
     orbSpin: 2.4, // radians/second
-    trailLength: 11, // metres of light column above it as it falls
+    trailLength: 7, // metres of light column above it as it falls
     trailWidth: 0.55,
     trailGlow: 2.4,
 
@@ -118,6 +118,16 @@ export default {
     sigilGlow: 1.8,
     starGlow: 1.6, // the star polygon joining the stones
     floorOpacity: 0.9,
+
+    /* --- 6b · the ground: the star's shadow, then the crater --- */
+    groundOpacity: 0.85,
+    groundShadow: 0.75, // how dark the circle gathers under the falling star
+    crackCount: 9, // fissures out of the bowl
+    crackReach: 2.1, // × craterRadius they run
+    crackCool: 1.1, // seconds a fissure takes to cool
+    colorGroundDeep: '#080920', // deep stop
+    colorGroundBody: '#2b2f5c', // the lip
+    colorCrackHot: '#9aa8ff', // fissure glow
     colorSigil: '#a8b6ff',
     colorSigilHot: '#fff6d8',
 
@@ -144,11 +154,11 @@ export default {
     dustCount: 30,
     dustSize: 0.8,
     dustLife: 1.4,
-    dustOpacity: 0.5,
-    colorDustA: '#c8c8d8',
-    colorDustB: '#9898aa',
-    colorDustC: '#646476',
-    colorDustD: '#30303c',
+    dustOpacity: 0.42,
+    colorDustA: '#aab0d4',
+    colorDustB: '#5d6290',
+    colorDustC: '#2f3258',
+    colorDustD: '#11132a',
     chipCount: 14, // stone chips off each crumbling stone
     chipSize: 0.14,
     chipLife: 1.3,
@@ -167,17 +177,17 @@ export default {
     novaSize: 6, // the nova's shell, metres
     novaIntensity: 1.2,
     novaShake: 0.8,
-    novaFlash: 0.45,
+    novaFlash: 0.32,
     novaLight: 4,
     shockRadius: 9,
     ringWarp: 1.2,
-    colorBurstA: '#ffffff',
-    colorBurstB: '#c4cdff',
-    colorBurstC: '#4a4cb0',
-    colorShock: '#c8d0ff',
+    colorBurstA: '#f4f6ff',
+    colorBurstB: '#7f8cff',
+    colorBurstC: '#1d1e5e',
+    colorShock: '#8f9cff',
     colorCrackA: '#8c9cff',
     colorCrackB: '#fff6d8',
-    colorFlash: '#e8ecff',
+    colorFlash: '#aab6ff',
 
     /* ================================================================ */
     /* 9 · THE HIT                                                       */

@@ -1079,7 +1079,7 @@ export class ChronoRecallAbility extends Ability {
       endRadius: c.snapBurst * g.explosionIntensity,
       life: c.snapBurstLife,
       intensity: c.snapBurstIntensity,
-      opacity: 0.7,
+      opacity: c.snapBurstOpacity * g.opacity,
       fresnel: 2.2 * g.fresnel,
       squash: 0.8,
       colorA: getColor(c.colorBurstA),
@@ -1191,6 +1191,8 @@ export function buildEditor(gui, c, Editor) {
   echo.addColor(c, 'colorEchoCore').name('glass');
   echo.addColor(c, 'colorEchoRim').name('rim');
   echo.addColor(c, 'colorEchoBand').name('bands');
+  echo.addColor(c, 'colorEchoDeep').name('deep glass');
+  R(echo, c, 'echoBody', 0, 1, 0.01, 'dark glass body');
 
   const col = folder.addFolder('Rewind collapse');
   R(col, c, 'echoCollapseTime', 0.02, 2, 0.01, 'collapse (s)');
@@ -1274,6 +1276,7 @@ export function buildEditor(gui, c, Editor) {
   R(snap, c, 'snapBurst', 0.1, 8, 0.05, 'pressure shell (m)');
   R(snap, c, 'snapBurstLife', 0.05, 2, 0.01, 'shell life');
   R(snap, c, 'snapBurstIntensity', 0, 6, 0.05, 'shell intensity');
+  R(snap, c, 'snapBurstOpacity', 0, 1, 0.01, 'shell opacity');
   snap.addColor(c, 'colorBurstA').name('shell core');
   snap.addColor(c, 'colorBurstB').name('shell body');
   snap.addColor(c, 'colorBurstC').name('shell edge');

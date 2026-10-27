@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector2 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -608,5 +608,262 @@ export function createHeliostatApertureMaterial() {
       uColor: { value: new Color('#ffe58b') },
       uCore: { value: new Color('#ffffff') }
     }
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* 7 · The heliostat field — solid pylons, lit by the scene sun             */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Cast bronze for the pylon posts, the panel frames and the yokes: a lit
+ * `MeshStandardMaterial` on the world layer (the ability flags the meshes to
+ * cast shadows), so the field stands in the scene like the obelisks of a
+ * sun-court rather than floating over it. The ability drives the warm
+ * emissive with the charge, so the metal heats as the light gathers.
+ */
+export function createHeliostatBronzeMaterial() {
+  return new MeshStandardMaterial({
+    color: 0x5a3a18,
+    emissive: 0xffb040,
+    emissiveIntensity: 0.05,
+    metalness: 0.85,
+    roughness: 0.34,
+    flatShading: false
+  });
+}
+
+/**
+ * The mirror glass of a panel: a near-white, almost-rough-free metal that
+ * catches the sun on its face, with an emissive the ability floods with the
+ * sunlight colour as the panel takes the charge (and punches on the ray).
+ */
+export function createHeliostatGlassMaterial() {
+  return new MeshStandardMaterial({
+    color: 0xdfe8ff,
+    emissive: 0xffe58b,
+    emissiveIntensity: 0.2,
+    metalness: 0.9,
+    roughness: 0.08,
+    envMapIntensity: 1.6
+  });
+}
+
+/**
+ * A reflected sun shaft, mirror → focus. Additive; streaks of light run
+ * toward the focus (`v` → 1) and the shaft brightens to the core colour as
+ * it narrows, so a ring of these reads as the whole field gathering one sun.
+ */
+const SHAFT_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uGlow;
+  uniform float uFlow;
+  uniform vec3 uColor;
+  uniform vec3 uCore;
+  ${SURFACE_VARYINGS}
+
+  ${noiseGLSL}
+
+  void main() {
+    float across = 1.0 - abs(vUv.x * 2.0 - 1.0);
+    float edge = pow(clamp(across, 0.0, 1.0), 1.6);
+    float v = vUv.y;
+    // Streaks running toward the focus.
+    float run = snoise01(vec3(vUv.x * 5.0, v * 3.0 - uClock * uFlow, 0.0));
+    float streak = 0.55 + 0.75 * pow(run, 2.0);
+    // Ends soften: it leaves the glass and pinches into the focus.
+    float ends = smoothstep(0.0, 0.08, v) * (1.0 - smoothstep(0.9, 1.0, v));
+    float heat = smoothstep(0.35, 1.0, v);
+    vec3 color = mix(uColor, uCore, heat * 0.8 + edge * edge * 0.3);
+    float a = edge * streak * ends * uFade;
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(color * a * uGlow, a);
+  }
+`;
+
+export function createHeliostatShaftMaterial() {
+  return baseMaterial({
+    uniforms: {
+      uGlow: { value: 1.2 },
+      uFlow: { value: 2.5 },
+      uColor: { value: new Color('#ffe58b') },
+      uCore: { value: new Color('#ffffff') }
+    },
+    fragmentShader: SHAFT_FRAGMENT
+  });
+}
+
+/**
+ * The sun-court: one floor quad spanning the zone, normal-blended so its deep
+ * tone darkens the ground under the light. A disc of dark glassy bronze cut
+ * into voronoi flags with gold seams, twelve hour lines and a rim band; a
+ * pool of light at the foot of every pylon; the gnomon's hand sweeping round
+ * the dial (the linger keeps turning it); the caustic focus narrowing on the
+ * judged spot as the charge builds; and, once the ray has fired, a disc of
+ * glassed floor spreading from the contact with molten cracks that crawl and
+ * cool. Draws in from the centre on arrival and burns out through noise.
+ *
+ * Four-stop ramp: uCore (white-hot) → uTint → uBody (gold) → uDeep.
+ */
+const COURT_VERTEX = /* glsl */ `
+  uniform float uSize;
+  varying vec2 vFlat;
+  void main() {
+    vFlat = (uv - 0.5) * uSize;
+    vFlat.y = -vFlat.y;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+  }
+`;
+
+const COURT_FRAGMENT = /* glsl */ `
+  #define TAU 6.28318530718
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uRadius;      // the court's rim, metres
+  uniform float uRise;        // 0..1 draw-in from the centre
+  uniform float uDissolve;    // 0..1 exit burn
+  uniform float uCharge;      // 0..1 the gather
+  uniform float uTighten;     // how far the focus narrows
+  uniform float uScorchAge;   // seconds since the ray, < 0 before it
+  uniform float uScorchRadius;
+  uniform float uScorchLife;
+  uniform float uHand;        // the gnomon's angle, radians
+  uniform float uPylons;      // pylon count
+  uniform float uPylonPhase;  // first pylon's bearing
+  uniform float uPylonRing;   // pylon ring radius, metres
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uLines;
+  uniform float uNoiseScale;
+  uniform vec2 uTarget;       // focus, metres from the centre (court space)
+  uniform vec3 uCore;
+  uniform vec3 uTint;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  uniform vec3 uScorch;
+  varying vec2 vFlat;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    vec2 p = vFlat;
+    float r = length(p);
+    float R = uRadius;
+    float ang = atan(p.y, p.x);
+    if (r > R * 1.08) discard;
+
+    // Draw-in from the centre with a ragged front, burn-out through noise.
+    float n = snoise01(vec3(p * 0.9 * uNoiseScale, 3.1));
+    float reveal = smoothstep(r - 0.6, r, uRise * R * 1.15 + n * 0.5);
+    float burn = n * 0.85 + 0.15 * (r / R);
+    float alive = 1.0 - smoothstep(uDissolve - 0.05, uDissolve + 0.02, 1.0 - burn);
+    float burnEdge = (1.0 - smoothstep(0.0, 0.06, abs((1.0 - burn) - uDissolve))) * step(0.001, uDissolve);
+
+    float disc = 1.0 - smoothstep(R * 0.98, R * 1.04, r);
+
+    // Glassy bronze flags with gold seams.
+    vec2 cell = voronoi2(p * 0.85 * uNoiseScale);
+    float seam = 1.0 - smoothstep(0.02, 0.09, cell.x);
+    float grain = snoise01(vec3(p * 3.0 * uNoiseScale, 0.0));
+    vec3 base = mix(uDeep, uBody * 0.22, 0.35 * grain + 0.25 * cell.y);
+
+    // Hour lines and the rim band.
+    float hour = abs(fract(ang / TAU * 12.0 + 0.5) - 0.5) * TAU / 12.0 * r;
+    float hours = (1.0 - smoothstep(0.015, 0.05, hour)) * smoothstep(R * 0.18, R * 0.3, r) * (1.0 - smoothstep(R * 0.86, R * 0.9, r));
+    float rim = (1.0 - smoothstep(0.0, 0.07, abs(r - R * 0.93))) + 0.6 * (1.0 - smoothstep(0.0, 0.035, abs(r - R * 0.99)));
+    float inner = 1.0 - smoothstep(0.0, 0.04, abs(r - R * 0.3));
+
+    // Pools of light at every pylon foot, swelling with the charge.
+    float pools = 0.0;
+    for (int i = 0; i < 16; i++) {
+      if (float(i) >= uPylons) break;
+      float a = uPylonPhase + float(i) / max(uPylons, 1.0) * TAU;
+      vec2 c = vec2(cos(a), sin(a)) * uPylonRing;
+      float d = length(p - c);
+      pools += exp(-d * d / (0.35 + 0.5 * uCharge));
+    }
+
+    // The gnomon's hand: a bright wedge sweeping round the dial.
+    float da = abs(mod(ang - uHand + TAU * 1.5, TAU) - TAU * 0.5);
+    float hand = (1.0 - smoothstep(0.0, 0.05 + 0.12 / max(r, 0.4), da)) * smoothstep(0.2, 0.8, r) * (1.0 - smoothstep(R * 0.85, R * 0.95, r));
+
+    // The focus: a caustic spot narrowing on the judged spot.
+    float fr = mix(R * 0.45, R * 0.45 * (1.0 - uTighten), uCharge);
+    float fd = length(p - uTarget);
+    vec2 cv = voronoi2((p - uTarget) * 2.2 * uNoiseScale + uClock * 0.4);
+    float caustic = pow(1.0 - clamp(cv.x * 2.0, 0.0, 1.0), 4.0);
+    float focus = exp(-fd * fd / max(fr * fr * 0.35, 0.02)) * (0.4 + 0.6 * caustic) * uCharge * step(uScorchAge, 0.0);
+
+    // Glassed floor spreading from the contact, molten seams cooling.
+    float glass = 0.0;
+    float molten = 0.0;
+    if (uScorchAge >= 0.0) {
+      float grow = 1.0 - exp(-uScorchAge * 7.0);
+      float sr = uScorchRadius * grow * (0.85 + 0.3 * snoise01(vec3(normalize(p - uTarget + 1e-4) * 1.6, 7.0)));
+      glass = 1.0 - smoothstep(sr * 0.75, sr, fd);
+      vec2 cr = voronoi2((p - uTarget) * 2.6 * uNoiseScale);
+      float crack = 1.0 - smoothstep(0.0, 0.07, cr.x);
+      float cool = exp(-uScorchAge / max(uScorchLife, 0.1) * 2.0);
+      float crawl = 0.55 + 0.45 * sin(cr.y * 30.0 - uClock * 5.0 + fd * 3.0);
+      molten = crack * glass * cool * crawl;
+      molten += (1.0 - smoothstep(0.0, sr * 0.35, fd)) * cool * 1.4;
+    }
+
+    vec3 color = base;
+    color = mix(color, uDeep * 0.6, glass * 0.8);
+    color += uBody * (seam * 0.35 + hours * uLines * 0.9 + rim * 0.9 + inner * 0.4) * (0.6 + 0.6 * uCharge);
+    color += uTint * pools * (0.25 + 0.9 * uCharge);
+    color += mix(uBody, uTint, 0.5) * hand * 0.9;
+    color += mix(uTint, uCore, caustic) * focus * 2.4;
+    color += mix(uScorch * 2.5, uCore, molten * 0.5) * molten * 2.2;
+    color += uCore * burnEdge * 1.5;
+    color *= uGlow;
+
+    float alpha = (0.62 + 0.3 * (seam + rim + hours) + 0.4 * glass + focus + molten) * uOpacity;
+    alpha = clamp(alpha, 0.0, 1.0) * disc * reveal * alive * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createHeliostatCourtMaterial() {
+  return new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uClock: { value: 0 },
+      uFade: { value: 1 },
+      uSize: { value: 10 },
+      uRadius: { value: 4 },
+      uRise: { value: 0 },
+      uDissolve: { value: 0 },
+      uCharge: { value: 0 },
+      uTighten: { value: 0.75 },
+      uScorchAge: { value: -1 },
+      uScorchRadius: { value: 2 },
+      uScorchLife: { value: 2.6 },
+      uHand: { value: 0 },
+      uPylons: { value: 8 },
+      uPylonPhase: { value: 0 },
+      uPylonRing: { value: 3.6 },
+      uOpacity: { value: 0.85 },
+      uGlow: { value: 1 },
+      uLines: { value: 1 },
+      uNoiseScale: { value: 1 },
+      uTarget: { value: new Vector2() },
+      uCore: { value: new Color('#ffffff') },
+      uTint: { value: new Color('#fff1bd') },
+      uBody: { value: new Color('#e0a040') },
+      uDeep: { value: new Color('#1c0f05') },
+      uScorch: { value: new Color('#5a3410') }
+    }),
+    vertexShader: COURT_VERTEX,
+    fragmentShader: COURT_FRAGMENT
   });
 }

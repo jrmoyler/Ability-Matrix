@@ -54,8 +54,10 @@ export const WAKE = {
   earth: 'CRACK', gravity: 'CRACK', force: 'CRACK',
   crystal: 'FROST', tech: 'ARC', light: 'SCORCH',
   wind: 'DUSTRING', shadow: 'DUSTRING', motion: 'DUSTRING',
-  illusion: 'RIPPLE',
-  sound: 'SHOCKWAVE', holy: 'SHOCKWAVE', cosmic: 'SHOCKWAVE', void: 'SHOCKWAVE', arcane: 'SHOCKWAVE', time: 'SHOCKWAVE'
+  // The radiant and abstract elements used to wake with thin rings; a ring is
+  // not a mark on the floor, so they now leave a small filled burn.
+  illusion: 'SCORCH',
+  sound: 'SCORCH', holy: 'SCORCH', cosmic: 'SCORCH', void: 'SCORCH', arcane: 'SCORCH', time: 'SCORCH'
 };
 
 /** How the scar reads on the floor, per element: `seam` is the hot line down its middle. */

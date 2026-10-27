@@ -1,4 +1,4 @@
-import { Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Group, Mesh, PlaneGeometry, Quaternion, Vector2, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -17,7 +17,10 @@ import {
   heliostatLensGeometry,
   heliostatConeGeometry,
   heliostatRayGeometry,
-  heliostatCoreGeometry
+  heliostatCoreGeometry,
+  heliostatPostGeometry,
+  heliostatPanelGeometry,
+  heliostatShaftGeometry
 } from './HeliostatGeometry.js';
 import {
   createHeliostatMirrorMaterial,
@@ -27,7 +30,11 @@ import {
   createHeliostatConeMaterial,
   createHeliostatRayMaterial,
   createHeliostatCoreMaterial,
-  createHeliostatWarpMaterial
+  createHeliostatWarpMaterial,
+  createHeliostatBronzeMaterial,
+  createHeliostatGlassMaterial,
+  createHeliostatShaftMaterial,
+  createHeliostatCourtMaterial
 } from './HeliostatMaterials.js';
 
 export { heliostatGeometry, heliostatFacetGeometry, heliostatBladeGeometry } from './HeliostatGeometry.js';
@@ -41,6 +48,8 @@ const IRIS_BLADES = 8;
 const TRAVEL_BLADES = 6;
 const FACETS = 12;
 const RAY_RIBBONS = 3;
+/** Most mirror pylons the field can stand (`pylonCount` is clamped to it). */
+const MAX_PYLONS = 12;
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const smooth01 = (x) => {
@@ -53,6 +62,19 @@ const _pos = new Vector3();
 const _dir = new Vector3();
 const _down = new Vector3(0, -1, 0);
 const _up = new Vector3(0, 1, 0);
+const _aim = new Vector3();
+const _pivot = new Vector3();
+const _toSun = new Vector3();
+const _toAim = new Vector3();
+const _normal = new Vector3();
+const _look = new Vector3();
+const _quat = new Quaternion();
+/** Where the sun stands for the field's reflection law (unit, up and a little behind). */
+const SUN_DIR = new Vector3(0.35, 1, 0.25).normalize();
+const outBack = (x) => {
+  const t = clamp01(x) - 1;
+  return 1 + 2.4 * t * t * t + 1.4 * t * t;
+};
 /** Seconds the travelling lens takes to fizzle out at the circle on a miss. */
 const MISS_FIZZLE = 0.2;
 /** Glints thrown by that fizzle (× global particle count). */
@@ -92,6 +114,27 @@ const _origin = [0, 0, 0];
  *      knock, flash and light punch from here.
  *   6. **particles** — ambient motes on the shared expansion transport, glints
  *      off the mirrors, and contact sparks, both in the cast's own systems.
+ *   7. **the heliostat field** — the cast's silhouette at play distance. The
+ *      moment the lens lands, `pylonCount` bronze pylons (lathed, fluted posts
+ *      `postHeight` m tall, `heliostatPostGeometry`) shoulder out of the floor
+ *      round the circle at `pylonRing × zoneRadius`, overshooting, one after
+ *      another. Each carries a 1.8 × 1.2 m concave mirror panel of six tiles
+ *      (`heliostatPanelGeometry`), lit by the scene sun on `LAYER.WORLD` and
+ *      casting shadows. Every panel is aimed every frame by the reflection
+ *      law — its normal bisects the sun and the focus — so whatever the radius,
+ *      height or target, the light lands on the dish: placement is derived.
+ *      A reflected shaft (`createHeliostatShaftMaterial`) runs from each panel
+ *      to the dish and swells with the charge: a crown of sunlight converging
+ *      over the judged enemy. After the ray the focus slides off the dish and
+ *      sweeps the court like a sun crossing the sky, the panels turning to
+ *      follow it (the linger); then the panels fold flat and the pylons sink.
+ *   8. **the sun-court** (`createHeliostatCourtMaterial`) — a filled floor
+ *      dial spanning the zone: dark glassy bronze flags with gold seams, hour
+ *      lines, a rim band, pools under the pylons, a gnomon hand sweeping, the
+ *      caustic focus narrowing on the target, then a disc of glassed floor
+ *      with molten cracks that crawl and cool. It draws in on arrival and
+ *      burns out through noise on the exit. With no enemy to judge the field
+ *      still rises and gathers its light on the empty centre, then folds.
  *
  * ## Rules that make it trustworthy
  *
@@ -260,6 +303,45 @@ export class HeliostatVerdictAbility extends Ability {
     this.warp.frustumCulled = false;
     this.rig.add(this.warp);
 
+    /* ---- 7 · the heliostat field ---- */
+    this.field = new Group();
+    this.field.visible = false;
+    this.group.add(this.field);
+    this.bronzeMat = m(createHeliostatBronzeMaterial());
+    this.glassMat = m(createHeliostatGlassMaterial());
+    this.shaftMat = m(createHeliostatShaftMaterial());
+    const postGeo = g(heliostatPostGeometry());
+    const panelGeo = g(heliostatPanelGeometry());
+    const shaftGeo = g(heliostatShaftGeometry());
+    this.pylons = [];
+    for (let i = 0; i < MAX_PYLONS; i++) {
+      const post = new Mesh(postGeo, this.bronzeMat);
+      const panel = new Mesh(panelGeo, [this.glassMat, this.bronzeMat]);
+      const shaft = new Mesh(shaftGeo, this.shaftMat);
+      for (const solid of [post, panel]) {
+        solid.layers.set(LAYER.WORLD);
+        solid.castShadow = true;
+        solid.receiveShadow = true;
+        solid.frustumCulled = false;
+      }
+      shaft.layers.set(LAYER.VFX);
+      shaft.frustumCulled = false;
+      shaft.renderOrder = 2;
+      this.field.add(post, panel, shaft);
+      this.pylons.push({ post, panel, shaft });
+    }
+
+    /* ---- 8 · the sun-court ---- */
+    this.courtMat = m(createHeliostatCourtMaterial());
+    this.court = new Mesh(g(new PlaneGeometry(1, 1, 1, 1).rotateX(-Math.PI / 2)), this.courtMat);
+    this.court.layers.set(LAYER.VFX);
+    this.court.renderOrder = 1;
+    this.court.frustumCulled = false;
+    this.field.add(this.court);
+    /** Zone centre the field stands round (fixed at arrival). */
+    this.fieldCentre = new Vector3();
+    this._courtTarget = new Vector2();
+
     this.scope = null;
     this.targetId = null;
     this.targetGeneration = null;
@@ -344,6 +426,8 @@ export class HeliostatVerdictAbility extends Ability {
     this.retryAt = 0;
     this.abortAt = -1;
     this.missed = false;
+    this.field.visible = false;
+    this.fieldCentre.copy(this.origin);
     this.scope = bindExpansionCombat(this.ctx, UID);
     if (!this.scope) this.failure = 'combat bridge unavailable';
     // Without a binding nothing can be judged, so nothing pretends to travel.
@@ -496,6 +580,10 @@ export class HeliostatVerdictAbility extends Ability {
       this.travelLens.visible = false;
       return;
     }
+    // The field rises round the circle whether or not anyone is there to judge.
+    this.fieldCentre.copy(this.position).setY(0);
+    this.field.visible = true;
+    this._updateField(0, 0, 1);
     const query = this.scope.queryActors({ position: this.position.toArray(), radius: this.config.zoneRadius, relation: 'enemy' });
     if (!query?.ok) {
       this.failure = query?.reason ?? 'query refused';
@@ -652,6 +740,9 @@ export class HeliostatVerdictAbility extends Ability {
 
     this.impactEffects.update(this.stagedTime, visualTime, normalFade, c, this.reduceMotion);
 
+    /* --- 7 + 8 · the field and the court --- */
+    this._updateField(dt, visualTime, normalFade);
+
     /* --- 4 · the ray --- */
     const beamAge = this.firedAt < 0 ? -1 : this.stagedTime - this.firedAt;
     const beamLit = beamAge >= 0 && beamAge < beamLife;
@@ -692,6 +783,160 @@ export class HeliostatVerdictAbility extends Ability {
     this.warp.visible = !this.reduceMotion && warmth > 0.01;
 
     if ((this.fired && release <= 0) || abort <= 0) this.rig.visible = false;
+  }
+
+  /**
+   * The heliostat field and the sun-court, resolved from the live settings.
+   * Everything is derived: pylon bearings from `pylonCount`/`pylonPhase`, the
+   * ring from `zoneRadius`, each panel's aim from the reflection law toward the
+   * current focus (the dish while it judges, a sweeping sun afterwards).
+   */
+  _updateField(dt, visualTime, normalFade) {
+    if (!this.field.visible) return;
+    const c = this.config;
+    const gl = settings.global;
+    const s = this.stagedTime;
+    const count = Math.max(0, Math.min(MAX_PYLONS, Math.round(c.pylonCount ?? 8)));
+    const R = c.zoneRadius * (c.pylonRing ?? 0.92);
+    const postHeight = c.postHeight ?? 2.6;
+    const phase = c.pylonPhase ?? 0.39;
+    const charge = clamp01(s / Math.max(0.1, c.lockTime));
+    const locked = !!this.targetId && this.rig.visible && this.abortAt < 0;
+    const shotAge = this.firedAt < 0 ? -1 : s - this.firedAt;
+    const beamLife = Math.max(0.1, c.beamDuration ?? 0.6);
+
+    // Exit: panels fold flat in the first half, posts sink in the second.
+    const sink = 1 - normalFade;
+    const fold = smooth01(sink * 2);
+    const drop = smooth01(sink * 2 - 1);
+    const rise = smooth01(s / Math.max(0.05, c.courtDrawTime ?? 0.4));
+
+    // The focus the panels serve, and how hard the light is gathered.
+    let power;
+    let sweep;
+    if (this.fired) {
+      sweep = smooth01((shotAge - beamLife) / 0.5);
+      const burning = shotAge < beamLife ? 1 : 0;
+      power = Math.max(burning, (c.shaftLinger ?? 0.3) * sweep, 1 - sweep);
+    } else if (locked) {
+      sweep = 0;
+      power = Math.pow(charge, 0.7);
+    } else {
+      // Nobody judged (a miss, or a lost lock): the light gathers on the empty
+      // centre, then the field gives up and sweeps.
+      sweep = this.abortAt >= 0 ? smooth01((s - this.abortAt) / 0.5) : smooth01((s - 0.5) / 0.8);
+      power = (c.shaftMiss ?? 0.35) * (1 - 0.4 * sweep);
+    }
+    const focusHeight = locked || (this.fired && this.rig.visible) ? c.mirrorHeight ?? 3.6 : c.fieldFocusHeight ?? 3.2;
+    if (locked || (this.fired && this.rig.visible)) _aim.copy(this.rig.position).setY(focusHeight);
+    else _aim.copy(this.fieldCentre).setY(focusHeight);
+    if (sweep > 0) {
+      const hand = phase + visualTime * (c.sweepSpeed ?? 0.9);
+      const sr = R * (c.sweepRadius ?? 0.5);
+      _look.set(this.fieldCentre.x + Math.cos(hand) * sr, (c.fieldFocusHeight ?? 3.2) * 0.8, this.fieldCentre.z + Math.sin(hand) * sr);
+      _aim.lerp(_look, sweep);
+    }
+    power *= normalFade * (1 - fold);
+
+    for (let i = 0; i < MAX_PYLONS; i++) {
+      const p = this.pylons[i];
+      const on = i < count;
+      p.post.visible = on;
+      p.panel.visible = on;
+      if (!on) {
+        p.shaft.visible = false;
+        continue;
+      }
+      const a = phase + (i / Math.max(1, count)) * TAU;
+      const x = this.fieldCentre.x + Math.cos(a) * R;
+      const z = this.fieldCentre.z + Math.sin(a) * R;
+      // Shoulders out of the floor, overshooting, one after another.
+      const up = outBack((s - i * (c.riseStagger ?? 0.035)) / Math.max(0.05, c.riseTime ?? 0.35));
+      const y = -(postHeight + (c.sinkDepth ?? 1.4)) * (1 - up) - (postHeight + (c.sinkDepth ?? 1.4)) * drop;
+      const w = c.postWidth ?? 1;
+      p.post.position.set(x, y, z);
+      p.post.scale.set(w, postHeight, w);
+      p.post.rotation.y = a;
+
+      // The reflection law: the panel's normal bisects the sun and the focus.
+      _pivot.set(x, y + postHeight + 0.1, z);
+      _toAim.subVectors(_aim, _pivot);
+      const length = _toAim.length();
+      _toAim.multiplyScalar(1 / Math.max(1e-4, length));
+      _normal.copy(SUN_DIR).add(_toAim).normalize();
+      _normal.lerp(_up, fold).normalize();
+      if (_normal.lengthSq() < 1e-6) _normal.copy(_up);
+      p.panel.position.copy(_pivot);
+      p.panel.lookAt(_look.copy(_pivot).add(_normal));
+      p.panel.scale.setScalar((c.panelScale ?? 1.1) * (0.4 + 0.6 * clamp01(up)));
+
+      // The reflected shaft, panel → focus.
+      const shaft = p.shaft;
+      shaft.visible = power > 0.01 && up > 0.6;
+      if (shaft.visible) {
+        shaft.position.copy(_pivot);
+        _quat.setFromUnitVectors(_up, _toAim);
+        shaft.quaternion.copy(_quat);
+        const width = (c.shaftWidth ?? 1) * (c.panelScale ?? 1.1);
+        shaft.scale.set(width, length, width);
+      }
+    }
+
+    /* --- materials --- */
+    const punch = this.fired && shotAge >= 0 ? Math.exp(-shotAge * 5) * (c.glassPunch ?? 2.5) : 0;
+    this.glassMat.color.copy(getColor(c.glassColor ?? '#dfe8ff'));
+    this.glassMat.emissive.copy(getColor(c.rayColor));
+    this.glassMat.emissiveIntensity = ((c.glassGlow ?? 1.1) * (0.2 + 1.3 * power) + punch) * gl.glow;
+    this.glassMat.roughness = c.glassRough ?? 0.08;
+    this.bronzeMat.color.copy(getColor(c.bronzeColor ?? '#5a3a18'));
+    this.bronzeMat.emissive.copy(getColor(c.rayColor));
+    this.bronzeMat.emissiveIntensity = (0.03 + (c.bronzeHeat ?? 0.35) * (charge * (locked ? 1 : 0.3) + punch * 0.2)) * gl.glow;
+    this.bronzeMat.metalness = c.bronzeMetal ?? 0.85;
+    this.bronzeMat.roughness = c.bronzeRough ?? 0.34;
+
+    const sh = this.shaftMat.uniforms;
+    sh.uClock.value = visualTime;
+    sh.uFade.value = power * gl.opacity;
+    sh.uGlow.value = (c.shaftGlow ?? 1.3) * gl.glow;
+    sh.uFlow.value = (c.shaftFlow ?? 2.5) * gl.noiseSpeed;
+    sh.uColor.value.copy(getColor(c.rayColor));
+    sh.uCore.value.copy(getColor(c.coreColor));
+
+    /* --- the court --- */
+    const radius = c.zoneRadius * (c.courtScale ?? 1.05);
+    const size = radius * 2.2;
+    this.court.position.set(this.fieldCentre.x, 0.03, this.fieldCentre.z);
+    this.court.scale.set(size, 1, size);
+    if (locked || this.fired) this._courtTarget.set(this.rig.position.x - this.fieldCentre.x, this.rig.position.z - this.fieldCentre.z);
+    else this._courtTarget.set(0, 0);
+    const u = this.courtMat.uniforms;
+    u.uClock.value = visualTime;
+    u.uFade.value = gl.opacity;
+    u.uSize.value = size;
+    u.uRadius.value = radius;
+    u.uRise.value = rise;
+    u.uDissolve.value = smooth01(sink * 1.15);
+    u.uCharge.value = locked ? charge : this.fired ? 1 : (c.shaftMiss ?? 0.35) * rise;
+    u.uTighten.value = c.focusTighten ?? 0.75;
+    u.uScorchAge.value = this.fired ? Math.max(0, shotAge) : -1;
+    u.uScorchRadius.value = c.courtScorchRadius ?? 2.2;
+    u.uScorchLife.value = c.scorchLife ?? 2.6;
+    u.uHand.value = Math.atan2(this._courtTarget.y, this._courtTarget.x) + visualTime * (c.handSpeed ?? 0.9);
+    u.uPylons.value = count;
+    u.uPylonPhase.value = phase;
+    u.uPylonRing.value = R;
+    u.uOpacity.value = c.courtOpacity ?? 0.85;
+    u.uGlow.value = (c.courtGlow ?? 1) * gl.glow;
+    u.uLines.value = c.courtLines ?? 1;
+    u.uNoiseScale.value = (c.courtNoise ?? 1) * gl.noiseFrequency;
+    u.uTarget.value.copy(this._courtTarget);
+    u.uCore.value.copy(getColor(c.coreColor));
+    u.uTint.value.copy(getColor(c.courtTintColor ?? '#fff1bd'));
+    u.uBody.value.copy(getColor(c.courtBodyColor ?? '#e0a040'));
+    u.uDeep.value.copy(getColor(c.courtDeepColor ?? '#1c0f05'));
+    u.uScorch.value.copy(getColor(c.scorchColor));
+
+    if (normalFade <= 0) this.field.visible = false;
   }
 
   /**
@@ -793,6 +1038,7 @@ export class HeliostatVerdictAbility extends Ability {
 
   onDestroy() {
     this.rig.visible = false;
+    this.field.visible = false;
     this.travelLens.visible = false;
     this.targetId = null;
     this.abortAt = -1;
@@ -921,6 +1167,46 @@ export function buildEditor(gui, c, Editor) {
   R(motes, 'sparkSpeed', 0, 20, 0.1, 'spark speed');
   R(motes, 'sparkSize', 0.005, 0.5, 0.005, 'spark size');
   G(motes, 'colorGlint', 'glint + spark gradient');
+
+  const field = sub(folder, '7 · Heliostat field');
+  R(field, 'pylonCount', 0, MAX_PYLONS, 1, 'mirror pylons');
+  R(field, 'pylonRing', 0.3, 1.5, 0.01, 'ring (× circle)');
+  R(field, 'pylonPhase', -3.2, 3.2, 0.01, 'first bearing (rad)');
+  R(field, 'postHeight', 0.6, 6, 0.05, 'post height (m)');
+  R(field, 'postWidth', 0.3, 3, 0.05, 'post girth');
+  R(field, 'panelScale', 0.3, 3, 0.05, 'mirror panel size');
+  R(field, 'riseTime', 0.05, 1.5, 0.01, 'rise (s)');
+  R(field, 'riseStagger', 0, 0.3, 0.005, 'rise stagger (s)');
+  R(field, 'sinkDepth', 0, 4, 0.05, 'sink depth (m)');
+  R(field, 'fieldFocusHeight', 0.5, 8, 0.05, 'idle focus height (m)');
+  R(field, 'sweepRadius', 0, 1.2, 0.01, 'sun sweep (× ring)');
+  R(field, 'sweepSpeed', -4, 4, 0.05, 'sun sweep (rad/s)');
+  C(field, 'bronzeColor', 'bronze');
+  R(field, 'bronzeMetal', 0, 1, 0.01, 'bronze metalness');
+  R(field, 'bronzeRough', 0, 1, 0.01, 'bronze roughness');
+  R(field, 'bronzeHeat', 0, 3, 0.01, 'bronze heat with charge');
+  C(field, 'glassColor', 'mirror glass');
+  R(field, 'glassGlow', 0, 4, 0.05, 'glass light');
+  R(field, 'glassRough', 0, 1, 0.01, 'glass roughness');
+  R(field, 'glassPunch', 0, 8, 0.05, 'glass flash on the ray');
+  R(field, 'shaftWidth', 0.1, 3, 0.05, 'shaft width');
+  R(field, 'shaftGlow', 0, 6, 0.05, 'shaft glow');
+  R(field, 'shaftFlow', 0, 10, 0.05, 'shaft flow');
+  R(field, 'shaftLinger', 0, 1, 0.01, 'shafts after the ray');
+  R(field, 'shaftMiss', 0, 1, 0.01, 'shafts with no target');
+
+  const court = sub(folder, '8 · Sun-court');
+  R(court, 'courtScale', 0.3, 2, 0.01, 'court (× circle)');
+  R(court, 'courtOpacity', 0, 1, 0.01, 'opacity');
+  R(court, 'courtGlow', 0, 4, 0.05, 'glow');
+  R(court, 'courtLines', 0, 3, 0.05, 'hour lines');
+  R(court, 'courtDrawTime', 0.05, 2, 0.01, 'draws in over (s)');
+  R(court, 'courtNoise', 0.2, 4, 0.05, 'flag scale');
+  R(court, 'courtScorchRadius', 0.2, 6, 0.05, 'glassed floor (m)');
+  R(court, 'handSpeed', -4, 4, 0.05, 'gnomon sweep (rad/s)');
+  C(court, 'courtTintColor', 'pale tint');
+  C(court, 'courtBodyColor', 'gold body');
+  C(court, 'courtDeepColor', 'deep bronze');
 
   return folder;
 }

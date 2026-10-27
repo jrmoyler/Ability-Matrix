@@ -149,9 +149,9 @@ for (const [name, Module] of [['atlas/recall', Recall], ['codex/runemeteor', Met
     // The old behaviour: no hold, and (Rune Meteor) the camera framing the star
     // all the way up.
     const c = settings[Module.ID];
-    const saved = { cameraHold: c.cameraHold, frameHeight: c.frameHeight };
-    c.cameraHold = 0;
-    if ('frameHeight' in c) c.frameHeight = 1e3;
+    const old = { cameraHold: 0, ...('frameHeight' in c ? { frameHeight: 1e3, dropHeight: 26 } : {}) };
+    const saved = Object.fromEntries(Object.keys(old).map((k) => [k, c[k]]));
+    Object.assign(c, old);
     try {
       const w = world(Module);
       const before = w.polar();
@@ -160,8 +160,7 @@ for (const [name, Module] of [['atlas/recall', Recall], ['codex/runemeteor', Met
       for (let i = 0; i < 120; i++) w.frame();
       assert.ok(before - w.polar() > 0.3, `unheld, the camera pitches down (${before.toFixed(3)} → ${w.polar().toFixed(3)})`);
     } finally {
-      c.cameraHold = saved.cameraHold;
-      if (saved.frameHeight !== undefined) c.frameHeight = saved.frameHeight;
+      Object.assign(c, saved);
     }
   });
 }
