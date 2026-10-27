@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -900,6 +900,7 @@ const SCAR_FRAGMENT = /* glsl */ `
   uniform float uSeed;
   uniform float uCutEnd;      // metres of the scar that exist so far
   uniform float uBladeAt;     // where the blade is now, metres along
+  uniform float uCentreX;     // metres across: where the blade's low tip meets the floor
   uniform float uCut;
   uniform float uLips;
   uniform float uScour;
@@ -923,65 +924,126 @@ const SCAR_FRAGMENT = /* glsl */ `
   uniform vec3  uColorGlow;
   uniform float uGlobalGlow;
 
+  // The blast fan where the blade tore apart, and the vortices' footprints.
+  uniform float uFanAt;       // metres along the strip of the impact point
+  uniform float uFanR;        // metres, already × how far it has spread
+  uniform float uFanOpacity;
+  uniform float uFanStreaks;
+  uniform vec3  uColorFan;
+  uniform vec4  uFeet;        // x, y: metres across of each foot, z: metres along, w: radius
+  uniform float uFeetOn;      // 0..1
+  uniform float uFeetSpin;    // integrated
+  uniform float uFeetArms;
+
   varying vec2 vFlat;
 
   ${noiseGLSL}
 
+  /** A scoured spiral under a vortex foot. */
+  float foot(vec2 q, float spinDir) {
+    float r = length(q);
+    float R = max(uFeet.w, 0.05);
+    float ang = atan(q.y, q.x);
+    float arms = 0.5 + 0.5 * sin(ang * max(uFeetArms, 1.0) + log(r + 0.08) * 3.5 * spinDir - uFeetSpin * spinDir);
+    arms = pow(arms, 2.5);
+    float disc = 1.0 - smoothstep(R * 0.45, R, r);
+    float eye = 1.0 - smoothstep(0.0, R * 0.22, r);
+    return (arms * 0.75 + 0.25 + eye * 0.5) * disc;
+  }
+
   void main() {
     float x = vFlat.x;
     float along = vFlat.y;
-    if (along < 0.0 || along > uCutEnd) discard;
-
-    // The cut wanders a little: wind does not rule a line.
-    float wig = snoise(vec3(along * uWiggleScale, uSeed, 0.0)) * uWiggle;
-    float dx = x - wig;
-    float ad = abs(dx);
-
-    // Opens over the first metre and closes to a point at the blade.
-    float open = smoothstep(0.0, 0.9, along) * mix(0.3, 1.0, smoothstep(0.0, 0.6, uCutEnd - along));
-    float cutW = max(uCut * open, 0.002);
-
-    float slit = 1.0 - smoothstep(cutW * 0.55, cutW, ad);
-    float lipD = ad - cutW;
-    float lipW = max(uLips, 0.002);
-    float lip = smoothstep(-lipW * 0.15, lipW * 0.25, lipD) * (1.0 - smoothstep(lipW * 0.45, lipW, lipD)) * open;
-    // A raised lip is lit on the side that faces the sun.
-    float lit = 0.55 + 0.45 * sign(dx) * uLightXZ.x;
-
-    // Hairline scratches either side, in broken dashes.
-    float scratch = 0.0;
-    for (int i = 0; i < 6; i++) {
-      if (float(i) >= uScratches) break;
-      float fi = float(i);
-      float side = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
-      float off = side * (cutW + lipW + (0.15 + 0.85 * hash11(fi * 7.31 + uSeed)) * uScratchSpread);
-      float wob = snoise(vec3(along * 0.9, fi * 3.7, uSeed)) * 0.03;
-      float line = 1.0 - smoothstep(0.004, 0.013, abs(x - off - wig * 0.6 - wob));
-      float dash = smoothstep(-0.1, 0.45, snoise(vec3(along * 1.6, fi * 5.3, uSeed * 2.0)));
-      scratch = max(scratch, line * dash * open);
-    }
-
-    // The scoured band: dust swept along the line in streaks.
-    float edgeN = fbm3(vec3(x * 2.0, along * 0.7, uSeed)) * 0.25;
-    float scour = 1.0 - smoothstep(uScour * 0.35, uScour, ad + edgeN);
-    float streaks = 0.45 + 0.55 * smoothstep(-0.4, 0.8, snoise(vec3(x * 14.0, along * 0.5, uSeed * 1.7)));
-    scour *= streaks * open;
-
-    // Hot behind the blade, cooling with distance.
-    float behind = max(uBladeAt - along, 0.0);
-    float hot = exp(-behind / max(uGlowLength, 0.05)) * uHot;
 
     vec3 col = uColorScour;
-    float a = scour * uScourOpacity;
-    col = mix(col, uColorLip, clamp(scratch, 0.0, 1.0));
-    a = max(a, scratch * uLipBright * 0.7);
-    col = mix(col, uColorLip * lit, lip);
-    a = max(a, lip * uLipBright);
-    col = mix(col, uColorDeep, slit);
-    a = max(a, slit * uDark);
-    float glowMask = slit * 0.7 + lip + scratch * 0.4;
-    col += uColorGlow * uGlow * hot * glowMask * uGlobalGlow;
-    a = max(a, hot * glowMask * 0.85);
+    float a = 0.0;
+
+    // ---- the cut itself: only behind the blade ----
+    if (along >= 0.0 && along <= uCutEnd) {
+      // The cut wanders a little: wind does not rule a line.
+      float wig = snoise(vec3(along * uWiggleScale, uSeed, 0.0)) * uWiggle;
+      float cx = x - uCentreX;
+      float dx = cx - wig;
+      float ad = abs(dx);
+
+      // Opens over the first metre and closes to a point at the blade.
+      float open = smoothstep(0.0, 0.9, along) * mix(0.3, 1.0, smoothstep(0.0, 0.6, uCutEnd - along));
+      float cutW = max(uCut * open, 0.002);
+
+      float slit = 1.0 - smoothstep(cutW * 0.55, cutW, ad);
+      float lipD = ad - cutW;
+      float lipW = max(uLips, 0.002);
+      float lip = smoothstep(-lipW * 0.15, lipW * 0.25, lipD) * (1.0 - smoothstep(lipW * 0.45, lipW, lipD)) * open;
+      // A raised lip is lit on the side that faces the sun.
+      float lit = 0.55 + 0.45 * sign(dx) * uLightXZ.x;
+
+      // Hairline scratches either side, in broken dashes.
+      float scratch = 0.0;
+      for (int i = 0; i < 6; i++) {
+        if (float(i) >= uScratches) break;
+        float fi = float(i);
+        float side = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+        float off = side * (cutW + lipW + (0.15 + 0.85 * hash11(fi * 7.31 + uSeed)) * uScratchSpread);
+        float wob = snoise(vec3(along * 0.9, fi * 3.7, uSeed)) * 0.03;
+        float line = 1.0 - smoothstep(0.006, 0.02, abs(cx - off - wig * 0.6 - wob));
+        float dash = smoothstep(-0.1, 0.45, snoise(vec3(along * 1.6, fi * 5.3, uSeed * 2.0)));
+        scratch = max(scratch, line * dash * open);
+      }
+
+      // The scoured band: dust combed along the line in streaks, darkest at
+      // the middle where the wind bit hardest.
+      float edgeN = fbm3(vec3(cx * 2.0, along * 0.7, uSeed)) * 0.3;
+      float scour = 1.0 - smoothstep(uScour * 0.3, uScour, ad + edgeN);
+      float streaks = 0.4 + 0.6 * smoothstep(-0.4, 0.8, snoise(vec3(cx * 9.0, along * 0.35, uSeed * 1.7)));
+      scour *= streaks * open;
+      float core = 1.0 - smoothstep(0.0, uScour * 0.6, ad);
+
+      // Hot behind the blade, cooling with distance.
+      float behind = max(uBladeAt - along, 0.0);
+      float hot = exp(-behind / max(uGlowLength, 0.05)) * uHot;
+
+      col = mix(uColorScour, uColorFan, core * 0.65);
+      a = scour * uScourOpacity;
+      col = mix(col, uColorLip, clamp(scratch, 0.0, 1.0));
+      a = max(a, scratch * uLipBright * 0.7);
+      col = mix(col, uColorLip * lit, lip);
+      a = max(a, lip * uLipBright);
+      col = mix(col, uColorDeep, slit);
+      a = max(a, slit * uDark);
+      float glowMask = slit * 0.7 + lip + scratch * 0.4;
+      col += uColorGlow * uGlow * hot * glowMask * uGlobalGlow;
+      a = max(a, hot * glowMask * 0.85);
+    }
+
+    // ---- the blast fan: combed outward from where the blade tore apart ----
+    if (uFanR > 0.01) {
+      vec2 q = vec2(x - uCentreX * 0.5, along - uFanAt);
+      float r = length(q);
+      float th = atan(q.x, q.y);                 // 0 = straight on down the line
+      float ahead = 0.5 + 0.5 * cos(th);         // the wind blew forward
+      float reach = uFanR * mix(0.55, 1.0, ahead);
+      float edgeN = fbm3(vec3(q * 1.2, uSeed + 3.0)) * 0.35 * uFanR;
+      float body = 1.0 - smoothstep(reach * 0.55, reach, r + edgeN);
+      float comb = 0.5 + 0.5 * snoise(vec3(th * max(uFanStreaks, 1.0) * 1.6, r * 0.5, uSeed * 1.3));
+      comb = smoothstep(0.25, 0.85, comb);
+      float hole = smoothstep(0.0, uFanR * 0.18, r);
+      float fan = body * (0.35 + 0.65 * comb) * hole;
+      // A pale rim of dust heaped where the blast ran out.
+      float heap = exp(-pow((r + edgeN - reach * 0.92) / max(uFanR * 0.08, 0.02), 2.0)) * smoothstep(0.1, 0.9, comb);
+      col = mix(col, uColorFan, clamp(fan * uFanOpacity / max(a + fan * uFanOpacity, 1e-3), 0.0, 1.0));
+      a = max(a, fan * uFanOpacity);
+      col = mix(col, uColorScour, heap * 0.8);
+      a = max(a, heap * uScourOpacity * 1.6);
+    }
+
+    // ---- the vortices' footprints ----
+    if (uFeetOn > 0.0) {
+      float f0 = foot(vec2(x - uFeet.x, along - uFeet.z), 1.0);
+      float f1 = foot(vec2(x - uFeet.y, along - uFeet.z), -1.0);
+      float f = max(f0, f1) * uFeetOn;
+      col = mix(col, uColorDeep, f * 0.7);
+      a = max(a, f * uFanOpacity);
+    }
 
     // Erodes raggedly as the cast fades.
     float n = snoise(vec3(x * 3.0, along * 1.1, uSeed * 5.0)) * 0.5 + 0.5;
@@ -1036,7 +1098,17 @@ export function createGaleScarMaterial() {
       uColorDeep: { value: new Color() },
       uColorLip: { value: new Color() },
       uColorScour: { value: new Color() },
-      uColorGlow: { value: new Color() }
+      uColorGlow: { value: new Color() },
+      uCentreX: { value: 0 },
+      uFanAt: { value: 0 },
+      uFanR: { value: 0 },
+      uFanOpacity: { value: 0.5 },
+      uFanStreaks: { value: 9 },
+      uColorFan: { value: new Color() },
+      uFeet: { value: new Vector4() },
+      uFeetOn: { value: 0 },
+      uFeetSpin: { value: 0 },
+      uFeetArms: { value: 3 }
     }),
     vertexShader: SCAR_VERTEX,
     fragmentShader: SCAR_FRAGMENT
@@ -1044,7 +1116,8 @@ export function createGaleScarMaterial() {
 
   /**
    * @param {object} state { start, dir, side, length, width, cutEnd, bladeAt,
-   *   hot, fadeT, lightXZ (Vector2), seed }
+   *   hot, fadeT, lightXZ (Vector2), seed, centreX, fanAt, fanR,
+   *   feet (Vector4), feetOn, feetSpin }
    */
   material.userData.sync = (state) => {
     const c = settings.gale;
@@ -1079,6 +1152,16 @@ export function createGaleScarMaterial() {
     u.uColorLip.value.copy(getColor(c.colorScarLip));
     u.uColorScour.value.copy(getColor(c.colorScarScour));
     u.uColorGlow.value.copy(getColor(c.colorScarGlow));
+    u.uCentreX.value = state.centreX;
+    u.uFanAt.value = state.fanAt;
+    u.uFanR.value = state.fanR;
+    u.uFanOpacity.value = c.fanOpacity * g.opacity;
+    u.uFanStreaks.value = c.fanStreaks;
+    u.uColorFan.value.copy(getColor(c.colorFan));
+    u.uFeet.value.copy(state.feet);
+    u.uFeetOn.value = state.feetOn;
+    u.uFeetSpin.value = state.feetSpin;
+    u.uFeetArms.value = Math.max(1, Math.round(c.footArms));
   };
 
   return material;

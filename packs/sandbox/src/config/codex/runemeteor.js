@@ -32,6 +32,9 @@ export default {
     cooldown: 0.6, // seconds before the ability can be armed again
     castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 4.2, // the circle, metres
+    frameHeight: 2.4, // m: the camera frames the star no higher than this
+    cameraHold: 1, // 0..1 the cast keeps the camera's pitch (the rig would ratchet it top-down)
+    cameraSettle: 2, // s the hold outlasts the cast while the frame eases home
 
     /* --- light --- */
     lightColor: '#d8deff',

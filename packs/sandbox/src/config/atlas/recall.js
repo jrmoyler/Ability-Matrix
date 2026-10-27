@@ -196,6 +196,12 @@ export default {
     "lightColor": "#ffcf76",
     "lightIntensity": 6,
     "lightRadius": 9,
-    lightBoost: 2.5 // the snap's light punch, × lightIntensity
+    lightBoost: 2.5, // the snap's light punch, × lightIntensity
+
+    /* Camera: the run and the snap home move the orbit target metres out and
+     * back; the rig would ratchet the pitch top-down. The cast holds the pitch
+     * it found, through the cast and a settle while the target eases home. */
+    cameraHold: 1, // 0..1 how firmly the camera keeps its pitch
+    cameraSettle: 2 // s the hold outlasts the cast
   }
 };

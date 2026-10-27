@@ -11,9 +11,12 @@ import {
   createBlinkTrailMaterial,
   createBlinkShardMaterial,
   createBlinkGhostMaterial,
-  createBlinkWarpMaterial
+  createBlinkWarpMaterial,
+  createBlinkRiftMaterial,
+  createBlinkScarMaterial
 } from '../../materials/collective/BlinkStepMaterials.js';
 import { createBoltRibbonGeometry, createShardGeometry } from '../../assets/ProceduralGeometry.js';
+import { createRiftGeometry, createScarGeometry } from '../../assets/collective/BlinkStepGeometry.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
 import { DecalType } from '../../effects/GroundDecals.js';
@@ -82,6 +85,32 @@ let characterOwner = null;
  *      bursts out along the floor, an AIR pressure shell, a SHOCKWAVE and a
  *      DUSTRING, sparks and motes, a screen-space *bulge*, a light punch, a
  *      shake and a flash.
+ *   6. **THE RIFTS** (`createBlinkRiftMaterial` on `createRiftGeometry`) — the
+ *      hero form. A 2.5 m tear in the air, an almond lens with jagged lips
+ *      laid out from a parameter grid in the vertex stage: a light-eating void
+ *      with slipstream streaks racing through it, a white-hot lip and cracks
+ *      crawling out through the air round it. One splits where the caster
+ *      stands as they vanish; the other splits at the far end just before the
+ *      landing and the body reforms out of it. Both gape, then seal back to a
+ *      hairline scar through the linger while their cracks keep crawling.
+ *   7. **THE SCAR** (`createBlinkScarMaterial` on `createScarGeometry`) — the
+ *      floor answers: a burnt slipstream lane down the whole line, written
+ *      behind the running head with a hot seam and skid lanes, a combed
+ *      scorch at the start and a skid-spoked crater at the landing. Through
+ *      the linger it cools along the ramp while knots of light keep draining
+ *      down the seam to the landing; it dissolves on the exit, and SCORCH
+ *      decals under both ends outlive the cast.
+ *   8. **THE LINGER** — an echo of the caster left standing at the start
+ *      (an afterimage that lives `echoLife`), the arrival shards planted
+ *      round the crater humming with a pulse that runs round the ring before
+ *      they sink, and residue motes rising off the scar.
+ *
+ * ## Timing (defaults, × `global.lifetime`)
+ *
+ *   0.00–0.12 vanish (the departure rift splits with it) → ~0.5 s transit at
+ *   28 m/s → impact (arrival rift already open, body reforms out of it) →
+ *   1.7 s arrival + linger (rifts gape then seal, scar cools and drains,
+ *   planted ring hums then sinks) → 0.8 s exit (everything dissolves).
  *
  * Hits are the default line capsule: anything the streak runs through goes
  * down along the dash.
@@ -155,7 +184,7 @@ export class BlinkStepAbility extends Ability {
 
     this.ghostRecords = [];
     for (let i = 0; i < MAX_GHOSTS; i++) {
-      this.ghostRecords.push({ along: 0, born: -1, seed: 0 });
+      this.ghostRecords.push({ along: 0, born: -1, seed: 0, echo: false });
     }
     this._ghostCursor = 0;
     this._nextGhost = 0;
@@ -180,6 +209,46 @@ export class BlinkStepAbility extends Ability {
     this._moved = false;
     this._savedScale = new Vector3(1, 1, 1);
     this._savedVisible = true;
+
+    /* ---- layer 6: the rifts (hero) ---- */
+    this.riftGeometry = createRiftGeometry();
+    this.departRiftMaterial = createBlinkRiftMaterial();
+    this.arriveRiftMaterial = createBlinkRiftMaterial();
+    this.departRift = new Mesh(this.riftGeometry, this.departRiftMaterial);
+    this.arriveRift = new Mesh(this.riftGeometry, this.arriveRiftMaterial);
+    for (const mesh of [this.departRift, this.arriveRift]) {
+      mesh.layers.set(LAYER.VFX);
+      mesh.frustumCulled = false; // placed in the vertex stage
+      mesh.renderOrder = 11;
+      mesh.visible = false;
+      this.group.add(mesh);
+    }
+    this.departRift.name = 'BlinkRiftDepart';
+    this.arriveRift.name = 'BlinkRiftArrive';
+    this._riftState = { open: 0, crack: 0, fade: 1, seed: 0, haloV: this.riftGeometry.userData.halo };
+
+    /* ---- layer 7: the scar ---- */
+    this.scarGeometry = createScarGeometry();
+    this.scarMaterial = createBlinkScarMaterial();
+    this.scar = new Mesh(this.scarGeometry, this.scarMaterial);
+    this.scar.name = 'BlinkScar';
+    this.scar.layers.set(LAYER.VFX);
+    this.scar.frustumCulled = false;
+    this.scar.renderOrder = 1;
+    this.scar.visible = false;
+    this.group.add(this.scar);
+    this._scarState = {
+      origin: new Vector3(),
+      dir: new Vector3(0, 0, 1),
+      length: 1,
+      head: 0,
+      depart: 0,
+      arrive: 0,
+      cool: 0,
+      dissolve: 0,
+      fade: 1,
+      seed: 0
+    };
 
     this._arriveAge = -1;
     this._seed = 0;
@@ -236,6 +305,7 @@ export class BlinkStepAbility extends Ability {
     this.motes.uniforms.uFadeOut.value = 0.5;
 
     this.sparkEmitter = new RateEmitter();
+    this.residueEmitter = new RateEmitter();
   }
 
   /* ------------------------------------------------------------------ */
@@ -314,6 +384,7 @@ export class BlinkStepAbility extends Ability {
     this._departGhost = false;
     this._nextGhost = Math.max(0.2, c.ghostSpacing) * 0.5;
     this.sparkEmitter.reset();
+    this.residueEmitter.reset();
     for (const ghost of this.ghostRecords) ghost.born = -1;
 
     for (const dice of this.shardDice) {
@@ -362,6 +433,8 @@ export class BlinkStepAbility extends Ability {
     this.ctx.shake.add(c.departShake * g.cameraShake, 7, 18);
     this._sync();
     this._updateDeparture(c);
+    this._updateRifts(c, 1);
+    this._updateScar(c, 1);
   }
 
   /* ------------------------------------------------------------------ */

@@ -13,7 +13,8 @@ import {
   createPrismCrystalGeometry,
   createPrismShardGeometry,
   createPrismTetherGeometry,
-  createPrismStripGeometry
+  createPrismStripGeometry,
+  createPrismMonolithGeometry
 } from '../../assets/codex/PrismLieGeometry.js';
 import {
   createPrismCrystalMaterial,
@@ -21,7 +22,10 @@ import {
   createPrismTetherMaterial,
   createPrismTrailMaterial,
   createPrismRingMaterial,
-  createPrismLensMaterial
+  createPrismLensMaterial,
+  createPrismMonolithMaterial,
+  createPrismFanMaterial,
+  createPrismScorchMaterial
 } from '../../materials/codex/PrismLieMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -39,6 +43,8 @@ export const ID = 'prismlie';
 const PRISMS = 3;
 /** Hard ceiling on glass in the air. The editor's count sliders clamp to it. */
 const MAX_SHARDS = 96;
+/** Satellite crystals torn up round the planted truth. */
+const MAX_SATS = 8;
 const TAU = Math.PI * 2;
 
 const _emit = {};
@@ -52,6 +58,7 @@ const _qSpin = new Quaternion();
 const _qLean = new Quaternion();
 const _m = new Matrix4();
 const _zero = new Matrix4().makeScale(0, 0, 0);
+const _tilt = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const COLOR_KEYS = ['colorPrismA', 'colorPrismB', 'colorPrismC'];
 
@@ -102,10 +109,17 @@ function resetEmit() {
  * swerve off the line to either side, carry on past the end, glitch harder
  * and harder and **pop** into glitter and a few slivers of their colour. The
  * true one (`truth`, or a coin toss) swings onto the line, drops onto the
- * target, flares white — and **shatters**: a spray of spectral glass, a
- * rainbow shock ring racing across the floor, a lens of bent air, a shell, a
- * shock decal, a flash, a jolt. The lies' trails go out at the reveal; the
- * truth's trail stays lit, then all of it burns out.
+ * target, flares white — and is **driven into the floor** (the impact beat):
+ * the floor crazes into a crater of glass and the truth comes up out of it
+ * as **a 3 m monolith of lit crystal in its own hue**, overshooting and
+ * settling, while satellite crystals keep tearing up round its foot one after
+ * another through the linger. White light goes in at the top and comes out
+ * as **a rainbow fan that sweeps round the floor** — what a prism does —
+ * while veins of light climb the body. Then it charges white, shudders, and
+ * **shatters** (the exit): a spray of spectral glass, a rainbow shock ring, a
+ * lens of bent air, a shell, a shock decal, a jolt. The lies' trails go out at
+ * the reveal; the truth's trail and the burnt glass under the braid stay,
+ * then everything burns out.
  *
  * ## Layers
  *
@@ -113,18 +127,36 @@ function resetEmit() {
  *      `createPrismCrystalMaterial`, one material each) — additive faceted
  *      glass: hue body, view-sliding thin-film sheen, dispersion bands, hot
  *      arrises, rim, glitch slices in the vertex stage, a spectral dissolve.
- *   2. **tethers** (`createPrismTetherMaterial`) — three threads between the
+ *   2. **the monolith** (`createPrismMonolithGeometry` +
+ *      `createPrismMonolithMaterial`) — the planted truth and its satellites:
+ *      one InstancedMesh of a chamfered, tapered, twisted crystal with a
+ *      sheared cap; solid, lit, flat-shaded, on `LAYER.WORLD`, casting
+ *      shadows; spectral sheen, climbing veins and the pre-shatter charge
+ *      patched into the emissive term. Its hue is the truth's.
+ *   3. **the spectrum fan** (`createPrismFanMaterial`) — `fanCount` wedges of
+ *      dispersed light leaving the monolith's foot and sweeping the floor.
+ *   4. **the glass burn** (`createPrismScorchMaterial`) — the deep tone: a dark
+ *      band under the braid and a crazed-glass crater at the end of the line,
+ *      its cracks glowing spectral while the monolith stands.
+ *   5. **tethers** (`createPrismTetherMaterial`) — three threads between the
  *      prisms, re-jagged every frame.
- *   3. **trails** (`createPrismTrailMaterial`) — the braid on the floor,
+ *   6. **trails** (`createPrismTrailMaterial`) — the braid on the floor,
  *      drawn from the same formula the prisms fly on (`_braidLat` ↔
  *      `braidLat`), white where strands cross.
- *   4. **glitter** (SOFT, additive, tinted per prism) and **sparks**
- *      (STREAK) — shed in flight, burst at the pops and the shatter.
- *   5. **shards** (`createPrismShardGeometry` + `createPrismShardMaterial`)
+ *   7. **glitter** (SOFT, additive, tinted per prism) and **sparks**
+ *      (STREAK) — shed in flight, burst at the pops, the plant and the shatter.
+ *   8. **shards** (`createPrismShardGeometry` + `createPrismShardMaterial`)
  *      — an InstancedMesh of slivers, CPU-integrated, tinted per piece.
- *   6. **the shatter** — spectral ring (`createPrismRingMaterial`), lens
+ *   9. **the shatter** — spectral ring (`createPrismRingMaterial`), lens
  *      (`createPrismLensMaterial`, `LAYER.DISTORTION`), an AIR burst, a
- *      SHOCKWAVE decal, flash, shake, light punch.
+ *      SHOCKWAVE decal, shake, light punch; a restrained flash (the truth
+ *      breaking should not white the frame out).
+ *
+ * ## Placement
+ *
+ * The crater, the fan and the satellites are seated from the end of the line
+ * and from `monoRadius` (satellites at `satRing` metres out, fan starting at the
+ * foot), so moving the range or the sizes mid-cast keeps them on the crystal.
  *
  * Hits are the engine's: the line kills what the front passes.
  *
@@ -180,6 +212,50 @@ export class PrismLieAbility extends Ability {
     this.stripGeometry = createPrismStripGeometry(200, 8);
     this.trailMaterial = createPrismTrailMaterial();
     this.trail = this._mesh(this.stripGeometry, this.trailMaterial, LAYER.VFX, 2);
+
+    /* ---- layer 4: the glass burn (same strip, dark, under the trail) ---- */
+    this.scorchMaterial = createPrismScorchMaterial();
+    this.scorch = this._mesh(this.stripGeometry, this.scorchMaterial, LAYER.VFX, 1);
+    this._scorchState = {
+      start: new Vector3(),
+      dir: new Vector3(),
+      side: new Vector3(),
+      length: 1,
+      front: 0,
+      fade: 0,
+      crater: 0,
+      heat: 0
+    };
+
+    /* ---- layer 2: the monolith and its satellites (solid, lit) ---- */
+    this.monoGeometry = null;
+    this._monoKey = '';
+    this._monolithGeometry();
+    this.monoMaterial = createPrismMonolithMaterial();
+    this.monolith = new InstancedMesh(this.monoGeometry, this.monoMaterial, MAX_SATS + 1);
+    this.monolith.name = 'PrismLieMonolith';
+    this.monolith.layers.set(LAYER.WORLD);
+    this.monolith.castShadow = true;
+    this.monolith.receiveShadow = true;
+    this.monolith.frustumCulled = false;
+    this.monolith.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.monolith.count = 0;
+    this.monolith.visible = false;
+    this.group.add(this.monolith);
+    this._monoState = { hue: COLOR_KEYS[0], charge: 0 };
+    /** Satellite dice: unitless; metres and seconds come from settings. */
+    this.sats = [];
+    for (let i = 0; i < MAX_SATS; i++) {
+      this.sats.push({ angle: 0, ring: 1, tilt: 1, height: 1, radius: 1, delay: 0, yaw: 0 });
+    }
+    this._monoYaw = 0;
+
+    /* ---- layer 3: the spectrum fan ---- */
+    this.fanGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.fanMaterial = createPrismFanMaterial();
+    this.fan = this._mesh(this.fanGeometry, this.fanMaterial, LAYER.VFX, 3);
+    this._fanState = { centre: new Vector3(), sweep: 0, strength: 0 };
+    this._fanSeed = 0;
 
     /* ---- layer 5: shards ---- */
     this.shardGeometry = createPrismShardGeometry();
@@ -296,6 +372,24 @@ export class PrismLieAbility extends Ability {
     return this.crystalGeometry;
   }
 
+  /** The monolith, rebuilt only when one of its shape sliders moves. */
+  _monolithGeometry() {
+    const c = settings[ID];
+    const key = `${c.monoCap}|${c.monoTaper}|${c.monoTwist}|${c.monoChamfer}`;
+    if (this.monoGeometry && key === this._monoKey) return this.monoGeometry;
+    this._monoKey = key;
+    const old = this.monoGeometry;
+    this.monoGeometry = createPrismMonolithGeometry({
+      cap: Math.max(0.02, c.monoCap),
+      taper: c.monoTaper,
+      twist: c.monoTwist,
+      chamfer: c.monoChamfer
+    });
+    if (this.monolith) this.monolith.geometry = this.monoGeometry;
+    old?.dispose();
+    return this.monoGeometry;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Timing                                                              */
   /* ------------------------------------------------------------------ */
@@ -304,13 +398,34 @@ export class PrismLieAbility extends Ability {
     return Math.max(0.05, settings[ID].revealTime * settings.global.lifetime);
   }
 
-  get impactDuration() {
-    const c = settings[ID];
-    return this._revealTime() + Math.max(0.05, c.lifetime * settings.global.lifetime);
+  /** How long the planted truth stands before it breaks. */
+  _standTime() {
+    return Math.max(0.1, settings[ID].standTime * settings.global.lifetime);
   }
 
+  /** Reveal, then the monolith stands; it breaks as the fade begins. */
+  get impactDuration() {
+    return this._revealTime() + this._standTime();
+  }
+
+  /** The glass flies and the floor burns out. */
   get fadeDuration() {
-    return Math.max(0.05, settings[ID].trailFade * settings.global.lifetime);
+    const c = settings[ID];
+    return Math.max(0.05, Math.max(c.trailFade, c.lifetime) * settings.global.lifetime);
+  }
+
+  /** Seconds since the truth hit the floor; −1 before. */
+  _plantAge() {
+    if (this._clock < 0) return -1;
+    return this._clock - this._revealTime();
+  }
+
+  /** 0..1 the white charge before the break. */
+  _charge() {
+    const a = this._plantAge();
+    if (a < 0 || this._shattered) return 0;
+    const t = settings[ID].monoChargeTime * settings.global.lifetime;
+    return Easing.inQuad(saturate(1 - (this._standTime() - a) / Math.max(0.02, t)));
   }
 
   /** Glass glints rather than glows. */
@@ -379,6 +494,28 @@ export class PrismLieAbility extends Ability {
     this.lens.visible = false;
     this._ringState.seed = this._seed;
     this.pointAt(1, this._end);
+
+    /* the monolith: dice for the satellites, nothing in metres */
+    this._monolithGeometry();
+    this._planted = false;
+    this._monoYaw = Math.random() * TAU;
+    this._fanSeed = Math.random() * TAU;
+    const g = settings.global;
+    for (let i = 0; i < MAX_SATS; i++) {
+      const s = this.sats[i];
+      s.angle = (i / MAX_SATS) * TAU + (Math.random() - 0.5) * 0.6 * g.randomness + this._monoYaw;
+      s.ring = 0.8 + Math.random() * 0.45 * g.randomness;
+      s.tilt = 0.7 + Math.random() * 0.6;
+      s.height = 0.6 + Math.random() * 0.6;
+      s.radius = 0.75 + Math.random() * 0.5;
+      // A shuffled order of eruption, so they come up round the foot, not in a sweep.
+      s.delay = ((i * 5) % MAX_SATS) / MAX_SATS + Math.random() * 0.08;
+      s.yaw = Math.random() * TAU;
+    }
+    this.monolith.count = 0;
+    this.monolith.visible = false;
+    this.fan.visible = false;
+    this.scorch.visible = true;
   }
 
   /* ------------------------------------------------------------------ */
@@ -433,7 +570,8 @@ export class PrismLieAbility extends Ability {
           p.pos.y = lerp(p.pos.y, standY, Easing.inQuad(k));
           spinRate *= 1 + 4 * k;
           p.flash = c.plantFlash * smoothstep(0.55, 1, k) * g.glow;
-          if (this._shattered) scale = 0;
+          // Once it is in the floor, the monolith is the truth.
+          if (this._planted) scale = 0;
         } else {
           // Swerve off to its own side and carry on past the end.
           const lat = this._braidLat(this.length, i);
@@ -490,11 +628,17 @@ export class PrismLieAbility extends Ability {
       }
     }
 
-    /* --- the truth breaks --- */
-    if (reveal && k >= 1 && !this._shattered) {
+    /* --- the truth is driven into the floor --- */
+    if (reveal && k >= 1 && !this._planted) {
+      this._planted = true;
+      this._plantFx(c, g);
+    }
+    /* --- and, when its time is up, breaks --- */
+    if (this._planted && !this._shattered && this._plantAge() >= this._standTime()) {
       this._shattered = true;
       this._shatterAt = this._clock;
-      this._shatterFx(this.prisms[this._truth].pos, c, g);
+      _vel.copy(this._end).setY(c.monoHeight * 0.55);
+      this._shatterFx(_vel, c, g);
     }
 
     /* --- tethers, until the reveal tears them --- */

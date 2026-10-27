@@ -1,5 +1,5 @@
 import { Matrix4, Mesh, Object3D, Quaternion, Vector3 } from 'three';
-import { Ability } from '../Ability.js';
+import { Ability, AbilityPhase } from '../Ability.js';
 import {
   createStoneInstances,
   createOrbGeometry,
@@ -48,6 +48,94 @@ const _qT = new Quaternion();
 const _node = new Object3D();
 const _force = { impulse: 0, lift: 0, spin: 0 };
 const _targets = [];
+
+/* ------------------------------------------------------------------ */
+/* Camera pitch keeper (cast-local)                                     */
+/* ------------------------------------------------------------------ */
+
+const _orbit = new Vector3();
+/** How many casts of this kind are holding the camera right now. */
+const pitchHold = { holders: 0, polar: 0 };
+
+/**
+ * The sandbox rig (`core/CameraRig.js`) keeps the camera's *direction* to its
+ * orbit target and lets OrbitControls re-measure the angles each frame. So
+ * every metre the target moves rotates the orbit: a target that runs away
+ * flattens the pitch until it hits `maxPolar`, and one that comes back (or
+ * falls) steepens it past where it began. The clamp makes that a ratchet —
+ * this cast moves the target out and back hard, and before this keeper it
+ * left the camera looking straight down for the rest of the session.
+ *
+ * The keeper reads the rig through `ctx.shake.rig`, remembers the pitch the
+ * cast found, and puts the camera back on that pitch (about the live target,
+ * at the live distance, keeping the user's azimuth) before the rig runs each
+ * frame — through the cast and through a short settle while the target eases
+ * home. A clear restores the rest pose outright. It never touches the shared
+ * rig's code or settings.
+ */
+class PitchKeeper {
+  constructor() {
+    this.rig = null;
+    this.holding = false;
+  }
+
+  static polarOf(rig) {
+    _orbit.copy(rig.camera.position).sub(rig.controls.target);
+    const r = _orbit.length();
+    return r > 1e-6 ? Math.acos(Math.max(-1, Math.min(1, _orbit.y / r))) : 0;
+  }
+
+  capture(ctx) {
+    this.release();
+    const rig = ctx?.shake?.rig;
+    if (!rig?.controls?.target || !rig.camera) return;
+    this.rig = rig;
+    // A second cast of this kind while one is holding inherits the first pitch:
+    // the live one is already the held one.
+    if (pitchHold.holders === 0) pitchHold.polar = PitchKeeper.polarOf(rig);
+    pitchHold.holders++;
+    this.holding = true;
+  }
+
+  /** Put the camera back on the held pitch. `strength` 0..1. */
+  hold(strength = 1) {
+    if (!this.holding || strength <= 0) return;
+    const { camera, controls } = this.rig;
+    _orbit.copy(camera.position).sub(controls.target);
+    const r = _orbit.length();
+    if (r < 1e-6) return;
+    const now = Math.acos(Math.max(-1, Math.min(1, _orbit.y / r)));
+    const want = now + (pitchHold.polar - now) * Math.min(1, strength);
+    const az = Math.atan2(_orbit.x, _orbit.z);
+    const s = Math.sin(want);
+    _orbit.set(s * Math.sin(az), Math.cos(want), s * Math.cos(az)).multiplyScalar(r);
+    camera.position.copy(controls.target).add(_orbit);
+  }
+
+  /**
+   * Let go. `rest` (a clear, or the cast retired early): if nobody else is
+   * holding, put the rig in its rest pose now — the target on the caster at the
+   * rig's own height, no pull toward a cast, the camera on the held pitch at the
+   * rig's distance — so nothing is left to ease home afterwards.
+   */
+  release(rest = false, anchor = null, targetHeight = 0) {
+    if (!this.holding) return;
+    this.holding = false;
+    pitchHold.holders = Math.max(0, pitchHold.holders - 1);
+    if (!rest || pitchHold.holders > 0) return;
+    const rig = this.rig;
+    const a = anchor ?? rig.anchor;
+    if (a) rig.controls.target.set(a.x, (rig.anchor?.y ?? 0) + targetHeight, a.z);
+    rig.focusWeight = 0;
+    _orbit.copy(rig.camera.position).sub(rig.controls.target);
+    const az = Math.atan2(_orbit.x, _orbit.z);
+    const r = rig.distance ?? _orbit.length();
+    const s = Math.sin(pitchHold.polar);
+    _orbit.set(s * Math.sin(az), Math.cos(pitchHold.polar), s * Math.cos(az)).multiplyScalar(r);
+    rig.camera.position.copy(rig.controls.target).add(_orbit);
+    rig.camera.lookAt(rig.controls.target);
+  }
+}
 
 function syncSystem(p, c, prefix, glow, turb) {
   const g = settings.global;
@@ -114,6 +202,9 @@ function syncSystem(p, c, prefix, glow, turb) {
 export class RuneMeteorAbility extends Ability {
   constructor(ctx) {
     super(ID, ctx);
+    /** Holds the camera's pitch while the star falls and the frame comes home. */
+    this._keeper = new PitchKeeper();
+    this._settle = 0;
   }
 
   get handlesOwnHits() {
@@ -332,6 +423,29 @@ export class RuneMeteorAbility extends Ability {
     this.sigil.visible = true;
     this.warp.visible = false;
     this._sync(0);
+    this._settle = Math.max(0, c.cameraSettle);
+    if (c.cameraHold > 0) this._keeper.capture(this.ctx);
+  }
+
+  /**
+   * The base frame, then the camera put back on its pitch. Once DONE the cast
+   * lingers `cameraSettle` seconds more, invisible and unframed, holding the
+   * pitch while the orbit target eases back onto the caster.
+   */
+  update(dt) {
+    const c = settings[ID];
+    if (this.phase === AbilityPhase.DONE) {
+      this._settle -= dt;
+      this._keeper.hold(c.cameraHold);
+      if (this._settle <= 0 || c.cameraHold <= 0) this._keeper.release();
+      return;
+    }
+    super.update(dt);
+    this._keeper.hold(c.cameraHold);
+  }
+
+  get isFinished() {
+    return this.phase === AbilityPhase.DONE && !this._keeper?.holding;
   }
 
   _resetEmit() {
@@ -472,7 +586,11 @@ export class RuneMeteorAbility extends Ability {
     if (dt > 0) this._moteFx(dt, t < T.land);
     this.stoneMaterial.userData.sync();
     this.beamMaterial.userData.sync();
+    // What the camera frames (and where the light sits): the star, but never
+    // above `frameHeight` — a 26 m focus dragged the orbit target up and the
+    // caster out of the bottom of the shot.
     this.position.copy(this._orbPos);
+    this.position.y = Math.min(this.position.y, c.frameHeight);
   }
 
   /** Bud → flight → henge → crumble, every stone, every frame. */
@@ -846,6 +964,7 @@ export class RuneMeteorAbility extends Ability {
   /* ------------------------------------------------------------------ */
 
   onDestroy() {
+    this._keeper.release(true, this.ctx.character?.position, settings.camera?.targetHeight ?? 1.35);
     this.orb.visible = false;
     this.stones.visible = false;
     this.bands[0].visible = false;
@@ -857,6 +976,7 @@ export class RuneMeteorAbility extends Ability {
   }
 
   dispose() {
+    this._keeper.release();
     this.stoneGeometry.dispose();
     this.orbGeometry.dispose();
     this.bandGeometry.dispose();
@@ -894,6 +1014,9 @@ export function buildEditor(gui, c, Editor) {
   R(light, c, 'lightIntensity', 0, 40, 0.1, 'intensity');
   R(light, c, 'lightRadius', 0.5, 40, 0.1, 'radius');
   R(light, c, 'lightFlicker', 0, 1, 0.01, 'shimmer');
+  R(cast, c, 'frameHeight', 0.5, 30, 0.1, 'camera frames up to (m)');
+  R(cast, c, 'cameraHold', 0, 1, 0.01, 'hold camera pitch');
+  R(cast, c, 'cameraSettle', 0, 4, 0.05, 'camera settle after (s)');
 
   const fall = folder.addFolder('1 · Fall');
   R(fall, c, 'dropHeight', 4, 60, 0.5, 'kindles at (m)');
