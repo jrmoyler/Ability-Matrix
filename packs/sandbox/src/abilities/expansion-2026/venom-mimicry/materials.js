@@ -96,12 +96,14 @@ const SERPENT_VERTEX = /* glsl */ `
   vec3 vmHood(float b, float v, float side) {
     // Broad and flat-topped like a cobra's: widest just above the middle.
     // A flat shield: broad from low on the neck, rounded at the crown.
-    float w = uHoodSpan * pow(max(sin(3.14159265 * pow(v, 0.85)), 0.0), 0.32);
+    // Long taper out of the neck, widest two-thirds up, cut off square-ish
+    // under the head so the head rises clear of it: a shield, not a bulb.
+    float w = uHoodSpan * pow(smoothstep(0.0, 0.66, v), 0.75) * (1.0 - 0.8 * smoothstep(0.7, 1.0, v));
     float flare = mix(uHoodFold, 1.0, aLife.y) * (1.0 + uHoodBreath * sin(aPose.w * 0.5) * aLife.y);
     float lateral = b * w * flare;
     // Behind the neck, edges wrapping forward round it, ribs corrugating it.
     float x = -0.05 * aSize.w + uHoodCup * b * b * w * flare - 0.025 * sin(3.14159265 * v) * flare;
-    x += 0.007 * sin(b * 3.14159265 * 4.5) * flare;
+    x += 0.002 * sin(b * 3.14159265 * 4.5) * flare;
     float thick = 0.008 * (1.0 - b * b) * sin(3.14159265 * v) + 0.002;
     x += side * thick * 0.5;
     return vec3(x, 0.36 + 0.5 * v, lateral);
@@ -212,7 +214,9 @@ const SERPENT_SKIN = /* glsl */ `
       float rib = pow(abs(cos(b * 3.14159265 * 4.5)), 10.0);
       if (vHood.z < 0.0) {
         // The back: deep violet-black skin, green ribs and the false eyes.
-        base = mix(uColorDeep * 1.3, uColorScale * 0.6, rib * 0.5 + 0.2 * smoothstep(0.6, 1.0, abs(b)));
+        // Dark mottled scale, a green margin — no segment stripes.
+        vec2 hc = voronoi2(vec2(b * 9.0, v * 12.0) * uScaleSize / 28.0);
+        base = mix(uColorDeep * 1.4, uColorScale * 0.5, 0.25 * smoothstep(0.4, 0.7, hc.x) + 0.45 * smoothstep(0.7, 1.0, abs(b)));
         vec2 e = vec2(abs(b) - 0.46, (v - 0.6) * 0.85);
         float er = length(e) / max(0.02, uEyeSize);
         float pupil = 1.0 - smoothstep(0.26, 0.34, er);
@@ -227,7 +231,7 @@ const SERPENT_SKIN = /* glsl */ `
         base = mix(base, uColorEyeRing, ring + spec * 0.8);
         float blink = 0.8 + 0.2 * sin(uTime * 3.1 + seed * 6.0);
         glow = (uColorEye * iris + uColorEyeRing * (ring * 0.7 + spec * 0.5)) * uEyeGlow * blink * (0.25 + 0.75 * vLife.y)
-             + uColorBand * rib * uSkinGlow * 0.15;
+             + uColorBand * rib * uSkinGlow * 0.0;
       } else {
         // The front: pale transverse plates, as a cobra's throat.
         float plate = smoothstep(0.02, 0.16, abs(fract(v * 11.0) - 0.5));
