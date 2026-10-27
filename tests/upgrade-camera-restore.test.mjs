@@ -146,8 +146,12 @@ for (const [name, Module] of [['atlas/recall', Recall], ['codex/runemeteor', Met
   });
 
   test(`${name}: the test is sensitive — with the hold off the old drift comes back`, () => {
-    const hold = settings[Module.ID].cameraHold;
-    settings[Module.ID].cameraHold = 0;
+    // The old behaviour: no hold, and (Rune Meteor) the camera framing the star
+    // all the way up.
+    const c = settings[Module.ID];
+    const saved = { cameraHold: c.cameraHold, frameHeight: c.frameHeight };
+    c.cameraHold = 0;
+    if ('frameHeight' in c) c.frameHeight = 1e3;
     try {
       const w = world(Module);
       const before = w.polar();
@@ -156,7 +160,8 @@ for (const [name, Module] of [['atlas/recall', Recall], ['codex/runemeteor', Met
       for (let i = 0; i < 120; i++) w.frame();
       assert.ok(before - w.polar() > 0.3, `unheld, the camera pitches down (${before.toFixed(3)} → ${w.polar().toFixed(3)})`);
     } finally {
-      settings[Module.ID].cameraHold = hold;
+      c.cameraHold = saved.cameraHold;
+      if (saved.frameHeight !== undefined) c.frameHeight = saved.frameHeight;
     }
   });
 }
