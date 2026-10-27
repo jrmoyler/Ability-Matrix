@@ -96,7 +96,7 @@ test('the signature rule: each leg bends onto the nearest unjudged enemy from it
   assert.equal(legStarts.length, config.settings.refractions);
   const [l0, l1, l2] = legStarts;
   // Judge 0 faces the caster (west of the centre): its nearest enemy is chosen first.
-  const seat0 = new Vector3(12 - config.settings.zoneRadius * config.settings.judgeRing, 0, 0);
+  const seat0 = ability._seat(0, new Vector3());
   const d = (b) => Math.hypot(b.position.x - seat0.x, b.position.z - seat0.z);
   const nearest = d(bodies[0]) < d(bodies[1]) ? bodies[0] : bodies[1];
   assert.equal(l0.ref, nearest);
@@ -142,7 +142,7 @@ test('placement is derived: judges stand on the court ring and the bow puts thei
       assert.ok(Math.abs(seat.distanceTo(ability.center) - R * config.settings.judgeRing) < 1e-6);
       ability._alongJudge(k, ability._height(), tip);
       const off = Math.hypot(tip.x - ability.center.x, tip.z - ability.center.z);
-      // bowAmount 0.94 leaves a narrow gap: within 10 % of the ring, plus sway.
+      // bowAmount 0.94 leaves a narrow gap: within 12 % of the ring, plus sway.
       assert.ok(off < R * config.settings.judgeRing * 0.12 + 0.2, `R=${R} tip off centre by ${off.toFixed(2)} m`);
     }
   }

@@ -429,14 +429,22 @@ export class Ability extends BaseAbility {
     return Math.max(0.2, this.config.zoneRadius * this.config.judgeRing);
   }
 
-  /** Judge height (m): grows when the court is too wide for the bow to close. */
+  /**
+   * Judge height (m): grows when the court is too wide for a steep bow
+   * (the bowed lean never passes ~37°, so the verdict always has a tall apex).
+   */
   _height() {
-    return Math.max(this.config.judgeHeight, this._ring() / 0.95);
+    return Math.max(this.config.judgeHeight, this._ring() / 0.6);
   }
 
-  /** Bearing (world xz, radians) of judge k; judge 0 faces the caster. */
+  /**
+   * Bearing (world xz, radians) of judge k. The triangle shows the caster an
+   * *edge*, not a vertex: judge 0 stands front-left (60° off the caster's
+   * bearing), judge 1 directly behind the centre, judge 2 front-right — so no
+   * judge stands between the caster and the verdict.
+   */
   _bearing(k) {
-    return Math.atan2(-this.direction.z, -this.direction.x) + k * (TAU / JUDGES);
+    return Math.atan2(-this.direction.z, -this.direction.x) + Math.PI / 3 + k * (TAU / JUDGES);
   }
 
   /** Floor point under judge k. */

@@ -59,9 +59,9 @@ export default {
     trailLength: 3.4, // light ribbon behind the bolt in flight (m)
 
     /* --- the judges (hero) --- */
-    judgeRing: 0.86, // judges stand on a triangle at this fraction of the zone radius
-    judgeHeight: 3.1, // judge height (m); grows if the court is too wide for the bow to close
-    judgeWidth: 1.45, // girth of the slab (× its authored 1 m)
+    judgeRing: 0.72, // judges stand on a triangle at this fraction of the zone radius
+    judgeHeight: 4, // judge height (m); grows if the court is too wide for a steep bow
+    judgeWidth: 1.3, // girth of the slab (× its authored 1 m)
     riseTime: 0.42, // judges erupt from the floor over (s), from the moment of casting
     leanOut: 0.16, // outward lean while they hear the case (rad)
     refractAt: 0.56, // where on a judge the beam strikes (× height)
@@ -88,14 +88,14 @@ export default {
     chargeDecay: 6, // how fast that flash dies (1/s)
 
     /* --- the beams --- */
-    beamWidth: 0.16, // half-width of a refracted leg (m)
-    beamGlow: 2.4,
+    beamWidth: 0.22, // half-width of a refracted leg (m)
+    beamGlow: 3,
     beamSplit: 0.55, // chromatic split across the beam
     beamFlow: 7, // speed of the light running along it
     beamLife: 0.55, // a leg lingers this long after the bolt has passed (s)
 
     /* --- the verdict column --- */
-    columnWidth: 0.7, // radius at its foot (m)
+    columnWidth: 0.95, // radius at its foot (m)
     columnGlow: 2.8,
     columnPulse: 5, // pulse rate while the court stands (rad/s)
     columnLife: 0.6, // the column thins to a thread over the hold (fraction)
@@ -153,7 +153,7 @@ export default {
     arrivalShake: 0.08, // when the bolt first strikes the near judge
     arrivalFlash: 0.06,
     verdictShake: 0.3,
-    verdictFlash: 0.16,
+    verdictFlash: 0.24,
     shakeDecay: 5,
     shakeFrequency: 20,
     burstReach: 1, // FROST shell grows to (× zone radius)
