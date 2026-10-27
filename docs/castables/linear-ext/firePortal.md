@@ -21,6 +21,11 @@ A spark is struck at the foot of a 4.3 m circle in the air and runs all the way 
 
 That is deliberately all — the smallest original (58 controls).
 
+## What the capture shows
+- **f8 (0.27 s)** — only a small white-orange spark glowing at the site, as the cast arrives.
+- **f20 (0.67 s)** — the ring is being struck: a large near-complete orange circle (≈ 4.3 m) standing above the dummies with a white-hot head at the top right and the black void already filling it; a small red-blue ring marks the floor below. Dummies tagged `blinded`.
+- **f40 / f70 (1.3 / 2.3 s)** — finished: a jet-black disc with a thin bright orange-white ring, a faint fan of orange spark streaks off one side, a soft blue-violet pool of light on the floor. Very clean silhouette — it is the minimalist original; the spark fan is subtler at 8 m than its 3200/s rate suggests.
+
 ## Signature
 **The curve is drawn by drag, not by geometry**: a circle that throws straight tangent sparks and a drag term that bends them is a wheel of fire; and the circle is *struck* by a running spark rather than switched on.
 

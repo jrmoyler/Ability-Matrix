@@ -21,6 +21,11 @@ A line of current whips out to the target, a ringed orange containment platform 
 5. **Floor** — scorch decals #0a0302 with #ff3a0a embers.
 6. **Light** — orange pooled light.
 
+## What the capture shows
+- **f8 (0.27 s)** — a burst of white-gold lightning strands erupting at the target over a small white-hot ring, a line of red scorch dots back to the caster; the struck dummy is tagged `charged`.
+- **f20 (0.67 s)** — the sphere is up and hovering: at this distance it reads as a **red-orange ball laced with bright crack-like discharge** (the Fresnel rim and surface net dominate the black shell), arcs flicking off its top; under it a glowing red-orange platform of concentric rings and a wide pale shockwave ring; one dummy flung.
+- **f40 / f70 (1.3 / 2.3 s)** — steady state: ball, corona arcs re-striking in new places each frame, 6–8 platform rings. Silhouette is a fixed sphere; motion lives in the arcs and the 8 Hz pulse.
+
 ## Signature
 A **black mirror ball, lit only at its limb**: the energy is *on* the silhouette (Fresnel) and *leaving* it (arcs rooted on the surface at the hovering centre), never a glowing blob.
 

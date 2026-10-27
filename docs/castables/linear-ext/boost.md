@@ -17,6 +17,9 @@ The caster is charged: a cold-blue fresnel rim over the whole rig, 25 hairline a
 3. **Charge field** — `materials/ChargeFieldMaterial.js` (crater, rings, uprights).
 4. **Sparks / motes / burns / light** — particles + decals. Effect class: `effects/ElectricBoost.js` (not an `Ability`).
 
+## What the capture shows
+Not captured. `node tools/capture-cast.mjs <out> linear-ext/boost` fails with `Unknown ability linear-ext/boost` (`App.select`): the self buffs are catalogue entries (`kind: "buff"`) but are not registered as castable abilities in the sandbox the capture tool drives. This storyboard is written from the code and settings only.
+
 ## Signature
 **Struck**: hairline filaments re-rolled many times a second, arriving in a snap — the vocabulary the other two buffs are defined against.
 

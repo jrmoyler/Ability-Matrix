@@ -20,6 +20,12 @@ A seam of green races to the site, mossy stones break out of the floor and swing
 4. **Gate indicator** — `effects/GateIndicator.js` while aiming.
 5. **Light.**
 
+## What the capture shows
+- **f8 (0.27 s)** — green motes spraying from the caster's hand toward the site.
+- **f20 (0.67 s)** — construction: brown dust cloud at the site with stones flying up out of it, concentric green/red rings on the floor (the gate indicator and impact rings).
+- **f40 (1.33 s)** — both jambs stand as stacks of chunky mossy stones, a gap between them, dust settling, the floor rings still glowing.
+- **f70 (2.33 s)** — the arch is closed (it fills the top of the frame) and the opening glows green with a bright core light at the focus; the whole floor is washed green by its light — the gate lights the world.
+
 ## Signature
 **Built, not spawned** — masonry flying up out of the ground into an arch whose span is a live slider; the opening is an SDF, so it re-lays itself around a new span while standing.
 

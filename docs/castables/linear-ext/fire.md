@@ -18,6 +18,9 @@ The caster burns: a heat fresnel over the rig, tongues of fire rooted on the cha
 4. **Cinder field** — `materials/CinderFieldMaterial.js`.
 5. **Embers / smoke / scorches / light.** Effect class: `effects/FireBoost.js`.
 
+## What the capture shows
+Not captured. `node tools/capture-cast.mjs <out> linear-ext/fire` fails with `Unknown ability linear-ext/fire` (`App.select`): the self buffs are catalogue entries (`kind: "buff"`) but are not registered as castable abilities in the sandbox the capture tool drives. This storyboard is written from the code and settings only.
+
 ## Signature
 **Fire on the body, not near it** — tongues follow bones through a cast, and orb wakes are analytic, so tilting the rings with the clock stopped re-sweeps a second of trail instantly.
 

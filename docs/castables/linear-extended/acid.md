@@ -20,6 +20,11 @@ A slick of corrosion runs to the circle, the stone crazes and dissolves into a w
 5. **Ring** — flat annulus + 0.55 m standing collar (#9dff2b / #f4ffd6).
 6. **Floor** — etch, stains, shockwave; light #7bf01c (r 20, low in the column).
 
+## What the capture shows
+- **f8 (0.27 s)** — the pool is opening: a lime-green glowing disc with concentric bright rings and a green flash washing the whole frame; a dummy inside it tagged `poisoned`.
+- **f20 (0.67 s)** — open: a ~9 m wet green pool with a bright white-lime boundary collar, a wide shockwave ring outside it, crazed plates visible in the liquid, and the gas column starting to climb out of the back edge.
+- **f40 / f70 (1.3 / 2.3 s)** — the column of soft green gas fills the top of the frame behind the pool, the bright collar ring holds; the pool surface keeps moving (channels, caustics). Reads as poison without a label; the gas is the hero mass, the pool the ground answer.
+
 ## Signature
 **A reaction, not a stack**: one boil envelope gains every layer and vents on threshold crossings — and there is no blast; bodies are dropped and dissolved where they stood.
 

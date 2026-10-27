@@ -21,6 +21,12 @@ A 5 m holographic wireframe serpent assembles behind its nose at the caster's ha
 5. **Rune board** — `materials/CircuitFieldMaterial.js`, routed circuit on the floor.
 6. **Distortion** — a `SerpentPass.WARP` pass of the same mesh on `LAYER.DISTORTION`.
 
+## What the capture shows
+- **f8 (0.27 s)** — at the hand: a tangle of glowing blue wireframe helices and the serpent's head leaving the caster, a blue ring on the floor at the feet, and the rune board's routed circuit lighting in a band ahead.
+- **f20 (0.67 s)** — the construct is nearly at the target, a bright blue ball of wire and ribbons; the circuit board glows along the whole path; the hit dummy is tagged `tagged`.
+- **f40 (1.33 s)** — shattered: a faint sphere of wire fragments at the target over a lit patch of board and a blue ring; dummy flung.
+- **f70 (2.33 s)** — only the board's live cells remain, fading. Seen from behind, the 5 m body is foreshortened into a knot; it reads best from the side.
+
 ## Signature
 A **swimming construct** whose body bends from an analytic spine in the vertex shader, with a floor that lights only where the nose has passed.
 

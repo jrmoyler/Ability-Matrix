@@ -21,6 +21,11 @@ A tide of cyan light runs to the site, dark metal segments spiral in out of a wi
 4. **Motes / spray / mist / debris** particles.
 5. **Ring indicator** (`effects/RingIndicator.js`) and light #3fd8ff (13, r 16).
 
+## What the capture shows
+- **f8 (0.27 s)** — the tide: a column of cyan ripple rings stepping from the caster's hands toward the site.
+- **f20 / f40 (0.67 / 1.33 s)** — forging: dark metal segments scattered in the air around the site, swinging in, while a stack of glowing cyan ripple discs marks the path on the floor.
+- **f70 (2.33 s)** — the segments have closed into a dark stone-like ring lying almost flat over a cyan pool (still before the stand-up beat), path discs fading. The ring is dark and low-contrast at this point; its read arrives later with the stand-up and the horizon.
+
 ## Signature
 **Assembled somewhere other than where it ends up**: forged flat, then stood up — every frame of the build is a function of three ages, so `stand up over` re-poses it mid-hinge.
 

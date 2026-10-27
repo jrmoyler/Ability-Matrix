@@ -20,6 +20,12 @@ A loaded brush stroke runs to the circle, paper soaks into the stone and black i
 4. **Water-surface distortion** — `LAYER.DISTORTION` proxy reading the same ripple field.
 5. **Splatter / droplets / spray / haze** particles.
 
+## What the capture shows
+- **f8 (0.27 s)** — the flood begins: a dark swirling disc with a pale-blue dome of water rising in its middle.
+- **f20 (0.67 s)** — the full 10 m pool: dark teal water with a jagged, foamy off-white rim (the wall of water / paper edge), a pale water jet climbing out of the centre past the top of frame.
+- **f40 (1.33 s)** — the jet narrows into a twisting spout; the rim crown heaves.
+- **f70 (2.33 s)** — jet gone, the throat open: a dark rippling pool with a pale serrated rim. At 8 m the "ink" reads more as dark water than black sumi; the read is carried by the torn pale rim against the dark disc.
+
 ## Signature
 **Four layers painted as one surface** so they cannot sort against each other, and a *dark* palette that absorbs rather than glows.
 

@@ -17,6 +17,9 @@ The caster channels: a violet fresnel over the rig, twelve glowing ribbons wound
 3. **Ground smoke** — `materials/DarkFieldMaterial.js`.
 4. **Smoke / motes / burns / light.** Effect class: `effects/MagicBoost.js`.
 
+## What the capture shows
+Not captured. `node tools/capture-cast.mjs <out> linear-ext/magic` fails with `Unknown ability linear-ext/magic` (`App.select`): the self buffs are catalogue entries (`kind: "buff"`) but are not registered as castable abilities in the sandbox the capture tool drives. This storyboard is written from the code and settings only.
+
 ## Signature
 **Wound, not struck**: slow sheets and smoke where the Electric Boost has filaments — same structure, opposite vocabulary, ramps twice as long.
 
