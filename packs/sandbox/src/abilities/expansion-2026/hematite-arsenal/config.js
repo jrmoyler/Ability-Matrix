@@ -83,26 +83,27 @@ export default {
     flightSpin: 0.6, // turns about its own axis on the way (rev)
 
     /* --- 3 · the weapons (hero, solid hematite) --- */
-    weaponScale: 1.15, // whole weapon size
+    weaponScale: 1.6, // whole weapon size
     ringSeat: 0.8, // sockets sit at this fraction of zoneRadius
-    plantDepth: 0.28, // how deep a tip is driven into the floor (m)
+    plantDepth: 0.4, // how deep a tip is driven into the floor (m)
     lean: 0.24, // pommels lean outward by (rad)
     seatJitter: 0.18, // angular jitter of the sockets (rad, × randomness)
     quiver: 0.07, // sway a planted weapon settles with (rad)
     quiverRate: 19, // its frequency (rad/s)
-    metalColor: '#3b3a40', // polished hematite
+    metalColor: '#5d5a63', // polished hematite
     metalSheen: '#5a1218', // the red under-sheen of the iron oxide
-    metalness: 0.92,
-    roughness: 0.26,
+    metalness: 0.78,
+    roughness: 0.3,
     rustColor: '#6b2a14', // spent weapons oxidise to
     rustRoughness: 0.9,
-    fullerGlow: 2.6, // blood in the fuller — its level is the weapon's vitality
+    fullerGlow: 3.6, // blood in the fuller — its level is the weapon's vitality
     fullerFlow: 1.4, // how fast it runs along the channel
-    edgeGlow: 0.6, // hot rim on the cutting edges while vitality remains
+    edgeGlow: 1.4, // hot rim on the cutting edges while vitality remains
+    rimGlow: 1.1, // wet red fresnel rim of the polished iron (reads it against the dark floor)
     formGlow: 3, // molten glow while a weapon congeals and on landing
 
     /* --- 4 · the strike --- */
-    hoverHeight: 1.5, // a weapon rears this high before it lunges (m)
+    hoverHeight: 1.9, // a weapon rears this high before it lunges (m)
     hoverInset: 0.25, // and this far toward the centre (× zoneRadius)
     strikeHeight: 1.05, // it drives through the body at this height (m)
     pierce: 0.55, // and passes through it by (m)

@@ -34,8 +34,8 @@ export const WEAPON_KINDS = Object.freeze(['greatsword', 'spear', 'falx']);
 
 /* Cross-sections: [x / halfWidth, z / halfThickness, fuller, edge]. */
 const LENS = [
-  [1, 0, 0, 1], [0.62, 0.85, 0, 0], [0.3, 1, 0, 0], [0.14, 0.45, 1, 0], [-0.14, 0.45, 1, 0], [-0.3, 1, 0, 0], [-0.62, 0.85, 0, 0],
-  [-1, 0, 0, 1], [-0.62, -0.85, 0, 0], [-0.3, -1, 0, 0], [-0.14, -0.45, 1, 0], [0.14, -0.45, 1, 0], [0.3, -1, 0, 0], [0.62, -0.85, 0, 0],
+  [1, 0, 0, 1], [0.62, 0.85, 0, 0], [0.3, 1, 0, 0], [0.22, 0.45, 1, 0], [-0.22, 0.45, 1, 0], [-0.3, 1, 0, 0], [-0.62, 0.85, 0, 0],
+  [-1, 0, 0, 1], [-0.62, -0.85, 0, 0], [-0.3, -1, 0, 0], [-0.22, -0.45, 1, 0], [0.22, -0.45, 1, 0], [0.3, -1, 0, 0], [0.62, -0.85, 0, 0],
 ];
 const SINGLE = [
   [1, 0, 0, 1], [0.6, 0.6, 0, 0], [0.25, 0.9, 0, 0], [0.05, 0.45, 1, 0], [-0.3, 0.45, 1, 0], [-0.5, 1, 0, 0], [-1, 1, 0, 0],
@@ -215,8 +215,8 @@ function greatsword() {
   const L = 1.3, total = 1.74;
   loftBlade(soup, {
     y0: 0, length: L, stations: 22, section: LENS, total,
-    width: (f) => 0.105 * Math.pow(sat(f / 0.24), 0.62) * (0.86 + 0.14 * f) * (1 + 0.07 * Math.sin(f * Math.PI * 1.2)),
-    thick: (f) => 0.027 * (0.35 + 0.65 * sat(f / 0.24)),
+    width: (f) => 0.15 * Math.pow(sat(f / 0.24), 0.62) * (0.86 + 0.14 * f) * (1 + 0.07 * Math.sin(f * Math.PI * 1.2)),
+    thick: (f) => 0.032 * (0.35 + 0.65 * sat(f / 0.24)),
     centre: () => 0,
   });
   const guard = new ExtrudeGeometry(guardShape(), {
@@ -224,8 +224,8 @@ function greatsword() {
   });
   appendGeometry(soup, guard, [0, L + 0.02, -0.025], 1, total);
   lathe(soup, [
-    [0.03, L + 0.09], [0.034, L + 0.1], [0.026, L + 0.12], [0.03, L + 0.15], [0.026, L + 0.18], [0.03, L + 0.21],
-    [0.026, L + 0.24], [0.03, L + 0.27], [0.026, L + 0.3], [0.032, L + 0.33],
+    [0.03, L + 0.09], [0.034, L + 0.1], [0.034, L + 0.12], [0.03, L + 0.15], [0.034, L + 0.18], [0.03, L + 0.21],
+    [0.034, L + 0.24], [0.03, L + 0.27], [0.034, L + 0.3], [0.032, L + 0.33],
   ], 10, 2, total);
   lathe(soup, [
     [0.02, L + 0.33], [0.05, L + 0.35], [0.062, L + 0.38], [0.055, L + 0.41], [0.03, L + 0.435], [0.0, L + 0.44],
@@ -239,19 +239,19 @@ function spear() {
   loftBlade(soup, {
     y0: 0, length: H, stations: 16, section: LENS, total,
     // A leaf head: swells two thirds of the way up, pinches into the socket.
-    width: (f) => 0.092 * Math.sin(Math.pow(sat(f), 0.7) * Math.PI * 0.92) * (1 - 0.55 * smooth(0.85, 1, f)) + 0.012 * smooth(0.8, 1, f),
+    width: (f) => 0.13 * Math.sin(Math.pow(sat(f), 0.7) * Math.PI * 0.92) * (1 - 0.55 * smooth(0.85, 1, f)) + 0.012 * smooth(0.8, 1, f),
     thick: (f) => 0.022 * (0.4 + 0.6 * sat(f / 0.3)),
     centre: () => 0,
   });
   // Socket, lugs collar, a haft with blood-bound wraps, and a butt spike.
   lathe(soup, [
     [0.012, H - 0.01], [0.03, H + 0.02], [0.036, H + 0.1], [0.05, H + 0.13], [0.05, H + 0.16], [0.03, H + 0.18],
-    [0.026, H + 0.2],
+    [0.034, H + 0.2],
   ], 10, 1, total);
-  const haft = [[0.026, H + 0.2]];
+  const haft = [[0.034, H + 0.2]];
   for (let k = 0; k < 7; k++) {
     const y = H + 0.26 + k * 0.05;
-    haft.push([0.026, y - 0.012], [0.031, y], [0.026, y + 0.012]);
+    haft.push([0.034, y - 0.012], [0.04, y], [0.034, y + 0.012]);
   }
   haft.push([0.025, total - 0.12], [0.032, total - 0.1], [0.03, total - 0.06], [0.0, total]);
   lathe(soup, haft, 9, 2, total);
@@ -264,19 +264,19 @@ function falx() {
   loftBlade(soup, {
     y0: 0, length: L, stations: 20, section: SINGLE, total,
     // The blade widens toward the hook and the point curls toward the edge.
-    width: (f) => 0.11 * Math.pow(sat(f / 0.18), 0.55) * (1.15 - 0.45 * f),
+    width: (f) => 0.16 * Math.pow(sat(f / 0.18), 0.55) * (1.15 - 0.45 * f),
     thick: (f) => 0.03 * (0.4 + 0.6 * sat(f / 0.2)),
     centre: (f) => 0.2 * Math.pow(1 - f, 2.2) - 0.03 * f,
   });
   lathe(soup, [
-    [0.015, L - 0.02], [0.034, L + 0.02], [0.045, L + 0.05], [0.045, L + 0.09], [0.03, L + 0.11], [0.027, L + 0.13],
+    [0.015, L - 0.02], [0.034, L + 0.02], [0.045, L + 0.05], [0.045, L + 0.09], [0.03, L + 0.11], [0.034, L + 0.13],
   ], 10, 1, total);
-  const haft = [[0.027, L + 0.13]];
+  const haft = [[0.034, L + 0.13]];
   for (let k = 0; k < 5; k++) {
     const y = L + 0.75 + k * 0.06;
-    haft.push([0.027, y - 0.015], [0.033, y], [0.027, y + 0.015]);
+    haft.push([0.034, y - 0.015], [0.041, y], [0.034, y + 0.015]);
   }
-  haft.push([0.027, total - 0.14], [0.045, total - 0.11], [0.05, total - 0.07], [0.03, total - 0.04], [0, total]);
+  haft.push([0.034, total - 0.14], [0.045, total - 0.11], [0.05, total - 0.07], [0.03, total - 0.04], [0, total]);
   lathe(soup, haft, 9, 2, total);
   return soup.build();
 }

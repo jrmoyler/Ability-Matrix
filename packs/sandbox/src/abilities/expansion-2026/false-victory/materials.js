@@ -227,15 +227,15 @@ const EFFIGY_FRAGMENT = /* glsl */ `
     // A fake mirror: the reflected ray reads the ramp from deep (below the
     // horizon) through body to a pale tint sky — obsidian holding a violet room.
     float sky = R.y * 0.5 + 0.5;
-    vec3 env = gradient4(uDeep * 0.6, uDeep * 1.6, uBody * 0.55, uTint * 0.6, sky);
+    vec3 env = gradient4(uDeep * 0.5, uDeep * 1.4, uBody * 0.45, uBody * 0.8, sky);
     float fres = pow(1.0 - ndv, 4.0);
     float film = fres * 2.0 + vSeed * 0.3 + vLocal.y;
     vec3 filmCol = mix(uFilm, uTint, 0.5 + 0.5 * cos(6.2831853 * film));
 
     vec3 col = uDeep * 1.3 * (0.2 + 0.8 * ndl);
-    col += env * (0.25 + 0.75 * fres) * 0.9;
+    col += env * (0.1 + 0.6 * fres);
     col += uCore * pow(max(dot(N, H), 0.0), 70.0) * uGloss;
-    col += filmCol * fres * uFilmK * 0.8 * uShaderIntensity;
+    col += filmCol * fres * uFilmK * 0.45 * uShaderIntensity;
     vec3 hot = gradient4(uCore, uTint, uBody, uDeep, 1.0 - vState.x * 0.85);
     col += hot * cracks * uCrackGlow * uGlobalGlow;
     col += uTint * edge * 3.0 * uGlobalGlow;
@@ -341,7 +341,7 @@ const DAIS_FRAGMENT = /* glsl */ `
     float slot = floor(uClock * uFlipRate + hash11(dot(id, vec2(3.1, 7.7))) * 4.0);
     float flip = step(0.86, hash11(dot(id, vec2(12.9, 78.2)) + slot * 1.37));
     parity = abs(parity - flip);
-    float grout = exp(-(0.5 - max(abs(f.x), abs(f.y))) * 34.0);
+    float grout = exp(-(0.5 - max(abs(f.x), abs(f.y))) * 70.0);
 
     vec3 dark = uDeep * 0.55;
     vec3 light = mix(uDeep * 1.5, uBody * 0.32, 0.5 + 0.5 * snoise(vec3(p * 0.6 * uScale, 3.0)));
@@ -350,7 +350,7 @@ const DAIS_FRAGMENT = /* glsl */ `
     float sheen = pow(0.5 + 0.5 * sin(dot(p, vec2(0.7, 0.5)) * 1.3 - uClock * 1.2), 6.0);
     col += mix(uFilm, uTint, parity) * sheen * uSheen * 0.25 * uShaderIntensity;
     col += mix(uBody, uTint, 0.4) * grout * uGrout * 0.55 * uEnergy;
-    col += uTint * flip * 0.35 * uEnergy;
+    col += uBody * flip * 0.3 * uEnergy;
 
     // The engraved laurel rim band.
     float band = smoothstep(1.0 - uRim, 1.0 - uRim + 0.02, r) * (1.0 - smoothstep(0.975, 0.99, r));
@@ -359,7 +359,7 @@ const DAIS_FRAGMENT = /* glsl */ `
     float leaf = 1.0 - smoothstep(0.0, 0.08, abs(leafR - 0.5 - (leafA - 0.5) * 0.7) - 0.18 * sin(3.14159 * leafA));
     float rimLines = exp(-abs(r - (1.0 - uRim)) * 160.0) + exp(-abs(r - 0.98) * 160.0);
     col = mix(col, uDeep * 0.4, band * 0.8);
-    col += uBody * band * leaf * 0.7 * uEnergy + uTint * rimLines * uEnergy;
+    col += uBody * band * leaf * 0.55 * uEnergy + mix(uBody, uTint, 0.5) * rimLines * 0.8 * uEnergy;
 
     // The reveal's pressure ring.
     float shock = uShock >= 0.0 ? exp(-abs(r - uShock) * 22.0) * (1.0 - uShock) : 0.0;
@@ -484,7 +484,7 @@ const SPOT_FRAGMENT = /* glsl */ `
     vec3 V = normalize(cameraPosition - vWorld);
     // Volume: brightest where the ray crosses the most beam (N·V), not at the rim.
     float body = pow(abs(dot(normalize(vNormalW), V)), 1.6);
-    float fall = pow(1.0 - vH, 0.7) * smoothstep(0.0, 0.06, vH) + exp(-vH * 40.0) * 0.6;
+    float fall = pow(1.0 - vH, 0.7) * smoothstep(0.0, 0.12, vH);
     float dust = 0.55 + uDust * (fbm3(vec3(vWorld.xz * 1.8 * uScale, vWorld.y * 0.6 - uClock * 0.35)) - 0.3);
     vec3 col = mix(uBody, mix(uTint, uCore, vH), 0.35 + 0.5 * vH);
     float a = body * fall * max(dust, 0.0) * uFade;

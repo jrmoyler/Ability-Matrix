@@ -29,7 +29,7 @@ export default {
   },
   settings: {
     /* --- the cast --- */
-    range: 16, // max range (m)
+    range: 15, // max range (m)
     minRange: 2,
     speed: 26, // the thrown wreath flies at (m/s)
     cooldown: 3.2,
@@ -48,8 +48,8 @@ export default {
     hitSpin: 2.2,
 
     /* --- light --- */
-    lightColor: '#c46cff',
-    lightIntensity: 7,
+    lightColor: '#9a4dff',
+    lightIntensity: 4.5,
     lightRadius: 11,
     landLight: 4, // light punch when the crown lands (× explosion intensity)
     revealLight: 9, // and at the reveal
@@ -65,18 +65,18 @@ export default {
     wreathSeat: 0.86, // wreath radius × zoneRadius
     crownHeight: 2.3, // hovers this high over the dais (m)
     crownSink: 0.6, // drifts down this much during the linger (m)
-    crownTilt: 0.32, // rad, tipped toward the caster so the camera reads the ring
+    crownTilt: 0.42, // rad, tipped toward the caster so the camera reads the ring
     crownTurn: 0.22, // rad/s it turns while it hovers
-    leafCount: 64, // leaves along both branches (≤ 80)
-    leafLength: 0.62, // leaf length (× zoneRadius × 0.25 → ~0.53 m at 3.4)
-    leafWidth: 0.34, // leaf width (× length)
+    leafCount: 72, // leaves along both branches (≤ 80)
+    leafLength: 0.95, // leaf length (× zoneRadius × 0.25 → ~0.8 m at 3.4)
+    leafWidth: 0.4, // leaf width (× length)
     leafSplay: 0.75, // rad the leaves fan out of the branch
     leafRows: 2, // alternate leaves out/in of the branch
     gapAngle: 0.55, // rad of open gap where the two branches do not meet
     unfurlTime: 0.5, // s for the leaves to unfurl round both branches from the gap
     flutter: 0.18, // rad of travelling flutter on the leaves during the linger
     flutterRate: 3.2, // rad/s
-    stemThickness: 1, // branch stem thickness scale
+    stemThickness: 1.6, // branch stem thickness scale
     lacquerRough: 0.28, // lacquer roughness (spec width)
     lacquerSpec: 1.6, // specular strength
     filmStrength: 1.1, // thin-film iridescence at grazing angles
@@ -87,16 +87,16 @@ export default {
     travelSpin: 11, // rad/s it spins in flight
 
     /* --- 2 · the kings (effigies, solid lit obsidian) --- */
-    kingHeight: 1.9, // m
-    kingWidth: 0.62, // base radius scale (m)
+    kingHeight: 2.1, // m
+    kingWidth: 0.82, // base radius scale (m)
     kingOffset: 0.55, // m behind the marked enemy, along its fall
     riseTime: 0.32, // s to rise out of the dais
     riseStagger: 0.08, // s between kings, nearest the caster first
     rockTime: 0.38, // s it rocks before tipping
     rockAngle: 0.14, // rad
-    toppleAt: 0.62, // s after landing the first king tips over
+    toppleAt: 0.5, // s after landing the first king tips over
     toppleTime: 0.42, // s to fall flat
-    toppleStagger: 0.06, // s between kings
+    toppleStagger: 0.05, // s between kings
     toppleBounce: 0.12, // rad of bounce when it lands
     kingGloss: 1.4, // obsidian specular
     crackGlow: 2.6, // seam glow as the reveal approaches
@@ -104,9 +104,9 @@ export default {
 
     /* --- 3 · the dais (floor field) --- */
     tileSize: 0.62, // chessboard tile (m)
-    daisGlow: 1.2,
+    daisGlow: 0.9,
     daisOpacity: 0.92,
-    groutGlow: 1.6, // lit grout lines between the tiles
+    groutGlow: 1.2, // lit grout lines between the tiles
     rimWidth: 0.12, // laurel rim band (× radius)
     flipRate: 1.6, // tiles flipping their colour per second (glitch)
     sheen: 0.8, // thin-film sheen on the dark tiles
@@ -116,7 +116,7 @@ export default {
     spotHeight: 7.5, // m
     spotTopRadius: 0.35, // m
     spotSpread: 1.05, // bottom radius × zoneRadius
-    spotGlow: 0.55,
+    spotGlow: 0.4,
     spotDust: 0.8, // dust in the beam
 
     /* --- 5 · particles --- */
@@ -124,7 +124,7 @@ export default {
     confettiSize: 0.13,
     confettiLife: 2.2,
     confettiFall: 2.6, // gravity on the confetti (m/s²)
-    confettiDrift: 0.9,
+    confettiDrift: 0.5,
     colorConfettiA: '#fff2ff',
     colorConfettiB: '#ff7ad9',
     colorConfettiC: '#7a2cd6',
@@ -133,9 +133,9 @@ export default {
     glitterSize: 0.07,
     glitterLife: 1.4,
     glitterGlow: 1.6,
-    shardCount: 26, // shards thrown per king at the reveal
-    shardSize: 0.14,
-    shardSpeed: 5.5,
+    shardCount: 14, // shards thrown per king at the reveal
+    shardSize: 0.09,
+    shardSpeed: 3.2,
     shardLife: 0.9,
     trailCount: 3, // glitter shed every 30 ms in flight
     leafFlight: 1.6, // × radius the leaves are thrown out at the reveal
@@ -150,7 +150,7 @@ export default {
     shakeFrequency: 18,
     burstReach: 1.15, // reveal shell grows to (× radius)
     burstLife: 0.6,
-    burstOpacity: 0.7,
+    burstOpacity: 0.45,
     decalLife: 2.6, // the shockwave/scorch outlive the cast
     crackDecals: 1, // 1 = a crack decal under every fallen king
 

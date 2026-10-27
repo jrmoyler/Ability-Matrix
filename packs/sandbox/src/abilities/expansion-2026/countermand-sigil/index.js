@@ -670,7 +670,7 @@ export class Ability extends BaseAbility {
       if (u.uSizeScale) u.uSizeScale.value = g.particleSize;
       if (u.uSpeedScale) u.uSpeedScale.value = g.particleSpeed;
       if (u.uLifeScale) u.uLifeScale.value = g.particleLifetime;
-      if (chip && u.uGravity) u.uGravity.value = -9;
+      if (chip && u.uGravity?.value?.set) u.uGravity.value.set(0, -9, 0);
     }
   }
 

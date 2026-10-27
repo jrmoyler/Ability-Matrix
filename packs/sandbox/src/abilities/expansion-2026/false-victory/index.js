@@ -468,7 +468,7 @@ export class Ability extends BaseAbility {
     if (c.landFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorBody), c.landFlash * power);
     // The popper: confetti thrown up out of the crown.
     _pos.copy(this.position).setY(c.crownHeight);
-    this._puff(this.confetti, _pos, 70, { radius: r * 0.5, direction: _up, speed: 4.5, spread: 0.7, size: c.confettiSize, life: c.confettiLife, spin: 6 });
+    this._puff(this.confetti, _pos, 70, { radius: r * 0.5, direction: _up, speed: 3, spread: 0.45, size: c.confettiSize, life: c.confettiLife, spin: 6 });
   }
 
   /** The reveal: hits, shell, ring, scorch, shards, flash, knock. */
@@ -483,7 +483,7 @@ export class Ability extends BaseAbility {
     this.ctx.bursts?.spawn?.(BurstMode.AIR, _pos, {
       radius: r * 0.15, endRadius: r * c.burstReach * Math.max(0.2, power), life: c.burstLife,
       intensity: 0.9, opacity: c.burstOpacity * g.opacity, fresnel: 2.4, squash: 0.35,
-      colorA: getColor(c.colorCore), colorB: getColor(c.colorTint), colorC: getColor(c.colorBody),
+      colorA: getColor(c.colorTint), colorB: getColor(c.colorBody), colorC: getColor(c.colorDeep),
     });
     this.ctx.decals?.spawn?.(DecalType.SHOCKWAVE, _pos, {
       radius: r * 1.7 * Math.max(0.2, power), life: c.decalLife * 0.4, width: 0.07, intensity: 1.1,
@@ -551,7 +551,7 @@ export class Ability extends BaseAbility {
     };
     set(this.confetti, c.colorConfettiA, c.colorConfettiB, c.colorConfettiC, c.colorConfettiD, 1, -c.confettiFall, 1.4, c.confettiDrift);
     set(this.glitter, c.colorCore, c.colorTint, c.colorBody, c.colorDeep, c.glitterGlow, 0.6, 1.1, 0.5);
-    set(this.shards, c.colorTint, c.colorBody, c.colorDeep, c.colorDeep, 1, -9, 0.5, 0.2);
+    set(this.shards, c.colorTint, c.colorBody, c.colorDeep, c.colorDeep, 1, -12, 0.8, 0.2);
     if (this.confetti?.uniforms?.uEndSize) this.confetti.uniforms.uEndSize.value = 0.9;
     if (this.shards?.uniforms?.uEndSize) this.shards.uniforms.uEndSize.value = 0.6;
   }

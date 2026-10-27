@@ -68,7 +68,7 @@ export default {
     /* ================================================================ */
     telegraphOpacity: 0.35, // how bright the landing circle is during travel
     floorOpacity: 0.75, // multiplier on the deployed scan disc
-    floorGlow: 0.9, // emissive strength of the disc — kept low: the sentry is the read, not the decal
+    floorGlow: 0.7, // emissive strength of the disc — kept low: the sentry is the read, not the decal
     gridScale: 3.2, // hex cells per metre-ish across the disc
     gridOpacity: 0.14, // weight of the hex grid
     spokes: 6, // radial spokes (one per emitter vane)
@@ -92,13 +92,13 @@ export default {
     buildEdge: 0.09, // height of the glowing fabrication edge (× sentry)
     buildNoise: 0.18, // raggedness of that edge
     buildGlow: 3, // how hot the edge burns
-    metalColor: '#284258', // housing plate colour
+    metalColor: '#2c3742', // housing plate colour
     trimColor: '#7fd6ff', // panel seams and rim light
-    panelScale: 7, // panel seams per metre
-    panelGlow: 0.6, // how bright the seams glow
+    panelScale: 3.2, // panel seams per metre
+    panelGlow: 0.22, // how bright the seams glow
     rimPower: 2.5, // fresnel falloff on the housing
-    rimStrength: 0.55, // fresnel weight on the housing
-    shine: 0.7, // specular strength
+    rimStrength: 0.28, // fresnel weight on the housing
+    shine: 1.1, // specular strength
     grime: 0.35, // fbm grime darkening the plates
 
     /* --- the head --- */
@@ -127,7 +127,7 @@ export default {
     beamWidth: 0.16, // beam half-width, metres
     beamGlow: 2.2, // beam brightness (white only in the core; edges fall to the deep tone)
     beamNoise: 1, // noise flowing down the beam
-    impactRadius: 0.8, // arrival ring size at the struck target, metres
+    impactRadius: 1.4, // arrival ring size at the struck target, metres
     impactDuration: 0.45, // seconds the arrival rings live
     impactShake: 0.12, // camera knock per shot
     impactFlash: 0.08, // screen flash per shot
@@ -145,9 +145,9 @@ export default {
     colorSparkD: '#164673',
     hitDecalRadius: 0.9, // scorch-arc decal under the struck target
     hitDecalLife: 0.6,
-    muzzleSize: 0.75, // flash shell at the emitter on each shot, metres
+    muzzleSize: 1.4, // flash shell at the emitter on each shot, metres
     muzzleLife: 0.16,
-    shotBurst: 1.3, // ionised shell at the struck body, metres
+    shotBurst: 2.1, // ionised shell at the struck body, metres
     shotBurstLife: 0.3,
     scorchRadius: 0.85, // scorch left under each struck body, metres (stays)
     scorchLife: 4,

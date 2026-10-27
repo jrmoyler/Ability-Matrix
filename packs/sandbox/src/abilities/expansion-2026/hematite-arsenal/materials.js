@@ -81,6 +81,7 @@ export function createWeaponMaterial() {
     uFullerGlow: { value: 2 },
     uFlow: { value: 1 },
     uEdgeGlow: { value: 0.5 },
+    uRim: { value: 1 },
     uFormGlow: { value: 3 },
     uSheen: { value: new Color() },
     uRustColor: { value: new Color() },
@@ -101,7 +102,7 @@ export function createWeaponMaterial() {
         varying vec4 vWeapon;
         varying vec3 vLocal;
         uniform float uVital, uForm, uHeat, uRust, uCrumble, uClock, uSeed;
-        uniform float uFullerGlow, uFlow, uEdgeGlow, uFormGlow, uRustRough, uNoiseScale;
+        uniform float uRim, uFullerGlow, uFlow, uEdgeGlow, uFormGlow, uRustRough, uNoiseScale;
         uniform vec3 uSheen, uRustColor, uCore, uTint, uBody, uDeep;
         float haHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
         float haNoise(vec3 p) {
@@ -166,7 +167,10 @@ export function createWeaponMaterial() {
           vec3 hot = haRamp(1.0 - molten * (0.55 + 0.45 * moltenField)) * molten * uFormGlow;
           // The crumble lip burns rust-orange.
           float lip = uCrumble > 0.0 ? smoothstep(uCrumble * 1.08 + 0.08, uCrumble * 1.08, haCrumbleN) : 0.0;
-          totalEmissiveRadiance += blood + edgeC + hot + uRustColor * lip * 4.0;
+          // Polished hematite's red fresnel rim — the iron oxide under the shine.
+          float rimT = pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0);
+          vec3 rimC = mix(uBody, uTint, rimT) * rimT * uRim * (1.0 - 0.7 * uRust);
+          totalEmissiveRadiance += blood + edgeC + hot + rimC + uRustColor * lip * 4.0;
         }`
       );
   };
@@ -189,6 +193,7 @@ export function createWeaponMaterial() {
     u.uFullerGlow.value = c.fullerGlow * g.glow * g.shaderIntensity;
     u.uFlow.value = c.fullerFlow;
     u.uEdgeGlow.value = c.edgeGlow * g.glow;
+    u.uRim.value = c.rimGlow * g.glow * g.fresnel;
     u.uFormGlow.value = c.formGlow * g.glow;
     u.uSheen.value.copy(getColor(c.metalSheen));
     u.uRustColor.value.copy(getColor(c.rustColor));

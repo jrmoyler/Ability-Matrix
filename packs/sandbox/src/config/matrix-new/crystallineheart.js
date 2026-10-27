@@ -26,11 +26,11 @@ export default {
     range: 14, // maximum cast distance, metres
     minRange: 0, // zero: it can be called down right in front of you
     speed: 18, // how fast the mote of light flies to the circle, metres/second
-    lifetime: 3.0, // seconds the heart is there for, descent through the final beat (its rhythm is fitted to this)
+    lifetime: 2.6, // seconds the heart is there for, descent through the final beat (its rhythm is fitted to this)
     cooldown: 0.9, // seconds before the ability can be armed again
     castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 5, // the circle the aim indicator measures out; the shatter kills inside it
-    fadeTime: 1.4, // seconds the shards fall and the rings fade after the shatter
+    fadeTime: 1.2, // seconds the shards fall and the rings fade after the shatter
     colorA: '#ffe0f0', // the heart's light
     colorB: '#ffffff', // the shatter flash
 

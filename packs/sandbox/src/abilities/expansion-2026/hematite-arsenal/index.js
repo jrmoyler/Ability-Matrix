@@ -1013,6 +1013,7 @@ export function buildEditor(gui, c, Editor) {
   R(weapons, c, 'fullerGlow', 0, 8, 0.05, 'blood in the fuller');
   R(weapons, c, 'fullerFlow', 0, 5, 0.05, 'blood flow');
   R(weapons, c, 'edgeGlow', 0, 4, 0.05, 'edge glow');
+  R(weapons, c, 'rimGlow', 0, 4, 0.05, 'red fresnel rim');
   R(weapons, c, 'formGlow', 0, 8, 0.05, 'molten glow');
 
   const strike = sub(folder, '4 · The strike');

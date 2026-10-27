@@ -73,7 +73,7 @@ export default {
     exitTime: 0.6, // the horn coils up and dissolves (s)
 
     /* --- 1 · the horn (hero, lit, solid) --- */
-    hornScale: 0.9, // horn size (× zoneRadius)
+    hornScale: 1.35, // horn size (× zoneRadius)
     hornLift: 0.15, // extra height of the whole horn (m)
     shellSize: 0.55, // the coiled shell at the hand and in flight (m)
     arcHeight: 1.6, // the throw's arc height (m)

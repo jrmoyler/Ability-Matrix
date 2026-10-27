@@ -32,7 +32,7 @@ import {
 export function createLeafGeometry({ along = 18, across = 9 } = {}) {
   const positions = [];
   const indices = [];
-  const thick = 0.07;
+  const thick = 0.09;
   const surface = (sign) => {
     const base = positions.length / 3;
     for (let i = 0; i <= along; i++) {
