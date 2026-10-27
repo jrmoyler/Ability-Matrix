@@ -53,6 +53,12 @@ export default {
     afterTime: 0.95, // linger after the verdict: the seal sinks, writs shatter (s)
     exitTime: 0.6, // the exit: everything dissolves (s)
 
+    /* --- the throw --- */
+    handHeight: 1.35, // the seal forms this high at the hand (m)
+    throwScale: 0.2, // its size in the hand and in flight (× full size)
+    throwArc: 1.4, // extra height at the top of the throw (m)
+    throwSpin: 16, // it flips like a coin in flight (rad/s)
+
     /* --- light --- */
     lightColor: '#d77bff',
     lightIntensity: 6,
