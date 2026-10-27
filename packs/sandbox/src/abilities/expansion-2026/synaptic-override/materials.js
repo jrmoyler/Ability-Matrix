@@ -347,7 +347,7 @@ const SOMA_FRAGMENT = /* glsl */ `
     float facing = clamp(abs(dot(normalize(vNormalW), normalize(vView))), 0.0, 1.0);
     float rim = fresnelTerm(vView, vNormalW, 2.2, uFresnel);
     // Plasma veins: ridged noise crawling over the membrane.
-    float v = 1.0 - abs(snoise(vec3(vLocal * 3.2 * uScale, uClock * 0.9)));
+    float v = 1.0 - abs(snoise(vLocal * 3.2 * uScale + vec3(0.3, 1.0, 0.2) * uClock * 0.9));
     float veins = pow(v, 7.0);
     float nucleus = pow(facing, 5.0);
     vec3 col = mix(uDeep, uBody, 0.35 + 0.65 * rim);
@@ -438,10 +438,10 @@ const AXON_VERTEX = /* glsl */ `
   }
 
   void main() {
-    vec3 flat = uEnd - uStart;
-    flat.y = 0.0;
-    float len = max(length(flat), 0.1);
-    vec3 dir = flat / len;
+    vec3 span = uEnd - uStart;
+    span.y = 0.0;
+    float len = max(length(span), 0.1);
+    vec3 dir = span / len;
     vec3 side = vec3(-dir.z, 0.0, dir.x);
     float s = mix(uTail, uHead, position.z);
     vec3 C = axonAt(s, len, dir, side);
