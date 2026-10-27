@@ -23,7 +23,12 @@ A pinprick of collapsed space flies to the circle bending the frame around it, s
 6. **World** — light #b98cff (r 22) that *feeds* rather than flickers; scorch.
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__astral-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__astral-sheet.jpg`; dense pass f4–f90.
+- **f4 (0.13 s)** — a small black disc with a bright ring already hanging over the site (the seed, lensing).
+- **f10–f16 (0.33–0.53 s)** — the inflation: the disc swells to a large pitch-black circle with a hard white-gold photon ring and a violet glow — the anticipation beat reads clearly.
+- **f24 (0.8 s)** — after the pinch: the disc has shrunk back; a violet nebula erupts round it, a violet ring with a white crest starts across the floor.
+- **f34–f48 (1.1–1.6 s)** — the blast at full size: a tall violet-and-gold gas cloud wound round the hole (gold showing in the throat), dark void shards flung in orbit, the floor shockwave a wide violet ring with a white serrated crest, already ≈ 15 m across; a dummy lifted and lying in the air at the base tagged `starmarked`.
+- **f64–f90 (2.1–3.0 s)** — the feeding hold: the nebula churns at the same scale, shards keep orbiting, the shockwave has run off-frame. Everything above the floor is purple/gold light; the black disc stays the darkest pixel in the shot.
 
 ## Signature
 **Implosion then release**: the frame is pulled in (inflate, inward star rush) before it is pushed out (pinch → blast), and the lens bends the finished frame including the effect itself.

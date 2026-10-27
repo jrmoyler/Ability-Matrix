@@ -23,7 +23,13 @@ A seed of green light runs to the circle, a nature sigil races out to the bounda
 6. **Particles** — motes (#ffffff → #0b3a22), pollen (#fff6c8 → #2a4a20), mist (#cfeede → #16281f), drifting leaves (#d8ff9e → #1a3320); light #6effa8 (r 12, 45 % of the way to the bloom).
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__growth-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__growth-sheet.jpg`; dense pass f4–f90.
+- **f4 (0.13 s)** — a green muzzle shell at the hand, a stream of green motes running to the site.
+- **f10–f16 (0.33–0.53 s)** — a green dome-flash lands, then the sigil writes itself out: a thin bright ring with a star and runes, ~8 m across; the first stems poke up round it.
+- **f24–f34 (0.8–1.1 s)** — the nest climbs: dark woody tendrils with bright green seams arch up and curl inward from the ring, leaves unfurling along them.
+- **f48–f64 (1.6–2.1 s)** — the bloom rises out of the nest and opens: a layered jade flower ≈ 3 m up with a white-hot core and a pale halo.
+- **f90 (3.0 s)** — it is working: a thick white-green lance from the flower's core to a dummy ≈ 6 m away, which has been **cut in two at the waist** (both halves visible), another dummy tagged `entangled`. Leaves on the stems are clearly attached and lit by the sun.
+- (In the earlier standard run the f70 frame showed a large green translucent shell filling the top of the frame — the bloom halo/flash seen close up; it is gone by f90 in the dense run.)
 
 ## Signature
 **Growth along curves, in the vertex shader**: an analytic stem path climbs, curls and withers per frame, and leaves ride the exact same function — then the flower picks its own targets.
