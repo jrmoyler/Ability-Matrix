@@ -17,7 +17,7 @@
       "range": 18,
       "minRange": 0,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"25\" r=\"12\"/><path d=\"M32 78L38 43L62 43L68 78M22 52L37 47M63 47L78 52\"/></svg>"
     },
     {
@@ -36,7 +36,7 @@
       "range": 20,
       "minRange": 1,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 80Q30 25 50 50T90 20\"/><path d=\"M50 30V70M32 40L68 60M32 60L68 40\"/></svg>"
     },
     {
@@ -55,8 +55,27 @@
       "range": 20,
       "minRange": 2,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M55 5L25 52H48L38 95L75 42H52Z\"/><circle cx=\"76\" cy=\"72\" r=\"8\"/></svg>"
+    },
+    {
+      "uid": "matrix-expansion/thunderhead-parasite",
+      "pack": "matrix-expansion",
+      "id": "thunderhead-parasite",
+      "kind": "ability",
+      "element": "storm",
+      "label": "Thunderhead Parasite",
+      "hint": "A storm attaches to a target and shocks it when it attacks.",
+      "accent": "#a9baff",
+      "key": "",
+      "cast": "zone",
+      "castAnim": "cast2",
+      "cooldown": 7,
+      "range": 18,
+      "minRange": 0,
+      "zoneRadius": null,
+      "status": "live",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 50Q10 35 30 30Q38 8 55 25Q75 15 80 40Q95 44 85 55H18\"/><path d=\"M56 48L43 68L55 68L43 90\"/></svg>"
     },
     {
       "uid": "matrix-expansion/tidal-memory",
@@ -74,7 +93,7 @@
       "range": 20,
       "minRange": 2,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 50Q25 20 40 50T72 50T92 50\"/><path d=\"M70 65L54 80L70 90\"/></svg>"
     },
     {
@@ -93,7 +112,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 80L18 40L30 70L43 17L56 71L72 35L91 80Z\"/></svg>"
     },
     {
@@ -112,7 +131,7 @@
       "range": 20,
       "minRange": 2,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 5L25 50L50 95L75 50Z\"/><path d=\"M50 5V95M25 50H75\"/></svg>"
     },
     {
@@ -131,7 +150,7 @@
       "range": 18,
       "minRange": 1,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 45Q25 18 49 24Q72 28 75 48M88 53Q70 80 48 76Q25 72 23 53\"/><path d=\"M65 13L76 25L63 31M32 88L21 76L35 70\"/></svg>"
     },
     {
@@ -150,7 +169,7 @@
       "range": 18,
       "minRange": 1,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"8\"/><circle cx=\"50\" cy=\"50\" r=\"22\"/><circle cx=\"50\" cy=\"50\" r=\"38\"/></svg>"
     },
     {
@@ -169,7 +188,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 35Q50 0 88 35M18 35Q20 76 34 82M82 35Q80 76 66 82M50 25V72M35 50Q50 62 65 50\"/></svg>"
     },
     {
@@ -188,7 +207,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4.2,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"20\" cy=\"72\" r=\"5\"/><circle cx=\"42\" cy=\"30\" r=\"5\"/><circle cx=\"80\" cy=\"52\" r=\"5\"/><path d=\"M20 72L42 30L80 52L57 80L20 72M50 10L52 21M45 15H56\"/></svg>"
     },
     {
@@ -198,7 +217,7 @@
       "kind": "ability",
       "element": "poison",
       "label": "Toxin Evolution",
-      "hint": "Infect an enemy with three escalating poison strikes while it remains within reach.",
+      "hint": "Poison — infect the nearest enemy in the circle; the toxin evolves through three escalating strikes while the host stays within reach",
       "accent": "#b5f15a",
       "key": "",
       "cast": "zone",
@@ -207,7 +226,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 3.5,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 12C34 31 22 42 22 60A28 28 0 0 0 78 60C78 42 66 31 50 12Z\"/><path d=\"M32 59Q50 38 68 59M35 68Q50 52 65 68\"/></svg>"
     },
     {
@@ -226,7 +245,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 3.5,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 12Q15 25 18 55Q22 82 50 90Q78 82 82 55Q85 25 50 12Z\"/><path d=\"M28 58L40 49L50 65L60 49L72 58\"/></svg>"
     },
     {
@@ -245,7 +264,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"42\" r=\"22\"/><path d=\"M50 8V20M50 64V78M16 42H28M72 42H84M30 22L38 30M62 54L70 62M30 62L38 54M62 30L70 22M50 42L76 82\"/></svg>"
     },
     {
@@ -264,7 +283,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 78H80M28 78V38Q50 10 72 38V78M38 78V44H62V78M50 22V51M38 35H62\"/></svg>"
     },
     {
@@ -283,7 +302,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 1.1,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 50H88M22 35Q50 5 78 35M22 65Q50 95 78 65M50 12V88\"/><circle cx=\"50\" cy=\"50\" r=\"12\"/></svg>"
     },
     {
@@ -293,7 +312,7 @@
       "kind": "ability",
       "element": "void",
       "label": "Hollow Meridian",
-      "hint": "Three staggered void seams open along the chosen line, hollowing enemies at each breach.",
+      "hint": "Void — a dark wake runs down the line and three staggered seams tear open behind it, hollowing out every enemy standing over a breach",
       "accent": "#9889fa",
       "key": "",
       "cast": "line",
@@ -302,7 +321,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 1.4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 50H85M25 25L35 75M45 20L55 80M65 25L75 75\"/><circle cx=\"50\" cy=\"50\" r=\"12\"/></svg>"
     },
     {
@@ -312,7 +331,7 @@
       "kind": "ability",
       "element": "blood",
       "label": "Pulse Covenant",
-      "hint": "Blood — land consecutive strikes in rhythm to send a pulse through nearby enemies",
+      "hint": "Blood — bind a heart above you; land two different casts on its beat and a pulse of blood tears through the enemies near the second hit",
       "accent": "#ff3a55",
       "key": "",
       "cast": "zone",
@@ -321,7 +340,7 @@
       "range": 8,
       "minRange": 0.5,
       "zoneRadius": 3.2,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 80C22 61 20 33 34 27C42 23 48 27 50 33C52 27 58 23 66 27C80 33 78 61 50 80Z\"/><path d=\"M10 53H30L37 43L44 62L51 50H89\"/></svg>"
     },
     {
@@ -331,7 +350,7 @@
       "kind": "ability",
       "element": "arcane",
       "label": "Spellwright's Gambit",
-      "hint": "Arcane — compose two runic attack shapes and release them in sequence",
+      "hint": "Arcane — compose two runic shapes; the armillary releases them one beat apart",
       "accent": "#7c8cff",
       "key": "",
       "cast": "zone",
@@ -340,8 +359,8 @@
       "range": 18,
       "minRange": 1,
       "zoneRadius": 4,
-      "status": "candidate",
-      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"34\"/><path d=\"M50 12L78 68H22Z M23 32H77L50 82Z\"/></svg>"
+      "status": "live",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"34\"/><path d=\"M50 12L78 68H22Z M23 32H77L50 82Z\"/><circle cx=\"50\" cy=\"50\" r=\"6\"/></svg>"
     },
     {
       "uid": "matrix-expansion/mirage-procession",
@@ -350,7 +369,7 @@
       "kind": "ability",
       "element": "illusion",
       "label": "Mirage Procession",
-      "hint": "Illusion — three moving masks feint; only the chosen lane can strike",
+      "hint": "Illusion — three masks process down three lanes; only the chosen lane strikes",
       "accent": "#ff9ad8",
       "key": "",
       "cast": "line",
@@ -359,7 +378,7 @@
       "range": 20,
       "minRange": 1,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 25Q50 5 82 25L75 66L50 85L25 66Z M29 42L43 39 M57 39L71 42\"/></svg>"
     },
     {
@@ -378,7 +397,7 @@
       "range": 20,
       "minRange": 1,
       "zoneRadius": 3.6,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"50\" cy=\"50\" r=\"34\"/><path d=\"M50 19V50L70 61M37 7L29 18M63 93L71 82\"/></svg>"
     },
     {
@@ -388,7 +407,7 @@
       "kind": "ability",
       "element": "motion",
       "label": "Momentum Ledger",
-      "hint": "Motion — move to bank distance, then release a directional shockwave",
+      "hint": "Motion — walk to bank distance on the ledger, then release it as a shockwave",
       "accent": "#ffb088",
       "key": "",
       "cast": "zone",
@@ -397,7 +416,7 @@
       "range": 10,
       "minRange": 0.5,
       "zoneRadius": 4.5,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 65L68 15L68 35L90 35L43 82L43 62Z\"/></svg>"
     },
     {
@@ -407,7 +426,7 @@
       "kind": "ability",
       "element": "tech",
       "label": "Adaptive Fabricator",
-      "hint": "Tech — deploy a device that counters hostile exposure; with combat off, it fires neutral tech",
+      "hint": "Tech — deploy a sentry that reads enemy exposure and fires the counter-element; with combat off, it fires neutral tech",
       "accent": "#7ff0ff",
       "key": "",
       "cast": "zone",
@@ -416,7 +435,7 @@
       "range": 18,
       "minRange": 1,
       "zoneRadius": 6,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 10L84 30V70L50 90L16 70V30Z\"/><circle cx=\"50\" cy=\"50\" r=\"19\"/><path d=\"M50 25V12M50 88V75M25 50H12M88 50H75\"/></svg>"
     },
     {
@@ -426,7 +445,7 @@
       "kind": "ability",
       "element": "force",
       "label": "Vector Breakwater",
-      "hint": "Force — three moving shield fronts carry consecutive impacts down the line",
+      "hint": "Force — three shield fronts sweep the lane in succession; anything in it takes three consecutive impacts",
       "accent": "#ffd1a3",
       "key": "",
       "cast": "line",
@@ -435,7 +454,7 @@
       "range": 20,
       "minRange": 1,
       "zoneRadius": null,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 15L45 50L15 85M38 15L68 50L38 85M60 15L90 50L60 85\"/></svg>"
     },
     {
@@ -454,7 +473,7 @@
       "range": 18,
       "minRange": 0,
       "zoneRadius": 4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 75L21 29L38 52L50 17L62 52L79 29L88 75Z\"/></svg>"
     },
     {
@@ -473,7 +492,7 @@
       "range": 18,
       "minRange": 0,
       "zoneRadius": 4,
-      "status": "candidate",
+      "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 65Q50 5 88 65M17 65H83M50 20V80M33 47L67 67M67 47L33 67\"/></svg>"
     }
   ]

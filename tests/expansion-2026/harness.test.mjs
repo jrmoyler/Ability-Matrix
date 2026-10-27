@@ -25,7 +25,7 @@ test('opt-in harness installs all candidates, editors and real combat adapter wi
   const host = Object.assign(Object.create(PackAdapter.prototype), { app, manager: combatManager, enabled: true, scope: null, _meta: new WeakMap(), _wrapped: new WeakSet(), _tracked: new Set() });
   app.combat = host;
   const harness = installExpansionHarness(app);
-  assert.equal(candidates.length, 25);
+  assert.equal(candidates.length, expansionRoster().length);
   assert.deepEqual(new Set(candidates.map(x => x.uid)), new Set(expansionRoster().map(x => x.uid)));
   assert.equal(new Set(candidates.map(x=>x.config.meta.element)).size, 23);
   assert.deepEqual(ELEMENTS, original);

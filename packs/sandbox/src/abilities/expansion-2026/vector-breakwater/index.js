@@ -1,439 +1,777 @@
+import { Group, InstancedMesh, Mesh, Object3D, Vector3 } from 'three';
+import { Ability as BaseAbility, AbilityPhase } from '../../Ability.js';
+import { settings } from '../../../config/settings.js';
+import { LAYER } from '../../../core/Layers.js';
+import { frame } from '../../../core/FrameUniforms.js';
+import { RateEmitter } from '../../../particles/ParticleEngine.js';
+import { DecalType } from '../../../effects/GroundDecals.js';
+import { BurstMode } from '../../../effects/BurstSphere.js';
+import { getColor } from '../../../utils/color.js';
+import { saturate } from '../../../utils/math.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { impactForce } from '../ImpactForce.js';
 import {
   createExpansionFX,
-  routeExpansionTransparency,
-  expansionBurst,
   expansionImpact,
+  routeExpansionTransparency,
   ParticleShape,
 } from '../ExpansionFX.js';
 import {
-  AdditiveBlending,
-  BufferGeometry,
-  Color,
-  DoubleSide,
-  Float32BufferAttribute,
-  Group,
-  InstancedMesh,
-  Mesh,
-  MeshBasicMaterial,
-  Object3D,
-  PlaneGeometry,
-  RingGeometry,
-  ShaderMaterial,
-  Vector3,
-} from 'three';
-import { Ability as BaseAbility } from '../../Ability.js';
-import { settings } from '../../../config/settings.js';
-import { LAYER } from '../../../core/Layers.js';
+  createBraceGeometry,
+  createContactGeometry,
+  createCorridorGeometry,
+  createFinGeometry,
+  createFrontGeometry,
+  createRibGeometry,
+  createSheetGeometry,
+  createWakeGeometry,
+} from './BreakwaterGeometry.js';
+import {
+  createBraceMaterial,
+  createContactMaterial,
+  createCorridorMaterial,
+  createFinMaterial,
+  createFrontMaterial,
+  createRibMaterial,
+  createWakeMaterial,
+  createWarpMaterial,
+} from './BreakwaterMaterials.js';
+import { castAnimation, gradient, rangeOf, subFolder } from './EditorKit.js';
 import config from './config.js';
+
 export { config };
 export const ID = config.id;
-const TAU = Math.PI * 2,
-  clamp = (x) => Math.max(0, Math.min(1, x));
-const loc = new Vector3();
-const finTransform = new Object3D();
+
+const UID = 'matrix-expansion/vector-breakwater';
+/** Shield fronts per cast. Each sweeps the lane once. */
+const FRONTS = 3;
+/** Pressure fins trailing each front. */
 const FINS_PER_FRONT = 6;
+/** Bodies one front sweep may strike in one frame. */
 const MAX_TARGETS = 16;
-/** Parameterized curved shield front, with tapered tips and camber; not a stock quad. */
-function frontGeometry() {
-  const positions = [],
-    uv = [],
-    indices = [];
-  const nx = 56,
-    ny = 12;
-  for (let j = 0; j <= ny; j++) {
-    const y = j / ny;
-    for (let i = 0; i <= nx; i++) {
-      const x = (i / nx) * 2 - 1;
-      const taper = Math.sqrt(Math.max(0, 1 - x * x));
-      positions.push(x * 0.5, y * taper, 0.12 * (1 - x * x) * (1 - y));
-      uv.push(i / nx, y);
-      if (i < nx && j < ny) {
-        const a = j * (nx + 1) + i,
-          b = a + nx + 1;
-        indices.push(a, b, a + 1, a + 1, b, b + 1);
-      }
-    }
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  g.setIndex(indices);
-  g.computeVertexNormals();
-  return g;
+/** Bodies one front may strike over its whole run. */
+const MAX_HITS_PER_FRONT = 64;
+/** Contact cues awaiting their committed UCSM hit. Pooled. */
+const MAX_PENDING = 16;
+
+const _loc = new Vector3();
+const _contactPoint = new Vector3();
+/** Scratch query point: queries read it immediately and never retain it. */
+const _queryPos = [0, 0, 0];
+const _pos = new Vector3();
+const _dir = new Vector3();
+const _up = new Vector3(0, 1, 0);
+const _finTransform = new Object3D();
+const _emit = {};
+
+/** One pooled particle emission with the globals applied, reusing `_emit`. */
+function emitParticles(system, count, position, radius, direction, speed, spread, size, life, spin, tint = null) {
+  if (!system || count <= 0) return;
+  const g = settings.global;
+  const n = Math.min(128, Math.round(count * g.particleCount));
+  if (n <= 0) return;
+  _emit.position = position;
+  _emit.radius = radius;
+  _emit.direction = direction;
+  _emit.speed = speed * g.particleSpeed;
+  _emit.speedVariance = 0.45;
+  _emit.spread = spread;
+  _emit.inherit = null;
+  _emit.anchor = null;
+  _emit.size = size * g.particleSize;
+  _emit.sizeVariance = 0.45;
+  _emit.life = life * g.particleLifetime;
+  _emit.lifeVariance = 0.35;
+  _emit.spin = spin;
+  _emit.tint = tint;
+  _emit.time = frame.uTime.value;
+  system.emit(n, _emit);
 }
-/** Curved internal splines reinforce each travelling shield, independent of its shader. */
-function ribGeometry() {
-  const vertices = [];
-  for (let rib = -2; rib <= 2; rib++) {
-    for (let segment = 0; segment < 20; segment++) {
-      const sample = (t, side) => {
-        const y = .08 + t * .78;
-        const x = rib * .105 * (1 - t * .38) + side * .006;
-        return [x, y, .12 * (1 - 4 * x * x) * (1 - y) + .012];
-      };
-      const a = segment / 20, b = (segment + 1) / 20;
-      vertices.push(...sample(a, -1), ...sample(b, -1), ...sample(a, 1));
-      vertices.push(...sample(a, 1), ...sample(b, -1), ...sample(b, 1));
-    }
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
-  geometry.computeVertexNormals();
-  return geometry;
+
+/** Push a settings gradient and behaviour uniforms into a shared system. */
+function tuneSystem(system, c, prefix, gravityY, drag) {
+  if (!system) return;
+  system.setGradient?.(getColor(c[`${prefix}A`]), getColor(c[`${prefix}B`]), getColor(c[`${prefix}C`]), getColor(c[`${prefix}D`]));
+  const u = system.uniforms;
+  if (!u) return;
+  const g = settings.global;
+  u.uGravity?.value.set(0, gravityY, 0);
+  if (u.uDrag) u.uDrag.value = drag;
+  if (u.uGlow) u.uGlow.value = g.glow;
+  if (u.uOpacity) u.uOpacity.value = g.opacity;
+  if (u.uTurbulence) u.uTurbulence.value = 0.5 * g.turbulence;
 }
-/** Raised, asymmetric pressure fins used behind each travelling shield. */
-function finGeometry() {
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute([
-    0,.7,0, -.3,0,-.3, .3,0,-.3,
-    0,.7,0, .3,0,-.3, 0,0,.45,
-    0,.7,0, 0,0,.45, -.3,0,-.3,
-    -.3,0,-.3, 0,0,.45, .3,0,-.3,
-  ], 3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-/** Broken, directional pressure petals arranged around a real contact. */
-function contactGeometry() {
-  const positions = [], uv = [];
-  for (let i = 0; i < 10; i++) {
-    const angle = i * TAU / 10, length = .6 + (i % 3) * .16;
-    const a = angle - .1, b = angle + .1;
-    positions.push(Math.cos(a)*.16,0,Math.sin(a)*.16,
-      Math.cos(angle)*length,0,Math.sin(angle)*length,
-      Math.cos(b)*.16,0,Math.sin(b)*.16);
-    uv.push(0,0, 1,.5, 0,1);
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-function contactMaterial() {
-  return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,
-    uniforms:{color:{value:new Color('#fff0dd')},fade:{value:0}},
-    vertexShader:`varying vec2 q;void main(){q=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec2 q;uniform vec3 color;uniform float fade;void main(){float tip=1.-q.x;gl_FragColor=vec4(color,(.25+.75*tip)*fade);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});
-}
-function frontMaterial() {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-    uniforms: {
-      time: { value: 0 },
-      fade: { value: 1 },
-      edge: { value: new Color('#fff0dd') },
-      body: { value: new Color('#d16f56') },
-    },
-    vertexShader: `varying vec2 q;uniform float time;void main(){q=uv;vec3 p=position;p.z+=sin(uv.x*19.+time*7.)*.008*uv.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
-    fragmentShader: `varying vec2 q;uniform float time,fade;uniform vec3 edge,body;void main(){float side=pow(abs(q.x*2.-1.),6.);float rim=exp(-abs(q.y-.93)*35.);float slash=pow(max(0.,cos(q.x*33.-q.y*17.-time*8.)),16.);float end=smoothstep(0.,.08,q.y)*(1.-smoothstep(.93,1.,q.y));float alpha=(rim*.8+side*.45+slash*.28+.12)*end*fade;gl_FragColor=vec4(mix(body,edge,clamp(rim+side,0.,1.))*2.,alpha);}`,
-  });
-}
-function trailMaterial() {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-    uniforms: {
-      time: { value: 0 },
-      fade: { value: 1 },
-      color: { value: new Color('#ff9e76') },
-    },
-    vertexShader: `varying vec2 q;void main(){q=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader: `varying vec2 q;uniform float time,fade;uniform vec3 color;void main(){float edge=exp(-abs(abs(q.x-.5)-.45)*40.);float bands=pow(max(0.,cos(q.y*60.-time*7.)),20.);float alpha=(edge*.3+bands*.18)*(1.-smoothstep(.95,1.,q.y))*fade;gl_FragColor=vec4(color*1.5,alpha);}`,
-  });
-}
-/** Three independent fronts sweep true line volumes at their own simulation times. */
+
+/**
+ * VECTOR BREAKWATER — three shield fronts that carry their impacts down a lane.
+ *
+ * A line cast with no travelling projectile of its own: the cast *is* the
+ * three fronts. Each is launched `spacing` seconds after the last, sweeps the
+ * corridor at `speed`, strikes everything it passes exactly once, and breaks
+ * at the end of the line. A body in the lane therefore takes three
+ * consecutive impacts, which is the move.
+ *
+ * Layers, each a folder in the editor:
+ *
+ *   1. **the brace** — three chevrons at the caster's feet, one per front,
+ *      each flaring as its front leaves (with a small knock and light punch).
+ *      That is the anticipation: you see the cadence before the first hit.
+ *   2. **shield fronts** — a cambered, tapered sheet (`createFrontGeometry`)
+ *      under a bespoke shader: drifting voronoi pressure cells, racing slash
+ *      lines, hot rim and sides, fresnel; internal splines with climbing
+ *      pulses; six instanced pressure fins trailing it. In the last
+ *      `spentFade` of the lane the sheet tears apart from the crest with a
+ *      burning dissolve edge and its crest curls forward — it breaks.
+ *   3. **ground scour** — the corridor shader only marks ground a front has
+ *      passed: dragged gouges, edge lines, a hot fresh band behind each front;
+ *      plus grit kicked off each front's foot.
+ *   4. **spray + contact** — spray every `sprayEvery` metres; at a confirmed
+ *      hit, jagged pressure petals, flung shards and a light punch.
+ *   5. **the break** — at the end of the line each front leaves a breaking
+ *      wake crest, a shockwave decal and a light punch; the first adds a
+ *      squashed pressure shell, camera knock and flash.
+ *   6. **distortion** — a sheet on `LAYER.DISTORTION` riding each front.
+ *
+ * Spray, grit and shards share one pooled streak system (the Batch C
+ * contract allows one per cast), told apart by per-emit tint, size and speed.
+ *
+ * ## Gameplay is the contract
+ *
+ * The sweep (`_sweep`) is the candidate's own: a true line volume per front
+ * per frame, a per-front set so nothing is struck twice by one front, the
+ * same UCSM `hit` event and force, and the same direct-dummy fallback. A
+ * contact cue under UCSM waits for its committed hit (subscription), so a
+ * cancelled event never shows an impact.
+ *
+ * ## Live editing
+ *
+ * A front's position is a pure function of age, spacing and speed, so every
+ * visual follows a slider on the next frame; shimmer is integrated so dragging
+ * its speed never jumps the slash lines.
+ */
 export class Ability extends BaseAbility {
   constructor(ctx) {
     super(ID, ctx);
   }
+
   get handlesOwnHits() {
     return true;
   }
+
   get impactDuration() {
     return Math.max(1.1, this.config.spacing * 3 + 0.5);
   }
+
   get fadeDuration() {
     return 0.6;
   }
+
+  /** Fronts currently in the lane. HUD readout only. */
+  get instanceCount() {
+    let n = 0;
+    for (const front of this.fronts) if (front.visible) n++;
+    return n;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Construction                                                        */
+  /* ------------------------------------------------------------------ */
+
   createShaders() {
     this.resources = [];
     const own = (x) => (this.resources.push(x), x);
+
     this.root = new Group();
     this.group.add(this.root);
-    this.frontMat = own(frontMaterial());
-    this.trailMat = own(trailMaterial());
-    const geo = own(frontGeometry());
-    const ribs = own(ribGeometry());
-    this.ribMat = own(new MeshBasicMaterial({ color: 0xffe8cf, transparent: true,
-      opacity: .7, depthWrite: false, side: DoubleSide, blending: AdditiveBlending }));
+
+    const frontGeo = own(createFrontGeometry());
+    const ribGeo = own(createRibGeometry());
+    const contactGeo = own(createContactGeometry());
+    const wakeGeo = own(createWakeGeometry());
+    const sheetGeo = own(createSheetGeometry());
+
+    /* ---- layer 2: fronts, ribs, fins ---- */
+    this.frontMats = [];
+    this.ribMats = [];
     this.fronts = [];
     this.wakeRings = [];
     this.contacts = [];
-    this.contactTimes = [-1,-1,-1];
-    const contactGeo = own(contactGeometry());
-    this.fins = new InstancedMesh(own(finGeometry()), this.ribMat, 3 * FINS_PER_FRONT);
-    this.fins.frustumCulled = false;
-    this.root.add(this.fins);
-    const wakeGeo = own(new RingGeometry(.88, 1, 64));
-    for (let i = 0; i < 3; i++) {
-      const mesh = new Mesh(geo, this.frontMat);
-      mesh.add(new Mesh(ribs, this.ribMat));
-      mesh.layers.set(LAYER.VFX);
+    this.warps = [];
+    this.contactTimes = [-1, -1, -1];
+    for (let i = 0; i < FRONTS; i++) {
+      const frontMat = own(createFrontMaterial(i * 3.7));
+      const ribMat = own(createRibMaterial());
+      this.frontMats.push(frontMat);
+      this.ribMats.push(ribMat);
+      const mesh = new Mesh(frontGeo, frontMat);
+      // One child only: the splines. Everything else that follows a front
+      // lives in root space so it can outlive the sheet.
+      mesh.add(new Mesh(ribGeo, ribMat));
       mesh.frustumCulled = false;
+      mesh.visible = false;
       this.root.add(mesh);
       this.fronts.push(mesh);
-      const material = own(new MeshBasicMaterial({ color: 0xffe8cf, transparent: true,
-        opacity: 0, depthWrite: false, side: DoubleSide, blending: AdditiveBlending }));
-      const wake = new Mesh(wakeGeo, material);
-      wake.rotation.x = -Math.PI / 2;
-      wake.position.y = .06 + i * .005;
+
+      /* ---- layer 5: the wake crest each front leaves ---- */
+      const wake = new Mesh(wakeGeo, own(createWakeMaterial(i * 5.1)));
+      wake.position.y = 0.06 + i * 0.005;
+      wake.visible = false;
       this.root.add(wake);
       this.wakeRings.push(wake);
-      const contact = new Mesh(contactGeo, own(contactMaterial()));
+
+      /* ---- layer 4: the contact petals ---- */
+      const contact = new Mesh(contactGeo, own(createContactMaterial()));
       contact.visible = false;
       this.root.add(contact);
       this.contacts.push(contact);
+
+      /* ---- layer 6: the warp riding the front ---- */
+      const warp = new Mesh(sheetGeo, own(createWarpMaterial()));
+      warp.frustumCulled = false;
+      warp.visible = false;
+      this.root.add(warp);
+      this.warps.push(warp);
     }
-    this.trail = new Mesh(own(new PlaneGeometry(1, 1)), this.trailMat);
-    this.trail.rotation.x = -Math.PI / 2;
+
+    this.finMat = own(createFinMaterial());
+    this.fins = new InstancedMesh(own(createFinGeometry()), this.finMat, FRONTS * FINS_PER_FRONT);
+    this.fins.frustumCulled = false;
+    this.root.add(this.fins);
+
+    /* ---- layer 3: the corridor ---- */
+    this.trailMat = own(createCorridorMaterial());
+    this.trail = new Mesh(own(createCorridorGeometry()), this.trailMat);
     this.trail.position.y = 0.03;
-    this.trail.layers.set(LAYER.VFX);
     this.root.add(this.trail);
+
+    /* ---- layer 1: the brace ---- */
+    this.braceMat = own(createBraceMaterial());
+    this.brace = new Mesh(own(createBraceGeometry()), this.braceMat);
+    this.brace.position.y = 0.035;
+    this.root.add(this.brace);
+
+    routeExpansionTransparency(this.group);
+    for (const warp of this.warps) warp.layers.set(LAYER.DISTORTION);
+
+    /* ---- per-cast state, all fixed-size ---- */
     this._previous = [0, 0, 0];
     this._nextTrail = [0, 0, 0];
+    this._launched = [false, false, false];
+    this._arrived = [false, false, false];
+    this._braceHeat = [0, 0, 0];
+    this._shimmer = 0;
     this._found = [];
     this._hitSets = [new Set(), new Set(), new Set()];
     this._force = { impulse: 0, lift: 0, spin: 0 };
-    routeExpansionTransparency(this.group);
+    this.dustEmitters = [new RateEmitter(), new RateEmitter(), new RateEmitter()];
+
+    // Contact cues awaiting a committed hit: a fixed pool of records keyed by
+    // event id, and one bound handler — nothing is allocated per cast.
+    this._pendingContacts = new Map();
+    this._pendingPool = [];
+    for (let i = 0; i < MAX_PENDING; i++) this._pendingPool.push({ i: 0, lat: 0, along: 0, position: [0, 0, 0] });
+    this._hitSubscription = null;
+    this._onCommittedHit = (event) => {
+      const cue = this._pendingContacts.get(event.eventId);
+      if (!cue) return;
+      this._pendingContacts.delete(event.eventId);
+      this._pendingPool.push(cue);
+      this._showContact(cue.i, cue.lat, cue.along, cue.position);
+    };
+
+    /** Scratch handed to the materials each frame — one apiece, reused. */
+    this._frontState = { fade: 1, spent: 0, shimmer: 0 };
+    this._fadeState = { fade: 1 };
+    this._corridorState = { fade: 1, length: 1, f0: -1, f1: -1, f2: -1 };
+    this._braceState = { fade: 1, h0: 0, h1: 0, h2: 0 };
+    this._warpState = { strength: 0 };
     this._disposed = false;
   }
+
   createParticles() {
-    this.fx = createExpansionFX(this.ctx, 'force', {
-      shape: ParticleShape.STREAK,
-      colors: ['#fff6e4', '#ffd1a3', '#e9876f', '#68394b'],
-    });
+    // One shared, pooled streak system (the Batch C contract allows a cast
+    // exactly one). Spray, grit and shards are told apart by per-emit tint,
+    // size, speed and life over its gradient.
+    this.fx = createExpansionFX(this.ctx, 'vectorBreakwater', { shape: ParticleShape.STREAK });
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Casting                                                             */
+  /* ------------------------------------------------------------------ */
+
   onSpawn() {
-    this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/vector-breakwater');
+    this._scope = bindExpansionCombat(this.ctx, UID);
     this.failure = null;
-    this._pendingContacts = new Map();
+    this._releasePending();
     this._hitSubscription = null;
     if (this._scope && !this._scope.standalone) {
-      const sub=this._scope.on('hit', event=>{
-        const cue=this._pendingContacts.get(event.eventId);
-        if (!cue) return;
-        this._pendingContacts.delete(event.eventId);
-        this._showContact(cue.i,cue.lat,cue.along,cue.position);
-      });
-      if (sub.ok) this._hitSubscription=sub; else this.failure=sub.reason;
+      const sub = this._scope.on('hit', this._onCommittedHit);
+      if (sub.ok) this._hitSubscription = sub;
+      else this.failure = sub.reason;
     }
     this._previous.fill(0);
     this._nextTrail.fill(0);
+    this._launched.fill(false);
+    this._arrived.fill(false);
+    this._braceHeat.fill(0);
+    this._shimmer = 0;
     this.contactTimes.fill(-1);
     for (const contact of this.contacts) contact.visible = false;
-    for (const s of this._hitSets) s.clear();
+    for (const wake of this.wakeRings) wake.visible = false;
+    for (const set of this._hitSets) set.clear();
+    for (const emitter of this.dustEmitters) emitter.reset();
     this.root.visible = true;
-    this._updateWaves();
+    this._updateWaves(0);
   }
-  onTravel() {
-    this._updateWaves();
+
+  onTravel(dt) {
+    this._updateWaves(dt);
   }
+
   onImpact() {
-    this._updateWaves();
-    expansionImpact(
-      this.ctx,
-      this.config.edgeColor,
-      this.config.impactShake,
-      this.config.impactFlash,
-    );
+    const c = this.config;
+    const g = settings.global;
+    this._updateWaves(0);
+    // The first front breaking is the cast's one big beat.
+    this.pointAt(1, _pos).setY(0.5);
+    this.ctx.bursts?.spawn(BurstMode.AIR, _pos, {
+      radius: c.burstSize * 0.15,
+      endRadius: c.burstSize * g.explosionIntensity,
+      life: 0.5,
+      intensity: 1,
+      opacity: 0.55,
+      fresnel: 2,
+      squash: 0.35,
+      colorA: getColor(c.edgeColor),
+      colorB: getColor(c.bodyColor),
+      colorC: getColor(c.groundColor),
+    });
+    expansionImpact(this.ctx, c.edgeColor, c.impactShake * g.explosionIntensity, c.impactFlash * g.explosionIntensity);
   }
-  onFade() {
-    this._updateWaves();
+
+  onFade(dt) {
+    this._updateWaves(dt);
   }
-  _updateWaves() {
-    const c = this.config,
-      speed = c.speed * settings.global.speed,
-      fade =
-        this.phase === 'fade'
-          ? 1 - clamp(this.fadeTime / this.fadeDuration)
-          : 1;
+
+  /* ------------------------------------------------------------------ */
+  /* Per-frame resolve                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /** @param {number} dt seconds since last frame; 0 renders without advancing */
+  _updateWaves(dt = 0) {
+    const c = this.config;
+    const g = settings.global;
+    const speed = c.speed * g.speed;
+    const fade = this.phase === AbilityPhase.FADE ? 1 - saturate(this.fadeTime / this.fadeDuration) : 1;
+    const wakeTime = Math.max(0.05, c.wakeTime ?? 0.55);
+    const spentFade = Math.max(0.01, c.spentFade);
+    this._shimmer += c.shimmerSpeed * dt * g.noiseSpeed;
+    this._syncParticles();
+
     this.root.position.copy(this.origin);
     this.root.rotation.y = Math.atan2(this.direction.x, this.direction.z);
+
+    /* ---- the corridor ---- */
     this.trail.position.z = this.length * 0.5;
-    this.trail.scale.set(c.width * 2, this.length, 1);
-    this.trailMat.uniforms.time.value = this.age;
-    this.trailMat.uniforms.fade.value = fade;
-    this.trailMat.uniforms.color.value.set(c.groundColor);
-    this.frontMat.uniforms.time.value = this.age;
-    this.frontMat.uniforms.fade.value = fade;
-    this.frontMat.uniforms.edge.value.set(c.edgeColor);
-    this.frontMat.uniforms.body.value.set(c.bodyColor);
-    this.ribMat.color.set(c.edgeColor);
-    this.ribMat.opacity = .7 * fade;
-    for (let i = 0; i < 3; i++) {
-      const elapsed = this.age - i * c.spacing,
-        front = clamp((elapsed * speed) / this.length) * this.length,
-        mesh = this.fronts[i];
+    this.trail.scale.set(c.width * 2, 1, this.length);
+    const cs = this._corridorState;
+    cs.fade = fade;
+    cs.length = this.length;
+
+    /* ---- the brace ---- */
+    this.brace.scale.set(c.braceSize * Math.max(0.5, c.width * 0.6), 1, c.braceSize);
+
+    for (let i = 0; i < FRONTS; i++) {
+      const elapsed = this.age - i * c.spacing;
+      const front = saturate((elapsed * speed) / this.length) * this.length;
+      const mesh = this.fronts[i];
       mesh.visible = elapsed >= 0 && front < this.length;
       mesh.position.set(0, 0.04, front);
-      mesh.scale.set(c.width * 2, 1.8, 1);
-      const arrival = elapsed - this.length / Math.max(.001, speed);
-      const wake = this.wakeRings[i];
-      wake.visible = arrival >= 0 && arrival < .55;
-      if (wake.visible) {
-        const t = clamp(arrival / .55);
-        wake.position.z = this.length;
-        wake.scale.setScalar(c.width * (.15 + t * 1.15));
-        wake.material.opacity = .65 * (1 - t) * fade;
-        wake.material.color.set(c.edgeColor);
+      mesh.scale.set(c.width * 2, c.frontHeight, 1);
+
+      // Launch and arrival beats fire once, on the frame they are crossed.
+      if (elapsed >= 0 && !this._launched[i]) this._launch(i);
+      const arrival = elapsed - this.length / Math.max(0.001, speed);
+      if (arrival >= 0 && !this._arrived[i]) this._arrive(i);
+
+      // Torn apart over the last `spentFade` of the lane.
+      const spent = saturate((front / this.length - (1 - spentFade)) / spentFade);
+      const fs = this._frontState;
+      fs.fade = fade;
+      fs.spent = spent;
+      fs.shimmer = this._shimmer + i * 1.7;
+      this.frontMats[i].userData.sync(fs);
+      this._fadeState.fade = fade * (1 - spent);
+      this.ribMats[i].userData.sync(this._fadeState);
+
+      if (i === 0) cs.f0 = elapsed >= 0 ? front : -1;
+      else if (i === 1) cs.f1 = elapsed >= 0 ? front : -1;
+      else cs.f2 = elapsed >= 0 ? front : -1;
+
+      /* the warp rides the sheet */
+      const warp = this.warps[i];
+      warp.visible = mesh.visible;
+      if (warp.visible) {
+        warp.position.set(0, 0, front + 0.05);
+        warp.scale.set(c.width * 2.2, c.warpHeight, 1);
+        this._warpState.strength = (1 - spent) * fade;
+        warp.material.userData.sync(this._warpState);
       }
-      const contact = this.contacts[i], contactAge = this.contactTimes[i] < 0 ? -1 : this.age - this.contactTimes[i];
-      const contactLife = Math.max(.05, c.contactLife ?? .4);
+
+      /* dust off the front's foot */
+      if (mesh.visible && dt > 0) {
+        const puffs = this.dustEmitters[i].tick(dt, c.dustRate * (1 - spent));
+        if (puffs > 0) {
+          this.pointAt(front / this.length, _pos).setY(0.2);
+          _dir.copy(this.direction).multiplyScalar(-0.5).setY(0.6).normalize();
+          emitParticles(this.fx, puffs, _pos, c.width * 0.6, _dir, 1.6, 0.7, c.dustSize, c.dustLife, 0, getColor(c.dustColor));
+        }
+      }
+
+      /* ---- the wake crest at the end ---- */
+      const wake = this.wakeRings[i];
+      wake.visible = arrival >= 0 && arrival < wakeTime;
+      if (wake.visible) {
+        const t = saturate(arrival / wakeTime);
+        wake.position.z = this.length;
+        wake.scale.setScalar(c.width * (0.15 + t * c.wakeGrowth));
+        this._fadeState.fade = (1 - t) * fade;
+        wake.material.userData.sync(this._fadeState);
+      }
+
+      /* ---- a confirmed contact's petals ---- */
+      const contact = this.contacts[i];
+      const contactAge = this.contactTimes[i] < 0 ? -1 : this.age - this.contactTimes[i];
+      const contactLife = Math.max(0.05, c.contactLife ?? 0.4);
       contact.visible = contactAge >= 0 && contactAge < contactLife;
       if (contact.visible) {
-        const t = clamp(contactAge / contactLife);
-        contact.scale.setScalar((c.contactSize ?? 1) * (.25 + .75 * t));
+        const t = saturate(contactAge / contactLife);
+        contact.scale.setScalar((c.contactSize ?? 1) * (0.25 + 0.75 * t));
         contact.rotation.y = this.age * (i % 2 ? -1 : 1);
-        contact.material.uniforms.color.value.set(c.edgeColor);
-        contact.material.uniforms.fade.value = (1 - t) * fade;
+        this._fadeState.fade = (1 - t) * fade;
+        contact.material.userData.sync(this._fadeState);
       }
-      const peel = clamp(arrival / .55);
-      const active = elapsed >= 0 && arrival < .55;
+
+      /* ---- fins: trail the sheet, then peel away as it breaks ---- */
+      const peel = saturate(arrival / wakeTime);
+      const active = elapsed >= 0 && arrival < wakeTime;
       for (let j = 0; j < FINS_PER_FRONT; j++) {
         const side = (j / (FINS_PER_FRONT - 1)) * 2 - 1;
-        finTransform.position.set(side * (c.width * .82 + peel * (c.finSpread ?? .9)),
-          .12 + (j % 3) * .16 + peel * .6,
-          front - .25 - (j % 2) * .15 + peel * .45);
-        finTransform.rotation.set(peel * 1.5, side * .3, side * (.3 + peel));
-        finTransform.scale.setScalar(active ? (c.finSize ?? .22) * (1 - peel) * fade : .001);
-        finTransform.updateMatrix();
-        this.fins.setMatrixAt(i * FINS_PER_FRONT + j, finTransform.matrix);
+        _finTransform.position.set(
+          side * (c.width * 0.82 + peel * (c.finSpread ?? 0.9)),
+          0.12 + (j % 3) * 0.16 + peel * 0.6,
+          front - 0.25 - (j % 2) * 0.15 + peel * 0.45,
+        );
+        _finTransform.rotation.set(peel * 1.5, side * 0.3, side * (0.3 + peel));
+        _finTransform.scale.setScalar(active ? (c.finSize ?? 0.22) * (1 - peel) * fade : 0.001);
+        _finTransform.updateMatrix();
+        this.fins.setMatrixAt(i * FINS_PER_FRONT + j, _finTransform.matrix);
       }
-      if (elapsed >= 0 && front > this._previous[i])
-        this._sweep(i, this._previous[i], front);
+
+      /* ---- the attack ---- */
+      if (elapsed >= 0 && front > this._previous[i]) this._sweep(i, this._previous[i], front);
       this._previous[i] = front;
+
+      // Brace chevrons cool after their front leaves.
+      if (dt > 0) this._braceHeat[i] = Math.max(0, this._braceHeat[i] - dt / Math.max(0.05, c.braceTime));
     }
     this.fins.instanceMatrix.needsUpdate = true;
+    this._fadeState.fade = fade;
+    this.finMat.userData.sync(this._fadeState);
+    this.trailMat.userData.sync(cs);
+
+    const bs = this._braceState;
+    // The brace stands while the fronts are still leaving, then cools out.
+    bs.fade = fade * (1 - saturate((this.age - FRONTS * c.spacing - 0.4) / 0.5));
+    bs.h0 = this._braceHeat[0];
+    bs.h1 = this._braceHeat[1];
+    bs.h2 = this._braceHeat[2];
+    this.braceMat.userData.sync(bs);
+    this.brace.visible = bs.fade > 0.001;
   }
+
+  /** A front leaves the caster: its chevron flares, a small knock and puff. */
+  _launch(i) {
+    const c = this.config;
+    this._launched[i] = true;
+    this._braceHeat[i] = 1;
+    this.lightBoost = Math.max(this.lightBoost, c.launchLight);
+    if (c.launchShake > 0) this.ctx.shake?.add?.(c.launchShake, 9, 18);
+    _pos.copy(this.origin).addScaledVector(this.direction, 0.6).setY(0.15);
+    emitParticles(this.fx, 6, _pos, c.width * 0.4, this.direction, 2.5, 0.6, c.dustSize, c.dustLife * 0.7, 0, getColor(c.dustColor));
+  }
+
+  /** A front reaches the end of the line and breaks. */
+  _arrive(i) {
+    const c = this.config;
+    const g = settings.global;
+    this._arrived[i] = true;
+    this.pointAt(1, _pos).setY(0);
+    this.ctx.decals?.spawn(DecalType.SHOCKWAVE, _pos, {
+      radius: c.shockRadius * (1 - i * 0.2) * g.explosionIntensity,
+      life: 0.55,
+      width: 0.07,
+      intensity: 1,
+      colorA: getColor(c.edgeColor),
+      colorB: getColor(c.bodyColor),
+    });
+    this.ctx.decals?.spawn(DecalType.DUSTRING, _pos, {
+      radius: c.width * 1.2,
+      life: 0.9,
+      intensity: 0.7,
+      colorA: getColor(c.bodyColor),
+      colorB: getColor(c.dustColor),
+    });
+    _pos.y = 0.4;
+    emitParticles(this.fx, c.sprayCount, _pos, c.width * 0.5, _up, c.spraySpeed * 1.4, 0.9, c.spraySize, c.sprayLife, 2);
+    this.lightBoost = Math.max(this.lightBoost, c.arrivalLight);
+    // The first break's knock is onImpact's; the later two are smaller.
+    if (i > 0 && c.arrivalShake > 0) this.ctx.shake?.add?.(c.arrivalShake * g.explosionIntensity, 7, 20);
+  }
+
+  _syncParticles() {
+    const c = this.config;
+    tuneSystem(this.fx, c, 'colorSpray', c.particleGravity, c.particleDrag);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The attack (combat-bound)                                           */
+  /* ------------------------------------------------------------------ */
+
+  /** Strike everything the front `i` swept between `from` and `to` metres. */
   _sweep(i, from, to) {
-    const c = this.config,
-      field = this.ctx.dummies;
+    const c = this.config;
+    const field = this.ctx.dummies;
     if (!this._scope && !field?.findTargets) return;
     const mid = (from + to) / 2;
-    this.pointAt(mid / this.length, loc);
+    this.pointAt(mid / this.length, _loc);
     if (to >= this._nextTrail[i]) {
-      expansionBurst(this.fx, loc, {
-        count: 20,
-        size: 0.07,
-        life: 0.5,
-        speed: 4,
-        radius: this.config.width * 0.25,
-      });
-      this._nextTrail[i] = to + 2;
+      _pos.copy(_loc).setY(0.25);
+      emitParticles(this.fx, c.sprayCount, _pos, c.width * 0.25, _up, c.spraySpeed, 0.8, c.spraySize, c.sprayLife, 2);
+      this._nextTrail[i] = to + Math.max(0.25, c.sprayEvery);
     }
     if (this._scope) {
-      const query = this._scope.queryActors({position:[loc.x,0,loc.z], radius:Math.hypot((to-from)/2,c.width), relation:'enemy'});
-      if (!query.ok) { this.failure=query.reason; return; }
-      const force=impactForce({hitImpulse:c.impulse,hitLift:c.lift,hitSpin:c.spin},settings.global.explosionIntensity);
-      let n=0;
+      _queryPos[0] = _loc.x;
+      _queryPos[2] = _loc.z;
+      const query = this._scope.queryActors({ position: _queryPos, radius: Math.hypot((to - from) / 2, c.width), relation: 'enemy' });
+      if (!query.ok) {
+        this.failure = query.reason;
+        return;
+      }
+      // Built only when something is actually in the swept volume; emitted
+      // events are queued by the bridge, so they get their own objects.
+      let force = null;
+      let n = 0;
       for (const actor of query.actors) {
-        const x=actor.position[0]-this.origin.x,z=actor.position[2]-this.origin.z;
-        const along=x*this.direction.x+z*this.direction.z, lat=x*this.side.x+z*this.side.z;
-        if(along<from || along>to || Math.abs(lat)>c.width || this._hitSets[i].has(actor.id)) continue;
-        if(this._hitSets[i].size>=64) break;
-        const sent=this._scope.emit({type:'hit',element:'force',targetIds:[actor.id],position:actor.position,
-          sourcePosition:[this.origin.x,0,this.origin.z],damage:1,hitForce:force,tags:['vector-breakwater']});
-        if(!sent.ok){this.failure=sent.reason;continue;}
-        this._hitSets[i].add(actor.id);
-        if(n===0){
-          if (sent.standalone) this._showContact(i,lat,along,actor.position);
-          else if (this._hitSubscription && sent.eventId) this._pendingContacts.set(sent.eventId,{i,lat,along,position:[...actor.position]});
+        const x = actor.position[0] - this.origin.x;
+        const z = actor.position[2] - this.origin.z;
+        const along = x * this.direction.x + z * this.direction.z;
+        const lat = x * this.side.x + z * this.side.z;
+        if (along < from || along > to || Math.abs(lat) > c.width || this._hitSets[i].has(actor.id)) continue;
+        if (this._hitSets[i].size >= MAX_HITS_PER_FRONT) break;
+        force ??= impactForce({ hitImpulse: c.impulse, hitLift: c.lift, hitSpin: c.spin }, settings.global.explosionIntensity);
+        const sent = this._scope.emit({
+          type: 'hit',
+          element: 'force',
+          targetIds: [actor.id],
+          position: actor.position,
+          sourcePosition: [this.origin.x, 0, this.origin.z],
+          damage: 1,
+          hitForce: force,
+          tags: ['vector-breakwater'],
+        });
+        if (!sent.ok) {
+          this.failure = sent.reason;
+          continue;
         }
-        if(++n>=MAX_TARGETS) break;
+        this._hitSets[i].add(actor.id);
+        if (n === 0) {
+          if (sent.standalone) this._showContact(i, lat, along, actor.position);
+          else if (this._hitSubscription && sent.eventId) this._queueContact(sent.eventId, i, lat, along, actor.position);
+        }
+        if (++n >= MAX_TARGETS) break;
       }
       return;
     }
-    const found = field.findTargets(
-        loc.x,
-        loc.z,
-        Math.hypot((to - from) / 2, c.width),
-        this._found,
-      ),
-      power = settings.global.explosionIntensity;
+    const found = field.findTargets(_loc.x, _loc.z, Math.hypot((to - from) / 2, c.width), this._found);
+    const power = settings.global.explosionIntensity;
     this._force.impulse = c.impulse * power;
     this._force.lift = c.lift * power;
     this._force.spin = c.spin;
     let n = 0;
     for (const d of found) {
-      const x = d.position.x - this.origin.x,
-        z = d.position.z - this.origin.z,
-        along = x * this.direction.x + z * this.direction.z,
-        lat = x * this.side.x + z * this.side.z;
-      if (
-        along < from ||
-        along > to ||
-        Math.abs(lat) > c.width ||
-        this._hitSets[i].has(d)
-      )
-        continue;
-      if (this._hitSets[i].size >= 64) break;
+      const x = d.position.x - this.origin.x;
+      const z = d.position.z - this.origin.z;
+      const along = x * this.direction.x + z * this.direction.z;
+      const lat = x * this.side.x + z * this.side.z;
+      if (along < from || along > to || Math.abs(lat) > c.width || this._hitSets[i].has(d)) continue;
+      if (this._hitSets[i].size >= MAX_HITS_PER_FRONT) break;
       this._hitSets[i].add(d);
       if (d.kill(this.direction.x, this.direction.z, this._force)) {
-        if (n === 0) {
-          // The rig's local X is opposite the gameplay side vector.
-          this.contacts[i].position.set(-lat, .08 + i * .01, along);
-          this.contactTimes[i] = this.age;
-          expansionBurst(this.fx, d.position, {count:12,size:.09,life:.38,speed:3,radius:.15});
-        }
+        if (n === 0) this._showContactAt(i, lat, along, d.position);
         if (++n >= MAX_TARGETS) break;
       }
     }
   }
-  _showContact(i,lat,along,position) {
-    this.contacts[i].position.set(-lat,.08+i*.01,along);
-    this.contactTimes[i]=this.age;
-    loc.fromArray(position);
-    expansionBurst(this.fx,loc,{count:12,size:.09,life:.38,speed:3,radius:.15});
+
+  /** Hold a contact cue until its UCSM hit commits. Drops it if the pool is spent. */
+  _queueContact(eventId, i, lat, along, position) {
+    const cue = this._pendingPool.pop();
+    if (!cue) return;
+    cue.i = i;
+    cue.lat = lat;
+    cue.along = along;
+    cue.position[0] = position[0];
+    cue.position[1] = position[1];
+    cue.position[2] = position[2];
+    this._pendingContacts.set(eventId, cue);
   }
+
+  _releasePending() {
+    for (const cue of this._pendingContacts.values()) this._pendingPool.push(cue);
+    this._pendingContacts.clear();
+  }
+
+  /** Contact cue from an array position (UCSM / standalone actor snapshot). */
+  _showContact(i, lat, along, position) {
+    _contactPoint.fromArray(position);
+    this._showContactAt(i, lat, along, _contactPoint);
+  }
+
+  /** Contact cue at a world point. */
+  _showContactAt(i, lat, along, point) {
+    const c = this.config;
+    // The rig's local X is opposite the gameplay side vector.
+    this.contacts[i].position.set(-lat, 0.08 + i * 0.01, along);
+    this.contactTimes[i] = this.age;
+    _pos.copy(point).setY(Math.max(point.y, 0) + 0.6);
+    emitParticles(this.fx, c.chipCount, _pos, 0.15, _up, c.chipSpeed, 0.8, c.chipSize, c.chipLife, 2);
+    _dir.copy(this.direction).setY(0.6).normalize();
+    emitParticles(this.fx, c.chipCount, _pos, 0.2, _dir, c.chipSpeed * 1.5, 0.6, c.chipSize, c.chipLife * 1.6, 0, getColor(c.chipColor));
+    this.lightBoost = Math.max(this.lightBoost, c.contactLight);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Pooling                                                             */
+  /* ------------------------------------------------------------------ */
+
   onDestroy() {
-    this._hitSubscription?.unsubscribe(); this._hitSubscription=null;
-    this._pendingContacts?.clear();
+    this._hitSubscription?.unsubscribe();
+    this._hitSubscription = null;
+    this._releasePending();
     this._scope = null;
     this.root.visible = false;
-    for (const s of this._hitSets) s.clear();
+    for (const set of this._hitSets) set.clear();
   }
+
   dispose() {
     if (this._disposed) return;
     this._disposed = true;
+    this.onDestroy();
     for (const r of this.resources) r.dispose();
     super.dispose();
   }
 }
-export function buildEditor(gui, c) {
-  const f = gui.addFolder('Vector Breakwater');
-  f.add(c, 'width', 0.5, 5, 0.1).name('front width');
-  f.add(c, 'spacing', 0.05, 0.6, 0.01).name('front spacing');
-  f.add(c, 'speed', 3, 40, 0.5).name('speed');
-  f.add(c, 'impulse', 0, 30, 0.5).name('impulse');
-  f.add(c, 'finSize', .04, .5, .01).name('pressure fin size');
-  f.add(c, 'finSpread', 0, 3, .1).name('arrival spread');
-  f.add(c, 'contactSize', .2, 3, .1).name('contact visual size');
-  f.add(c, 'contactLife', .1, 1, .05).name('contact visual time');
-  f.addColor(c, 'edgeColor').name('edge');
-  f.addColor(c, 'bodyColor').name('pressure');
-  f.addColor(c, 'groundColor').name('wake');
-  f.add(c, 'impactShake', 0, 1, 0.01).name('impact shake');
-  f.add(c, 'impactFlash', 0, 1, 0.01).name('impact flash');
-  return f;
+
+/* ---------------------------------------------------------------------- */
+/* Editor                                                                  */
+/* ---------------------------------------------------------------------- */
+
+export function buildEditor(gui, c, Editor) {
+  const folder = gui.addFolder('⫸  Vector Breakwater');
+  const R = rangeOf(Editor);
+
+  const cast = subFolder(folder, 'The cast');
+  R(cast, c, 'range', 2, 48, 0.1, 'max range');
+  R(cast, c, 'minRange', 0, 12, 0.1, 'min range');
+  R(cast, c, 'speed', 3, 40, 0.5, 'front speed (m/s)');
+  R(cast, c, 'cooldown', 0, 30, 0.1, 'cooldown');
+  R(cast, c, 'lifetime', 0.5, 10, 0.1, 'contract lifetime (unused)');
+  castAnimation(cast, c, Editor);
+  cast.add(c, 'aimStyle', ['wide', 'lanes', 'self']).name('aim reticle');
+
+  const attack = subFolder(folder, 'Attack');
+  R(attack, c, 'width', 0.5, 5, 0.1, 'lane half-width (m)');
+  R(attack, c, 'spacing', 0.05, 0.6, 0.01, 'front spacing (s)');
+  R(attack, c, 'impulse', 0, 24, 0.5, 'impulse');
+  R(attack, c, 'lift', 0, 20, 0.1, 'lift');
+  R(attack, c, 'spin', 0, 8, 0.05, 'spin');
+
+  const light = subFolder(folder, 'Light');
+  light.addColor(c, 'lightColor').name('colour');
+  R(light, c, 'lightIntensity', 0, 30, 0.1, 'intensity');
+  R(light, c, 'lightRadius', 1, 40, 0.1, 'radius');
+
+  const brace = subFolder(folder, '1 · Brace');
+  R(brace, c, 'braceSize', 0.2, 4, 0.05, 'size (m)');
+  R(brace, c, 'braceGlow', 0, 8, 0.05, 'flare glow');
+  R(brace, c, 'braceTime', 0.05, 2, 0.01, 'cool time (s)');
+  R(brace, c, 'launchShake', 0, 0.5, 0.005, 'launch knock');
+  R(brace, c, 'launchLight', 0, 10, 0.1, 'launch light');
+
+  const fronts = subFolder(folder, '2 · Shield fronts');
+  const sheet = subFolder(fronts, 'Sheet');
+  sheet.addColor(c, 'edgeColor').name('edge');
+  sheet.addColor(c, 'bodyColor').name('pressure');
+  R(sheet, c, 'frontHeight', 0.3, 5, 0.05, 'height (m)');
+  R(sheet, c, 'frontGlow', 0, 6, 0.05, 'glow');
+  R(sheet, c, 'frontOpacity', 0, 2, 0.01, 'opacity');
+  R(sheet, c, 'frontNoise', 0, 2, 0.01, 'pressure cells');
+  R(sheet, c, 'frontNoiseScale', 0.2, 10, 0.05, 'cell scale');
+  R(sheet, c, 'shimmerSpeed', 0, 30, 0.1, 'slash speed');
+  R(sheet, c, 'frontRim', 0, 2, 0.01, 'crest rim');
+  R(sheet, c, 'spentFade', 0.01, 0.6, 0.01, 'break-up length (× lane)');
+  const ribs = subFolder(fronts, 'Ribs + fins');
+  R(ribs, c, 'ribGlow', 0, 6, 0.05, 'rib glow');
+  R(ribs, c, 'ribOpacity', 0, 1, 0.01, 'rib opacity');
+  R(ribs, c, 'finSize', 0.04, 0.5, 0.01, 'fin size');
+  R(ribs, c, 'finSpread', 0, 3, 0.1, 'break spread');
+  R(ribs, c, 'finGlow', 0, 6, 0.05, 'fin glow');
+
+  const ground = subFolder(folder, '3 · Ground scour');
+  ground.addColor(c, 'groundColor').name('scour');
+  R(ground, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
+  R(ground, c, 'groundGlow', 0, 6, 0.05, 'glow');
+  R(ground, c, 'scourWidth', 0.05, 3, 0.01, 'fresh band (× width)');
+  R(ground, c, 'dustRate', 0, 200, 1, 'grit/second per front');
+  R(ground, c, 'dustSize', 0.01, 0.5, 0.005, 'grit size');
+  R(ground, c, 'dustLife', 0.1, 4, 0.05, 'grit lifetime');
+  ground.addColor(c, 'dustColor').name('grit tint');
+
+  const contact = subFolder(folder, '4 · Spray + contact');
+  R(contact, c, 'sprayCount', 0, 96, 1, 'spray per burst');
+  R(contact, c, 'sprayEvery', 0.25, 8, 0.05, 'burst every (m)');
+  R(contact, c, 'spraySize', 0.01, 0.4, 0.005, 'spray size');
+  R(contact, c, 'sprayLife', 0.05, 2, 0.01, 'spray lifetime');
+  R(contact, c, 'spraySpeed', 0, 20, 0.1, 'spray speed');
+  R(contact, c, 'particleGravity', -20, 5, 0.1, 'particle gravity');
+  R(contact, c, 'particleDrag', 0, 4, 0.01, 'particle drag');
+  gradient(contact, c, 'colorSpray', 'particle gradient (all layers)');
+  R(contact, c, 'contactSize', 0.2, 3, 0.1, 'petal size');
+  R(contact, c, 'contactLife', 0.1, 1, 0.05, 'petal time (s)');
+  R(contact, c, 'chipCount', 0, 64, 1, 'shards');
+  R(contact, c, 'chipSize', 0.01, 0.4, 0.005, 'shard size');
+  R(contact, c, 'chipLife', 0.05, 2, 0.01, 'shard lifetime');
+  R(contact, c, 'chipSpeed', 0, 20, 0.1, 'shard speed');
+  contact.addColor(c, 'chipColor').name('shard tint');
+  R(contact, c, 'contactLight', 0, 10, 0.1, 'contact light');
+
+  const brk = subFolder(folder, '5 · The break');
+  R(brk, c, 'wakeTime', 0.1, 2, 0.01, 'wake life (s)');
+  R(brk, c, 'wakeGrowth', 0.1, 4, 0.05, 'wake spread (× width)');
+  R(brk, c, 'wakeOpacity', 0, 1, 0.01, 'wake opacity');
+  R(brk, c, 'impactShake', 0, 1, 0.01, 'first break knock');
+  R(brk, c, 'impactFlash', 0, 1, 0.01, 'first break flash');
+  R(brk, c, 'arrivalShake', 0, 1, 0.01, 'later break knock');
+  R(brk, c, 'arrivalLight', 0, 12, 0.1, 'light per break');
+  R(brk, c, 'shockRadius', 0, 10, 0.05, 'shockwave (m)');
+  R(brk, c, 'burstSize', 0, 8, 0.05, 'pressure shell (m)');
+
+  const warp = subFolder(folder, '6 · Distortion');
+  R(warp, c, 'warpStrength', 0, 3, 0.01, 'strength');
+  R(warp, c, 'warpHeight', 0.2, 6, 0.05, 'height (m)');
+  R(warp, c, 'warpScale', 0.1, 8, 0.05, 'noise scale');
+  R(warp, c, 'warpSpeed', 0, 8, 0.05, 'noise speed');
+
+  return folder;
 }

@@ -25,6 +25,9 @@ const { expansionRoster } =
   await import("../../packs/sandbox/src/abilities/expansion-2026/ProductionRoster.js");
 const { EXPANSION_STATUS } =
   await import("../../packs/sandbox/src/abilities/expansion-2026/status.js");
+// Each case approves one cast on its own; every other cast is held as a candidate.
+const CANDIDATE_STATUS = Object.fromEntries(Object.keys(EXPANSION_STATUS).map((uid) => [uid, 'candidate']));
+
 const { App } = await import("../../packs/sandbox/src/core/App.js");
 class Element {
   constructor() {
@@ -178,7 +181,7 @@ test("synthetically approved candidates use the production cast path and affect 
     const item = expansionRoster().find((c) => c.ID === id);
     const live = installProductionExpansion(
       app,
-      expansionRoster({ ...EXPANSION_STATUS, [item.uid]: "live" }),
+      expansionRoster({ ...CANDIDATE_STATUS, [item.uid]: "live" }),
     );
     host.update(1 / 60);
     await app.select(item.uid);

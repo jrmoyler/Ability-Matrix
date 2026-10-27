@@ -6,6 +6,9 @@ import { MechanicControls } from './MechanicControls.js';
 import { MECHANIC_PRESETS as P, MECHANIC_VARIANTS } from './presets.js';
 import { shapeContains } from '../CombatStateManager.js';
 import { issueMechanicCast } from './MechanicCommand.js';
+import { attachMechanicFeedback } from './ConvergenceCounterStanceFeedback.js';
+import { weaveBeat } from './WeaveBeats.js';
+import { worldshapeBeat } from './WorldshapeBeats.js';
 
 /** Sandbox glue. All gameplay runs in UCSM; this owns input, audio and scene lifetime. */
 export class MechanicHost {
@@ -14,6 +17,8 @@ export class MechanicHost {
     this.app = adapter.app;
     this.systems = new MechanicSystems(adapter.manager);
     this.presentation = new MechanicPresentation(this.app.scene, this.systems);
+    // Convergence, counter and stance beats shake, flash and punch the light through the ability context.
+    attachMechanicFeedback(this.presentation, this.app.abilities?.ctx);
     this.selected = null;
     this.selectedUid = null;
     this.drill = false;
@@ -191,6 +196,8 @@ export class MechanicHost {
   }
   cue(c) {
     this.presentation.cue(c);
+    weaveBeat(this.app, c);
+    worldshapeBeat(this.app, c);
     if (c.kind === 'mechanic' && c.phase === 'refused') this.app.hud.showToast(c.reason, 2000);
     if (
       !this.sound ||

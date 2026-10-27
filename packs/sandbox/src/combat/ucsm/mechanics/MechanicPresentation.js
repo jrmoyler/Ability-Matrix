@@ -450,10 +450,14 @@ export class MechanicPresentation {
           continue;
         }
       } else if (!wanted.has(id) && i.kind !== 'threat') {
-        if (i.kind !== 'worldshape') { this.remove(id); continue; }
-        if (this.reducedMotion) { this.remove(id); continue; }
+        // Worldshape, counter guards and stance rigs dissolve out instead of cutting when their state ends early;
+        // their kits read i.exitStart. Worldshape retracts over 0.3 s, the guard and stance rigs over 0.2 s.
+        const exitTime = i.kind === 'worldshape' ? 0.3 : i.kind === 'counter' || i.kind === 'stance' ? 0.2 : 0;
+        if (!exitTime || this.reducedMotion) { this.remove(id); continue; }
         i.exitStart ??= s.m.tick;
-        if ((s.m.tick - i.exitStart) / s.m.budget.tickRate >= 0.3) { this.remove(id); continue; }
+        const exitAge = (s.m.tick - i.exitStart) / s.m.budget.tickRate;
+        if (exitAge >= exitTime) { this.remove(id); continue; }
+        if (i.kind !== 'worldshape') i.g.userData.vfxExit = exitAge / exitTime;
       }
       let scale = i.kind === 'counter' ? 1 : Math.min(1, Math.max(0.01, age / 0.18));
       if (i.life) scale *= Math.min(1, Math.max(0.01, (i.life - age) / 0.18));
@@ -477,7 +481,11 @@ export class MechanicPresentation {
           const slide = n.userData.weaveSlide;
           if (slide) {
             const t = (age * slide.speed + slide.phase) % 1;
-            n.position.set(...slide.a.map((x, k) => x + (slide.b[k] - x) * t));
+            n.position.set(
+              slide.a[0] + (slide.b[0] - slide.a[0]) * t,
+              slide.a[1] + (slide.b[1] - slide.a[1]) * t,
+              slide.a[2] + (slide.b[2] - slide.a[2]) * t
+            );
           }
         });
       if (i.kind === 'anchor')

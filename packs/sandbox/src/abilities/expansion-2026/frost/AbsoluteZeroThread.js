@@ -1,253 +1,338 @@
+import { InstancedMesh, Mesh, Object3D, Points, Vector3 } from 'three';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { Ability } from '../../Ability.js';
+import { LAYER } from '../../../core/Layers.js';
+import { frame } from '../../../core/FrameUniforms.js';
+import { settings } from '../../../config/settings.js';
+import { ParticleShape } from '../../../particles/ParticleSystem.js';
+import { RateEmitter } from '../../../particles/ParticleEngine.js';
+import { DecalType } from '../../../effects/GroundDecals.js';
+import { BurstMode } from '../../../effects/BurstSphere.js';
+import { getColor } from '../../../utils/color.js';
+import { saturate, smoothstep, Easing } from '../../../utils/math.js';
+import { prefersReducedMotion } from '../ExpansionAtmosphere.js';
+import { ID, UID, CONFIG } from './AbsoluteZeroThreadConfig.js';
 import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  ConeGeometry,
-  DoubleSide,
-  Mesh,
-  InstancedMesh,
-  MeshStandardMaterial,
-  Points,
-  Object3D,
-  RingGeometry,
-  ShaderMaterial,
-  Vector3,
-} from "three";
-import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { Ability } from "../../Ability.js";
-import { LAYER } from "../../../core/Layers.js";
-export const ID = "absolute-zero-thread";
-export const UID = "matrix-expansion/absolute-zero-thread";
-export const CONFIG = Object.freeze({
-  id: ID,
-  meta: {
-    label: "Absolute Zero Thread",
-    accent: "#9be9ff",
-    element: "frost",
-    key: "",
-    cast: "line",
-    hint: "A freezing filament sweeps forward and locks struck bodies in ice.",
-    glyph:
-      '<path d="M10 80Q30 25 50 50T90 20"/><path d="M50 30V70M32 40L68 60M32 60L68 40"/>',
-  },
-  settings: {
-    range: 20,
-    minRange: 1,
-    speed: 20,
-    lifetime: 2.4,
-    cooldown: 4,
-    castAnim: "cast1",
-    lightColor: "#9be9ff",
-    lightIntensity: 5,
-    lightRadius: 6,
-    width: 0.15,
-    reach: 0.8,
-    freezeDelay: 0.25,
-    freezeDuration: 1.5,
-    shatterLife: 0.7,
-    shatterSpeed: 2.4,
-  },
-});
-const N = 96,
-  UP = new Vector3(0, 1, 0);
+  THREAD_SEGMENTS,
+  createChipGeometry,
+  createIceShardGeometry,
+  createMoteGeometry,
+  createNeedleGeometry,
+  createRosetteQuad,
+  createStripGeometry,
+  createThreadGeometry
+} from './AbsoluteZeroThreadGeometry.js';
+import {
+  createChillMaterial,
+  createChipMaterial,
+  createMoteMaterial,
+  createNeedleMaterial,
+  createRimeMaterial,
+  createRosetteMaterial,
+  createShardMaterial,
+  createStatueMaterial,
+  createThreadMaterial
+} from './AbsoluteZeroThreadMaterials.js';
+
+export { ID, UID, CONFIG };
+
+const N = THREAD_SEGMENTS;
+/** Statues one cast can hold at once (each a pooled rosette + ice material). */
+const MAX_FROZEN = 8;
+/** Crystals in the ring round each statue's feet. */
+const SHARDS_PER_STATUE = 6;
+/** Pooled shatter bursts. */
+const MAX_SHATTERS = 8;
+
 // A pooled dummy may be placed and frozen again before an older cast expires.
 // A cast may only vanish the specific frozen life it owns.
 const frozenOwners = new WeakMap();
-function ribbon() {
-  const g = new BufferGeometry(),
-    p = new Float32Array((N + 1) * 2 * 3),
-    uv = new Float32Array((N + 1) * 2 * 2),
-    idx = [];
-  for (let i = 0; i <= N; i++) {
-    uv.set([i / N, 0, i / N, 1], i * 4);
-    if (i < N) {
-      const j = i * 2;
-      idx.push(j, j + 1, j + 2, j + 1, j + 3, j + 2);
-    }
-  }
-  g.setAttribute("position", new BufferAttribute(p, 3));
-  g.setAttribute("uv", new BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  return g;
-}
-function iceMaterial() {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
-    vertexShader:
-      "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-    fragmentShader: `varying vec2 vUv;uniform float uTime,uFade;float hash(float x){return fract(sin(x*141.7)*43758.5);}void main(){float edge=pow(max(0.,1.-abs(vUv.y-.5)*2.),.45);float strand=pow(max(0.,sin(vUv.x*92.-uTime*5.+sin(vUv.x*31.)*1.6)),14.);float crystal=step(.91,hash(floor(vUv.x*66.)));float a=(edge*.55+strand*.45+crystal*.3)*uFade;gl_FragColor=vec4(mix(vec3(.06,.45,.8),vec3(.87,1.,1.),edge+crystal*.2),a);}`,
-  });
-}
-function frostDust() {
-  const p = new Float32Array(72 * 3);
-  for (let i = 0; i < 72; i++) {
-    p[i * 3] = i / 72;
-    p[i * 3 + 1] = ((i * 31) % 19) / 19;
-    p[i * 3 + 2] = ((i * 17) % 23) / 23 - 0.5;
-  }
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(p, 3));
-  return g;
-}
+
+const _emit = {};
+const _pos = new Vector3();
+const _dir = new Vector3();
+const _up = new Vector3(0, 1, 0);
+
+/**
+ * ABSOLUTE ZERO THREAD — Frost, line cast (matrix-expansion candidate).
+ *
+ * A needle of ice is thrown down the aimed line and draws a filament of
+ * supercooled light behind it, arched like a thrown line, braided and
+ * glinting. The floor frosts in plates behind it. Every body the filament
+ * passes within `reach` is frozen `freezeDelay` later — the live rig stops
+ * dead and an ice copy of that exact pose takes its place, the ice climbing
+ * it from the feet — stands for `freezeDuration`, ringed by crystals and a
+ * rime rosette, and then *shatters* into chips and cold vapour.
+ *
+ * ## Beats
+ *
+ *   - **anticipation** — the needle grows out of the caster's hand (outBack)
+ *     and the rime starts at their feet.
+ *   - **travel** — needle, filament, rime path, chill distortion, motes and a
+ *     stream of frost dust off the needle run down the line.
+ *   - **impact** — where the needle lands: a FROST shell, a FROST decal, a
+ *     light knock; the needle bursts into dust and is gone.
+ *   - **freeze** (per body) — FROST shell on the body, frost decal, vapour,
+ *     light punch, a small knock; the statue's ice climbs, its shards grow.
+ *   - **shatter** (per statue) — chip burst (pooled baked points + lit CHIP
+ *     particles), vapour, flash, knock.
+ *   - **linger and exit** — the filament stands for `lifetime`, then breaks
+ *     up through a noise dissolve while the rime melts plate by plate.
+ *
+ * ## Layers (each a folder in the editor)
+ *
+ *   1. **the filament** — two crossed strips rewritten in place each frame
+ *      (`THREAD_SEGMENTS` stations), bespoke additive shader.
+ *   2. **the needle** — authored faceted crystal, fresnel ice shader.
+ *   3. **the rime path** — ground strip, voronoi frost plates; its twin on
+ *      `LAYER.DISTORTION` is the chill.
+ *   4. **frost motes** — baked points over the covered line.
+ *   5. **chill** — the distortion proxy.
+ *   6. **the statues** — skinned clones with a per-slot ice material, a rime
+ *      rosette and an instanced ring of authored shards, chips on shatter.
+ *   7. **particles** — `.rime` frost dust, `.chips` lit ice, `.vapour`.
+ *   8. **beats** — bursts, decals, flash, shake, light.
+ *
+ * ## Hits (`handlesOwnHits`)
+ *
+ * Unchanged gameplay contract. Each frame the segment of line the needle
+ * crossed is scanned (`_scan`), each body once; a freeze is queued for
+ * `freezeDelay` and cancelled if that body's life ends first (death, or a
+ * pooled dummy standing up again — `standGeneration`). A statue vanishes its
+ * dummy only if this cast still owns that frozen life (`frozenOwners`).
+ *
+ * ## The editor rule
+ *
+ * Records store only what a cast owns (who, when, which slot); every size,
+ * colour, rate and glow is read from `settings[ID]` every frame. Reduced
+ * motion holds the ambient animation and drops the shake and distortion.
+ */
 export class AbsoluteZeroThreadAbility extends Ability {
   constructor(ctx) {
     super(ID, ctx);
   }
+
   get handlesOwnHits() {
     return true;
   }
+
   get impactDuration() {
     return 0.25;
   }
+
   get fadeDuration() {
     // Targets at the end of the cast still need time to freeze and remain
     // frozen for the configured duration before the pool tears down the cast.
     return Math.max(
       0.2,
       this.config.lifetime,
-      this.config.freezeDelay +
-        this.config.freezeDuration +
-        this.config.shatterLife +
-        0.1,
+      this.config.freezeDelay + this.config.freezeDuration + this.config.shatterLife + 0.1
     );
   }
+
+  get instanceCount() {
+    return this.frozen.length;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Construction                                                        */
+  /* ------------------------------------------------------------------ */
+
   createShaders() {
-    this.geometry = ribbon();
-    this.material = iceMaterial();
-    this.thread = new Mesh(this.geometry, this.material);
-    this.thread.frustumCulled = false;
-    this.thread.layers.set(LAYER.VFX);
-    this.group.add(this.thread);
-    this.motesGeo = frostDust();
-    this.motesMat = new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      uniforms: {
-        uLength: { value: 1 },
-        uTime: { value: 0 },
-        uFade: { value: 1 },
-      },
-      vertexShader: `uniform float uLength,uTime;varying float vA;void main(){vec3 p=position;p.z=p.x*uLength;p.x=p.z*0.0+position.z*.8+sin(uTime*2.+position.y*20.)*.12;p.y=.3+mod(position.y*2.+uTime*.35,2.);vA=1.-position.x;vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp(14./max(1.,-mv.z),1.,5.);gl_Position=projectionMatrix*mv;}`,
-      fragmentShader: `varying float vA;uniform float uFade;void main(){float a=(1.-smoothstep(0.,.5,length(gl_PointCoord-.5)))*uFade;gl_FragColor=vec4(.45,.85,1.,a*vA);}`,
-    });
+    // 1 · the filament
+    this.geometry = createThreadGeometry();
+    this.material = createThreadMaterial();
+    this.thread = this._mesh(this.geometry, this.material, LAYER.VFX, 12);
+
+    // 2 · the needle
+    this.needleGeometry = createNeedleGeometry();
+    this.needleMaterial = createNeedleMaterial();
+    this.needle = this._mesh(this.needleGeometry, this.needleMaterial, LAYER.VFX, 14);
+
+    // 3 · the rime path, and 5 · its chill twin on the distortion layer
+    this.stripGeometry = createStripGeometry();
+    this.rimeMaterial = createRimeMaterial();
+    this.rime = this._mesh(this.stripGeometry, this.rimeMaterial, LAYER.VFX, 1);
+    this.chillMaterial = createChillMaterial();
+    this.chill = this._mesh(this.stripGeometry, this.chillMaterial, LAYER.DISTORTION, 0);
+
+    // 4 · frost motes
+    this.motesGeo = createMoteGeometry();
+    this.motesMat = createMoteMaterial();
     this.motes = new Points(this.motesGeo, this.motesMat);
     this.motes.layers.set(LAYER.VFX);
+    this.motes.frustumCulled = false;
     this.group.add(this.motes);
-    this.statueMaterial = new MeshStandardMaterial({
-      color: 0x84d9ff,
-      emissive: 0x12517a,
-      emissiveIntensity: 0.8,
-      roughness: 0.22,
-      metalness: 0.1,
-      transparent: true,
-      opacity: 0.78,
-    });
-    this.frostRingGeometry = new RingGeometry(0.36, 0.8, 32);
-    this.frostRingMaterial = iceMaterial();
-    this.iceShardGeometry = new ConeGeometry(0.14, 0.8, 5);
-    this.iceShardMaterial = new MeshStandardMaterial({
-      color: 0x99eaff,
-      emissive: 0x16496a,
-      emissiveIntensity: 0.8,
-      metalness: 0.15,
-      roughness: 0.22,
-      transparent: true,
-      opacity: 0.82,
-    });
-    this.iceShards = new InstancedMesh(
-      this.iceShardGeometry,
-      this.iceShardMaterial,
-      48,
-    );
+
+    // 6 · statues: a fixed pool of slots, each a rosette and its own ice
+    // material (so each statue's ice climbs on its own clock).
+    this.frostRingGeometry = createRosetteQuad();
+    this.frostRingMaterial = createRosetteMaterial();
+    this.slots = [];
+    for (let i = 0; i < MAX_FROZEN; i++) {
+      const ring = this._mesh(this.frostRingGeometry, this.frostRingMaterial, LAYER.VFX, 2);
+      ring.position.y = 0.035;
+      this.slots.push({ ring, material: createStatueMaterial(), inUse: false });
+    }
+    this.iceShardGeometry = createIceShardGeometry();
+    this.iceShardMaterial = createShardMaterial();
+    this.iceShards = new InstancedMesh(this.iceShardGeometry, this.iceShardMaterial, MAX_FROZEN * SHARDS_PER_STATUE);
     this.iceShards.layers.set(LAYER.VFX);
     this.iceShards.frustumCulled = false;
     this.iceShards.count = 0;
     this.group.add(this.iceShards);
     this.shardTransform = new Object3D();
-    const chipPositions = new Float32Array(64 * 3),
-      seeds = new Float32Array(64);
-    for (let i = 0; i < 64; i++) {
-      const angle = i * 2.399963,
-        y = (i % 13) / 13,
-        r = 0.35 + (i % 7) / 10;
-      chipPositions.set(
-        [Math.cos(angle) * r, 0.4 + y, Math.sin(angle) * r],
-        i * 3,
-      );
-      seeds[i] = (i * 0.618034) % 1;
-    }
-    this.chipGeometry = new BufferGeometry();
-    this.chipGeometry.setAttribute(
-      "position",
-      new BufferAttribute(chipPositions, 3),
-    );
-    this.chipGeometry.setAttribute("seed", new BufferAttribute(seeds, 1));
+
+    // Shatter chips: one shared baked geometry, a material per pooled burst.
+    this.chipGeometry = createChipGeometry();
     this.shatters = [];
-    for (let i = 0; i < 8; i++) {
-      const material = new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        uniforms: {
-          uAge: { value: 0 },
-          uLife: { value: 1 },
-          uSpeed: { value: 1 },
-        },
-        vertexShader:
-          "attribute float seed;uniform float uAge,uLife,uSpeed;varying float vA;void main(){float t=uAge;vec3 p=position*uSpeed*t;p.y+=.8-t*t*2.2;vA=(1.-smoothstep(.3,1.,t/max(.01,uLife)))*step(0.,p.y);vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp((12.+seed*12.)/-mv.z,1.,7.);gl_Position=projectionMatrix*mv;}",
-        fragmentShader:
-          "varying float vA;void main(){vec2 p=abs(gl_PointCoord-.5)*2.;float chip=1.-smoothstep(.65,1.,p.x+p.y);gl_FragColor=vec4(.55,.9,1.,chip*vA);}",
-      });
-      const points = new Points(this.chipGeometry, material);
+    for (let i = 0; i < MAX_SHATTERS; i++) {
+      const points = new Points(this.chipGeometry, createChipMaterial());
       points.layers.set(LAYER.VFX);
       points.frustumCulled = false;
       points.visible = false;
       this.group.add(points);
       this.shatters.push({ points, born: 0 });
     }
+
     this.shatterCursor = 0;
     this.hit = new Set();
     this.pending = [];
     this.frozen = [];
     this.found = [];
     this._position = new Vector3();
+    this._clock = 0;
+    this._fade = 1;
+    this._landed = false;
+    this.reduceMotion = false;
+    this._threadState = { clock: 0, fade: 1, head: 1 };
+    this._needleState = { power: 0 };
+    this._rimeState = { clock: 0, front: 0, melt: 0, length: 1, power: 1 };
+    this._moteState = { clock: 0 };
+    this._ringState = { clock: 0, fade: 1 };
+    this._iceState = { grow: 0, opacity: 1, floor: 0, height: 1.8 };
   }
-  createParticles() {}
+
+  _mesh(geometry, material, layer, order) {
+    const mesh = new Mesh(geometry, material);
+    mesh.layers.set(layer);
+    mesh.renderOrder = order;
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  createParticles() {
+    const particles = this.ctx.particles;
+    this.rimeEmitter = new RateEmitter();
+    if (!particles?.get) {
+      this.rimeDust = this.chips = this.vapour = null;
+      return;
+    }
+    this.rimeDust = particles.get(`${ID}.rime`, {
+      capacity: 1200,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      curl: true,
+      softFade: 0.2
+    });
+    this.rimeDust.uniforms.uSizeIn.value = 0.05;
+    this.rimeDust.uniforms.uFadeIn.value = 0.05;
+    this.rimeDust.uniforms.uFadeOut.value = 0.5;
+    this.rimeDust.uniforms.uEndSize.value = 0.5;
+    this.rimeDust.uniforms.uDrag.value = 1.8;
+
+    this.chips = particles.get(`${ID}.chips`, {
+      capacity: 600,
+      shape: ParticleShape.CHIP,
+      additive: false,
+      lit: true,
+      softFade: 0.1
+    });
+    this.chips.uniforms.uSizeIn.value = 0.02;
+    this.chips.uniforms.uFadeIn.value = 0.02;
+    this.chips.uniforms.uFadeOut.value = 0.3;
+    this.chips.uniforms.uEndSize.value = 0.8;
+    this.chips.uniforms.uDrag.value = 0.6;
+
+    this.vapour = particles.get(`${ID}.vapour`, {
+      capacity: 400,
+      shape: ParticleShape.SMOKE,
+      additive: false,
+      softFade: 0.8
+    });
+    this.vapour.uniforms.uSizeIn.value = 0.2;
+    this.vapour.uniforms.uFadeIn.value = 0.15;
+    this.vapour.uniforms.uFadeOut.value = 0.55;
+    this.vapour.uniforms.uEndSize.value = 2.2;
+    this.vapour.uniforms.uDrag.value = 2;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Casting                                                             */
+  /* ------------------------------------------------------------------ */
+
   onSpawn() {
+    this.reduceMotion = prefersReducedMotion();
     this.prevFront = 0;
     this.hit.clear();
     this.pending.length = 0;
     this.frozen.length = 0;
     this.shatterCursor = 0;
+    this._clock = 0;
+    this._fade = 1;
+    this._landed = false;
+    this.rimeEmitter.reset();
     for (const burst of this.shatters) burst.points.visible = false;
-    this._redraw(0);
+    for (const slot of this.slots) {
+      slot.inUse = false;
+      slot.ring.visible = false;
+    }
+    this.iceShards.count = 0;
+    this.thread.visible = true;
+    this.needle.visible = true;
+    this.rime.visible = true;
+    this.chill.visible = !this.reduceMotion;
+    this.motes.visible = true;
+
+    // The ground layers are laid once down the aimed line and revealed by uFront.
+    const yaw = Math.atan2(this.direction.x, this.direction.z);
+    this.rime.position.copy(this.origin).setY(0.02);
+    this.rime.rotation.set(0, yaw, 0);
+    this.chill.position.copy(this.origin).setY(0.05);
+    this.chill.rotation.set(0, yaw, 0);
     this.motes.position.copy(this.origin);
-    this.motes.rotation.y = Math.atan2(this.direction.x, this.direction.z);
+    this.motes.rotation.y = yaw;
+
+    this._redraw(0);
+    this._present(0, 1, 1);
   }
+
+  /** Rewrite both strips of the filament up to `front` metres. */
   _redraw(front) {
+    const c = this.config;
     const arr = this.geometry.attributes.position;
+    const standing = (N + 1) * 2;
     for (let i = 0; i <= N; i++) {
-      const u = i / N,
-        d = u * front,
-        wave = Math.sin(u * 31 - this.age * 5) * 0.08,
-        height = 0.32 + Math.sin(u * Math.PI) * 0.45;
-      const x = this.origin.x + this.direction.x * d + this.side.x * wave,
-        z = this.origin.z + this.direction.z * d + this.side.z * wave,
-        w = this.config.width * (0.4 + 0.6 * Math.sin(u * Math.PI));
+      const u = i / N;
+      const d = u * front;
+      const wave = Math.sin(u * c.waveFrequency - this.age * c.waveSpeed) * c.threadWave;
+      const height = c.threadHeight + Math.sin(u * Math.PI) * c.threadArc;
+      const x = this.origin.x + this.direction.x * d + this.side.x * wave;
+      const z = this.origin.z + this.direction.z * d + this.side.z * wave;
+      const w = c.width * (0.4 + 0.6 * Math.sin(u * Math.PI));
+      // Flat strip across the line…
       arr.setXYZ(i * 2, x - this.side.x * w, height, z - this.side.z * w);
       arr.setXYZ(i * 2 + 1, x + this.side.x * w, height, z + this.side.z * w);
+      // …and the standing strip, so the thread has body from behind.
+      arr.setXYZ(standing + i * 2, x, height - w, z);
+      arr.setXYZ(standing + i * 2 + 1, x, height + w, z);
     }
     arr.needsUpdate = true;
-    this.material.uniforms.uTime.value = this.age;
-    this.motesMat.uniforms.uTime.value = this.age;
     this.motesMat.uniforms.uLength.value = front;
   }
+
+  /** Queue a freeze for every body the needle crossed between `from` and `to`. */
   _scan(from, to) {
     if (!this.ctx.dummies?.findTargets) return;
     const midpoint = (from + to) / 2;
@@ -256,30 +341,32 @@ export class AbsoluteZeroThreadAbility extends Ability {
       this._position.x,
       this._position.z,
       Math.hypot((to - from) / 2, this.config.reach),
-      this.found,
+      this.found
     );
     for (const d of found) {
       if (this.hit.has(d)) continue;
-      const x = d.position.x - this.origin.x,
-        z = d.position.z - this.origin.z,
-        along = x * this.direction.x + z * this.direction.z,
-        side = Math.abs(x * this.side.x + z * this.side.z);
+      const x = d.position.x - this.origin.x;
+      const z = d.position.z - this.origin.z;
+      const along = x * this.direction.x + z * this.direction.z;
+      const side = Math.abs(x * this.side.x + z * this.side.z);
       if (along >= from && along <= to && side <= this.config.reach) {
         this.hit.add(d);
         this.pending.push({
           dummy: d,
           generation: this.ctx.dummies?.standGeneration?.(d) ?? null,
-          time: this.age + this.config.freezeDelay,
+          time: this.age + this.config.freezeDelay
         });
       }
     }
   }
+
+  /** Expire statues, then turn due pending hits into statues. */
   _flush() {
     for (let i = this.frozen.length - 1; i >= 0; i--) {
       const f = this.frozen[i];
       const owned = frozenOwners.get(f.dummy) === f;
       const changedState =
-        (typeof f.dummy.state === "string" && f.dummy.state !== "frozen") ||
+        (typeof f.dummy.state === 'string' && f.dummy.state !== 'frozen') ||
         (f.generation !== null && this.ctx.dummies?.standGeneration?.(f.dummy) !== f.generation);
       if (!owned || changedState || f.until <= this.age) {
         if (owned && !changedState) {
@@ -287,23 +374,24 @@ export class AbsoluteZeroThreadAbility extends Ability {
           f.dummy.vanish?.();
         }
         if (owned) frozenOwners.delete(f.dummy);
-        this.group.remove(f.figure);
-        this.group.remove(f.ring);
+        this._release(f);
         this.frozen.splice(i, 1);
       }
     }
     for (let i = this.pending.length - 1; i >= 0; i--) {
       // A delayed freeze belongs to the actor that was hit, not a later life
       // of a pooled slot. Cancel as soon as that actor is no longer alive.
-      if (this.pending[i].dummy.alive === false ||
+      if (
+        this.pending[i].dummy.alive === false ||
         (this.pending[i].generation !== null &&
-          this.ctx.dummies?.standGeneration?.(this.pending[i].dummy) !== this.pending[i].generation)) {
+          this.ctx.dummies?.standGeneration?.(this.pending[i].dummy) !== this.pending[i].generation)
+      ) {
         this.pending.splice(i, 1);
         continue;
       }
       if (this.pending[i].time <= this.age) {
         const d = this.pending[i].dummy;
-        if (d.root && this.frozen.length < 8) {
+        if (d.root && this.frozen.length < MAX_FROZEN) {
           // Stopping the animation restores its bind pose. Copy the visible
           // pose first, and only show it if the target accepts the freeze.
           const figure = cloneSkeleton(d.root);
@@ -311,75 +399,121 @@ export class AbsoluteZeroThreadAbility extends Ability {
             this.pending.splice(i, 1);
             continue;
           }
+          const slot = this._acquire();
           figure.visible = true;
           // freeze() preserves the live rig; the ice clone replaces it until
           // vanish() frees the dummy slot, rather than drawing both together.
           d.root.visible = false;
           figure.traverse((n) => {
             if (n.isMesh) {
-              n.material = this.statueMaterial;
+              n.material = slot.material;
               n.castShadow = false;
               n.layers.set(LAYER.VFX);
             }
           });
           this.group.add(figure);
-          const ring = new Mesh(this.frostRingGeometry, this.frostRingMaterial);
-          ring.layers.set(LAYER.VFX);
-          ring.rotation.x = -Math.PI / 2;
-          ring.position.set(d.position.x, 0.035, d.position.z);
-          this.group.add(ring);
+          slot.ring.position.set(d.position.x, 0.035, d.position.z);
+          slot.ring.scale.setScalar(0.001);
+          slot.ring.visible = true;
+          // The ice climbs relative to the figure's own height, read off its
+          // highest bone (the clone's bones carry the frozen pose).
+          figure.updateMatrixWorld(true);
+          let top = 0;
+          figure.traverse((n) => {
+            if (n.isBone && n.matrixWorld.elements[13] > top) top = n.matrixWorld.elements[13];
+          });
+          const height = top * 1.12;
           const frozen = {
             dummy: d,
             generation: this.pending[i].generation,
             figure,
-            ring,
-            until: this.age + this.config.freezeDuration,
+            ring: slot.ring,
+            slot,
+            born: this.age,
+            floor: 0,
+            height: Number.isFinite(height) && height > 0.2 && height < 6 ? height : 1.8,
+            until: this.age + this.config.freezeDuration
           };
           frozenOwners.set(d, frozen);
           this.frozen.push(frozen);
+          this._freezeFx(d);
         }
         this.pending.splice(i, 1);
       }
     }
     this._drawIceShards();
     this._drawShatters();
+    this._drawStatues();
   }
+
+  _acquire() {
+    for (const slot of this.slots) {
+      if (!slot.inUse) {
+        slot.inUse = true;
+        return slot;
+      }
+    }
+    // Unreachable: `frozen.length < MAX_FROZEN` and slots are freed with them.
+    return this.slots[0];
+  }
+
+  /** Take a statue down: its clone, its skeletons' bone textures, its slot. */
+  _release(f) {
+    this.group.remove(f.figure);
+    f.figure.traverse((n) => {
+      if (n.isSkinnedMesh) n.skeleton?.dispose?.();
+    });
+    f.ring.visible = false;
+    if (f.slot) f.slot.inUse = false;
+  }
+
+  /** Arm one pooled chip burst at `position`, plus the shatter beat. */
   _shatter(position) {
+    const c = this.config;
     const burst = this.shatters[this.shatterCursor++ % this.shatters.length];
     burst.born = this.age;
     burst.points.position.copy(position);
     burst.points.visible = true;
-    burst.points.material.uniforms.uAge.value = 0;
-    burst.points.material.uniforms.uLife.value = this.config.shatterLife;
-    burst.points.material.uniforms.uSpeed.value = this.config.shatterSpeed;
+    const u = burst.points.material.uniforms;
+    u.uAge.value = 0;
+    u.uLife.value = c.shatterLife;
+    u.uSpeed.value = c.shatterSpeed;
+    burst.points.material.userData.sync();
+    this._shatterFx(position);
   }
+
   _drawShatters() {
+    const c = this.config;
     for (const burst of this.shatters) {
       if (!burst.points.visible) continue;
       const elapsed = this.age - burst.born;
-      burst.points.material.uniforms.uAge.value = elapsed;
-      if (elapsed >= burst.points.material.uniforms.uLife.value)
-        burst.points.visible = false;
+      const u = burst.points.material.uniforms;
+      u.uAge.value = elapsed;
+      u.uSpeed.value = c.shatterSpeed;
+      burst.points.material.userData.sync();
+      if (elapsed >= u.uLife.value) burst.points.visible = false;
     }
   }
+
   _drawIceShards() {
+    const c = this.config;
     let count = 0;
     for (const frozen of this.frozen) {
       const elapsed = this.config.freezeDuration - (frozen.until - this.age);
-      const growth = Math.max(
-        0.001,
-        Math.min(1, elapsed * 4, (frozen.until - this.age) * 4),
-      );
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3,
-          p = this.shardTransform;
+      // Grow in fast, shrink back just before the shatter.
+      const growth = Math.max(0.001, Math.min(1, elapsed * 4, (frozen.until - this.age) * 4));
+      for (let i = 0; i < SHARDS_PER_STATUE; i++) {
+        const angle = (i * Math.PI * 2) / SHARDS_PER_STATUE;
+        const p = this.shardTransform;
         p.position.set(
-          frozen.ring.position.x + Math.cos(angle) * 0.52,
-          0.34 * growth,
-          frozen.ring.position.z + Math.sin(angle) * 0.52,
+          frozen.ring.position.x + Math.cos(angle) * c.shardRadius,
+          0,
+          frozen.ring.position.z + Math.sin(angle) * c.shardRadius
         );
-        p.rotation.set(Math.sin(angle) * 0.26, angle, Math.cos(angle) * -0.26);
-        p.scale.set(0.8, growth * (0.75 + (i % 3) * 0.18), 0.8);
+        // Each leans out from the statue.
+        p.rotation.set(Math.sin(angle) * 0.32, angle, Math.cos(angle) * -0.32);
+        const tall = c.shardHeight * (0.55 + (i % 3) * 0.22);
+        p.scale.set(0.9, growth * tall, 0.9);
         p.updateMatrix();
         this.iceShards.setMatrixAt(count++, p.matrix);
       }
@@ -387,56 +521,366 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.iceShards.count = count;
     this.iceShards.instanceMatrix.needsUpdate = true;
   }
-  onTravel() {
+
+  /** Per-statue ice climb and rosette bloom. */
+  _drawStatues() {
+    const c = this.config;
+    const s = this._iceState;
+    for (const frozen of this.frozen) {
+      const age = this.age - frozen.born;
+      s.grow = saturate(age / Math.max(0.01, c.statueCreep));
+      s.opacity = 1;
+      s.floor = frozen.floor;
+      s.height = frozen.height;
+      frozen.slot.material.userData.sync(s);
+      const bloom = Easing.outCubic(saturate(age / Math.max(0.01, c.statueCreep * 1.5)));
+      frozen.ring.scale.setScalar(Math.max(0.001, c.ringRadius * 2 * bloom));
+    }
+  }
+
+  onTravel(dt) {
     const before = this.prevFront ?? 0;
     const front = Math.min(this.length, this.front);
     this._scan(before, front);
     this.prevFront = front;
     this._redraw(front);
     this._flush();
+    this._present(dt, 1, 1);
+    this._needleFx(dt);
   }
+
   onImpact() {
     this._flush();
+    this._landFx();
   }
-  onFade(_dt, t) {
+
+  onFade(dt, t) {
     this._flush();
     this._redraw(this.length);
     const f = t > 1 ? Math.max(0, 2 - t) : 1;
     this.material.uniforms.uFade.value = f;
     this.motesMat.uniforms.uFade.value = f;
-    this.frostRingMaterial.uniforms.uTime.value = this.age;
     this.frostRingMaterial.uniforms.uFade.value = f;
+    this._present(dt, f, t > 1 ? 0 : 1 - t);
+    this._lingerFx(dt, f);
   }
+
+  /* ------------------------------------------------------------------ */
+  /* The look                                                            */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * @param {number} fade  1 standing → 0 gone
+   * @param {number} head  needle-end glare and needle power, 1 in flight
+   */
+  _present(dt, fade, head) {
+    const c = this.config;
+    const g = settings.global;
+    if (!this.reduceMotion) this._clock += dt * g.animationSpeed;
+    const clock = this._clock;
+    this._fade = fade;
+    const front = Math.min(this.length, this.front);
+
+    const ts = this._threadState;
+    ts.clock = clock;
+    ts.fade = fade;
+    ts.head = head;
+    this.material.userData.sync(ts);
+
+    // The needle: grows out of the hand, flies at the front, gone after landing.
+    // Never a zero scale: a singular matrix would NaN the facet normals.
+    const grow = Math.max(0.001, Easing.outBack(saturate(this.age / 0.12)));
+    this.needle.visible = head > 0.01;
+    if (this.needle.visible) {
+      this.pointAt(front / this.length, _pos);
+      _pos.y = c.threadHeight;
+      const k = c.needleRadius / 0.1;
+      this.needle.scale.set(k * grow, k * grow, c.needleLength * grow * (0.6 + 0.4 * head));
+      _pos.addScaledVector(this.direction, -c.needleLength * 0.6 * grow);
+      this.needle.position.copy(_pos);
+      this.needle.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), clock * c.needleSpin);
+    }
+    this._needleState.power = head * grow;
+    this.needleMaterial.userData.sync(this._needleState);
+
+    const rs = this._rimeState;
+    rs.clock = clock;
+    rs.front = front / this.length;
+    rs.melt = smoothstep(1 - Math.max(0.01, c.rimeMelt), 1, 1 - fade);
+    rs.length = this.length;
+    rs.power = fade;
+    this.rime.scale.set(c.rimeWidth * 2, 1, this.length);
+    this.chill.scale.set(c.rimeWidth * 2.4, 1, this.length);
+    this.rimeMaterial.userData.sync(rs);
+    this.chill.visible = !this.reduceMotion && c.chillStrength > 0;
+    this.chillMaterial.userData.sync(rs);
+
+    this._moteState.clock = clock;
+    this.motesMat.userData.sync(this._moteState);
+    this._ringState.clock = clock;
+    this._ringState.fade = fade;
+    this.frostRingMaterial.userData.sync(this._ringState);
+    this.iceShardMaterial.userData.sync();
+    this._syncParticles(c, g);
+  }
+
+  _syncParticles(c, g) {
+    if (this.rimeDust) {
+      this.rimeDust.setGradient(getColor(c.colorRimeDustA), getColor(c.colorRimeDustB), getColor(c.colorRimeDustC), getColor(c.colorRimeDustD));
+      const r = this.rimeDust.uniforms;
+      r.uGravity.value.set(0, 0.25, 0);
+      r.uSizeScale.value = g.particleSize;
+      r.uLifeScale.value = g.particleLifetime;
+      r.uSpeedScale.value = g.particleSpeed;
+      r.uOpacity.value = g.opacity;
+      r.uGlow.value = c.rimeGlowP * g.glow;
+      r.uTurbulence.value = 0.7 * g.turbulence;
+    }
+    if (this.chips) {
+      this.chips.setGradient(getColor(c.colorChipA), getColor(c.colorChipB), getColor(c.colorChipC), getColor(c.colorChipD));
+      const k = this.chips.uniforms;
+      k.uGravity.value.set(0, -c.chipGravity, 0);
+      k.uSizeScale.value = g.particleSize;
+      k.uLifeScale.value = g.particleLifetime;
+      k.uSpeedScale.value = g.particleSpeed;
+      k.uOpacity.value = g.opacity;
+      k.uTurbulence.value = 0.1 * g.turbulence;
+    }
+    if (this.vapour) {
+      this.vapour.setGradient(getColor(c.colorVapourA), getColor(c.colorVapourB), getColor(c.colorVapourC), getColor(c.colorVapourD));
+      const v = this.vapour.uniforms;
+      v.uGravity.value.set(0, -0.15, 0); // cold air sinks
+      v.uSizeScale.value = g.particleSize;
+      v.uLifeScale.value = g.particleLifetime;
+      v.uSpeedScale.value = g.particleSpeed;
+      v.uOpacity.value = c.vapourOpacity * g.opacity;
+      v.uTurbulence.value = 0.5 * g.turbulence;
+    }
+  }
+
+  _resetEmit() {
+    _emit.position = _pos;
+    _emit.radius = 0;
+    _emit.direction = _up;
+    _emit.speed = 0;
+    _emit.speedVariance = 0.35;
+    _emit.spread = 0.5;
+    _emit.inherit = null;
+    _emit.anchor = null;
+    _emit.size = 0.1;
+    _emit.sizeVariance = 0.45;
+    _emit.life = 1;
+    _emit.lifeVariance = 0.35;
+    _emit.spin = 0;
+    _emit.tint = null;
+    _emit.time = frame.uTime.value;
+  }
+
+  /** Frost dust streaming off the needle in flight. */
+  _needleFx(dt) {
+    if (!this.rimeDust || dt <= 0) return;
+    const c = this.config;
+    const g = settings.global;
+    const n = Math.round(this.rimeEmitter.tick(dt, c.rimeRate) * g.particleCount);
+    if (n <= 0) return;
+    this._resetEmit();
+    this.pointAt(Math.min(1, this.front / this.length), _pos);
+    _pos.y = c.threadHeight;
+    _dir.copy(this.direction).negate().addScaledVector(_up, 0.3).normalize();
+    _emit.direction = _dir;
+    _emit.radius = c.needleRadius * 1.5;
+    _emit.speed = c.rimeSpeed;
+    _emit.spread = 0.6;
+    _emit.size = c.rimeSize;
+    _emit.life = c.rimeLife;
+    this.rimeDust.emit(n, _emit);
+  }
+
+  /** A thinner sift of dust off the standing filament while it lingers. */
+  _lingerFx(dt, fade) {
+    if (!this.rimeDust || dt <= 0 || fade <= 0) return;
+    const c = this.config;
+    const g = settings.global;
+    const n = Math.round(this.rimeEmitter.tick(dt, c.rimeRate * 0.25 * fade) * g.particleCount);
+    if (n <= 0) return;
+    this._resetEmit();
+    _emit.radius = c.width;
+    _emit.speed = c.rimeSpeed * 0.4;
+    _emit.spread = 1;
+    _emit.size = c.rimeSize;
+    _emit.life = c.rimeLife;
+    for (let i = 0; i < n; i++) {
+      const u = Math.random();
+      this.pointAt(u, _pos);
+      _pos.y = c.threadHeight + Math.sin(u * Math.PI) * c.threadArc;
+      this.rimeDust.emit(1, _emit);
+    }
+  }
+
+  _vapour(position, count, size) {
+    if (!this.vapour || count <= 0) return;
+    const c = this.config;
+    this._resetEmit();
+    _pos.copy(position);
+    _emit.radius = 0.35;
+    _emit.speed = 0.4;
+    _emit.spread = 1;
+    _emit.size = size;
+    _emit.life = c.vapourLife;
+    _emit.spin = 0.4;
+    this.vapour.emit(Math.round(count * settings.global.particleCount), _emit);
+  }
+
+  /** Where the needle lands. */
+  _landFx() {
+    if (this._landed) return;
+    this._landed = true;
+    const c = this.config;
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.pointAt(1, _pos);
+    _pos.y = c.threadHeight;
+    this.ctx.bursts?.spawn?.(BurstMode.FROST, _pos, {
+      radius: c.landBurst * 0.15,
+      endRadius: c.landBurst * power,
+      life: 0.5,
+      intensity: c.burstIntensity,
+      opacity: 0.7,
+      fresnel: 2 * g.fresnel,
+      displace: 0.2,
+      turbulence: 0.6 * g.turbulence,
+      colorA: getColor(c.colorBurstA),
+      colorB: getColor(c.colorBurstB),
+      colorC: getColor(c.colorBurstC)
+    });
+    if (this.rimeDust) {
+      this._resetEmit();
+      this.pointAt(1, _pos);
+      _pos.y = c.threadHeight;
+      _emit.radius = 0.1;
+      _emit.speed = c.rimeSpeed * 4;
+      _emit.spread = 1;
+      _emit.size = c.rimeSize * 1.4;
+      _emit.life = c.rimeLife;
+      this.rimeDust.emit(Math.round(40 * g.particleCount), _emit);
+    }
+    this.pointAt(1, _pos);
+    this.ctx.decals?.spawn?.(DecalType.FROST, _pos, {
+      radius: c.frostDecal * 0.7,
+      life: c.frostDecalLife,
+      intensity: 0.8,
+      colorA: getColor(c.colorDecalA),
+      colorB: getColor(c.colorDecalB)
+    });
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.freezeLight * power);
+    if (!this.reduceMotion && c.landShake > 0) this.ctx.shake?.add?.(c.landShake * power, c.shakeDecay, 20);
+  }
+
+  /** A body has just turned to ice. */
+  _freezeFx(dummy) {
+    const c = this.config;
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    _pos.copy(dummy.position).setY(0.9);
+    this.ctx.bursts?.spawn?.(BurstMode.FROST, _pos, {
+      radius: c.freezeBurst * 0.2,
+      endRadius: c.freezeBurst * power,
+      life: 0.6,
+      intensity: c.burstIntensity,
+      opacity: 0.75,
+      fresnel: 2 * g.fresnel,
+      displace: 0.25,
+      turbulence: 0.7 * g.turbulence,
+      squash: 1.3,
+      colorA: getColor(c.colorBurstA),
+      colorB: getColor(c.colorBurstB),
+      colorC: getColor(c.colorBurstC)
+    });
+    _dir.copy(dummy.position).setY(0);
+    this.ctx.decals?.spawn?.(DecalType.FROST, _dir, {
+      radius: c.frostDecal,
+      life: Math.max(c.frostDecalLife, c.freezeDuration + 0.5),
+      intensity: 1,
+      colorA: getColor(c.colorDecalA),
+      colorB: getColor(c.colorDecalB)
+    });
+    _dir.setY(0.3);
+    this._vapour(_dir, c.vapourCount, c.vapourSize);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.freezeLight * power);
+    if (!this.reduceMotion && c.freezeShake > 0) this.ctx.shake?.add?.(c.freezeShake * power, c.shakeDecay, 24);
+  }
+
+  /** A statue has just shattered at `position` (its rosette, on the floor). */
+  _shatterFx(position) {
+    const c = this.config;
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    if (this.chips && c.shatterChips > 0) {
+      this._resetEmit();
+      _pos.copy(position).setY(0.9);
+      _emit.radius = 0.35;
+      _emit.speed = c.shatterSpeed * 1.6;
+      _emit.speedVariance = 0.6;
+      _emit.spread = 1;
+      _emit.size = c.chipParticleSize;
+      _emit.life = c.chipLife;
+      _emit.spin = 6;
+      this.chips.emit(Math.round(c.shatterChips * g.particleCount), _emit);
+    }
+    _dir.copy(position).setY(0.6);
+    this._vapour(_dir, c.vapourCount * 0.7, c.vapourSize * 1.2);
+    if (c.shatterFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.shatterFlash * power);
+    if (!this.reduceMotion && c.shatterShake > 0) this.ctx.shake?.add?.(c.shatterShake * power, c.shakeDecay, 26);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.freezeLight * 1.4 * power);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Pooling                                                             */
+  /* ------------------------------------------------------------------ */
+
   onDestroy() {
     for (const f of this.frozen) {
       if (frozenOwners.get(f.dummy) === f) {
         frozenOwners.delete(f.dummy);
         const sameLife = f.generation === null || this.ctx.dummies?.standGeneration?.(f.dummy) === f.generation;
-        const stillFrozen = typeof f.dummy.state !== "string" || f.dummy.state === "frozen";
+        const stillFrozen = typeof f.dummy.state !== 'string' || f.dummy.state === 'frozen';
         if (sameLife && stillFrozen) f.dummy.vanish?.();
       }
-      this.group.remove(f.figure);
-      this.group.remove(f.ring);
+      this._release(f);
     }
     this.frozen.length = 0;
+    for (const slot of this.slots) {
+      slot.inUse = false;
+      slot.ring.visible = false;
+    }
     this.iceShards.count = 0;
     for (const burst of this.shatters) burst.points.visible = false;
     this.hit.clear();
     this.pending.length = 0;
     this.prevFront = 0;
+    this.needle.visible = false;
+    this.chill.visible = false;
+    this.rimeEmitter.reset();
     this.material.uniforms.uFade.value = 1;
     this.motesMat.uniforms.uFade.value = 1;
     this.frostRingMaterial.uniforms.uFade.value = 1;
   }
+
   dispose() {
     this.onDestroy();
     this.geometry.dispose();
     this.material.dispose();
+    this.needleGeometry.dispose();
+    this.needleMaterial.dispose();
+    this.stripGeometry.dispose();
+    this.rimeMaterial.dispose();
+    this.chillMaterial.dispose();
     this.motesGeo.dispose();
     this.motesMat.dispose();
-    this.statueMaterial.dispose();
+    for (const slot of this.slots) slot.material.dispose();
     this.frostRingGeometry.dispose();
     this.frostRingMaterial.dispose();
+    this.iceShards.dispose();
     this.iceShardGeometry.dispose();
     this.iceShardMaterial.dispose();
     this.chipGeometry.dispose();
@@ -444,15 +888,145 @@ export class AbsoluteZeroThreadAbility extends Ability {
     super.dispose();
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Editor                                                                  */
+/* ---------------------------------------------------------------------- */
+
+/** A sub-folder where the host GUI has them; the parent folder otherwise. */
+function sub(folder, title) {
+  return typeof folder.addFolder === 'function' ? folder.addFolder(title) : folder;
+}
+
+/** `Editor.gradient` where sub-folders exist, four plain colours otherwise. */
+function gradient(folder, c, prefix, title, Editor) {
+  if (typeof folder.addFolder === 'function' && Editor.gradient) return Editor.gradient(folder, c, prefix, title);
+  for (const [k, label] of [['A', 'birth'], ['B', 'early'], ['C', 'late'], ['D', 'death']]) folder.addColor(c, `${prefix}${k}`).name(`${title} ${label}`);
+  return folder;
+}
+
 export function buildEditor(gui, c, Editor) {
-  const f = gui.addFolder("Absolute Zero Thread");
+  const folder = gui.addFolder('❄  Absolute Zero Thread');
   const R = Editor.range;
-  R(f, c, "width", 0.02, 0.5, 0.01, "filament width");
-  R(f, c, "reach", 0.1, 3, 0.05, "freeze reach");
-  R(f, c, "freezeDelay", 0, 2, 0.05, "freeze delay");
-  R(f, c, "freezeDuration", 0.1, 6, 0.1, "statue duration");
-  R(f, c, "shatterLife", 0.1, 2, 0.05, "chip lifetime");
-  R(f, c, "shatterSpeed", 0.2, 6, 0.1, "chip speed");
-  f.close();
-  return f;
+
+  const cast = sub(folder, 'The cast');
+  R(cast, c, 'range', 2, 48, 0.1, 'max range');
+  R(cast, c, 'minRange', 0, 12, 0.1, 'min range');
+  R(cast, c, 'speed', 1, 80, 0.5, 'needle speed (m/s)');
+  R(cast, c, 'lifetime', 0.1, 10, 0.05, 'lingers for (s)');
+  R(cast, c, 'cooldown', 0, 30, 0.1, 'cooldown');
+  if (Editor.castAnimation) Editor.castAnimation(cast, c);
+  cast.addColor(c, 'lightColor').name('light colour');
+  R(cast, c, 'lightIntensity', 0, 40, 0.1, 'light intensity');
+  R(cast, c, 'lightRadius', 0.5, 40, 0.1, 'light radius');
+
+  const rules = sub(folder, 'The freeze (gameplay)');
+  R(rules, c, 'width', 0.02, 0.5, 0.01, 'filament width');
+  R(rules, c, 'reach', 0.1, 3, 0.05, 'freeze reach');
+  R(rules, c, 'freezeDelay', 0, 2, 0.05, 'freeze delay');
+  R(rules, c, 'freezeDuration', 0.1, 6, 0.1, 'statue duration');
+  R(rules, c, 'shatterLife', 0.1, 2, 0.05, 'chip lifetime');
+  R(rules, c, 'shatterSpeed', 0.2, 6, 0.1, 'chip speed');
+
+  const thread = sub(folder, '1 · The filament');
+  R(thread, c, 'threadHeight', 0, 2, 0.01, 'height (m)');
+  R(thread, c, 'threadArc', 0, 3, 0.01, 'arc (m)');
+  R(thread, c, 'threadWave', 0, 0.5, 0.005, 'wave (m)');
+  R(thread, c, 'waveFrequency', 0, 120, 0.5, 'waves');
+  R(thread, c, 'waveSpeed', 0, 20, 0.1, 'wave speed');
+  R(thread, c, 'threadGlow', 0, 8, 0.05, 'glow');
+  R(thread, c, 'strandDensity', 0, 300, 1, 'strands');
+  R(thread, c, 'crystalDensity', 1, 200, 1, 'crystal cells');
+  R(thread, c, 'threadDissolve', 0, 1, 0.01, 'fade as dissolve');
+  thread.addColor(c, 'colorThreadDeep').name('deep');
+  thread.addColor(c, 'colorThreadCore').name('core');
+  thread.addColor(c, 'colorCrystal').name('crystal glint');
+
+  const needle = sub(folder, '2 · The needle');
+  R(needle, c, 'needleLength', 0.1, 3, 0.01, 'length (m)');
+  R(needle, c, 'needleRadius', 0.01, 0.4, 0.005, 'radius (m)');
+  R(needle, c, 'needleGlow', 0, 8, 0.05, 'glow');
+  R(needle, c, 'needleSpin', -20, 20, 0.1, 'spin (rad/s)');
+  R(needle, c, 'needleFresnel', 0.2, 8, 0.05, 'rim power');
+  needle.addColor(c, 'colorNeedle').name('ice');
+  needle.addColor(c, 'colorNeedleRim').name('rim');
+
+  const rime = sub(folder, '3 · The rime path');
+  R(rime, c, 'rimeWidth', 0.05, 2, 0.01, 'half-width (m)');
+  R(rime, c, 'rimeOpacity', 0, 1, 0.01, 'opacity');
+  R(rime, c, 'rimeScale', 0.2, 12, 0.05, 'plates per metre');
+  R(rime, c, 'rimeGlow', 0, 4, 0.05, 'plate edge glow');
+  R(rime, c, 'rimeMelt', 0.01, 1, 0.01, 'melts over (fraction of fade)');
+  rime.addColor(c, 'colorRimeA').name('plate edges');
+  rime.addColor(c, 'colorRimeB').name('plate centres');
+
+  const motes = sub(folder, '4 · Frost motes');
+  R(motes, c, 'moteOpacity', 0, 2, 0.01, 'brightness');
+  R(motes, c, 'moteSize', 1, 60, 0.5, 'size');
+  R(motes, c, 'moteRise', 0, 3, 0.01, 'drift');
+  motes.addColor(c, 'colorMote').name('colour');
+
+  const chill = sub(folder, '5 · Chill (distortion)');
+  R(chill, c, 'chillStrength', 0, 2, 0.01, 'strength');
+  R(chill, c, 'chillScale', 0.2, 10, 0.05, 'noise scale');
+  R(chill, c, 'chillSpeed', 0, 4, 0.01, 'drift');
+
+  const statue = sub(folder, '6 · The statues');
+  R(statue, c, 'statueOpacity', 0, 1, 0.01, 'ice opacity');
+  R(statue, c, 'statueGlow', 0, 4, 0.05, 'ice glow');
+  R(statue, c, 'statueFrost', 0, 4, 0.05, 'hoarfrost');
+  R(statue, c, 'statueRim', 0, 6, 0.05, 'rim glow');
+  R(statue, c, 'statueCreep', 0.01, 2, 0.01, 'ice climbs over (s)');
+  statue.addColor(c, 'colorStatue').name('ice');
+  statue.addColor(c, 'colorStatueEmissive').name('ice glow colour');
+  statue.addColor(c, 'colorStatueRim').name('ice rim');
+  R(statue, c, 'ringRadius', 0.1, 3, 0.01, 'rosette radius (m)');
+  R(statue, c, 'ringGlow', 0, 6, 0.05, 'rosette glow');
+  R(statue, c, 'shardRadius', 0.1, 2, 0.01, 'shard ring (m)');
+  R(statue, c, 'shardHeight', 0.1, 3, 0.01, 'shard height (m)');
+  R(statue, c, 'shardGlow', 0, 6, 0.05, 'shard glow');
+  statue.addColor(c, 'colorShard').name('shard');
+  statue.addColor(c, 'colorShardRim').name('shard rim');
+  R(statue, c, 'chipSize', 1, 60, 0.5, 'chip size');
+  statue.addColor(c, 'colorChip').name('chip');
+
+  const fx = sub(folder, '7 · Particles');
+  R(fx, c, 'rimeRate', 0, 400, 1, 'dust/second');
+  R(fx, c, 'rimeSize', 0.005, 0.4, 0.001, 'dust size');
+  R(fx, c, 'rimeLife', 0.05, 4, 0.01, 'dust lifetime');
+  R(fx, c, 'rimeSpeed', 0, 6, 0.05, 'dust speed');
+  R(fx, c, 'rimeGlowP', 0, 8, 0.05, 'dust glow');
+  gradient(fx, c, 'colorRimeDust', 'dust gradient', Editor);
+  R(fx, c, 'shatterChips', 0, 200, 1, 'chips per shatter');
+  R(fx, c, 'chipParticleSize', 0.01, 0.5, 0.005, 'chip size');
+  R(fx, c, 'chipLife', 0.1, 4, 0.05, 'chip lifetime');
+  R(fx, c, 'chipGravity', 0, 30, 0.1, 'chip gravity');
+  gradient(fx, c, 'colorChip', 'chip gradient', Editor);
+  R(fx, c, 'vapourCount', 0, 80, 1, 'vapour puffs');
+  R(fx, c, 'vapourSize', 0.05, 3, 0.01, 'vapour size');
+  R(fx, c, 'vapourLife', 0.1, 6, 0.05, 'vapour lifetime');
+  R(fx, c, 'vapourOpacity', 0, 1, 0.01, 'vapour opacity');
+  gradient(fx, c, 'colorVapour', 'vapour gradient', Editor);
+
+  const beats = sub(folder, '8 · Beats');
+  R(beats, c, 'freezeShake', 0, 1, 0.01, 'freeze knock');
+  R(beats, c, 'shatterShake', 0, 1.5, 0.01, 'shatter knock');
+  R(beats, c, 'landShake', 0, 1, 0.01, 'landing knock');
+  R(beats, c, 'shakeDecay', 0.5, 30, 0.1, 'knock settles');
+  R(beats, c, 'freezeLight', 0, 6, 0.05, 'light punch (× intensity)');
+  R(beats, c, 'shatterFlash', 0, 1, 0.01, 'shatter flash');
+  beats.addColor(c, 'colorFlash').name('flash');
+  R(beats, c, 'freezeBurst', 0, 4, 0.05, 'freeze shell (m)');
+  R(beats, c, 'landBurst', 0, 4, 0.05, 'landing shell (m)');
+  R(beats, c, 'burstIntensity', 0, 4, 0.05, 'shell brightness');
+  beats.addColor(c, 'colorBurstA').name('shell inner');
+  beats.addColor(c, 'colorBurstB').name('shell mid');
+  beats.addColor(c, 'colorBurstC').name('shell outer');
+  R(beats, c, 'frostDecal', 0, 4, 0.05, 'frost mark (m)');
+  R(beats, c, 'frostDecalLife', 0.1, 8, 0.05, 'frost mark lasts (s)');
+  beats.addColor(c, 'colorDecalA').name('frost mark');
+  beats.addColor(c, 'colorDecalB').name('frost mark deep');
+
+  folder.close();
+  return folder;
 }

@@ -1,62 +1,765 @@
-import { settings } from '../../../config/settings.js';
+import { Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Ability, AbilityPhase } from '../../Ability.js';
+import { LAYER } from '../../../core/Layers.js';
+import { frame } from '../../../core/FrameUniforms.js';
+import { CAST_ANIMATIONS, settings } from '../../../config/settings.js';
+import { ParticleShape } from '../../../particles/ParticleSystem.js';
+import { RateEmitter } from '../../../particles/ParticleEngine.js';
+import { getColor } from '../../../utils/color.js';
 import { impactForce } from '../AuthoredImpactForce.js';
-import { VigilPulses } from './VigilPulses.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
-import { ExpansionAtmosphere, prefersReducedMotion, addCommonEditorControls } from '../ExpansionAtmosphere.js';
-import {AdditiveBlending,BufferAttribute,BufferGeometry,Color,DoubleSide,Group,LatheGeometry,Mesh,PlaneGeometry,ShaderMaterial,TorusGeometry,Vector2,Vector3} from 'three';
-import {Ability,AbilityPhase} from '../../Ability.js';import {LAYER} from '../../../core/Layers.js';
-export const ID='exp-vigil-of-embers',UID='matrix-expansion/vigil-of-embers';const TAU=Math.PI*2,clamp=x=>Math.max(0,Math.min(1,x));
-/** Radial vaulted arch, authored in metres so the silhouette remains physical. */
-export function vigilArchGeometry(){const p=[],uv=[],idx=[],segments=28;for(let i=0;i<=segments;i++){const t=i/segments,a=Math.PI*t,x=Math.cos(a)*.62,y=Math.sin(a)*1.05;for(const off of [-.07,.07]){p.push(x+Math.cos(a)*off,y+Math.sin(a)*off,0);uv.push(t,(off+.07)/.14);}if(i<segments){const n=i*2;idx.push(n,n+2,n+1,n+1,n+2,n+3);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;}
-/** A tapered flame shaped around its rising axis, with a curling tip. */
-export function vigilFlameGeometry(){const p=[],uv=[],ix=[],rows=33,cols=25;for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const t=j/(rows-1),a=i*TAU/(cols-1),r=Math.sin(Math.PI*t)*(.18+.04*Math.sin(t*8+a*2));p.push(Math.cos(a)*r+.15*t*t,t*.9,Math.sin(a)*r);uv.push(i/(cols-1),t);if(j<rows-1&&i<cols-1){const n=j*cols+i;ix.push(n,n+cols,n+1,n+1,n+cols,n+cols+1);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(ix);g.computeVertexNormals();return g;}
-function flameMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uPulse:{value:0},uColor:{value:new Color('#ffe9ac')},uCore:{value:new Color('#ffffff')}},vertexShader:`varying vec2 vUv;uniform float uTime;void main(){vUv=uv;vec3 p=position;p.x+=sin(uTime*4.+uv.y*6.)*.07*uv.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade,uPulse;uniform vec3 uColor,uCore;void main(){float core=pow(1.-vUv.y,2.);float fil=pow(max(0.,cos(vUv.x*19.+vUv.y*5.-uTime*3.)),6.);vec3 c=mix(uColor,uCore,clamp(core*.8+uPulse*.2,0.,1.));gl_FragColor=vec4(c,(.15+core*.45+fil*.15+uPulse*.2)*sin(vUv.y*3.14159)*uFade);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});}
-/** Open cylindrical curtain: each pulse expands this across the sanctuary. */
-export function vigilCurtainGeometry(){const p=[],uv=[],idx=[],segments=96,rows=9;for(let j=0;j<rows;j++)for(let i=0;i<=segments;i++){const y=j/(rows-1),a=i*TAU/segments;p.push(Math.cos(a),y,Math.sin(a));uv.push(i/segments,y);if(j<rows-1&&i<segments){const n=j*(segments+1)+i;idx.push(n,n+segments+1,n+1,n+1,n+segments+1,n+segments+2);}}const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;}
-function curtainMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:0},uColor:{value:new Color('#ffe9ac')},uCore:{value:new Color('#ffffff')}},vertexShader:`varying vec2 vUv;uniform float uTime;void main(){vUv=uv;vec3 p=position;p.xz*=1.+.018*sin(uv.x*37.7+uTime*2.)*uv.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade;uniform vec3 uColor,uCore;void main(){float columns=pow(max(0.,cos(vUv.x*75.4+sin(vUv.y*7.-uTime))),12.);float band=exp(-abs(vUv.y-.2)*6.);vec3 c=mix(uColor,uCore,columns*.45+band*.25);gl_FragColor=vec4(c,(.12+columns*.4+band*.2)*sin(vUv.y*3.14159)*uFade);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});}
-function holyMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uPulse:{value:0},uColor:{value:new Color('#ffe9ac')},uCore:{value:new Color('#fff')}},vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade,uPulse;uniform vec3 uColor,uCore;void main(){float grain=.5+.5*sin(vUv.x*38.+sin(vUv.y*13.+uTime));float trim=pow(max(0.,cos(vUv.x*48.)),20.);vec3 c=mix(uColor,uCore,clamp(trim*.4+uPulse*.35,0.,1.));gl_FragColor=vec4(c,(.32+grain*.12+uPulse*.3)*uFade);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});}
-function floorMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending,uniforms:{uTime:{value:0},uFade:{value:1},uPulse:{value:0},uColor:{value:new Color('#ffe9ac')}},vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade,uPulse;uniform vec3 uColor;void main(){vec2 p=vUv*2.-1.;float r=length(p),a=atan(p.y,p.x);float ring=exp(-abs(r-.9)*100.)+.6*exp(-abs(r-.64)*100.);float marks=pow(max(0.,cos(a*12.)),24.)*smoothstep(.68,.75,r)*(1.-smoothstep(.86,.92,r));float wave=exp(-abs(r-uPulse)*90.)*step(.01,uPulse);gl_FragColor=vec4(uColor,(ring+marks+wave)*uFade*.45);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});}
-export class VigilOfEmbersAbility extends Ability{
- constructor(ctx){super(ID,ctx);}get handlesOwnHits(){return true;}get impactDuration(){return this.config.lifetime*this.lifetimeScale;}
- get lifetimeScale(){return Math.max(.1,settings.global.lifetime);}
- get stagedTime(){return this.impactTime/this.lifetimeScale;}get fadeDuration(){return this.config.fade*this.lifetimeScale;}
- createShaders(){this.rig=new Group();this.group.add(this.rig);this.rig.visible=false;this.gs=[];this.ms=[];const g=x=>(this.gs.push(x),x),m=x=>(this.ms.push(x),x);
-  this.mat=m(holyMaterial());this.floorMat=m(floorMaterial());this.pulseEffects=new VigilPulses(this.group,this.ctx,this.atmosphere,g,m);this.floor=new Mesh(g(new PlaneGeometry(2,2)),this.floorMat);this.floor.rotation.x=-Math.PI/2;this.floor.position.y=.04;this.rig.add(this.floor);
-  const arch=g(vigilArchGeometry());this.arches=[];for(let i=0;i<8;i++){const a=i*TAU/8,w=new Mesh(arch,this.mat);w.position.set(Math.sin(a)*2.5,1,Math.cos(a)*2.5);w.rotation.y=a;this.rig.add(w);this.arches.push(w);}
-  const bell=g(new LatheGeometry([new Vector2(.05,0),new Vector2(.24,.08),new Vector2(.28,.32),new Vector2(.4,.55),new Vector2(.45,.62)],24));this.bells=[];for(let i=0;i<4;i++){const a=i*TAU/4,b=new Mesh(bell,this.mat);b.position.set(Math.sin(a)*1.1,2.9,Math.cos(a)*1.1);b.rotation.z=Math.PI;this.rig.add(b);this.bells.push(b);}
-  const curtainGeometry=g(vigilCurtainGeometry());this.curtains=[];this.curtainMaterials=[];this.curtainTimes=[-1,-1,-1];this.curtainNext=0;for(let i=0;i<3;i++){const material=m(curtainMaterial()),curtain=new Mesh(curtainGeometry,material);curtain.visible=false;this.rig.add(curtain);this.curtains.push(curtain);this.curtainMaterials.push(material);}this.curtain=this.curtains[0];
-  this.flameMat=m(flameMaterial());const flame=g(vigilFlameGeometry());this.flames=[];for(let i=0;i<4;i++){const a=i*TAU/4,f=new Mesh(flame,this.flameMat);f.position.set(Math.sin(a)*1.1,2.2,Math.cos(a)*1.1);this.rig.add(f);this.flames.push(f);}
-  this.travelVigil=new Group();this.group.add(this.travelVigil);this.travelVigil.visible=false;for(let i=0;i<3;i++){const a=new Mesh(arch,this.mat);a.rotation.y=i*TAU/3;this.travelVigil.add(a);}const travelFlame=new Mesh(flame,this.flameMat);travelFlame.position.y=.25;travelFlame.scale.setScalar(.55);this.travelVigil.add(travelFlame);this.travelVigil.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
-  this.crown=new Mesh(g(new TorusGeometry(1,.025,8,64)),this.mat);this.crown.rotation.x=Math.PI/2;this.crown.position.y=3.2;this.rig.add(this.crown);this.rig.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});this.scope=null;this.nextPulse=0;this.pulseAt=-1;this.failure=null;}
- createParticles(){this.atmosphere=new ExpansionAtmosphere(this.ctx,'holy',{shape:'SOFT',colors:['#ffffff','#fff1ca','#ffd77f','#997748'],rate:24});this.pulseEffects.atmosphere=this.atmosphere;}onSpawn(){this.reduceMotion=prefersReducedMotion();this.atmosphere.reset();this.scope=bindExpansionCombat(this.ctx,UID);this.failure=this.scope?null:'combat bridge unavailable';this.rig.visible=false;this.curtainTimes.fill(-1);this.curtainNext=0;this.pulseEffects.reset();for(const curtain of this.curtains)curtain.visible=false;this.travelVigil.visible=!!this.scope;this.travelVigil.position.copy(this.origin);this.nextPulse=0;this.pulseAt=-1;}
- onTravel(){const c=this.config,t=this.reduceMotion?0:this.age;this.travelVigil.position.copy(this.position);this.travelVigil.position.y=.7;this.travelVigil.rotation.y=t*.8;this.travelVigil.scale.setScalar(c.travelScale??1);this.mat.uniforms.uTime.value=t;this.mat.uniforms.uFade.value=1;this.mat.uniforms.uPulse.value=0;this.mat.uniforms.uColor.value.set(c.holyColor);this.mat.uniforms.uCore.value.set(c.coreColor);this.flameMat.uniforms.uTime.value=t;this.flameMat.uniforms.uFade.value=1;this.flameMat.uniforms.uColor.value.set(c.holyColor);this.flameMat.uniforms.uCore.value.set(c.coreColor);}
- onImpact(){this.travelVigil.visible=false;if(!this.scope)return;this.rig.position.copy(this.position);this.rig.visible=true;this.onFade(0,0);}
- onFade(dt,t){const visualTime=this.reduceMotion?0:this.age;this.atmosphere.rate=this.config.particleRate??this.atmosphere.rate;this.atmosphere.size=this.config.particleSize??this.atmosphere.size;if(!this.reduceMotion && this.phase===AbilityPhase.IMPACT)this.atmosphere.update(dt,this.position);const c=this.config,fade=t<=1?1:1-clamp(t-1);if(dt>0&&this.scope&&this.phase===AbilityPhase.IMPACT&&this.stagedTime>=this.nextPulse){
-   const pos=this.position.toArray(),allies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'ally'}),enemies=this.scope.queryActors({position:pos,radius:c.zoneRadius,relation:'enemy'});
-   if(!allies?.ok||!enemies?.ok)this.failure='sanctuary query refused';let emitted=false,attempted=false;for(const [query,type] of [[allies,'status'],[enemies,'hit']]){const ids=query?.ok?query.actors.filter(a=>a.alive).slice(0,8).map(a=>a.id):[];if(ids.length){attempted=true;const ev={type,element:'holy',position:pos,targetIds:ids,intensity:1};if(type==='hit'){ev.damage=c.damage;ev.hitForce=impactForce(c);}const out=this.scope.emit(ev);if(out?.ok)emitted=true;else this.failure=out?.reason??'vigil event refused';}}
-   if(emitted||(!attempted&&allies?.ok&&enemies?.ok)){this.pulseAt=this.stagedTime;this.curtainTimes[this.curtainNext]=this.stagedTime;this.curtainNext=(this.curtainNext+1)%this.curtains.length;if(!this.reduceMotion)this.pulseEffects.fire(pos,this.stagedTime,c);}this.nextPulse=this.stagedTime+Math.max(.3,c.pulsePeriod);
+import { ExpansionAtmosphere, prefersReducedMotion } from '../ExpansionAtmosphere.js';
+import { VigilPulses } from './VigilPulses.js';
+import {
+  vigilArchGeometry,
+  vigilFlameGeometry,
+  vigilCurtainGeometry,
+  vigilBellGeometry,
+  vigilCrownGeometry,
+  vigilShaftGeometry
+} from './VigilGeometry.js';
+import {
+  createVigilArchMaterial,
+  createVigilGiltMaterial,
+  createVigilFlameMaterial,
+  createVigilFloorMaterial,
+  createVigilCurtainMaterial,
+  createVigilShaftMaterial,
+  createVigilWarpMaterial
+} from './VigilMaterials.js';
+
+export { vigilArchGeometry, vigilFlameGeometry, vigilCurtainGeometry } from './VigilGeometry.js';
+
+export const ID = 'exp-vigil-of-embers';
+export const UID = 'matrix-expansion/vigil-of-embers';
+
+const TAU = Math.PI * 2;
+/** Fixed rig capacities: a cast allocates nothing. */
+const ARCHES = 8;
+const LAMPS = 4;
+const CURTAINS = 3;
+const TRAVEL_ARCHES = 3;
+/** Targets one pulse may address per relation — the binding's own bound. */
+const MAX_PULSE_TARGETS = 8;
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const smooth01 = (x) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
+
+const _emit = {};
+const _pos = new Vector3();
+const _up = new Vector3(0, 1, 0);
+
+/**
+ * VIGIL OF EMBERS — a sanctuary that rings.
+ *
+ * A zone cast whose **travel** is a votive — three small arches round a lamp
+ * flame — carried to the circle. On arrival a sanctuary is raised over it and
+ * stands for `lifetime`. On arrival and every `pulsePeriod` after, it asks the
+ * combat binding who is inside `zoneRadius`: living allies receive a holy
+ * `status` (consecration), living enemies a holy `hit`, at most eight of each.
+ * A pulse is *shown* only if the binding accepted at least one of those events
+ * — or if the circle was genuinely empty, which is honest to show — so a
+ * refused pulse never pretends to land.
+ *
+ * Layers, each a folder in the editor:
+ *
+ *   1. **the votive** — three arches and a flame, turning as they travel.
+ *   2. **the arches** — eight two-centred gothic arches on pillars
+ *      (`vigilArchGeometry`) that *build* from their feet up with a burning
+ *      noise front, carry a gilt trim and flare when a pulse climbs them.
+ *   3. **bells, lamps and crown** — four bells turned from a founder's profile
+ *      that sway and ring on every pulse, four lamp flames (noise-swayed in
+ *      the vertex stage, fbm tongues in the fragment) and a crown of tines.
+ *   4. **floor and column** — a consecrated sigil drawn round by a sweep, its
+ *      rings at the true damage radius, rune cells, spokes aligned with the
+ *      arches and the pulse wave; a god-ray column from the crown; heat
+ *      shimmer over the lamps on `LAYER.DISTORTION`.
+ *   5. **the pulse** (`VigilPulses` plus the curtains here) — an expanding
+ *      curtain of light, a petal glyph, a full-radius footprint, an AIR burst
+ *      and shockwave, and a knock, flash and light punch.
+ *   6. **particles** — embers rising off the lamps and thrown off the floor by
+ *      each pulse (the cast's own system), and ambient motes on the shared
+ *      expansion transport.
+ *
+ * The exit is architectural: the arches, bells and crown *sink* by
+ * `recedeDepth` and shrink while the flames gutter out and the floor
+ * dissolves from the rim inward. Under reduced motion the visual clock is held
+ * at zero and the pulse glyphs, expanding curtains, embers and camera knock
+ * are skipped (the light punch still marks each pulse); the
+ * pulse cadence and its combat events are unchanged.
+ */
+export class VigilOfEmbersAbility extends Ability {
+  constructor(ctx) {
+    super(ID, ctx);
   }
-  const pulse=this.pulseAt<0?0:clamp((this.stagedTime-this.pulseAt)/.65),flash=(this.pulseAt<0?0:1-clamp((this.stagedTime-this.pulseAt)/.35))*(c.pulseStrength??1),release=t<=1?0:clamp(t-1),recede=release*(c.recedeDepth??1.5);
-  this.atmosphere.syncPalette(c.holyColor,c.coreColor);this.pulseEffects.update(this.stagedTime,visualTime,fade,c,this.reduceMotion);
-  this.mat.uniforms.uTime.value=visualTime;this.mat.uniforms.uFade.value=fade;this.mat.uniforms.uPulse.value=flash;this.mat.uniforms.uColor.value.set(c.holyColor);this.mat.uniforms.uCore.value.set(c.coreColor);
-  this.floorMat.uniforms.uTime.value=visualTime;this.floorMat.uniforms.uFade.value=fade;this.floorMat.uniforms.uPulse.value=pulse;this.floorMat.uniforms.uColor.value.set(c.holyColor);
-  for(let i=0;i<this.curtains.length;i++){const curtain=this.curtains[i],mat=this.curtainMaterials[i],waveAge=this.curtainTimes[i]<0?-1:this.stagedTime-this.curtainTimes[i],wave=waveAge<0?0:clamp(waveAge/Math.max(.1,c.waveDuration??.7));curtain.visible=waveAge>=0&&wave<1;curtain.scale.set(Math.max(.001,c.zoneRadius*wave),c.waveHeight??2.2,Math.max(.001,c.zoneRadius*wave));mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade*(1-wave)*(c.curtainGlow??.55);mat.uniforms.uColor.value.set(c.holyColor);mat.uniforms.uCore.value.set(c.coreColor);}
-  this.floor.scale.set(c.zoneRadius,c.zoneRadius,1);for(let i=0;i<this.arches.length;i++){const a=i*TAU/8;this.arches[i].position.x=Math.sin(a)*c.zoneRadius*.64;this.arches[i].position.z=Math.cos(a)*c.zoneRadius*.64;this.arches[i].position.y=1-recede;this.arches[i].scale.setScalar(1-release*.6);}
-  this.flameMat.uniforms.uTime.value=visualTime;this.flameMat.uniforms.uFade.value=fade;this.flameMat.uniforms.uPulse.value=flash;this.flameMat.uniforms.uColor.value.set(c.holyColor);this.flameMat.uniforms.uCore.value.set(c.coreColor);for(let i=0;i<this.flames.length;i++){const f=this.flames[i];f.rotation.y=i*TAU/4+visualTime*.3;f.position.y=2.2-recede;f.scale.setScalar((c.emberScale??1)*(1+flash*.4)*(1-release));}
-  for(let i=0;i<this.bells.length;i++){this.bells[i].rotation.z=Math.PI+Math.sin(visualTime*3+i)*.15;this.bells[i].position.y=2.9-recede;this.bells[i].scale.setScalar(1-release*.6);}this.crown.rotation.z=visualTime*.4;this.crown.position.y=3.2-recede;this.crown.scale.setScalar(1-release*.6);
- }
- onDestroy(){this.rig.visible=false;this.travelVigil.visible=false;this.scope=null;}dispose(){for(const x of this.gs)x.dispose();for(const x of this.ms)x.dispose();super.dispose();}
+
+  /** Pulses are committed through the binding, not the dummy field's disc. */
+  get handlesOwnHits() {
+    return true;
+  }
+
+  get lifetimeScale() {
+    return Math.max(0.1, settings.global.lifetime);
+  }
+
+  get impactDuration() {
+    return this.config.lifetime * this.lifetimeScale;
+  }
+
+  get fadeDuration() {
+    return this.config.fade * this.lifetimeScale;
+  }
+
+  /** Seconds since impact on the unscaled staging clock the settings are authored in. */
+  get stagedTime() {
+    return this.impactTime / this.lifetimeScale;
+  }
+
+  /** Meshes the standing sanctuary is drawing. HUD readout only. */
+  get instanceCount() {
+    if (!this.rig.visible) return 0;
+    let curtains = 0;
+    for (const curtain of this.curtains) if (curtain.visible) curtains++;
+    return this.arches.length + this.bells.length + this.flames.length + 3 + curtains;
+  }
+
+  /** Lamp light: a slow candle gutter rather than the default glint. */
+  lightShimmer() {
+    return 0.86 + 0.08 * Math.sin(this.age * 5.3) + 0.06 * Math.sin(this.age * 13.1 + 1.7);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Construction                                                        */
+  /* ------------------------------------------------------------------ */
+
+  createShaders() {
+    this._lightSaved = new Vector3();
+    /** Every GPU resource this cast owns, disposed once each. */
+    this.gs = [];
+    this.ms = [];
+    const g = (x) => (this.gs.push(x), x);
+    const m = (x) => (this.ms.push(x), x);
+
+    this.rig = new Group();
+    this.rig.visible = false;
+    this.group.add(this.rig);
+
+    this.mat = m(createVigilArchMaterial());
+    this.bellMat = m(createVigilGiltMaterial());
+    this.crownMat = m(createVigilGiltMaterial());
+    this.flameMat = m(createVigilFlameMaterial());
+    this.floorMat = m(createVigilFloorMaterial());
+    this.shaftMat = m(createVigilShaftMaterial());
+    this.warpMat = m(createVigilWarpMaterial());
+    this.pulseEffects = new VigilPulses(this.group, this.ctx, this.atmosphere, g, m);
+
+    /* ---- 4 · the consecrated floor ---- */
+    this.floor = new Mesh(g(new PlaneGeometry(2, 2)), this.floorMat);
+    this.floor.rotation.x = -Math.PI / 2;
+    this.floor.position.y = 0.04;
+    this.rig.add(this.floor);
+
+    /* ---- 2 · the arches ---- */
+    const arch = g(vigilArchGeometry());
+    this.arches = [];
+    for (let i = 0; i < ARCHES; i++) {
+      const a = (i * TAU) / ARCHES;
+      const w = new Mesh(arch, this.mat);
+      w.position.set(Math.sin(a) * 2.5, 1, Math.cos(a) * 2.5);
+      // Each arch faces the centre: a ring of doorways into the sanctuary.
+      w.rotation.y = a;
+      this.rig.add(w);
+      this.arches.push(w);
+    }
+
+    /* ---- 3 · bells, lamps and crown ---- */
+    const bell = g(vigilBellGeometry());
+    this.bells = [];
+    for (let i = 0; i < LAMPS; i++) {
+      const a = (i * TAU) / LAMPS;
+      const b = new Mesh(bell, this.bellMat);
+      b.position.set(Math.sin(a) * 1.1, 2.9, Math.cos(a) * 1.1);
+      // Turned over so it hangs from its crown (the lathe's origin).
+      b.rotation.z = Math.PI;
+      this.rig.add(b);
+      this.bells.push(b);
+    }
+
+    const curtainGeometry = g(vigilCurtainGeometry());
+    this.curtains = [];
+    this.curtainMaterials = [];
+    this.curtainTimes = new Array(CURTAINS).fill(-1);
+    this.curtainNext = 0;
+    for (let i = 0; i < CURTAINS; i++) {
+      const material = m(createVigilCurtainMaterial());
+      const curtain = new Mesh(curtainGeometry, material);
+      curtain.visible = false;
+      this.rig.add(curtain);
+      this.curtains.push(curtain);
+      this.curtainMaterials.push(material);
+    }
+    /** The first curtain, for readouts that only care about one. */
+    this.curtain = this.curtains[0];
+
+    const flame = g(vigilFlameGeometry());
+    this.flames = [];
+    for (let i = 0; i < LAMPS; i++) {
+      const a = (i * TAU) / LAMPS;
+      const f = new Mesh(flame, this.flameMat);
+      f.position.set(Math.sin(a) * 1.1, 2.2, Math.cos(a) * 1.1);
+      this.rig.add(f);
+      this.flames.push(f);
+    }
+
+    this.crown = new Mesh(g(vigilCrownGeometry()), this.crownMat);
+    this.crown.position.y = 3.2;
+    this.rig.add(this.crown);
+
+    this.shaft = new Mesh(g(vigilShaftGeometry(1)), this.shaftMat);
+    this.shaft.renderOrder = -1; // behind the architecture it lights
+    this.rig.add(this.shaft);
+
+    /* ---- 1 · the votive ---- */
+    this.travelVigil = new Group();
+    this.travelVigil.visible = false;
+    this.group.add(this.travelVigil);
+    for (let i = 0; i < TRAVEL_ARCHES; i++) {
+      const a = new Mesh(arch, this.mat);
+      a.rotation.y = (i * TAU) / TRAVEL_ARCHES;
+      // Small, and lifted so the pillars stand on the votive's base.
+      a.scale.setScalar(0.45);
+      a.position.y = 0.45;
+      this.travelVigil.add(a);
+    }
+    const travelFlame = new Mesh(flame, this.flameMat);
+    travelFlame.position.y = 0.25;
+    travelFlame.scale.setScalar(0.55);
+    this.travelVigil.add(travelFlame);
+
+    for (const root of [this.rig, this.travelVigil]) {
+      root.traverse((n) => {
+        if (!n.isMesh) return;
+        n.layers.set(LAYER.VFX);
+        n.frustumCulled = false;
+      });
+    }
+
+    // Heat over the lamps: a billboard on the distortion layer.
+    this.warp = new Mesh(g(new PlaneGeometry(1, 1, 1, 1)), this.warpMat);
+    this.warp.layers.set(LAYER.DISTORTION);
+    this.warp.frustumCulled = false;
+    this.warp.visible = false;
+    this.rig.add(this.warp);
+
+    this.scope = null;
+    this.nextPulse = 0;
+    this.pulseAt = -1;
+    this.failure = null;
+  }
+
+  createParticles() {
+    this.atmosphere = new ExpansionAtmosphere(this.ctx, 'holy', {
+      shape: 'SOFT',
+      colors: ['#ffffff', '#fff1ca', '#ffd77f', '#997748'],
+      rate: 24
+    });
+    this.pulseEffects.atmosphere = this.atmosphere;
+
+    /** Embers: soft sparks rising off the lamps and thrown up by each pulse. */
+    this.embers = this.ctx.particles?.get?.(`${ID}.embers`, {
+      capacity: 1200,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      curl: true,
+      softFade: 0.4
+    }) ?? null;
+    if (this.embers) {
+      const u = this.embers.uniforms;
+      u.uSizeIn.value = 0.1;
+      u.uFadeIn.value = 0.1;
+      u.uFadeOut.value = 0.55;
+      u.uEndSize.value = 0.25;
+      u.uDrag.value = 0.9;
+    }
+    this.emberEmitter = new RateEmitter();
+    this._emberLamp = 0;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Casting                                                             */
+  /* ------------------------------------------------------------------ */
+
+  onSpawn() {
+    this.reduceMotion = prefersReducedMotion();
+    this.atmosphere.reset();
+    this.emberEmitter.reset();
+    this.scope = bindExpansionCombat(this.ctx, UID);
+    this.failure = this.scope ? null : 'combat bridge unavailable';
+    this.rig.visible = false;
+    this.curtainTimes.fill(-1);
+    this.curtainNext = 0;
+    this.pulseEffects.reset();
+    for (const curtain of this.curtains) curtain.visible = false;
+    this.warp.visible = false;
+    // Without a binding nothing can be consecrated, so nothing is carried out.
+    this.travelVigil.visible = !!this.scope;
+    this.travelVigil.position.copy(this.origin);
+    this.nextPulse = 0;
+    this.pulseAt = -1;
+  }
+
+  _syncParticles() {
+    const c = this.config;
+    const g = settings.global;
+    this.atmosphere.rate = c.particleRate ?? this.atmosphere.rate;
+    this.atmosphere.size = c.particleSize ?? this.atmosphere.size;
+    this.atmosphere.syncPalette(c.holyColor, c.coreColor);
+    if (!this.embers) return;
+    this.embers.setGradient(getColor(c.colorEmberA), getColor(c.colorEmberB), getColor(c.colorEmberC), getColor(c.colorEmberD));
+    const u = this.embers.uniforms;
+    u.uGravity.value.set(0, 0.35, 0); // embers are lighter than air
+    u.uSizeScale.value = g.particleSize;
+    u.uLifeScale.value = g.particleLifetime;
+    u.uSpeedScale.value = g.particleSpeed;
+    u.uOpacity.value = g.opacity;
+    u.uGlow.value = 1.4 * g.glow;
+    u.uTurbulence.value = 0.7 * g.turbulence;
+  }
+
+  _emberParams(speed, spread, life) {
+    const c = this.config;
+    _emit.radius = 0.08;
+    _emit.direction = _up;
+    _emit.speed = speed;
+    _emit.speedVariance = 0.5;
+    _emit.spread = spread;
+    _emit.inherit = null;
+    _emit.anchor = null;
+    _emit.size = c.emberSize;
+    _emit.sizeVariance = 0.5;
+    _emit.life = life;
+    _emit.lifeVariance = 0.4;
+    _emit.spin = 1;
+    _emit.tint = null;
+    _emit.time = frame.uTime.value;
+  }
+
+  /** Embers rise off the four lamps, round-robin, at `emberRate × strength`. */
+  _lampEmbers(dt, strength) {
+    if (!this.embers || this.reduceMotion || dt <= 0) return;
+    const c = this.config;
+    const count = Math.min(32, this.emberEmitter.tick(dt, Math.max(0, c.emberRate * strength) * settings.global.particleCount));
+    if (count <= 0) return;
+    this._emberParams(c.emberRise, 0.35, c.emberLife);
+    _emit.position = _pos;
+    for (let n = 0; n < count; n++) {
+      // The rig is unrotated under an identity group: world = rig + local.
+      const lamp = this._emberLamp++ % this.flames.length;
+      _pos.copy(this.rig.position).add(this.flames[lamp].position);
+      _pos.y += 0.35 * (c.emberScale ?? 1);
+      this.embers.emit(1, _emit);
+    }
+  }
+
+  onTravel(dt) {
+    const c = this.config;
+    const t = this.reduceMotion ? 0 : this.age;
+    this._syncParticles();
+    this.travelVigil.position.copy(this.position);
+    this.travelVigil.position.y = c.travelHeight ?? 0.7;
+    this.travelVigil.rotation.y = t * (c.travelSpin ?? 0.8);
+    this.travelVigil.scale.setScalar((c.travelScale ?? 1) * (0.4 + 0.6 * smooth01(this.age / 0.15)));
+
+    const u = this.mat.uniforms;
+    u.uClock.value = t;
+    u.uFade.value = 1;
+    u.uPulse.value = 0;
+    u.uBuild.value = 1;
+    u.uGlow.value = (c.archGlow ?? 1) * settings.global.glow;
+    u.uColor.value.copy(getColor(c.holyColor));
+    u.uCore.value.copy(getColor(c.coreColor));
+    const f = this.flameMat.uniforms;
+    f.uClock.value = t;
+    f.uFade.value = 1;
+    f.uPulse.value = 0;
+    f.uSway.value = c.flameSway ?? 0.07;
+    f.uGlow.value = (c.flameGlow ?? 1.4) * settings.global.glow;
+    f.uColor.value.copy(getColor(c.holyColor));
+    f.uCore.value.copy(getColor(c.coreColor));
+
+    // A thin trail of embers behind the votive.
+    if (this.embers && !this.reduceMotion && dt > 0) {
+      const count = Math.min(8, this.emberEmitter.tick(dt, c.emberRate * 0.5 * settings.global.particleCount));
+      if (count > 0) {
+        _pos.copy(this.travelVigil.position).setY(this.travelVigil.position.y + 0.3);
+        this._emberParams(c.emberRise * 0.5, 0.6, c.emberLife * 0.6);
+        _emit.position = _pos;
+        this.embers.emit(count, _emit);
+      }
+    }
+  }
+
+  onImpact() {
+    this.travelVigil.visible = false;
+    if (!this.scope) return;
+    this.rig.position.copy(this.position);
+    this.rig.visible = true;
+    // Arrival frame: resolve the whole rig now, unbuilt, before the first pulse.
+    this.mat.uniforms.uBuild.value = 0;
+    this.onFade(0, 0);
+    const c = this.config;
+    this.lightBoost = c.lightIntensity * (c.arrivalLight ?? 1) * settings.global.explosionIntensity;
+    if (!this.reduceMotion) this.ctx.shake?.add?.((c.arrivalShake ?? 0.15) * settings.global.explosionIntensity, 2.6, 14);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The standing sanctuary                                              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Ask the binding who is inside, consecrate allies and strike enemies.
+   * Returns true when the pulse should be shown: at least one event was
+   * accepted, or both queries succeeded and the circle was empty.
+   */
+  _pulse(position) {
+    const c = this.config;
+    const allies = this.scope.queryActors({ position, radius: c.zoneRadius, relation: 'ally' });
+    const enemies = this.scope.queryActors({ position, radius: c.zoneRadius, relation: 'enemy' });
+    if (!allies?.ok || !enemies?.ok) this.failure = 'sanctuary query refused';
+    let emitted = false;
+    let attempted = false;
+    for (const [query, type] of [[allies, 'status'], [enemies, 'hit']]) {
+      const ids = [];
+      if (query?.ok) {
+        for (const actor of query.actors) {
+          if (!actor.alive) continue;
+          ids.push(actor.id);
+          if (ids.length >= MAX_PULSE_TARGETS) break;
+        }
+      }
+      if (!ids.length) continue;
+      attempted = true;
+      const event = { type, element: 'holy', position, targetIds: ids, intensity: 1 };
+      if (type === 'hit') {
+        event.damage = c.damage;
+        event.hitForce = impactForce(c);
+      }
+      const out = this.scope.emit(event);
+      if (out?.ok) emitted = true;
+      else this.failure = out?.reason ?? 'vigil event refused';
+    }
+    return emitted || (!attempted && allies?.ok && enemies?.ok);
+  }
+
+  /** The accepted pulse: curtain, glyph, embers, knock, flash and light. */
+  _pulseBeat(position) {
+    const c = this.config;
+    const g = settings.global;
+    this.pulseAt = this.stagedTime;
+    this.curtainTimes[this.curtainNext] = this.stagedTime;
+    this.curtainNext = (this.curtainNext + 1) % this.curtains.length;
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * (c.pulseLight ?? 0.8) * (c.pulseStrength ?? 1) * g.explosionIntensity);
+    if (this.reduceMotion) return;
+    this.pulseEffects.fire(position, this.stagedTime, c);
+    this.ctx.shake?.add?.((c.pulseShake ?? 0.12) * (c.pulseStrength ?? 1) * g.explosionIntensity, 3, 18);
+    this.ctx.flash?.trigger?.(getColor(c.holyColor), (c.pulseFlash ?? 0.08) * (c.pulseStrength ?? 1) * g.explosionIntensity);
+    if (this.embers) {
+      _pos.set(position[0], 0.15, position[2]);
+      this._emberParams(c.emberRise * 2.2, 0.55, c.emberLife * 0.8);
+      _emit.position = _pos;
+      _emit.radius = Math.max(0.2, c.zoneRadius * 0.6);
+      this.embers.emit(Math.max(0, Math.min(96, Math.round((c.pulseEmbers ?? 28) * g.particleCount))), _emit);
+    }
+  }
+
+  onFade(dt, t) {
+    const c = this.config;
+    const gl = settings.global;
+    const visualTime = this.reduceMotion ? 0 : this.age;
+    this._syncParticles();
+    if (!this.reduceMotion && this.phase === AbilityPhase.IMPACT) this.atmosphere.update(dt, this.position);
+    const fade = t <= 1 ? 1 : 1 - clamp01(t - 1);
+
+    /* --- the vigil: one pulse every `pulsePeriod` while it stands --- */
+    if (dt > 0 && this.scope && this.phase === AbilityPhase.IMPACT && this.stagedTime >= this.nextPulse) {
+      const position = this.position.toArray();
+      if (this._pulse(position)) this._pulseBeat(position);
+      this.nextPulse = this.stagedTime + Math.max(0.3, c.pulsePeriod);
+    }
+
+    /* --- envelopes --- */
+    const sincePulse = this.pulseAt < 0 ? -1 : this.stagedTime - this.pulseAt;
+    const wave = sincePulse < 0 ? 0 : clamp01(sincePulse / 0.65);
+    const flash = (sincePulse < 0 ? 0 : 1 - clamp01(sincePulse / 0.35)) * (c.pulseStrength ?? 1);
+    const release = t <= 1 ? 0 : clamp01(t - 1);
+    const recede = release * (c.recedeDepth ?? 1.5);
+    const build = smooth01(this.stagedTime / Math.max(0.05, c.buildTime ?? 0.55));
+    const reveal = smooth01(this.stagedTime / Math.max(0.05, c.revealTime ?? 0.6));
+    const holy = getColor(c.holyColor);
+    const core = getColor(c.coreColor);
+    const gilt = getColor(c.giltColor ?? '#ffcf6a');
+
+    this.pulseEffects.update(this.stagedTime, visualTime, fade, c, this.reduceMotion);
+
+    /* --- 2 · the arches --- */
+    const arch = this.mat.uniforms;
+    arch.uClock.value = visualTime;
+    arch.uFade.value = fade;
+    arch.uPulse.value = flash;
+    arch.uBuild.value = build;
+    arch.uGlow.value = (c.archGlow ?? 1) * gl.glow;
+    arch.uColor.value.copy(holy);
+    arch.uCore.value.copy(core);
+    const archRing = c.zoneRadius * (c.archRadius ?? 0.64);
+    for (let i = 0; i < this.arches.length; i++) {
+      const a = (i * TAU) / this.arches.length;
+      const w = this.arches[i];
+      w.position.set(Math.sin(a) * archRing, 1 - recede, Math.cos(a) * archRing);
+      w.scale.setScalar((c.archScale ?? 1) * (1 - release * 0.6));
+    }
+
+    /* --- 4 · the floor --- */
+    const floor = this.floorMat.uniforms;
+    floor.uClock.value = visualTime;
+    floor.uFade.value = fade;
+    floor.uPulse.value = sincePulse < 0 ? 0 : 1 - wave;
+    floor.uWave.value = wave;
+    floor.uReveal.value = reveal;
+    floor.uSpin.value = c.sigilSpin ?? 0.05;
+    floor.uGlow.value = (c.floorGlow ?? 1) * gl.glow;
+    floor.uColor.value.copy(holy);
+    floor.uCore.value.copy(core);
+    this.floor.scale.set(c.zoneRadius, c.zoneRadius, 1);
+
+    /* --- 5 · the curtains, one per overlapping pulse --- */
+    for (let i = 0; i < this.curtains.length; i++) {
+      const curtain = this.curtains[i];
+      const age = this.curtainTimes[i] < 0 ? -1 : this.stagedTime - this.curtainTimes[i];
+      const reach = age < 0 ? 0 : clamp01(age / Math.max(0.1, c.waveDuration ?? 0.7));
+      // Under reduced motion the expanding wave is not drawn at all (the pulse still lands).
+      curtain.visible = !this.reduceMotion && age >= 0 && reach < 1;
+      curtain.scale.set(Math.max(0.001, c.zoneRadius * reach), c.waveHeight ?? 2.2, Math.max(0.001, c.zoneRadius * reach));
+      const u = this.curtainMaterials[i].uniforms;
+      u.uClock.value = visualTime;
+      u.uFade.value = fade * (1 - reach) * (c.curtainGlow ?? 0.55);
+      u.uGlow.value = gl.glow;
+      u.uColor.value.copy(holy);
+      u.uCore.value.copy(core);
+    }
+
+    /* --- 3 · lamps --- */
+    const flame = this.flameMat.uniforms;
+    flame.uClock.value = visualTime;
+    flame.uFade.value = fade;
+    flame.uPulse.value = flash;
+    flame.uSway.value = c.flameSway ?? 0.07;
+    flame.uGlow.value = (c.flameGlow ?? 1.4) * gl.glow;
+    flame.uColor.value.copy(holy);
+    flame.uCore.value.copy(core);
+    const lampRing = c.bellRadius ?? 1.1;
+    for (let i = 0; i < this.flames.length; i++) {
+      const a = (i * TAU) / this.flames.length;
+      const f = this.flames[i];
+      f.rotation.y = a + visualTime * 0.3;
+      f.position.set(Math.sin(a) * lampRing, (c.flameHeight ?? 2.2) - recede, Math.cos(a) * lampRing);
+      // A pulse flares the lamps; the exit gutters them out.
+      f.scale.setScalar((c.emberScale ?? 1) * (1 + flash * 0.4) * (1 - release));
+    }
+
+    /* --- bells: idle sway, rung by each pulse --- */
+    const bell = this.bellMat.uniforms;
+    bell.uClock.value = visualTime;
+    bell.uFade.value = fade;
+    bell.uPulse.value = flash;
+    bell.uRing.value = flash;
+    bell.uGlow.value = (c.bellGlow ?? 1) * gl.glow;
+    bell.uColor.value.copy(holy);
+    bell.uCore.value.copy(core);
+    bell.uGilt.value.copy(gilt);
+    for (let i = 0; i < this.bells.length; i++) {
+      const a = (i * TAU) / this.bells.length;
+      const b = this.bells[i];
+      const swing = Math.sin(visualTime * 3 + i) * (c.bellSwing ?? 0.15) + Math.sin(visualTime * 14 + i * 1.7) * (c.bellRing ?? 0.35) * flash;
+      b.rotation.z = Math.PI + swing;
+      b.position.set(Math.sin(a) * lampRing, (c.bellHeight ?? 2.9) - recede, Math.cos(a) * lampRing);
+      b.scale.setScalar(1 - release * 0.6);
+    }
+
+    /* --- the crown --- */
+    const crown = this.crownMat.uniforms;
+    crown.uClock.value = visualTime;
+    crown.uFade.value = fade;
+    crown.uPulse.value = flash;
+    crown.uRing.value = flash * 0.5;
+    crown.uGlow.value = (c.crownGlow ?? 1.2) * gl.glow;
+    crown.uColor.value.copy(holy);
+    crown.uCore.value.copy(core);
+    crown.uGilt.value.copy(gilt);
+    this.crown.rotation.y = visualTime * (c.crownSpin ?? 0.4);
+    this.crown.position.y = (c.crownHeight ?? 3.2) - recede;
+    this.crown.scale.setScalar((c.crownRadius ?? 1) * (1 - release * 0.6));
+
+    /* --- the column of light from the crown --- */
+    const shaft = this.shaftMat.uniforms;
+    shaft.uClock.value = visualTime;
+    shaft.uFade.value = fade * (1 - release) * reveal;
+    shaft.uPulse.value = flash;
+    shaft.uFoot.value = c.shaftFoot ?? 1.6;
+    shaft.uGlow.value = (c.shaftGlow ?? 0.45) * gl.glow;
+    shaft.uColor.value.copy(holy);
+    shaft.uCore.value.copy(core);
+    this.shaft.scale.set(c.crownRadius ?? 1, Math.max(0.1, this.crown.position.y), c.crownRadius ?? 1);
+
+    /* --- heat over the lamps --- */
+    const warp = this.warpMat.uniforms;
+    warp.uClock.value = visualTime;
+    warp.uWidth.value = lampRing * 2.8;
+    warp.uHeight.value = 1.8;
+    warp.uStrength.value = (c.warpStrength ?? 0.35) * gl.distortion * fade * (1 - release);
+    warp.uKick.value = flash * 0.4 * (c.warpStrength ?? 0.35) * gl.distortion;
+    this.warp.position.y = (c.flameHeight ?? 2.2) + 0.6 - recede;
+    this.warp.visible = !this.reduceMotion && warp.uStrength.value + warp.uKick.value > 0.005;
+
+    if (this.phase === AbilityPhase.IMPACT) this._lampEmbers(dt, fade);
+  }
+
+  /** The light burns among the lamps, not on the floor. */
+  _updateLight(dt, scale) {
+    if (this.phase === AbilityPhase.TRAVEL || !this.rig.visible) return super._updateLight(dt, scale);
+    this._lightSaved.copy(this.position);
+    this.position.y = (this.config.flameHeight ?? 2.2) * 0.6;
+    try {
+      super._updateLight(dt, scale);
+    } finally {
+      this.position.copy(this._lightSaved);
+    }
+  }
+
+  onDestroy() {
+    this.rig.visible = false;
+    this.travelVigil.visible = false;
+    this.warp.visible = false;
+    for (const curtain of this.curtains) curtain.visible = false;
+    this.pulseEffects.reset();
+    this.scope = null;
+  }
+
+  dispose() {
+    for (const x of this.gs) x.dispose();
+    for (const x of this.ms) x.dispose();
+    super.dispose();
+  }
 }
-export function buildEditor(gui,c,Editor){const f=gui.addFolder('Vigil of Embers');for(const[k,a,b,s]of[['zoneRadius',1,8,.1],['pulsePeriod',.3,3,.1],['travelScale',.25,2,.05],['damage',.1,2,.1],['emberScale',.25,2,.05],['waveHeight',.25,6,.1],['waveDuration',.1,2,.05],['curtainGlow',0,2,.05],['glyphGlow',0,2,.05],['footprintGlow',0,2,.05],['footprintDuration',.05,1,.05],['glyphRise',0,1,.05],['pulseStrength',0,2,.05],['recedeDepth',0,4,.1],['lifetime',2,8,.1]])f.add(c,k,a,b,s);addCommonEditorControls(f,c,Editor);return f;}
+
+/* ---------------------------------------------------------------------- */
+/* Editor                                                                  */
+/* ---------------------------------------------------------------------- */
+
+export function buildEditor(gui, c, Editor) {
+  const folder = gui.addFolder('\u{1F56F}  Vigil of Embers');
+  // Hosts without nested folders (headless harnesses) get one flat folder.
+  const sub = (parent, title) => (typeof parent.addFolder === 'function' ? parent.addFolder(title) : parent);
+  const R = (f, key, min, max, step, label) =>
+    typeof Editor?.range === 'function' ? Editor.range(f, c, key, min, max, step, label) : f.add(c, key, min, max, step);
+  const C = (f, key, label) => {
+    const control = f.addColor(c, key);
+    control?.name?.(label);
+    return control;
+  };
+  const G = (f, prefix, title) => {
+    if (typeof Editor?.gradient === 'function' && typeof f.addFolder === 'function') return Editor.gradient(f, c, prefix, title);
+    for (const stop of ['A', 'B', 'C', 'D']) C(f, `${prefix}${stop}`, `${title} ${stop}`);
+    return f;
+  };
+
+  const cast = sub(folder, 'The cast');
+  R(cast, 'range', 1, 48, 0.1, 'max range');
+  R(cast, 'minRange', 0, 20, 0.1, 'min range');
+  R(cast, 'speed', 1, 60, 0.1, 'votive speed (m/s)');
+  R(cast, 'cooldown', 0, 30, 0.1, 'cooldown');
+  R(cast, 'zoneRadius', 1, 8, 0.1, 'sanctuary radius (m)');
+  R(cast, 'lifetime', 2, 8, 0.1, 'stands for (s)');
+  R(cast, 'fade', 0.1, 5, 0.1, 'sinks away over (s)');
+  if (typeof Editor?.castAnimation === 'function') Editor.castAnimation(cast, c);
+  else cast.add(c, 'castAnim', CAST_ANIMATIONS);
+
+  const vigil = sub(folder, 'The vigil');
+  R(vigil, 'pulsePeriod', 0.3, 3, 0.1, 'pulse every (s)');
+  R(vigil, 'damage', 0.1, 2, 0.1, 'damage per pulse');
+  R(vigil, 'hitImpulse', 0, 24, 0.1, 'knock-back (m/s)');
+  R(vigil, 'hitLift', 0, 20, 0.1, 'lift (m/s)');
+  R(vigil, 'hitSpin', 0, 8, 0.05, 'tumble');
+
+  const light = sub(folder, 'Light + palette');
+  C(light, 'lightColor', 'light colour');
+  R(light, 'lightIntensity', 0, 30, 0.1, 'intensity');
+  R(light, 'lightRadius', 1, 40, 0.1, 'radius');
+  R(light, 'pulseLight', 0, 3, 0.05, 'pulse punch (× intensity)');
+  R(light, 'arrivalLight', 0, 3, 0.05, 'arrival punch (× intensity)');
+  C(light, 'holyColor', 'holy light');
+  C(light, 'coreColor', 'white core');
+  C(light, 'giltColor', 'gilt');
+
+  const votive = sub(folder, '1 · Votive');
+  R(votive, 'travelScale', 0.25, 2, 0.05, 'size');
+  R(votive, 'travelHeight', 0, 3, 0.05, 'height (m)');
+  R(votive, 'travelSpin', -6, 6, 0.05, 'turn (rad/s)');
+
+  const arches = sub(folder, '2 · Arches');
+  R(arches, 'archRadius', 0.2, 1.2, 0.01, 'stand at (× radius)');
+  R(arches, 'archScale', 0.3, 2.5, 0.05, 'size');
+  R(arches, 'archGlow', 0, 4, 0.05, 'glow');
+  R(arches, 'buildTime', 0.05, 2, 0.01, 'build (s)');
+  R(arches, 'recedeDepth', 0, 4, 0.1, 'sink on exit (m)');
+
+  const lamps = sub(folder, '3 · Bells, lamps + crown');
+  R(lamps, 'bellHeight', 1, 5, 0.05, 'bells hang at (m)');
+  R(lamps, 'bellRadius', 0.2, 3, 0.05, 'lamp ring (m)');
+  R(lamps, 'bellSwing', 0, 0.8, 0.01, 'idle sway (rad)');
+  R(lamps, 'bellRing', 0, 1.2, 0.01, 'ring swing (rad)');
+  R(lamps, 'bellGlow', 0, 4, 0.05, 'bell glow');
+  R(lamps, 'emberScale', 0.25, 2, 0.05, 'flame size');
+  R(lamps, 'flameHeight', 0.5, 5, 0.05, 'flames at (m)');
+  R(lamps, 'flameGlow', 0, 5, 0.05, 'flame glow');
+  R(lamps, 'flameSway', 0, 0.4, 0.005, 'flame lick (m)');
+  R(lamps, 'crownHeight', 1, 6, 0.05, 'crown at (m)');
+  R(lamps, 'crownRadius', 0.2, 3, 0.05, 'crown radius (m)');
+  R(lamps, 'crownSpin', -3, 3, 0.05, 'crown turn (rad/s)');
+  R(lamps, 'crownGlow', 0, 4, 0.05, 'crown glow');
+  R(lamps, 'pulseStrength', 0, 2, 0.05, 'pulse flare');
+
+  const floor = sub(folder, '4 · Floor + column');
+  R(floor, 'floorGlow', 0, 3, 0.05, 'sigil glow');
+  R(floor, 'revealTime', 0.05, 2, 0.01, 'sigil draws in (s)');
+  R(floor, 'sigilSpin', -1, 1, 0.01, 'sigil turn (rad/s)');
+  R(floor, 'shaftGlow', 0, 2, 0.01, 'column glow');
+  R(floor, 'shaftFoot', 0.5, 4, 0.05, 'column foot (× crown)');
+  R(floor, 'warpStrength', 0, 2, 0.01, 'heat shimmer');
+
+  const pulse = sub(folder, '5 · Pulse');
+  R(pulse, 'waveHeight', 0.25, 6, 0.1, 'curtain height (m)');
+  R(pulse, 'waveDuration', 0.1, 2, 0.05, 'curtain sweep (s)');
+  R(pulse, 'curtainGlow', 0, 2, 0.05, 'curtain glow');
+  R(pulse, 'glyphGlow', 0, 2, 0.05, 'glyph + burst glow');
+  R(pulse, 'glyphRise', 0, 1, 0.05, 'glyph lift (m)');
+  R(pulse, 'footprintGlow', 0, 2, 0.05, 'footprint glow');
+  R(pulse, 'footprintDuration', 0.05, 1, 0.05, 'footprint (s)');
+  R(pulse, 'pulseShake', 0, 1, 0.01, 'camera knock');
+  R(pulse, 'pulseFlash', 0, 1, 0.01, 'flash');
+  R(pulse, 'arrivalShake', 0, 1, 0.01, 'arrival knock');
+
+  const motes = sub(folder, '6 · Particles');
+  R(motes, 'particleRate', 0, 100, 1, 'ambient motes/second');
+  R(motes, 'particleSize', 0.02, 0.5, 0.01, 'mote size');
+  R(motes, 'emberRate', 0, 200, 1, 'lamp embers/second');
+  R(motes, 'emberSize', 0.005, 0.4, 0.005, 'ember size');
+  R(motes, 'emberLife', 0.1, 5, 0.05, 'ember life (s)');
+  R(motes, 'emberRise', 0, 6, 0.05, 'ember rise (m/s)');
+  R(motes, 'pulseEmbers', 0, 96, 1, 'embers per pulse');
+  G(motes, 'colorEmber', 'ember gradient');
+
+  return folder;
+}
