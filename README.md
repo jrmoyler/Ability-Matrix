@@ -175,6 +175,41 @@ The sandbox exposes the same API by URL, JavaScript and postMessage.
 - **URL:** `?ability=<uid>` selects it, `&cast=1` casts it on load, `&auto=<s>` recasts on a loop, and `&hud=0` runs it embedded.
 - **JS:** `window.matrix.list()`, `select(uid)`, `arm(uid)`, `cast(uid)`, `auto(uid, s)`, `clear()`, `runAction(pack, action)`, `move(name)`, `preset(uid)`, `applyPreset(uid, json)`, `resetPreset(uid)`.
 - **postMessage:** `{ matrix: 'cast', uid: 'casting/dragon' }`.
+- **Duel and targets:** `window.matrix.duel` and `window.matrix.targets`, below.
+
+## Duel the Arch-Wizard
+
+The original caster, the Mixamo wizard every source pack shipped, is back as a CPU opponent. Open **Arch-Wizard duel** (under Combat mechanics), choose a difficulty and what it may cast, and press **Start duel**, or **Watch (demo)** to have it work through its loadout on the dummies with no input from you.
+
+- **The wizard.** It uses the same files the old caster did: `models/Idle.fbx` (rig and idle), `models/diffuse.png` (skin) and the three gestures `cast1–3.fbx`, which bind by bone name with no retargeting. It is a `Dummy` built from that rig (`combat/duel/WizardBody.js`), so every cast in every pack reaches it through the usual `DummyField` contract. A health bar floats over its head, and both HP bars sit at the top of the screen.
+- **Its loadout.** Any castable from any pack, Matrix Expansion included, and any of the 31 implemented mechanic moves. The presets are *Random element*, *One element*, *Mirror my loadout* (your slot and recent picks) and *Custom* (a filterable list). A few casts cannot work from a second caster and are listed disabled, each with the reason: summons (they take over WASD and Space), self buffs, casts that move their caster (Blink Step, Voidstep Rift, Parallax Blink, Chrono Recall), casts that copy the caster's body (Hall of Echoes, Mirage Construct, Ashen Doppelgänger), the Ability Casting lance (it reads the player's hands every frame) and the drawn Fire Portal.
+- **How it fights** (`combat/duel/DuelAI.js`). It keeps about 9 m away and strafes, flipping sides every few seconds. When a cast is off cooldown and its reach covers the distance, it plants, raises the gesture and puts an aim marker on the floor (the footprint of a zone cast, or the lane of a line cast, filling in until release). It then casts at where you are, or where you will be. It picks the least recently used cast in range, and may sidestep a cast that is coming down its line.
+
+  | Difficulty | Cast every | Telegraph | Aim error | Dodge | HP |
+  |---|---|---|---|---|---|
+  | Apprentice | 3.4–4.6 s | 0.8 s | ±0.30 rad, no lead | 10% | 90 |
+  | Adept | 2.3–3.2 s | 0.55 s | ±0.13 rad, half lead | 35% | 120 |
+  | Archmage | 1.5–2.2 s | 0.38 s | ±0.05 rad, full lead | 60% | 150 |
+
+- **Casting from a second caster.** Native and Matrix Expansion casts go through a second `AbilityManager` that uses the player's own context with the wizard as `character`. Hosted packs' casts go through that pack's manager, below the aim. Mechanics go through `MechanicSystems.command` with the wizard's own owner id (team `cpu`). None of this touches your slot, aim or cooldowns, and the gestures play on the wizard's rig.
+- **Hits, both ways.** Your casts hit the wizard through `applyHits`, `findTargets` and `kill`. `kill` spends 10 HP (once per 0.45 s, so a cast overlapping it for many frames is one blow) until the blow that empties the bar: that one ragdolls it and it burns away. Its casts hit you through a referee that reads each CPU cast's `origin`, `position`, `u` and `direction` every frame and applies the field's own rule (a line is a capsule swept to the front, a zone is a disc armed when it lands). Each cast hits once, and you flinch. Its mechanics hurt you through the unified combat state's damage effects. Its stance cuts the damage it takes, and its counter parries a blow and sends half of it back. The dummies can stay (toggle) and either side can hit them. The wizard's own casts never hit the wizard.
+- **Round over.** A banner names the winner, with **Rematch** (same loadout, full HP) and **End duel**.
+- **API.** `matrix.duel.start({ loadout, castables, mechanics, difficulty, keepDummies })`, `watch({…})`, `rematch()`, `stop()`, `state()`. `loadout` is a preset id (`'random'`, `'element'` with `element`, `'mirror'`) or an array of uids. URL: `?duel=1&cpu=linear/meteor,codex/solarlash&difficulty=adept` (also `&mechanics=<uid,…>`, `&loadout=element&element=frost`, or `?watch=1`). postMessage: `{ matrix: 'duel', action: 'start', options: {…} }`. The page posts back `{ matrix: 'duel', event, state }` on start, stop, hits and round over.
+- **Limits.** The soldier does not ragdoll when it loses; it staggers and the round ends. A hosted-pack cast by the CPU shares that pack's limit of four live casts with yours. Casts that pick their own targets are refereed by their line or footprint, not by their own targeting.
+
+## Targets
+
+The dummy field holds up to 24 bodies of five archetypes. Each is the same rig with its own tint, rim and a small procedural piece on the head, so no new model files are needed:
+
+| Archetype | Look | Rule |
+|---|---|---|
+| Standard | cold black, cyan rim | one hit and it falls |
+| Armored | steel, gold rim, helm | shrugs off `armorHits` (3) blows with sparks; the next fells it |
+| Runner | green rim, headband | strafes back and forth across its spot (`runnerSpeed`, `runnerRange`) |
+| Giant | 1.35× scale, ember rim, horns | heavy: a blow throws it `giantImpulse` (45%) as hard |
+| Caster | violet rim, pointed hat | raises a shield bubble on a timer; a blow on the bubble pops it instead |
+
+Formations: **Ring** (the original scatter round the caster), **Line** (one rank across the view), **Cluster** (a tight knot for zone casts), **Gauntlet** (three staggered lanes running away from you) and **Scatter** (anywhere inside the outer radius). The **Targets** panel sets the count, the formation and the mix (a weight per archetype, shared out over the slots and interleaved). Everything is in `settings.dummies` (`count`, `formation`, `mix`, `archetypes`) and in the editor's **Target dummies** folder, and ships in each group's `_shared.json` with the other shared blocks. From code: `matrix.targets.set({ count: 12, formation: 'gauntlet', mix: { armored: 1, runner: 1 } })` (or `mix: 'armored,runner'`) and `matrix.targets.state()`. URL: `&targets=12&formation=gauntlet&mix=armored,runner`. The rules are in `combat/DummyArchetypes.js`.
 
 ## Abilities, by element
 

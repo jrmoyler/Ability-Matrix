@@ -160,9 +160,9 @@ export default {
 
     /* --- 7 · the impact --- */
     burstScale: 0.85, // fire shell grows to (× zone radius)
-    burstLife: 0.7,
+    burstLife: 0.45,
     burstIntensity: 1.2,
-    burstOpacity: 0.9,
+    burstOpacity: 0.5,
     decalLife: 3.2, // scorch and crack decals last (s)
     shockwaveWidth: 0.07,
     landShake: 0.08, // knock when the slug lands (× camera shake)
