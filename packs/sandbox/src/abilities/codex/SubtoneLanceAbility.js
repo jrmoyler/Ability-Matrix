@@ -63,10 +63,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the drill placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a sound pattern under the footprint.
+ *   3. **ground** — a filled sound field under the strip the head has crossed: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a bore riding alongside the body, spun with the cast.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (`createSubtoneLancePieceGeometry`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (`createSubtoneLanceHeroGeometry`), stood by its archetype (lance): riding the head of the line, rolling about its own axis.
+ *      Hero and pieces are energy: emissive over a dark body with a fresnel shell (LAYER.VFX). The rig is framed to the body height (`heroMinSpan`) and kept under `heroMaxHeight`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: the bore is a held tone: thickness pulses with the spin, and the slice stays on the line.
@@ -307,8 +308,9 @@ export class SubtoneLanceAbility extends Ability {
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
    * and a line lays its strip behind the head; on the beat the field lands out
-   * to the rim over `groundLand` seconds (a line's strip is already down), hot; it cools through the fade and
-   * breaks up over its last stretch. The residue decal outlives it.
+   * to the rim over `groundLand` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
    */
   _groundPose(committed, fadeT) {
     const c = settings[ID];

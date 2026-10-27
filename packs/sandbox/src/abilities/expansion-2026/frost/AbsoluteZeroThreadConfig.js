@@ -38,7 +38,7 @@ export const CONFIG = Object.freeze({
     lightRadius: 6,
 
     /* --- the freeze (gameplay) ------------------------------------------ */
-    width: 0.15, // filament half-width at its widest (m)
+    width: 0.2, // filament half-width at its widest (m)
     reach: 0.8, // bodies within this of the line are frozen (m)
     freezeDelay: 0.25, // seconds from being passed to being frozen
     freezeDuration: 1.5, // seconds a statue stands before it shatters
@@ -69,8 +69,8 @@ export const CONFIG = Object.freeze({
     colorNeedleRim: '#62c8ff',
 
     /* --- 3 · the rime path (ground) ------------------------------------- */
-    rimeWidth: 0.55, // half-width of the frosted strip (m)
-    rimeOpacity: 0.75,
+    rimeWidth: 1.15, // half-width of the frosted strip (m) — wide enough to hold the spine
+    rimeOpacity: 0.85,
     rimeScale: 3.2, // frost plates per metre
     rimeGlow: 0.8,
     rimeMelt: 0.35, // fraction of the fade spent melting
@@ -137,20 +137,54 @@ export const CONFIG = Object.freeze({
     /* --- 8 · beats ------------------------------------------------------- */
     freezeShake: 0.08, // camera knock when a body freezes
     shatterShake: 0.2, // camera knock when a statue shatters
-    landShake: 0.05, // camera knock when the needle lands
+    landShake: 0.22, // camera knock when the needle lands
     shakeDecay: 8,
     freezeLight: 0.8, // light punch per freeze (× lightIntensity)
     shatterFlash: 0.15,
     colorFlash: '#bff3ff',
     freezeBurst: 1.1, // FROST shell on a freezing body (m)
-    landBurst: 0.9, // FROST shell where the needle lands (m)
+    landBurst: 2.2, // FROST shell where the needle lands (m)
     burstIntensity: 1,
     colorBurstA: '#ffffff',
     colorBurstB: '#9be9ff',
     colorBurstC: '#1a5c8c',
-    frostDecal: 1.4, // FROST decal radius at a statue (m)
+    frostDecal: 2.2, // FROST decal radius at a statue / the landing (×0.7) (m)
     frostDecalLife: 2.5,
     colorDecalA: '#e6fbff',
-    colorDecalB: '#4aa8d8'
+    colorDecalB: '#4aa8d8',
+
+    /* --- 9 · the frost spine + terminal cluster (the hero) ------------- */
+    spineCount: 30, // crystals down the line, alternating sides
+    spineEnd: 0.92, // the spine runs this fraction of the line (the cluster has the rest)
+    spineHeightNear: 0.3, // m, at the hand
+    spineHeight: 1.7, // m, at the far end
+    spineCurve: 1.2, // >1 holds the height back until late
+    spineSpread: 0.6, // m off the thread, at the end (35 % of it at the hand)
+    spineLean: 0.42, // rad, leaning out off the thread
+    spineRake: 0.3, // rad, raked downrange like frost feathers
+    spineThick: 1.5, // girth × (the crystal is ~0.28 m across at 1)
+    spineGrowDist: 1.8, // m of the needle's run each crystal grows over
+    spineCreep: 0.12, // the spine creeps this much taller through the linger
+    clusterCount: 7, // crystals ringing the spire where the needle lands
+    clusterRadius: 1.0, // m
+    clusterHeight: 2.2, // m
+    spireHeight: 3.4, // m, the central spire
+    clusterLean: 0.5, // rad outward
+    clusterGrow: 0.28, // s
+    pulseSpeed: 9, // m/s a pulse of cold runs the thread through the linger
+    pulseWidth: 1.4, // m
+    pulseGrow: 0.14, // each crystal ratchets this much taller as a pulse passes
+    pulseGlow: 1.6, // white flare as it passes
+    shatterSweepStart: 0.55, // fraction of the fade the exit sweep takes
+    shatterSweep: 0.85, // stagger from the cluster back to the hand
+    spineChips: 8, // lit ice chips per crystal as it bursts
+    spineRough: 0.12,
+    spineGlow: 0.45, // cold glow inside the ice
+    spineRimGlow: 1.3,
+    spineFresnel: 2.6,
+    colorSpine: '#bfe9ff', // tint (lit body)
+    colorSpineDeep: '#0b2f5c', // deep
+    colorSpineRim: '#d8f6ff', // pale rim
+    colorSpineCore: '#ffffff' // white-hot pulse core
   }
 });

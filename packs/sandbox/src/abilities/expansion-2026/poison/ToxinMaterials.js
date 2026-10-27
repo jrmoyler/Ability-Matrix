@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -566,6 +566,120 @@ export function createHazeMaterial() {
     u.uStrength.value = state.strength * c.hazeStrength * g.distortion;
     u.uScale.value = c.hazeScale * g.noiseFrequency;
     u.uSpeed.value = c.hazeSpeed * g.noiseSpeed;
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The blight — the whole search circle, rotting                        */
+/* -------------------------------------------------------------------- */
+
+const BLIGHT_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uReach;      // 0..1 how far the veins have crept in from the rim
+  uniform float uFade;
+  uniform float uPulse;      // stage throb, travels inward along the veins
+  uniform float uStage;
+  uniform float uVeins;      // vein count round the rim
+  uniform float uSharp;
+  uniform float uGlow;
+  uniform float uDarken;
+  uniform float uOpacity;
+  uniform float uGlobalGlow;
+  uniform vec2  uHost;       // host offset in disc space (0 = centre)
+  uniform vec3  uColor;
+  uniform vec3  uCore;
+  uniform vec3  uStain;
+  varying vec2 vUv;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.02) discard;
+    // Veins are laid in polar space round the *host*, so once it is chosen
+    // every vein bends toward it; before that they converge on the centre.
+    vec2 h = p - uHost * smoothstep(1.0, 0.2, r);
+    float hr = length(h);
+    float a = atan(h.y, h.x);
+    float warp = fbm3(vec3(p * 2.3, 1.7)) * 1.8 + fbm3(vec3(p * 5.1, uStage * 0.4)) * 0.6;
+    float vein = pow(max(0.0, cos(a * uVeins + warp + hr * 3.0)), uSharp);
+    // Side shoots: a second, finer set that only appears from stage one on.
+    float shoot = pow(max(0.0, cos(a * uVeins * 2.3 - warp * 1.4 + hr * 7.0)), uSharp * 1.6) * smoothstep(0.0, 1.0, uStage);
+    // Growth front, creeping from the rim inward, fingered by noise.
+    float front = 1.0 - uReach * (1.05 + 0.15 * fbm3(vec3(a * 1.3, 0.0, 3.3)));
+    float grown = smoothstep(front - 0.02, front + 0.12, r);
+    // A rotting band just inside the rim marks the circle the toxin searches.
+    float band = smoothstep(1.0, 0.86, r) * smoothstep(0.6, 0.9, r);
+    float rim = exp(-abs(r - 0.97) * 40.0);
+    // Toxin pulses ride the veins inward toward the host.
+    float pulse = pow(max(0.0, sin(hr * 14.0 + uTime * 5.0)), 6.0) * (0.35 + uPulse * 1.5);
+    float lines = max(vein, shoot * 0.7) * grown;
+    float glow = clamp(lines * (0.45 + pulse) + rim * 0.6 * uReach, 0.0, 1.5);
+    float mottle = 0.75 + 0.25 * snoise(vec3(vWorld.xz * 1.6, 0.5));
+    vec3 col = mix(uStain * mottle, mix(uColor, uCore, clamp(pulse * lines + rim * 0.5, 0.0, 1.0)) * uGlow * uGlobalGlow, clamp(glow, 0.0, 1.0));
+    float dark = (band * 0.55 + lines * 0.6 + smoothstep(1.0, 0.0, hr) * 0.35 * uStage / 3.0) * grown;
+    float alpha = max(dark * uDarken, glow) * uFade * uOpacity * smoothstep(1.02, 0.97, r);
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The blight: a floor field the size of the search circle. Veins creep in
+ * from the rim while the seed vessel flies (the telegraph: *this* is where it
+ * will look for a host), bend toward the host once one is chosen, carry a
+ * pulse inward on every accepted stage and rot the floor darker as the toxin
+ * evolves. Normal-blended: it darkens the ground and only the veins glow.
+ */
+export function createBlightMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uReach: { value: 0 },
+      uFade: { value: 1 },
+      uPulse: { value: 0 },
+      uStage: { value: 0 },
+      uVeins: { value: 9 },
+      uSharp: { value: 10 },
+      uGlow: { value: 1.2 },
+      uDarken: { value: 0.5 },
+      uOpacity: { value: 1 },
+      uHost: { value: new Vector2() },
+      uColor: { value: new Color('#9be641') },
+      uCore: { value: new Color('#e4ff93') },
+      uStain: { value: new Color('#16260f') }
+    }),
+    vertexShader: POOL_VERTEX,
+    fragmentShader: BLIGHT_FRAGMENT
+  });
+  /** @param {object} state { time, reach, fade, pulse, stage, hostX, hostZ } */
+  material.userData.sync = (c, state) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time;
+    u.uReach.value = state.reach;
+    u.uFade.value = state.fade;
+    u.uPulse.value = state.pulse;
+    u.uStage.value = state.stage;
+    u.uVeins.value = Math.max(1, Math.round(c.blightVeins ?? 9));
+    u.uSharp.value = c.blightSharp ?? 10;
+    u.uGlow.value = (c.blightGlow ?? 1.2) * g.glow;
+    u.uDarken.value = c.blightDarken ?? 0.5;
+    u.uOpacity.value = g.opacity;
+    u.uHost.value.set(state.hostX, state.hostZ);
+    copyColor(u.uColor.value, c.toxinColor);
+    copyColor(u.uCore.value, c.coreColor);
+    copyColor(u.uStain.value, c.stainColor);
   };
   return material;
 }

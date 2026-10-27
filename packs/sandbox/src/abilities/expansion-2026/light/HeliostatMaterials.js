@@ -767,7 +767,7 @@ const COURT_FRAGMENT = /* glsl */ `
     vec2 cell = voronoi2(p * 0.85 * uNoiseScale);
     float seam = 1.0 - smoothstep(0.02, 0.09, cell.x);
     float grain = snoise01(vec3(p * 3.0 * uNoiseScale, 0.0));
-    vec3 base = mix(uDeep, uBody * 0.22, 0.35 * grain + 0.25 * cell.y);
+    vec3 base = mix(uDeep, uBody * 0.45, 0.3 + 0.35 * grain + 0.3 * cell.y);
 
     // Hour lines and the rim band.
     float hour = abs(fract(ang / TAU * 12.0 + 0.5) - 0.5) * TAU / 12.0 * r;
@@ -813,7 +813,7 @@ const COURT_FRAGMENT = /* glsl */ `
 
     vec3 color = base;
     color = mix(color, uDeep * 0.6, glass * 0.8);
-    color += uBody * (seam * 0.35 + hours * uLines * 0.9 + rim * 0.9 + inner * 0.4) * (0.6 + 0.6 * uCharge);
+    color += uBody * (seam * 0.7 + hours * uLines * 1.4 + rim * 1.4 + inner * 0.6) * (0.8 + 0.8 * uCharge);
     color += uTint * pools * (0.25 + 0.9 * uCharge);
     color += mix(uBody, uTint, 0.5) * hand * 0.9;
     color += mix(uTint, uCore, caustic) * focus * 2.4;

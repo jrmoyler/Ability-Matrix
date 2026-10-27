@@ -60,11 +60,11 @@ export default {
     colorD: '#150a2c', // dark deep
 
     /* --- 1 · the engine (solid, lit) --- */
-    pivotHeight: 1.75, // fulcrum height (m); the slam tilt is derived from it
+    pivotHeight: 2.0, // fulcrum height (m); the slam tilt is derived from it
     armReach: 0.64, // beam half-length (× zoneRadius) — the weights land on this circle
-    beamThickness: 0.24, // beam section at the fulcrum (m)
+    beamThickness: 0.32, // beam section at the fulcrum (m)
     beamArch: 0.16, // the beam bows upward by (m)
-    fulcrumWidth: 0.62, // fulcrum base radius (m)
+    fulcrumWidth: 0.75, // fulcrum base radius (m)
     riseTime: 0.5, // fraction of the flight over which the fulcrum rises from the floor
     stoneColor: '#2a2236', // dark iron-stone
     stoneMetalness: 0.55,
@@ -73,9 +73,9 @@ export default {
     stoneGlow: 0.6, // emissive of the fulcrum and beam
 
     /* --- 2 · the counterweights (bespoke lit shader) --- */
-    weightSize: 0.62, // weight radius at half the mass (m)
+    weightSize: 0.8, // weight radius at half the mass (m)
     massSwell: 0.85, // how much the heavy weight swells (and the light one shrinks)
-    seamGlow: 2.4, // brightness of the hot seams (× mass)
+    seamGlow: 1.7, // brightness of the hot seams (× mass)
     seamScale: 2.6, // seam noise frequency
     rimGlow: 1.3, // fresnel rim
     weightGloss: 0.55, // specular of the dark shell
@@ -88,18 +88,18 @@ export default {
     streamWidth: 1.5, // flow sheath around the beam (× beamThickness)
 
     /* --- 4 · the motes (GPU mass grains) --- */
-    moteCount: 220, // grains (≤ 256); each belongs to whichever weight holds its share of the mass
-    moteSize: 0.07,
-    moteGlow: 2,
+    moteCount: 180, // grains (≤ 256); each belongs to whichever weight holds its share of the mass
+    moteSize: 0.06,
+    moteGlow: 1.3,
     moteOrbit: 1.6, // grain orbit round its weight (× weight radius)
     moteArc: 1.3, // grains in transit arc over the beam this high (m)
     moteSpin: 1.8, // orbit speed
 
     /* --- 5 · the floor (two-body potential) --- */
-    fieldGlow: 1.6,
+    fieldGlow: 0.95,
     contourCount: 7, // equipotential lines of the two masses
     contourWidth: 0.07,
-    wellDepth: 0.85, // how dark the well under the heavy weight goes
+    wellDepth: 0.95, // how dark the well under the heavy weight goes
     fieldNoise: 1, // noise wobble of the contours
     dissolveTime: 0.7, // fraction of the exit spent dissolving the floor
 

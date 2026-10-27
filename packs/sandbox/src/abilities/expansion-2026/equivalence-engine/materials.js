@@ -123,7 +123,7 @@ const SHELL_FRAGMENT = /* glsl */ `
     // Seams: ridged noise on the shell, flowing slowly downward (mass sinking).
     vec3 q = vLocal * uSeamScale + vec3(0.0, uClock * 0.25, 0.0);
     float seam = ridged(q * (0.8 + 0.4 * uNoise), 4);
-    float crack = smoothstep(0.72 - 0.12 * uMass, 0.9, seam);
+    float crack = smoothstep(0.78 - 0.1 * uMass, 0.92, seam);
     float grain = fbm3(vLocal * 9.0) * 0.5;
     vec2 dm = dissolveMask(snoise01(vLocal * 3.1 + 4.0), uDissolve, 0.08);
     if (dm.x < 0.5) discard;
@@ -330,10 +330,10 @@ const FIELD_FRAGMENT = /* glsl */ `
     }
     vec2 dm = dissolveMask(snoise01(vec3(p * 3.0, 1.7)), uDissolve, 0.08);
     float inside = 1.0 - smoothstep(0.93, 1.0, r);
-    float a = ((line * (0.35 + 0.9 * heat) * inside + rim * 0.8 + axis) * uEnergy * uShaderIntensity + shock) * dm.x * uFade;
+    float a = ((line * (0.18 + 0.75 * heat) * inside + rim * 0.8 + axis) * uEnergy * uShaderIntensity + shock) * dm.x * uFade;
     a += dm.y * 0.8 * uFade;
     if (a < 0.003) discard;
-    vec3 col = massRamp(clamp(0.3 + heat * 0.7 + shock * 0.3 + rim * 0.2, 0.0, 1.0));
+    vec3 col = massRamp(clamp(0.18 + heat * 0.62 + shock * 0.35 + rim * 0.15, 0.0, 1.0));
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(a, 0.0, 1.0));
   }
 `;
@@ -415,7 +415,7 @@ const WELL_FRAGMENT = /* glsl */ `
     float a = (0.35 * edge + 0.65 * basin) * uDepth * dm.x * uFade;
     if (a < 0.003) discard;
     // Body at the outer slope, deep in the basin: the floor sags into violet-black.
-    vec3 col = mix(uColorC * 0.22, uColorD * 0.35, basin);
+    vec3 col = mix(uColorC * 0.12, uColorD * 0.2, basin);
     gl_FragColor = vec4(col, clamp(a, 0.0, 0.92));
   }
 `;

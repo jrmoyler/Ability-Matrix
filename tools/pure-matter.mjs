@@ -459,8 +459,6 @@ ${syncSource(true)}`;
 /** Extra imports a materials module needs for its detail factory. */
 export function detailImports(spell) {
   if (!isSolid(spell)) return '';
-  return `import { MeshDepthMaterial, MeshStandardMaterial, RGBADepthPacking } from 'three';
-import { frame } from '../../core/FrameUniforms.js';
-import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
+  return `import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 `;
 }

@@ -812,7 +812,7 @@ const RIME_FRAGMENT = /* glsl */ `
   ${noiseGLSL}
   ${SPECTRUM_GLSL}
 
-  vec4 patch(vec2 p, vec3 centre, vec3 face, float hue) {
+  vec4 rimePatch(vec2 p, vec3 centre, vec3 face, float hue) {
     vec2 d = p - centre.xz;
     float r = length(d);
     float n = snoise01(vec3(p * 0.9, hue));
@@ -837,9 +837,9 @@ const RIME_FRAGMENT = /* glsl */ `
 
   void main() {
     vec2 p = vWorld.xz;
-    vec4 a = patch(p, uCentre0, uFace0, uHue0);
-    vec4 b = patch(p, uCentre1, uFace1, uHue1);
-    vec4 c = patch(p, uCentre2, uFace2, uHue2);
+    vec4 a = rimePatch(p, uCentre0, uFace0, uHue0);
+    vec4 b = rimePatch(p, uCentre1, uFace1, uHue1);
+    vec4 c = rimePatch(p, uCentre2, uFace2, uHue2);
     float alpha = max(a.a, max(b.a, c.a));
     if (alpha <= 0.001) discard;
     vec3 col = (a.rgb * a.a + b.rgb * b.a + c.rgb * c.a) / max(a.a + b.a + c.a, 1e-3);

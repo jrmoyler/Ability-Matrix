@@ -727,10 +727,11 @@ function materialsSource(spell) {
   const cls = spell.cls;
   const id = spell.id;
   const { f1, f2, spd } = freqs(spell);
-  return `import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+  const solid = isSolid(spell);
+  return `import { AdditiveBlending, Color, DoubleSide, ${solid ? 'MeshDepthMaterial, MeshStandardMaterial, ' : ''}NormalBlending, ${solid ? 'RGBADepthPacking, ' : ''}ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
-import { sharedUniforms } from '../../core/FrameUniforms.js';
+import { ${solid ? 'frame, ' : ''}sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
 ${detailImports(spell)}
@@ -1242,10 +1243,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the ${score.twist} placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a ${spell.element} pattern under the footprint.
+ *   3. **ground** — a filled ${spell.element} field under the ${zone ? 'circle' : 'strip the head has crossed'}: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a ${VOICE[score.twist]} riding alongside the body, spun ${score.counter ? 'the other way' : 'with the cast'}.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (\`create${cls}PieceGeometry\`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (\`create${cls}HeroGeometry\`), stood by its archetype (${spell.archetype}): ${HERO_STAND[spell.archetype]}.
+ *      ${isSolid(spell) ? `Hero and pieces are matter: sun-lit, opaque, shadow-casting (LAYER.SHAPED), the ramp as albedo, only hot parts glowing.` : `Hero and pieces are energy: emissive over a dark body with a fresnel shell (LAYER.VFX).`} The rig is framed to the ${zone ? 'circle (`heroFit`)' : 'body height (`heroMinSpan`)'} and kept under \`heroMaxHeight\`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — \`handlesOwnHits\`: ${score.note.charAt(0).toLowerCase()}${score.note.slice(1)}
@@ -1486,8 +1488,9 @@ export class ${cls}Ability extends Ability {
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
    * and a line lays its strip behind the head; on the beat the field lands out
-   * to the rim over \`groundLand\` seconds (a line's strip is already down), hot; it cools through the fade and
-   * breaks up over its last stretch. The residue decal outlives it.
+   * to the rim over \`groundLand\` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
    */
   _groundPose(committed, fadeT) {
     const c = settings[ID];

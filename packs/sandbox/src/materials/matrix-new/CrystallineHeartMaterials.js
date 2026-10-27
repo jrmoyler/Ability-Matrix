@@ -683,8 +683,8 @@ const FLOOR_FRAGMENT = /* glsl */ `
     float seam = 1.0 - smoothstep(0.02, 0.08, cell.x);
     // A fake facet slope per plate: brighter on the plates that face the sun.
     float slope = fract(cell.y * 7.31);
-    vec3 col = mix(uDeep, uBody * 0.45, 0.25 + 0.45 * slope);
-    col += uTint * seam * 0.55;
+    vec3 col = mix(uDeep, uBody * 0.7, 0.3 + 0.5 * slope);
+    col += uTint * seam * 0.9;
 
     // Every beat: a flash running out across the plates.
     float flash = uBeat * exp(-r / max(uReach * 0.5, 0.1)) * (0.5 + 0.5 * slope);

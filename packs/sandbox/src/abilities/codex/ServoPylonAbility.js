@@ -60,10 +60,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the topple placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a tech pattern under the footprint.
+ *   3. **ground** — a filled tech field under the circle: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a crown riding alongside the body, spun with the cast.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (`createServoPylonPieceGeometry`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (`createServoPylonHeroGeometry`), stood by its archetype (spire): thrust up through the floor, then left to lean and topple.
+ *      Hero and pieces are matter: sun-lit, opaque, shadow-casting (LAYER.SHAPED), the ramp as albedo, only hot parts glowing. The rig is framed to the circle (`heroFit`) and kept under `heroMaxHeight`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: pylons stamp up and hammer outward on the beat. The rise is the windup; the hammer is the hit.
@@ -298,8 +299,9 @@ export class ServoPylonAbility extends Ability {
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
    * and a line lays its strip behind the head; on the beat the field lands out
-   * to the rim over `groundLand` seconds (a line's strip is already down), hot; it cools through the fade and
-   * breaks up over its last stretch. The residue decal outlives it.
+   * to the rim over `groundLand` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
    */
   _groundPose(committed, fadeT) {
     const c = settings[ID];

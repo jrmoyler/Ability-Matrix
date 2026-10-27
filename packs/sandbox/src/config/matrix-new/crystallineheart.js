@@ -167,10 +167,10 @@ export default {
     ribBlast: 0.45, // radians the shatter blows them open
     ribTopple: 0.18, // radians/second they keep toppling outward after
     ribSink: 0.6, // last fraction of the fade over which they sink
-    ribGlow: 1.2, // the heart's light in the stone
+    ribGlow: 0.45, // the heart's light in the stone
     ribRoughness: 0.18,
     ribMetalness: 0.15,
-    colorRib: '#c84a86', // rose quartz albedo
+    colorRib: '#9a2e64', // rose quartz albedo
     colorRibGlow: '#ff6fb0', // the light in it
 
     /* ================================================================ */

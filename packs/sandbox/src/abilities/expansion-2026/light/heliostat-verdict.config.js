@@ -29,7 +29,7 @@ export default {
     /* --- the cast itself --- */
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
-    speed: 20, // metres/second the travelling lens skims to the circle
+    speed: 30, // metres/second the travelling lens skims to the circle
     cooldown: 6, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 4, // metres: the heliostat only judges enemies inside this circle
@@ -153,12 +153,12 @@ export default {
     fieldFocusHeight: 3.2, // metres: where the panels gather light with no target
     sweepRadius: 0.5, // × ring: the sun's circle after the ray, which the panels follow
     sweepSpeed: 0.9, // radians/second that sun crosses the court
-    bronzeColor: '#5a3a18', // cast bronze of posts, frames and yokes
+    bronzeColor: '#3a2410', // cast bronze of posts, frames and yokes
     bronzeMetal: 0.85,
-    bronzeRough: 0.34,
-    bronzeHeat: 0.35, // how warm the bronze glows as the charge builds
+    bronzeRough: 0.42,
+    bronzeHeat: 0.08, // how warm the bronze glows as the charge builds
     glassColor: '#dfe8ff', // mirror glass albedo
-    glassGlow: 1.1, // sunlight held in the glass, scaled by the gather
+    glassGlow: 0.6, // sunlight held in the glass, scaled by the gather
     glassRough: 0.08,
     glassPunch: 2.5, // flash in every panel on the ray
     shaftWidth: 1, // reflected shafts, × panel width
@@ -172,7 +172,7 @@ export default {
     /* ================================================================ */
     courtScale: 1.05, // × zoneRadius
     courtOpacity: 0.85,
-    courtGlow: 1,
+    courtGlow: 1.3,
     courtLines: 1, // hour lines and seams
     courtDrawTime: 0.4, // seconds the dial takes to draw in from the centre
     courtNoise: 1, // bronze flag scale

@@ -526,14 +526,19 @@ export class Ability extends BaseAbility {
     }
   }
 
-  /** Where serpent `i` stands: short of its carrier by the strike's reach. */
-  _base(i, out) {
+  /**
+   * Where serpent `i` stands: short of its carrier by the strike's reach,
+   * drawn back by the lunge until `strike` (0..1) carries it forward. At
+   * strike = 1 the fangs are exactly on the carrier.
+   */
+  _base(i, out, strike = 1) {
     const c = this.config;
     const L = this._length(i);
     spineTip(c.strikeLean, c.strikeCurl, _tip);
+    const reach = _tip.x + c.lunge * (1 - strike);
     if (i === 0) {
       this._turn(_vel.copy(this._facing), 1);
-      out.copy(this._target).addScaledVector(_vel, -_tip.x * L);
+      out.copy(this._target).addScaledVector(_vel, -reach * L);
       return _vel;
     }
     const r = this.carriers[i];
@@ -549,7 +554,7 @@ export class Ability extends BaseAbility {
     }
     _vel.set(fx, 0, fz);
     this._turn(_vel, i % 2 ? -1 : 1);
-    out.set(r.x - _vel.x * _tip.x * L, 0, r.z - _vel.z * _tip.x * L);
+    out.set(r.x - _vel.x * reach * L, 0, r.z - _vel.z * reach * L);
     return _vel;
   }
 
@@ -766,7 +771,7 @@ export class Ability extends BaseAbility {
       let strike = venomX >= 0 ? this._strikeEnvelope(venomX) : 0;
       if (i === 0 && this._bitten) strike = Math.max(strike, this._strikeEnvelope(tau - this.biteAt));
       const L = this._length(i);
-      const facing = this._base(i, _at);
+      const facing = this._base(i, _at, strike);
       // The imitation: every mimic weaves on the serpent's clock, `lag` late.
       const phase = c.swayRate * (clock - lag);
       const weave = (this._calm ? 0 : c.weaveYaw * Math.sin(phase * 0.5)) * (1 - strike) * emerge;
@@ -816,7 +821,7 @@ export class Ability extends BaseAbility {
       const radius = i === 0 ? c.zoneRadius : c.zoneRadius * c.mimicPool;
       if (i === 0) _obj.position.set(this.position.x, 0.03, this.position.z);
       else {
-        this._base(i, _at);
+        this._base(i, _at, 0);
         _obj.position.set(_at.x, 0.032 + i * 0.002, _at.z);
       }
       _obj.rotation.set(0, i * 1.7, 0);
@@ -964,6 +969,10 @@ export function buildEditor(gui, c, Editor) {
   R(form, c, 'rearCurl', -1, 3.5, 0.01, 'reared curl');
   R(form, c, 'strikeLean', -1, 2.5, 0.01, 'strike lean');
   R(form, c, 'strikeCurl', -1, 3.5, 0.01, 'strike curl');
+  R(form, c, 'lunge', 0, 0.6, 0.01, 'strike lunge (× length)');
+  R(form, c, 'tailLength', 0, 1.5, 0.01, 'floor coil (× length)');
+  R(form, c, 'tailAngle', -1.5, 1.5, 0.01, 'coil trails at (rad)');
+  R(form, c, 'tailWave', 0, 0.6, 0.01, 'coil S-curve');
   R(form, c, 'swayAmp', 0, 0.6, 0.005, 'sway');
   R(form, c, 'swayRate', 0, 8, 0.05, 'weave speed');
   R(form, c, 'weaveYaw', 0, 1, 0.01, 'side weave (rad)');

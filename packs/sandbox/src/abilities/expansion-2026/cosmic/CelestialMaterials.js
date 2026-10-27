@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -457,5 +457,158 @@ export function createLensWarpMaterial() {
     }),
     vertexShader: WARP_VERTEX,
     fragmentShader: WARP_FRAGMENT
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* The rete — the solid hero                                               */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The astrolabe plate: a lit, shadow-casting MeshStandardMaterial (dark
+ * violet bronze) patched with engraved light. Concentric engraving lines and
+ * a bright pen-sweep run round the plate with the clock, the star pointers'
+ * tips burn white (`uTips`, the radius the chart's stars sit at is not
+ * needed: tips are where the local radius is small and the plate is thin),
+ * and `uCharge` floods the engraving as a strike charges. The deep tone comes
+ * from the metal itself; only the engraving is emissive.
+ */
+export function createReteMaterial() {
+  const material = new MeshStandardMaterial({ color: new Color('#3a2c63'), metalness: 0.75, roughness: 0.32, envMapIntensity: 1.2 });
+  const uniforms = {
+    uClock: { value: 0 },
+    uGlow: { value: 1 },
+    uCharge: { value: 0 },
+    uSweepSpeed: { value: 0.12 },
+    uEngrave: { value: 1 },
+    uColor: { value: new Color('#ac84ff') },
+    uCore: { value: new Color('#f2eaff') }
+  };
+  material.userData.uniforms = uniforms;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vReteLocal;
+        varying vec3 vReteNormal;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vReteLocal = position;
+        vReteNormal = objectNormal;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform float uClock;
+        uniform float uGlow;
+        uniform float uCharge;
+        uniform float uSweepSpeed;
+        uniform float uEngrave;
+        uniform vec3 uColor;
+        uniform vec3 uCore;
+        varying vec3 vReteLocal;
+        varying vec3 vReteNormal;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          float r = length(vReteLocal.xz);
+          float a = atan(vReteLocal.z, vReteLocal.x);
+          // Engraved scale: fine concentric lines, a degree scale on the limb.
+          float rings = pow(max(0.0, cos(r * 6.2831853 * 14.0)), 24.0);
+          float degree = pow(max(0.0, cos(a * 90.0)), 16.0) * step(0.9, r);
+          // The pen sweep running round the plate.
+          float sweep = exp(-abs(fract(a / 6.2831853 - uClock * uSweepSpeed) - 0.5) * 14.0);
+          // Faces only (the top and bottom), so the walls stay metal.
+          float face = smoothstep(0.6, 0.9, abs(normalize(vReteNormal).y));
+          float engraving = (rings * 0.6 + degree * 0.8) * face * uEngrave;
+          vec3 glow = uColor * engraving * (0.35 + 0.65 * sweep + uCharge * 1.5);
+          glow += mix(uColor, uCore, 0.6) * sweep * 0.35;
+          glow += uCore * uCharge * uCharge * 0.6 * face;
+          totalEmissiveRadiance += glow * uGlow;
+        }`);
+  };
+  material.customProgramCacheKey = () => 'celestial-rete';
+  return material;
+}
+
+/* ---------------------------------------------------------------------- */
+/* The deep star-map under the chart                                       */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The floor the chart stands on, filled: a disc of deep night (the dark stop
+ * of the ramp, normal-blended so it *darkens* the floor) with a slow nebula,
+ * the constellation's links projected as faint channels (`uNodes`), a hot
+ * rim and a scorch that spreads from the struck point (`uMark`, `uBurn`).
+ */
+export function createChartGroundMaterial(nodeCount = 8) {
+  return new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+    uniforms: sharedUniforms({
+      uClock: { value: 0 },
+      uFade: { value: 1 },
+      uOpacity: { value: 0.7 },
+      uDraw: { value: 1 },
+      uBurn: { value: 0 },
+      uMark: { value: new Color(0, 0, 0) },
+      uDeep: { value: new Color('#140b2c') },
+      uBody: { value: new Color('#3a2a7a') },
+      uColor: { value: new Color('#ac84ff') },
+      uNodes: { value: new Float32Array(nodeCount * 2) }
+    }),
+    vertexShader: surfaceVertex(),
+    fragmentShader: /* glsl */ `
+      #define NODES ${nodeCount}
+      uniform float uClock;
+      uniform float uFade;
+      uniform float uOpacity;
+      uniform float uDraw;
+      uniform float uBurn;
+      uniform vec3 uMark;
+      uniform vec3 uDeep;
+      uniform vec3 uBody;
+      uniform vec3 uColor;
+      uniform float uNodes[NODES * 2];
+      ${SURFACE_VARYINGS}
+      ${noiseGLSL}
+
+      float seg(vec2 p, vec2 a, vec2 b) {
+        vec2 pa = p - a, ba = b - a;
+        float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+        return length(pa - ba * h);
+      }
+
+      void main() {
+        vec2 p = vUv * 2.0 - 1.0;
+        p.y = -p.y;
+        float r = length(p);
+        if (r > 1.0) discard;
+        float neb = fbm3(vec3(rot2(uClock * 0.05) * p * 2.2, uClock * 0.07)) * 0.5 + 0.5;
+        vec3 color = mix(uDeep, uBody, smoothstep(0.35, 0.85, neb) * 0.8);
+        float lines = 0.0;
+        for (int i = 0; i < NODES; i++) {
+          int j = i + 1 == NODES ? 0 : i + 1;
+          vec2 a = vec2(uNodes[i * 2], uNodes[i * 2 + 1]);
+          vec2 b = vec2(uNodes[j * 2], uNodes[j * 2 + 1]);
+          float on = step(float(i) / float(NODES), uDraw);
+          lines = max(lines, on * (1.0 - smoothstep(0.004, 0.02, seg(p, a, b))));
+        }
+        color = mix(color, uColor * 0.7, lines * 0.8);
+        // Scorch spreading from the struck point: darker, with a violet lip.
+        float d = length(p - uMark.xy);
+        float burn = uBurn * (1.0 - smoothstep(uMark.z * 0.6, uMark.z, d));
+        float lip = uBurn * exp(-abs(d - uMark.z * 0.8) * 30.0);
+        color = mix(color, uDeep * 0.35, burn);
+        color += uColor * lip * 0.6;
+        float rim = smoothstep(0.75, 0.98, r) * (1.0 - smoothstep(0.98, 1.0, r));
+        color += uColor * rim * 0.35;
+        float alpha = uOpacity * uFade * (1.0 - smoothstep(0.9, 1.0, r)) * (0.75 + 0.25 * neb);
+        alpha = max(alpha, (lines * 0.6 + lip) * uFade);
+        if (alpha < 0.004) discard;
+        gl_FragColor = vec4(color, alpha);
+      }
+    `
   });
 }

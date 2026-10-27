@@ -45,6 +45,8 @@ export function bodyRadius(s) {
   r += 0.024 * Math.exp(-((s - 0.945) ** 2) / 0.0012);
   // Close on a rounded snout.
   if (s > 0.955) r *= Math.sqrt(Math.max(0, 1 - ((s - 0.955) / 0.045) ** 2));
+  // The tail end (s = 0, lying on the floor) tapers to a point.
+  r *= 0.18 + 0.82 * smooth(0.0, 0.22, s);
   return r;
 }
 

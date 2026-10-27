@@ -1,4 +1,4 @@
-import { Color, Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Color, Group, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -20,7 +20,8 @@ import {
   celestialFrameGeometry,
   celestialDustGeometry,
   celestialCoronaGeometry,
-  celestialLinkGeometry
+  celestialLinkGeometry,
+  celestialReteGeometry
 } from './CelestialGeometry.js';
 import {
   createStarlightMaterial,
@@ -32,7 +33,9 @@ import {
   createMeteorMaterial,
   createRayMaterial,
   createCoronaMaterial,
-  createLensWarpMaterial
+  createLensWarpMaterial,
+  createReteMaterial,
+  createChartGroundMaterial
 } from './CelestialMaterials.js';
 
 export {
@@ -76,6 +79,9 @@ const _down = new Vector3(0, -1, 0);
 const _up = new Vector3(0, 1, 0);
 /** Scratch query point: the binding reads it synchronously and keeps nothing. */
 const _query = [0, 0, 0];
+const _v = new Vector3();
+const _tiltQ = new Quaternion();
+const _yawQ = new Quaternion();
 
 /**
  * CELESTIAL CARTOGRAPHY — a star chart that marks, warns and strikes.
@@ -89,6 +95,19 @@ const _query = [0, 0, 0];
  * `strikeDelay` the meteor lands; the strike commits only if the target is
  * still alive, still the same life and still inside the compass. A target
  * that walks out evades it, and the corona still burns at the empty mark.
+ *
+ * The chart is no diagram: its **hero is an astrolabe rete** — a pierced
+ * plate of dark violet bronze, cut procedurally (limb ring with teeth, an
+ * eccentric ecliptic, two bars, one curved star pointer per chart star whose
+ * diamond tip sits exactly on the star). It is solid, lit by the sun on
+ * `LAYER.WORLD` and casts the constellation's shadow onto the floor. It
+ * rises out of the circle and opens with a small overshoot, hangs at
+ * `chartHeight` tilted `chartTilt` toward the caster so its face reads from
+ * behind the caster, and **turns** the whole time (`reteSpin`) — kicked into
+ * a fast spin by the strike that then winds down: the linger has its motion.
+ * Under it a **filled star-map** darkens the floor (the deep stop of the
+ * ramp): nebula, the constellation's links projected as channels, a hot rim,
+ * and after the strike a scorch with a violet lip spreading from the mark.
  *
  * Layers, each a folder in the editor:
  *
@@ -194,18 +213,33 @@ export class CelestialCartographyAbility extends Ability {
     this.floor.position.y = 0.04;
     this.chartGroup.add(this.floor);
 
+    // The filled star-map under everything: the deep stop of the ramp.
+    this.groundMat = mat(createChartGroundMaterial(LAYOUT.length));
+    this.ground = new Mesh(geom(new PlaneGeometry(2, 2)), this.groundMat);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.position.y = 0.025;
+    this.ground.renderOrder = -2;
+    this.chartGroup.add(this.ground);
+
+    // Everything in the sky hangs off one group: tilted toward the caster,
+    // turned by the rete's spin, scaled by its opening.
+    this.skyGroup = new Group();
+    this.chartGroup.add(this.skyGroup);
+
     this.nebula = new Mesh(geom(new PlaneGeometry(2, 2)), this.nebulaMat);
     this.nebula.rotation.x = -Math.PI / 2;
     this.nebula.renderOrder = -1; // the sky is behind everything drawn on it
-    this.chartGroup.add(this.nebula);
+    this.skyGroup.add(this.nebula);
 
+    // The armillary band stays level — the horizon ring the tilted plate
+    // turns inside, as on a real armillary sphere.
     this.frame = new Mesh(frameGeo, this.frameMat);
     this.chartGroup.add(this.frame);
 
     this.meridians = [];
     for (let i = 0; i < 2; i++) {
       const ring = new Mesh(frameGeo, this.meridianMat);
-      this.chartGroup.add(ring);
+      this.skyGroup.add(ring);
       this.meridians.push(ring);
     }
 
@@ -218,13 +252,13 @@ export class CelestialCartographyAbility extends Ability {
       star.position.copy(node);
       star.rotation.x = -Math.PI / 2;
       star.scale.setScalar(0.22);
-      this.chartGroup.add(star);
+      this.skyGroup.add(star);
       this.stars.push(star);
     }
     for (let i = 0; i < this.nodes.length; i++) {
       const material = mat(createChartLinkMaterial());
       const line = new Mesh(geom(celestialLinkGeometry(this.nodes[i], this.nodes[(i + 1) % this.nodes.length])), material);
-      this.chartGroup.add(line);
+      this.skyGroup.add(line);
       this.lines.push(line);
       this.lineMaterials.push(material);
     }
@@ -233,7 +267,7 @@ export class CelestialCartographyAbility extends Ability {
     this.dust = [];
     for (let i = 0; i < DUST; i++) {
       const dot = new Mesh(grain, this.dustMat);
-      this.chartGroup.add(dot);
+      this.skyGroup.add(dot);
       this.dust.push(dot);
     }
 
@@ -315,6 +349,18 @@ export class CelestialCartographyAbility extends Ability {
       });
     }
 
+    /* ---- the hero: the astrolabe rete, solid and lit ---- */
+    this.reteMat = mat(createReteMaterial());
+    this.rete = new Mesh(geom(celestialReteGeometry(LAYOUT)), this.reteMat);
+    this.rete.layers.set(LAYER.WORLD);
+    this.rete.castShadow = true;
+    this.rete.receiveShadow = false;
+    this.rete.frustumCulled = false;
+    this.skyGroup.add(this.rete);
+    this._yaw = 0;
+    this._tiltSign = 1;
+    this._groundNodes = this.groundMat.uniforms.uNodes.value;
+
     // The gravitational lens at the mark: a billboard on the distortion layer.
     this.warp = new Mesh(geom(new PlaneGeometry(1, 1, 1, 1)), this.warpMat);
     this.warp.layers.set(LAYER.DISTORTION);
@@ -349,6 +395,16 @@ export class CelestialCartographyAbility extends Ability {
       life: 0.8,
       spread: 0.55
     });
+    /** The orrery's wake of streaks on its way out. */
+    this.orreryTrail = new ExpansionAtmosphere(this.ctx, 'celestial-orrery', {
+      shape: 'STREAK',
+      colors: ['#f7eaff', '#d5bbff', '#8067dc', '#372356'],
+      rate: 50,
+      speed: 0.9,
+      size: 0.1,
+      life: 0.6,
+      spread: 0.6
+    });
     /** Glitter: star dust drizzling off the chart and thrown by the strike. */
     this.stardust = this.ctx.particles?.get?.(`${ID}.stardust`, {
       capacity: 900,
@@ -379,6 +435,7 @@ export class CelestialCartographyAbility extends Ability {
     this.reduceMotion = prefersReducedMotion();
     this.atmosphere.reset();
     this.meteorTrail.reset();
+    this.orreryTrail.reset();
     this.stardustEmitter.reset();
     this.meteor.visible = false;
     this.chartGroup.visible = false;
@@ -392,6 +449,7 @@ export class CelestialCartographyAbility extends Ability {
     this._strikeAt = -1;
     this._hitAt = -1;
     this._found.length = 0;
+    this._yaw = 0;
     this.flare.visible = false;
     this.targetMark.visible = false;
     this.beam.visible = false;
@@ -473,8 +531,14 @@ export class CelestialCartographyAbility extends Ability {
     this._syncStarlight(this.starMat, visualTime, 1, c.chartGlow ?? 1);
     this._syncFrame(this.frameMat, visualTime, 1, c.chartGlow ?? 1);
     if (dt > 0) {
-      const n = this.stardustEmitter.tick(dt, (c.stardustRate ?? 22) * settings.global.particleCount);
-      this._glitter(this.travelStar.position, n, 0.3, _down, 0.3);
+      // A comet's wake of glitter and streaks: the path reads behind it.
+      const n = this.stardustEmitter.tick(dt, (c.travelGlitter ?? 90) * settings.global.particleCount);
+      this._glitter(this.travelStar.position, n, 0.45 * (c.starScale ?? 1), _down, 0.3);
+      if (!this.reduceMotion) {
+        this.orreryTrail.rate = c.travelStreaks ?? 50;
+        this.orreryTrail.syncPalette(c.chartColor, c.coreColor);
+        this.orreryTrail.update(dt, this.travelStar.position);
+      }
     }
   }
 
@@ -661,13 +725,46 @@ export class CelestialCartographyAbility extends Ability {
     if (!modeStable) this.failure = 'combat mode changed during cast';
 
     /* --- 2 · the chart --- */
+    // The sky group: lifted out of the circle as it opens (a small overshoot),
+    // tilted about the cast's side axis so the far edge rises toward the
+    // caster's eye, and turned by the rete's spin.
+    const open = rise + Math.sin(rise * Math.PI) * (c.openOvershoot ?? 0.12);
+    if (dt > 0 && !this.reduceMotion) {
+      const hitAgeNow = this._hitAt < 0 ? -1 : elapsed - this._hitAt;
+      const kick = hitAgeNow < 0 ? 0 : (c.reteStrikeSpin ?? 3) * Math.exp(-hitAgeNow * 1.4);
+      this._yaw += dt * ((c.reteSpin ?? 0.25) + kick) * gl.animationSpeed;
+    }
+    _tiltQ.setFromAxisAngle(this.side, c.chartTilt ?? 0.45);
+    _v.copy(this.direction).applyQuaternion(_tiltQ);
+    if (_v.y < 0) _tiltQ.setFromAxisAngle(this.side, -(c.chartTilt ?? 0.45));
+    _yawQ.setFromAxisAngle(_up, this._yaw);
+    this.skyGroup.quaternion.copy(_tiltQ).multiply(_yawQ);
+    this.skyGroup.position.set(0, height * (0.35 + 0.65 * rise), 0);
+    this.skyGroup.scale.setScalar(Math.max(0.001, open));
+    this.skyGroup.updateMatrix();
+    const lift = (c.reteThickness ?? 0.16) * 0.75; // light layers ride on the plate's face
+
+    const reteRadius = radius * (c.reteScale ?? 1);
+    this.rete.scale.set(reteRadius, c.reteThickness ?? 0.16, reteRadius);
+    this.rete.visible = open > 0.002;
+    const rete = this.reteMat;
+    rete.color.copy(getColor(c.reteColor ?? '#3a2c63'));
+    rete.metalness = c.reteMetalness ?? 0.75;
+    rete.roughness = c.reteRoughness ?? 0.32;
+    const ru = rete.userData.uniforms;
+    ru.uClock.value = visualTime;
+    ru.uGlow.value = (c.reteGlow ?? 1.4) * gl.glow * fade;
+    ru.uSweepSpeed.value = c.reteSweep ?? 0.12;
+    ru.uColor.value.copy(getColor(c.chartColor));
+    ru.uCore.value.copy(getColor(c.coreColor));
+
     this.floor.scale.set(radius, radius, 1);
     this.frame.position.y = height;
     this.frame.scale.setScalar(radius);
     this._syncFrame(this.frameMat, visualTime, fade * rise, glow);
 
     const nebulaRadius = radius * (c.nebulaScale ?? 1.15);
-    this.nebula.position.y = height - 0.02;
+    this.nebula.position.y = -0.02;
     this.nebula.scale.set(nebulaRadius, nebulaRadius, 1);
     const nebula = this.nebulaMat.uniforms;
     nebula.uClock.value = visualTime;
@@ -680,7 +777,7 @@ export class CelestialCartographyAbility extends Ability {
     const meridianRadius = radius * (c.meridianScale ?? 0.55);
     for (let i = 0; i < this.meridians.length; i++) {
       const ring = this.meridians[i];
-      ring.position.y = height + meridianRadius * 0.15;
+      ring.position.y = lift + meridianRadius * 0.15;
       ring.rotation.set(Math.PI / 2 + (i ? 0.35 : -0.35), visualTime * (c.meridianSpin ?? 0.3) * (i ? -1 : 1) + i * 1.2, 0);
       ring.scale.setScalar(Math.max(0.001, meridianRadius * rise));
     }
@@ -689,13 +786,13 @@ export class CelestialCartographyAbility extends Ability {
     const nodeScale = c.nodeScale ?? 0.22;
     for (let i = 0; i < this.stars.length; i++) {
       const s = this.stars[i];
-      s.position.set(this.nodes[i].x * radius, height, this.nodes[i].z * radius);
+      s.position.set(this.nodes[i].x * radius, lift, this.nodes[i].z * radius);
       s.scale.setScalar(nodeScale * (0.8 + 0.2 * Math.sin(visualTime * 3 + i)));
     }
     for (let i = 0; i < this.lines.length; i++) {
       const line = this.lines[i];
       const u = this.lineMaterials[i].uniforms;
-      line.position.y = height;
+      line.position.y = lift;
       line.scale.set(radius, 1, radius);
       u.uClock.value = visualTime;
       u.uFade.value = fade;
@@ -710,7 +807,7 @@ export class CelestialCartographyAbility extends Ability {
       const a = i * GOLDEN;
       const r = radius * (0.18 + 0.78 * (((i * 37) % 41) / 40));
       const grain = this.dust[i];
-      grain.position.set(Math.cos(a) * r, height + (i % 7) * 0.03 + drift * Math.sin(visualTime * 2 + i), Math.sin(a) * r);
+      grain.position.set(Math.cos(a) * r, lift + 0.1 + (i % 7) * 0.05 + drift * Math.sin(visualTime * 2 + i), Math.sin(a) * r);
       grain.rotation.set(visualTime * 0.7 + i, visualTime * 1.1 + i * 0.3, 0);
     }
     this._syncStarlight(this.starMat, visualTime, fade * rise, glow);
@@ -722,10 +819,26 @@ export class CelestialCartographyAbility extends Ability {
     chart.uGlow.value = (c.floorGlow ?? 1) * gl.glow;
     chart.uColor.value.copy(getColor(c.rayColor));
 
+    // The filled star-map: links projected as they are drawn, turning with the plate.
+    this.ground.scale.set(radius, radius, 1);
+    const ground = this.groundMat.uniforms;
+    ground.uClock.value = visualTime;
+    ground.uFade.value = fade * rise;
+    ground.uOpacity.value = (c.groundOpacity ?? 0.72) * gl.opacity;
+    ground.uDraw.value = draw;
+    ground.uDeep.value.copy(getColor(c.groundDeep ?? '#140b2c'));
+    ground.uBody.value.copy(getColor(c.nebulaColor ?? '#3a2a7a'));
+    ground.uColor.value.copy(getColor(c.rayColor));
+    for (let i = 0; i < this.nodes.length; i++) {
+      _v.copy(this.nodes[i]).applyAxisAngle(_up, this._yaw);
+      this._groundNodes[i * 2] = _v.x;
+      this._groundNodes[i * 2 + 1] = _v.z;
+    }
+
     // Glitter drizzles off the chart while it is in the sky.
     if (dt > 0 && this.phase === AbilityPhase.IMPACT) {
       const n = this.stardustEmitter.tick(dt, (c.stardustRate ?? 22) * rise * gl.particleCount);
-      _pos.copy(this.position).setY(height);
+      _pos.copy(this.position).setY(this.skyGroup.position.y);
       this._glitter(_pos, n, Math.max(0.2, radius * 0.75), _down, 0.4);
     }
 
@@ -741,6 +854,13 @@ export class CelestialCartographyAbility extends Ability {
     const markX = this._targetPos.x - this.position.x;
     const markZ = this._targetPos.z - this.position.z;
 
+    // The plate floods as the strike charges and flashes when it lands; the
+    // floor scorches outward from the struck point and stays.
+    const burnAge = this._hitAt < 0 ? -1 : elapsed - this._hitAt;
+    this.reteMat.userData.uniforms.uCharge.value = Math.max(armed ? charge : 0, burnAge >= 0 ? Math.exp(-burnAge * 2) : 0);
+    ground.uBurn.value = burnAge < 0 ? 0 : smoother(burnAge / 0.35) * (c.groundBurn ?? 1);
+    ground.uMark.value.set(markX / Math.max(0.01, radius), markZ / Math.max(0.01, radius), ((c.strikeRadius ?? 1) * (c.strikeScorch ?? 1.6)) / Math.max(0.01, radius));
+
     // Every chart star bends a ray onto the fixed warning point. Rays use
     // local chart coordinates and keep their endpoint if the target evades.
     const convergence = this.convergenceMat.uniforms;
@@ -753,7 +873,8 @@ export class CelestialCartographyAbility extends Ability {
       const ray = this.convergenceRays[i];
       const progress = bound(charge * 1.6 - i * 0.06);
       ray.visible = armed && progress > 0;
-      ray.position.set(this.nodes[i].x * radius, height, this.nodes[i].z * radius);
+      // From the star as it hangs in the tilted, turning sky.
+      ray.position.set(this.nodes[i].x * radius, lift, this.nodes[i].z * radius).applyMatrix4(this.skyGroup.matrix);
       this._convergenceDirection.set(markX - ray.position.x, -ray.position.y, markZ - ray.position.z);
       const length = this._convergenceDirection.length();
       if (length > 1e-6) ray.quaternion.setFromUnitVectors(_up, this._convergenceDirection.multiplyScalar(1 / length));
@@ -961,6 +1082,23 @@ export function buildEditor(gui, c, Editor) {
   R(chart, 'meridianGlow', 0, 2, 0.01, 'meridian glow');
   R(chart, 'floorGlow', 0, 3, 0.05, 'floor chart glow');
   R(chart, 'dustDrift', 0, 0.5, 0.01, 'dust bob (m)');
+  R(chart, 'chartTilt', -1.2, 1.2, 0.01, 'tilt to caster (rad)');
+  R(chart, 'openOvershoot', 0, 0.5, 0.01, 'opening overshoot');
+  R(chart, 'groundOpacity', 0, 1, 0.01, 'star-map darkness');
+  C(chart, 'groundDeep', 'star-map deep');
+  R(chart, 'groundBurn', 0, 1, 0.01, 'strike scorch');
+  R(chart, 'strikeScorch', 0.5, 4, 0.05, 'scorch radius (× strike)');
+
+  const hero = sub(folder, '2b · Rete (hero)');
+  R(hero, 'reteScale', 0.3, 1.5, 0.01, 'radius (× chart)');
+  R(hero, 'reteThickness', 0.02, 0.6, 0.01, 'thickness (m)');
+  R(hero, 'reteSpin', -2, 2, 0.01, 'turn (rad/s)');
+  R(hero, 'reteStrikeSpin', 0, 12, 0.1, 'strike spin kick (rad/s)');
+  R(hero, 'reteGlow', 0, 5, 0.05, 'engraving glow');
+  R(hero, 'reteSweep', -1, 1, 0.01, 'pen sweep (turns/s)');
+  C(hero, 'reteColor', 'bronze');
+  R(hero, 'reteMetalness', 0, 1, 0.01, 'metalness');
+  R(hero, 'reteRoughness', 0, 1, 0.01, 'roughness');
 
   const mark = sub(folder, '3 · Mark');
   R(mark, 'markGlow', 0, 3, 0.05, 'compass glow');
@@ -987,6 +1125,8 @@ export function buildEditor(gui, c, Editor) {
   R(motes, 'particleRate', 0, 100, 1, 'ambient motes/second');
   R(motes, 'particleSize', 0.02, 0.5, 0.01, 'mote size');
   R(motes, 'stardustRate', 0, 200, 1, 'glitter/second');
+  R(motes, 'travelGlitter', 0, 300, 1, 'orrery wake glitter/second');
+  R(motes, 'travelStreaks', 0, 200, 1, 'orrery wake streaks/second');
   R(motes, 'stardustSize', 0.005, 0.4, 0.005, 'glitter size');
   R(motes, 'stardustLife', 0.1, 5, 0.05, 'glitter life (s)');
   R(motes, 'strikeStardust', 0, 96, 1, 'strike glitter');

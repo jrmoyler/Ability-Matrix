@@ -59,6 +59,10 @@ const SERPENT_VERTEX = /* glsl */ `
   uniform float uHoodFold;
   uniform float uHoodBreath;
   uniform float uSideWave;
+  uniform float uTail;      // fraction of the body that lies on the floor
+  uniform float uTailLen;
+  uniform float uTailAngle;
+  uniform float uTailWave;
 
   varying float vPart;
   varying vec3  vHood;
@@ -91,15 +95,16 @@ const SERPENT_VERTEX = /* glsl */ `
   // The hood, in spine space: (belly offset, s, lateral offset).
   vec3 vmHood(float b, float v, float side) {
     // Broad and flat-topped like a cobra's: widest just above the middle.
-    float w = uHoodSpan * pow(max(sin(3.14159265 * pow(v, 0.68)), 0.0), 0.42);
+    // A flat shield: broad from low on the neck, rounded at the crown.
+    float w = uHoodSpan * pow(max(sin(3.14159265 * pow(v, 0.85)), 0.0), 0.32);
     float flare = mix(uHoodFold, 1.0, aLife.y) * (1.0 + uHoodBreath * sin(aPose.w * 0.5) * aLife.y);
     float lateral = b * w * flare;
     // Behind the neck, edges wrapping forward round it, ribs corrugating it.
     float x = -0.05 * aSize.w + uHoodCup * b * b * w * flare - 0.025 * sin(3.14159265 * v) * flare;
     x += 0.007 * sin(b * 3.14159265 * 4.5) * flare;
-    float thick = 0.016 * (1.0 - b * b) * sin(3.14159265 * v) + 0.0025;
+    float thick = 0.008 * (1.0 - b * b) * sin(3.14159265 * v) + 0.002;
     x += side * thick * 0.5;
-    return vec3(x, 0.4 + 0.42 * v, lateral);
+    return vec3(x, 0.36 + 0.5 * v, lateral);
   }
 
   void vmVertex() {
@@ -115,9 +120,31 @@ const SERPENT_VERTEX = /* glsl */ `
       off = vec3(p.x, 0.0, p.z);
       s = p.y;
     } else {
-      s = position.y;
+      s = (position.y - uTail) / (1.0 - uTail);
       off = vec3(position.x, 0.0, position.z) * aSize.w;
       n = normal;
+      if (s < 0.0) {
+        // The coil: lying on the floor, trailing back and aside in an S.
+        float L0 = aSize.x;
+        float q = -s * (1.0 - uTail) / uTail;            // 0 at the base, 1 at the tip
+        float sideSign = fract(aLife.w * 7.0) > 0.5 ? 1.0 : -1.0;
+        vec3 back = vec3(-cos(uTailAngle), 0.0, sin(uTailAngle) * sideSign);
+        vec3 perp = vec3(-back.z, 0.0, back.x);
+        float Lt = uTailLen * L0;
+        float ph = aPose.w * 0.6;
+        vec3 p0 = back * q * Lt + perp * Lt * uTailWave * sin(q * 5.0 + ph) * q;
+        float q2 = q + 0.01;
+        vec3 p1 = back * q2 * Lt + perp * Lt * uTailWave * sin(q2 * 5.0 + ph) * q2;
+        vec3 Tt = normalize(p1 - p0);
+        vec3 Nt = vec3(0.0, -1.0, 0.0);
+        vec3 Bt = normalize(cross(Tt, Nt));
+        float lie = 0.074 * aSize.w * L0 * (0.18 + 0.82 * smoothstep(0.0, 0.22, position.y));
+        vmPos = p0 + vec3(0.0, lie - aSize.y, 0.0) + Nt * off.x * L0 + Bt * off.z * L0;
+        vmNormal = normalize(Nt * n.x - Tt * n.y + Bt * n.z);
+        vPart = aPart; vHood = aHood; vLife = aLife; vS = position.y; vGain = aSize.z;
+        vAround = atan(position.z, position.x);
+        return;
+      }
     }
     float th = vmAngle(s);
     vec3 T = vec3(sin(th), cos(th), 0.0);
@@ -131,7 +158,7 @@ const SERPENT_VERTEX = /* glsl */ `
     vPart = aPart;
     vHood = aHood;
     vLife = aLife;
-    vS = s;
+    vS = position.y;
     vAround = atan(position.z, position.x);
     vGain = aSize.z;
   }
@@ -168,16 +195,15 @@ const SERPENT_SKIN = /* glsl */ `
       float violet = 1.0 - smoothstep(0.09, 0.09 + soft, d);
       // The bands only run down the back and flanks, never the belly.
       float flank = 1.0 - smoothstep(0.62, 0.95, ventral);
-      base = mix(uColorScale, uColorScale * 0.45, (1.0 - ventral) * 0.6);
-      base *= mix(1.0, 0.55, seam) * (0.85 + 0.3 * cell.y);
+      // Dark, scaled, lit by the sun: the deep tone carries the back.
+      base = mix(uColorScale, uColorDeep * 1.4, (1.0 - ventral) * 0.75);
+      base *= mix(1.0, 0.45, seam) * (0.8 + 0.35 * cell.y);
       base = mix(base, uColorDeep, black * flank);
       base = mix(base, uColorBand, violet * flank);
-      base = mix(base, uColorBelly, smoothstep(0.6, 1.0, ventral) * 0.9);
+      base = mix(base, uColorBelly * 0.7, smoothstep(0.6, 1.0, ventral) * 0.85);
       // Venom pulses climb the spine toward the fangs.
       float pulse = pow(max(0.0, sin((vS * 3.0 - uTime * 1.7 + seed) * 6.2831853)), 6.0);
-      glow = uColorBand * violet * flank * uSkinGlow * (0.5 + 1.8 * pulse)
-           + uColorScale * seam * (1.0 - ventral) * uSkinGlow * 0.35
-           + uColorEyeRing * pulse * smoothstep(0.75, 1.0, ventral) * uSkinGlow * 0.6;
+      glow = uColorBand * violet * flank * uSkinGlow * (0.5 + 1.8 * pulse);
       rough = uRoughness * mix(1.0, 0.55, ventral);
     } else if (vPart < 1.5) {
       /* --- the hood --- */
@@ -186,7 +212,7 @@ const SERPENT_SKIN = /* glsl */ `
       float rib = pow(abs(cos(b * 3.14159265 * 4.5)), 10.0);
       if (vHood.z < 0.0) {
         // The back: deep violet-black skin, green ribs and the false eyes.
-        base = mix(uColorDeep * 1.6, uColorScale * 0.75, rib * 0.6 + 0.25 * smoothstep(0.55, 1.0, abs(b)));
+        base = mix(uColorDeep * 1.3, uColorScale * 0.6, rib * 0.5 + 0.2 * smoothstep(0.6, 1.0, abs(b)));
         vec2 e = vec2(abs(b) - 0.46, (v - 0.6) * 0.85);
         float er = length(e) / max(0.02, uEyeSize);
         float pupil = 1.0 - smoothstep(0.26, 0.34, er);
@@ -201,15 +227,15 @@ const SERPENT_SKIN = /* glsl */ `
         base = mix(base, uColorEyeRing, ring + spec * 0.8);
         float blink = 0.8 + 0.2 * sin(uTime * 3.1 + seed * 6.0);
         glow = (uColorEye * iris + uColorEyeRing * (ring * 0.7 + spec * 0.5)) * uEyeGlow * blink * (0.25 + 0.75 * vLife.y)
-             + uColorScale * rib * uSkinGlow * 0.45;
+             + uColorBand * rib * uSkinGlow * 0.15;
       } else {
         // The front: pale transverse plates, as a cobra's throat.
         float plate = smoothstep(0.02, 0.16, abs(fract(v * 11.0) - 0.5));
         base = mix(uColorBelly * 0.85, uColorScale, smoothstep(0.3, 1.0, abs(b))) * mix(0.55, 1.0, plate);
-        glow = uColorScale * (1.0 - plate) * uSkinGlow * 0.45;
+        glow = vec3(0.0);
       }
       // The membrane thins and lights up toward its edge.
-      glow += uColorEyeRing * smoothstep(0.78, 1.0, abs(b)) * uSkinGlow * 0.5;
+      glow += uColorBand * smoothstep(0.85, 1.0, abs(b)) * uSkinGlow * 0.25;
       rough = uRoughness * 0.85;
     } else {
       /* --- fangs: wet bone, venom-lit tips --- */
@@ -220,7 +246,7 @@ const SERPENT_SKIN = /* glsl */ `
 
     diffuseColor.rgb = base;
     roughnessFactor = clamp(rough, 0.04, 1.0);
-    glow += uColorEyeRing * rim * uRimGlow;
+    glow += uColorScale * rim * uRimGlow;
     // The strike floods the skin with venom light, saturated, never white.
     glow += mix(uColorScale, uColorEyeRing, 0.6) * vLife.z * uFlashGlow * (0.4 + 0.6 * rim + 0.4 * (1.0 - ndv));
     glow *= uGlow * vGain;
@@ -241,6 +267,10 @@ export function createSerpentMaterial() {
     uHoodFold: { value: 0.22 },
     uHoodBreath: { value: 0.12 },
     uSideWave: { value: 0.07 },
+    uTail: { value: 0.3 },
+    uTailLen: { value: 0.85 },
+    uTailAngle: { value: 0.8 },
+    uTailWave: { value: 0.24 },
     uRoughness: { value: 0.36 },
     uScaleSize: { value: 28 },
     uBandCount: { value: 11 },
@@ -319,6 +349,9 @@ export function createSerpentMaterial() {
     u.uHoodFold.value = c.hoodFold;
     u.uHoodBreath.value = c.hoodBreath * g.turbulence;
     u.uSideWave.value = c.sideWave * g.turbulence;
+    u.uTailLen.value = c.tailLength;
+    u.uTailAngle.value = c.tailAngle;
+    u.uTailWave.value = c.tailWave;
     u.uRoughness.value = c.roughness;
     u.uScaleSize.value = c.scaleSize * g.noiseFrequency;
     u.uBandCount.value = c.bandCount;

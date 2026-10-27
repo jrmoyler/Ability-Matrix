@@ -68,10 +68,10 @@ export const CONFIG = Object.freeze({
     /* ================================================================ */
     /* 1 · THE THUNDERHEAD                                               */
     /* ================================================================ */
-    cloudHeight: 2.2, // metres above the host's feet
-    cloudSize: 1.1, // scale of the cluster (≈ 2.4 m across at 1)
+    cloudHeight: 3.4, // metres above the host's feet (the belly hangs well over a 1.8 m body)
+    cloudSize: 1.75, // scale of the cluster (≈ 2.4 m across at 1, ≈ 4.2 m at the default)
     cloudFlatten: 0.8, // vertical squash
-    cloudBillow: 0.12, // metres the lobes boil out
+    cloudBillow: 0.16, // metres the lobes boil out
     cloudBillowScale: 1.6, // billow noise frequency
     cloudDrift: 0.35, // billow noise speed
     cloudSpin: 0.05, // turns/second the cluster slowly wheels
@@ -80,14 +80,14 @@ export const CONFIG = Object.freeze({
     cloudFollow: 6, // how tightly it trails its host (1/s)
     cloudBob: 0.08, // metres of slow vertical bob
     formTime: 0.45, // seconds to condense on arrival
-    seedScale: 0.3, // the stormlet's size in flight (× cloud)
+    seedScale: 0.4, // the stormlet's size in flight (× cloud)
     softFade: 0.5, // metres of soft intersection with the scene
-    flashGlow: 3, // brightness of lightning inside the cloud
-    idleFlash: 0.8, // ambient sheet-lightning flickers per second
-    colorCloudDark: '#08081a',
-    colorCloudMid: '#24275a',
-    colorCloudLit: '#6d72b6',
-    colorCloudFlash: '#c9d2ff',
+    flashGlow: 4, // brightness of lightning inside the cloud
+    idleFlash: 2.4, // ambient sheet-lightning flickers per second
+    colorCloudDark: '#06061a', // deep: the belly
+    colorCloudMid: '#2c2f78', // body
+    colorCloudLit: '#9aa3f0', // tint: the sun-lit crown
+    colorCloudFlash: '#eef1ff', // core: lightning inside it
 
     /* ================================================================ */
     /* 2 · THE TETHER — strands hanging from the cloud onto its host     */
@@ -99,7 +99,8 @@ export const CONFIG = Object.freeze({
     strandJag: 0.14, // metres of jag
     strandFlicker: 18, // re-shapes per second
     strandGlow: 1.4,
-    strandOpacity: 0.5, // idle crackle brightness
+    strandOpacity: 0.65, // idle crackle brightness
+    travelLeash: 0.7, // brightness of the leash from the hand to the stormlet in flight (0 = none)
     colorStrandCore: '#e6ebff',
     colorStrandBody: '#8b8cff',
     colorStrandHalo: '#4b2fd6',
@@ -116,8 +117,12 @@ export const CONFIG = Object.freeze({
     strikeFlash: 0.08,
     strikeBurst: 1.2, // metres, the ionised shell on the host
     strikeMark: 1.2, // metres, the branching burn under the host
-    strikeMarkLife: 1.4,
+    strikeMarkLife: 3.5, // the burn stays through the linger
     strikeWarp: 1.5, // distortion kick per strike
+    latchStrength: 1, // the bite on arrival: a full bolt onto the host (or the ground) — presentation only
+    feedInterval: 0.85, // seconds between feeding bolts while it rides the host (0 = none) — presentation only
+    feedJitter: 0.5, // ± share of that interval, so the feeding is irregular
+    feedStrength: 0.55, // size of a feeding bolt, × a retaliation
     colorStrikeCore: '#ffffff',
     colorStrikeBody: '#a9b6ff',
     colorBurstA: '#ffffff',
@@ -139,9 +144,9 @@ export const CONFIG = Object.freeze({
     /* ================================================================ */
     /* 5 · RAIN                                                          */
     /* ================================================================ */
-    rainRate: 70, // drops per second
+    rainRate: 160, // drops per second
     rainSpeed: 9,
-    rainSize: 0.025,
+    rainSize: 0.035,
     rainLife: 0.32,
     rainStretch: 0.85,
     rainOpacity: 0.6,
@@ -179,10 +184,10 @@ export const CONFIG = Object.freeze({
     /* 8 · GROUND & DISTORTION                                           */
     /* ================================================================ */
     shadowRadius: 1.8, // metres (× cloud size)
-    shadowOpacity: 0.45,
-    shadowWet: 0.35, // cold sheen on the pool's rim
+    shadowOpacity: 0.7,
+    shadowWet: 0.6, // cold sheen on the pool's rim
     colorShadow: '#05060f',
-    colorWet: '#6d7bc8',
+    colorWet: '#8d9cff',
     warpStrength: 0.35,
     warpScale: 1.4,
     warpSpeed: 0.6
@@ -240,6 +245,17 @@ const UP = new Vector3(0, 1, 0);
  *      strike, camera knock, flash and light punch, all scaled by globals.
  *   9. **distortion** — the downdraft under the cloud on LAYER.DISTORTION,
  *      kicked by every strike.
+ *
+ * ## Before (and without) a host
+ *
+ * The retaliation needs a host that acts, which a training dummy never does,
+ * so the cast must read on its own. A crackling **leash** runs from the hand
+ * to the stormlet in flight; on arrival the storm **bites** — one full bolt
+ * onto its host (or into the ground at the circle if nobody is there) with
+ * its shell, burn and knock; and while it rides, it **feeds**: smaller bolts
+ * at irregular intervals, each leaving a burn that stays through the linger.
+ * These bites are presentation only — they emit no combat event; damage is
+ * still and only the retaliation below.
  *
  * ## Rules
  *
@@ -362,6 +378,9 @@ export class ThunderheadParasiteAbility extends Ability {
     this._shownStrikes = 0;
     this._strikeRoll = 0;
     this._warpKick = 0;
+    this._boltPower = 1;
+    this._latchPending = false;
+    this._nextFeed = 0;
     this._reduced = false;
     this._cloudState = { seed: 0, form: 1, flash: 0, sheet: 0, sheetPos: this._sheetPos, fade: 1 };
     this._shadowState = { radius: 1, fade: 1, rain: 1, seed: 0 };
@@ -444,6 +463,9 @@ export class ThunderheadParasiteAbility extends Ability {
     this._sheet = 0;
     this._shownStrikes = 0;
     this._warpKick = 0;
+    this._boltPower = 1;
+    this._latchPending = false;
+    this._nextFeed = 0;
     // Read once per cast: matchMedia allocates, and the answer never changes mid-cast.
     this._reduced = prefersReducedMotion();
     this.cloudPosition.copy(this.origin);
@@ -464,6 +486,8 @@ export class ThunderheadParasiteAbility extends Ability {
 
   onImpact() {
     this._arrive();
+    // The bite lands on the next drawn frame, on the host if one is found.
+    this._latchPending = true;
     if (!this.bridge) return;
     const result = this.bridge.queryActors({
       position: [this.attachPosition.x, 0, this.attachPosition.z],
@@ -516,6 +540,7 @@ export class ThunderheadParasiteAbility extends Ability {
     if (result?.ok) {
       this.nextPulse = this.age + this.config.reactionCooldown;
       this.lastFlash = this.age;
+      this._boltPower = 1;
       this.lastEventCount++;
     }
   }
@@ -566,18 +591,25 @@ export class ThunderheadParasiteAbility extends Ability {
     if (c.attachFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.attachFlash * g.explosionIntensity);
   }
 
-  /** One retaliation, seen: bolt, flood, shell, burn, spray, knock, flash. */
-  _strikeBeat() {
+  /** A bite or a feeding bolt: presentation only, no combat event. */
+  _visualStrike(power) {
+    this.lastFlash = this.age;
+    this._boltPower = power;
+    this._strikeBeat(power);
+  }
+
+  /** One retaliation (power 1) or bite, seen: bolt, flood, shell, burn, spray, knock, flash. */
+  _strikeBeat(power = 1) {
     const c = this.config;
     const g = settings.global;
-    this._shownStrikes = this.lastEventCount;
+    if (power === 1 && this._boltPower === 1) this._shownStrikes = this.lastEventCount;
     this._rollStrike();
     _pos.copy(this.attachPosition).setY(1);
     this.ctx.bursts?.spawn?.(BurstMode.STORM, _pos, {
       radius: 0.15,
-      endRadius: c.strikeBurst * g.explosionIntensity,
+      endRadius: c.strikeBurst * power * g.explosionIntensity,
       life: 0.35,
-      intensity: 1.2,
+      intensity: 1.2 * power,
       opacity: 0.65,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
@@ -585,25 +617,25 @@ export class ThunderheadParasiteAbility extends Ability {
     });
     _pos.y = 0;
     this.ctx.decals?.spawn?.(DecalType.ARC, _pos, {
-      radius: c.strikeMark,
+      radius: c.strikeMark * (0.5 + 0.5 * power),
       life: c.strikeMarkLife,
       intensity: 1,
       colorA: getColor(c.colorScorchA),
       colorB: getColor(c.colorScorchB)
     });
     this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
-      radius: c.strikeMark * 0.5,
+      radius: c.strikeMark * 0.5 * (0.5 + 0.5 * power),
       life: c.strikeMarkLife * 1.4,
       intensity: 0.8,
       colorA: getColor(c.colorScorchA),
       colorB: getColor(c.colorScorchB)
     });
     _pos.y = 0.9;
-    this._sparks(_pos, c.sparkCount);
-    this.lightBoost = c.strikeLight * g.explosionIntensity;
-    this._warpKick = 1;
-    if (c.strikeShake > 0) this.ctx.shake?.add?.(c.strikeShake * g.cameraShake, 8, 24);
-    if (c.strikeFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.strikeFlash * g.explosionIntensity);
+    this._sparks(_pos, c.sparkCount * power);
+    this.lightBoost = Math.max(this.lightBoost, c.strikeLight * power * g.explosionIntensity);
+    this._warpKick = Math.max(this._warpKick, power);
+    if (c.strikeShake > 0) this.ctx.shake?.add?.(c.strikeShake * power * g.cameraShake, 8, 24);
+    if (c.strikeFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.strikeFlash * power * g.explosionIntensity);
   }
 
   /* ------------------------------------------------------------------ */
@@ -619,7 +651,20 @@ export class ThunderheadParasiteAbility extends Ability {
     const g = settings.global;
     const travelling = this.phase === AbilityPhase.TRAVEL;
     const fading = this.phase === AbilityPhase.FADE;
-    if (!travelling && this.lastEventCount !== this._shownStrikes) this._strikeBeat();
+    if (!travelling && this.lastEventCount !== this._shownStrikes) {
+      this._boltPower = 1;
+      this._strikeBeat(1);
+    }
+    if (!travelling && this._latchPending) {
+      this._latchPending = false;
+      if (c.latchStrength > 0) this._visualStrike(c.latchStrength);
+      this._nextFeed = this.age + Math.max(0.1, c.feedInterval);
+    }
+    // Feeding: irregular smaller bolts while it rides (never in the fade).
+    if (!travelling && !fading && !this._reduced && dt > 0 && c.feedInterval > 0 && c.feedStrength > 0 && this.age >= this._nextFeed) {
+      this._nextFeed = this.age + c.feedInterval * (1 + (Math.random() * 2 - 1) * saturate(c.feedJitter));
+      this._visualStrike(c.feedStrength);
+    }
 
     /* --- where the cloud is --- */
     if (travelling) {
@@ -655,7 +700,7 @@ export class ThunderheadParasiteAbility extends Ability {
     this.cloud.rotation.y = this._spin;
 
     /* --- lightning inside it --- */
-    const strike = Math.max(0, 1 - (this.age - this.lastFlash) / Math.max(0.02, c.strikeLife));
+    const strike = Math.max(0, 1 - (this.age - this.lastFlash) / Math.max(0.02, c.strikeLife)) * this._boltPower;
     this._sheet = Math.max(0, this._sheet - dt * 9);
     const sheetRate = this._reduced ? c.idleFlash * 0.25 : c.idleFlash;
     if (!travelling && dt > 0 && Math.random() < sheetRate * dt) {
@@ -674,6 +719,7 @@ export class ThunderheadParasiteAbility extends Ability {
     /* --- the tether and the strike --- */
     const attached = !!this.targetId && !travelling;
     this._writeTether(attached, height, scale, strike, fade);
+    if (travelling) this._writeLeash(height, scale);
     this._writeStrike(strike, height, scale);
 
     /* --- ground and warp --- */
@@ -726,6 +772,20 @@ export class ThunderheadParasiteAbility extends Ability {
     // Idle crackle, swelling to full on a strike.
     const flicker = 0.6 + 0.4 * Math.sin(this.age * 37 + Math.sin(this.age * 11) * 3);
     this.strandMaterial.userData.sync(c, (c.strandOpacity * flicker + strike) * fade);
+  }
+
+  /** In flight: one crackling strand from the caster's hand to the stormlet. */
+  _writeLeash(height, scale) {
+    const c = this.config;
+    const mesh = this.strands[0];
+    mesh.visible = c.travelLeash > 0;
+    if (!mesh.visible) return;
+    _a.set(this.origin.x + this.direction.x * 0.5, 1.4, this.origin.z + this.direction.z * 0.5);
+    _b.set(this.cloudPosition.x, height - 0.3 * scale * c.cloudFlatten, this.cloudPosition.z);
+    const rate = this._reduced ? Math.min(3, c.strandFlicker) : c.strandFlicker;
+    this._writeBolt(mesh, _a, _b, STRAND_POINTS, c.strandWidth * 1.4, c.strandJag * 2, Math.floor(this.age * rate));
+    const flicker = 0.6 + 0.4 * Math.sin(this.age * 37 + Math.sin(this.age * 11) * 3);
+    this.strandMaterial.userData.sync(c, c.travelLeash * flicker * (1 - this.u * 0.4));
   }
 
   /** The retaliation bolt, cloud to host's feet, plus two branches. */
@@ -1005,8 +1065,8 @@ export function buildEditor(gui, c, Editor) {
   R(parasite, c, 'retaliation', 0, 3, 0.05, 'retaliation');
 
   const cloud = section(folder, '1 · Thunderhead');
-  R(cloud, c, 'cloudHeight', 0.8, 6, 0.05, 'height (m)');
-  R(cloud, c, 'cloudSize', 0.2, 3, 0.01, 'size');
+  R(cloud, c, 'cloudHeight', 0.8, 8, 0.05, 'height (m)');
+  R(cloud, c, 'cloudSize', 0.2, 4, 0.01, 'size');
   R(cloud, c, 'cloudFlatten', 0.3, 1.5, 0.01, 'flatten');
   R(cloud, c, 'cloudBillow', 0, 0.6, 0.005, 'billow (m)');
   R(cloud, c, 'cloudBillowScale', 0.2, 6, 0.05, 'billow scale');
@@ -1035,6 +1095,7 @@ export function buildEditor(gui, c, Editor) {
   R(tether, c, 'strandFlicker', 0, 40, 0.5, 're-shapes/s');
   R(tether, c, 'strandGlow', 0, 6, 0.01, 'glow');
   R(tether, c, 'strandOpacity', 0, 1, 0.01, 'idle brightness');
+  R(tether, c, 'travelLeash', 0, 2, 0.01, 'leash in flight');
   tether.addColor(c, 'colorStrandCore').name('core');
   tether.addColor(c, 'colorStrandBody').name('body');
   tether.addColor(c, 'colorStrandHalo').name('halo');
@@ -1051,6 +1112,10 @@ export function buildEditor(gui, c, Editor) {
   R(strike, c, 'strikeMark', 0, 4, 0.05, 'burn (m)');
   R(strike, c, 'strikeMarkLife', 0.1, 6, 0.05, 'burn life');
   R(strike, c, 'strikeWarp', 0, 4, 0.05, 'distortion kick');
+  R(strike, c, 'latchStrength', 0, 1.5, 0.01, 'bite on arrival (× strike)');
+  R(strike, c, 'feedInterval', 0, 4, 0.05, 'feeding bolt every (s)');
+  R(strike, c, 'feedJitter', 0, 1, 0.01, 'feeding irregularity');
+  R(strike, c, 'feedStrength', 0, 1.5, 0.01, 'feeding bolt (× strike)');
   strike.addColor(c, 'colorStrikeCore').name('bolt core');
   strike.addColor(c, 'colorStrikeBody').name('bolt body');
   strike.addColor(c, 'colorBurstA').name('shell inner');

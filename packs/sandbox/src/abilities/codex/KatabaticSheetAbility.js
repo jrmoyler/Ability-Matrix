@@ -63,10 +63,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the shear placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a wind pattern under the footprint.
+ *   3. **ground** — a filled wind field under the strip the head has crossed: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a bore riding alongside the body, spun with the cast.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (`createKatabaticSheetPieceGeometry`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (`createKatabaticSheetHeroGeometry`), stood by its archetype (whip): riding the head, swept sideways as it travels.
+ *      Hero and pieces are energy: emissive over a dark body with a fresnel shell (LAYER.VFX). The rig is framed to the body height (`heroMinSpan`) and kept under `heroMaxHeight`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: the sheet slides as if the line were a slope. The shear is stronger at the far end than at the hand.
@@ -307,8 +308,9 @@ export class KatabaticSheetAbility extends Ability {
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
    * and a line lays its strip behind the head; on the beat the field lands out
-   * to the rim over `groundLand` seconds (a line's strip is already down), hot; it cools through the fade and
-   * breaks up over its last stretch. The residue decal outlives it.
+   * to the rim over `groundLand` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
    */
   _groundPose(committed, fadeT) {
     const c = settings[ID];

@@ -69,26 +69,30 @@ export default {
 
     /* --- 2 · the serpent (hero) --- */
     serpentLength: 1.0, // spine length (× zoneRadius)
-    girth: 1.35, // body thickness (× authored)
-    hoodWidth: 0.9, // flared hood span (× authored)
-    hoodCup: 0.4, // how far the hood edges wrap forward
-    hoodFold: 0.22, // hood width while folded (× flared)
+    girth: 1.7, // body thickness (× authored)
+    hoodWidth: 1.35, // flared hood span (× authored) — a flat shield far wider than the neck
+    hoodCup: 0.08, // how far the hood edges wrap forward (kept flat)
+    hoodFold: 0.18, // hood width while folded (× flared)
     sinkDepth: 0.38, // risen from / sinks to this deep (× length)
     restLean: 0.2, // spine lean when risen (rad / length)
     restCurl: 1.0, // curl toward the head when risen
-    rearLean: -0.85, // spine lean when reared back
-    rearCurl: 2.0, // curl when reared back
-    strikeLean: 1.05, // spine lean at the strike
-    strikeCurl: 1.45, // curl at the strike
+    rearLean: -0.6, // spine lean when reared back (tall, head drawn back)
+    rearCurl: 1.4, // curl when reared back
+    strikeLean: 1.7, // spine lean at the strike — a low forward lunge
+    strikeCurl: 1.0, // curl at the strike
+    lunge: 0.22, // the whole serpent surges forward this far on a strike (× length)
+    tailLength: 0.85, // the coil lying on the floor behind it (× length)
+    tailAngle: 0.8, // the coil trails back and to the side (rad off straight back)
+    tailWave: 0.24, // S-curve of the coil on the floor (× tail length)
     swayAmp: 0.16, // travelling wave down the spine while it weaves
     swayRate: 2.3, // weave speed (rad/s)
     weaveYaw: 0.22, // side-to-side weave of the whole serpent (rad)
     sideWave: 0.07, // sideways S-ripple down the spine (× length)
-    approachAngle: 0.7, // serpents come at their carrier this far off the line (rad), so the strike reads in profile
+    approachAngle: 0.3, // serpents come at their carrier this far off the line (rad), so the strike reads in profile
     hoodBreath: 0.12, // the flared hood breathes by this much
 
     /* --- 3 · serpent skin --- */
-    colorScale: '#6fd12a', // scale body — saturated venom green
+    colorScale: '#3c7f1b', // scale body — dark venom green, lit not glowing
     colorDeep: '#140a1f', // back and band shadow — the deep tone
     colorBelly: '#dff8a4', // pale belly
     colorBand: '#a94cff', // aposematic warning bands — the colour it copies
@@ -99,16 +103,16 @@ export default {
     scaleSize: 28, // scale cells round the body
     roughness: 0.36,
     metalness: 0.06,
-    skinGlow: 0.55, // emissive in the bands and scale seams
+    skinGlow: 0.7, // emissive in the bands and scale seams
     eyeSize: 0.2, // false eye radius (× hood half-span)
     eyeGlow: 3.2,
-    rimGlow: 1.1, // wet fresnel rim
+    rimGlow: 0.3, // wet fresnel rim
     flashGlow: 1.6, // the whole skin floods on a strike
 
     /* --- 4 · mimics --- */
     mimicScale: 0.72, // a mimic is this big (× the serpent)
     mimicLag: 0.24, // and imitates the serpent this late (s, per wave)
-    mimicGlow: 1.25, // copies glow brighter — they are mostly venom
+    mimicGlow: 1.0, // copies glow brighter — they are mostly venom
 
     /* --- 5 · venom threads --- */
     threadWidth: 0.085, // thread radius (m)

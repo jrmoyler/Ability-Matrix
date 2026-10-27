@@ -746,7 +746,8 @@ export class ObsidianWallAbility extends Ability {
       _dir.copy(this.direction).multiplyScalar(Math.cos(b)).addScaledVector(this.side, Math.sin(b));
     } else {
       const row = this._row(i);
-      const sign = row !== 0 && shard.side >= 0.5 * c.shardSides * c.shardCross ? row : shard.side < 0.5 * c.shardSides ? -1 : 1;
+      // A row throws out of its own outer face; `shardCross` of them go back over the rift.
+      const sign = row !== 0 ? (shard.side < c.shardCross ? -row : row) : shard.side < 0.5 * c.shardSides ? -1 : 1;
       _dir.copy(this.side).multiplyScalar(sign * Math.cos(a)).addScaledVector(this.direction, Math.sin(a) + c.shardForward);
     }
     _dir.y = 0;
@@ -960,6 +961,100 @@ export class ObsidianWallAbility extends Ability {
     }
   }
 
+  /**
+   * The landing: the crown is about to heave up round this point. EARTH
+   * shell, shockwave, a broad crack, flash, knock, light, a grit fountain.
+   */
+  _landFx() {
+    const c = settings.obsidianwall;
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.pointAt(1, _end).setY(0);
+    _pos.copy(_end).setY(0.6);
+    this.ctx.bursts.spawn(BurstMode.EARTH, _pos, {
+      radius: 0.4,
+      endRadius: c.landBurst * power,
+      life: 0.7,
+      intensity: 1.2,
+      opacity: 0.85,
+      squash: 0.6,
+      colorA: getColor(c.colorBurstA),
+      colorB: getColor(c.colorBurstB),
+      colorC: getColor(c.colorBurstC)
+    });
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+      radius: c.landShock * power,
+      life: 0.6,
+      width: 0.07,
+      intensity: 1,
+      colorA: getColor(c.colorFissureGlow),
+      colorB: getColor(c.colorBurstA)
+    });
+    this.ctx.decals.spawn(DecalType.CRACK, _end, {
+      radius: c.crownRadius * 1.9,
+      life: (c.lifetime + c.shardFlightTime + 1.5) * g.lifetime,
+      width: 0.6,
+      intensity: 1.2,
+      colorA: getColor(c.colorFissure),
+      colorB: getColor(c.colorFissureGlow)
+    });
+    this.ctx.decals.spawn(DecalType.SCORCH, _end, {
+      radius: c.crownRadius * 1.5,
+      life: (c.lifetime + c.shardFlightTime + 1.5) * g.lifetime,
+      intensity: 0.9,
+      colorA: getColor(c.colorScorch),
+      colorB: getColor(c.colorFissure)
+    });
+    this._resetEmit(frame.uTime.value);
+    _emit.position = _pos;
+    _emit.radius = c.crownRadius * 0.6;
+    _emit.direction = _up;
+    _emit.speed = c.gritSpeed * 1.5;
+    _emit.speedVariance = 0.6;
+    _emit.spread = 0.8;
+    _emit.size = c.gritSize;
+    _emit.sizeVariance = 0.7;
+    _emit.life = c.gritLifetime;
+    _emit.spin = 10;
+    this.grit.emit(Math.round(c.landGrit * g.particleCount), _emit);
+    _emit.speed = c.dustSpeed * 1.6;
+    _emit.size = c.dustSize * 1.3;
+    _emit.life = c.dustLifetime;
+    _emit.spin = 0.5;
+    this.dust.emit(Math.round(c.landDust * g.particleCount), _emit);
+    _emit.speed = c.emberSpeed * 2.5;
+    _emit.size = c.emberSize * 1.4;
+    _emit.life = c.emberLifetime;
+    this.embers.emit(Math.round(c.landGrit * 0.4 * g.particleCount), _emit);
+    this.ctx.shake.add(c.landShake * power, 1 / Math.max(0.05, c.breakShakeDuration), 18);
+    this.ctx.flash.trigger(getColor(c.colorFlash), c.landFlash * power);
+    this.lightBoost = Math.max(this.lightBoost, c.landLight * power);
+  }
+
+  /** A slab jolted by the aftershock: a puff of dust and a spark at its foot. */
+  _heaveFx(dt, foot, heave) {
+    const c = settings.obsidianwall;
+    const g = settings.global;
+    if (dt <= 0 || Math.random() > dt * c.heaveDust * heave) return;
+    this._resetEmit(frame.uTime.value);
+    _pos.copy(foot).setY(0.15);
+    _emit.position = _pos;
+    _emit.radius = 0.35;
+    _emit.direction = _up;
+    _emit.speed = c.dustSpeed * 0.6;
+    _emit.spread = 0.9;
+    _emit.size = c.dustSize * 0.8;
+    _emit.life = c.dustLifetime * 0.8;
+    _emit.spin = 0.4;
+    this.dust.emit(Math.max(1, Math.round(2 * g.particleCount)), _emit);
+    _emit.speed = c.gritSpeed * 0.5;
+    _emit.size = c.gritSize;
+    _emit.life = c.gritLifetime * 0.6;
+    _emit.spin = 8;
+    this.grit.emit(Math.max(1, Math.round(3 * g.particleCount)), _emit);
+    this.ctx.shake.rumble(c.heaveRumble * heave, dt);
+  }
+
   /** The standing wall: a sift of dust, and sparks once it charges. */
   _standFx(dt, count) {
     const c = settings.obsidianwall;
@@ -1150,6 +1245,35 @@ export function buildEditor(gui, c, Editor) {
   R(wall, c, 'slabJag', 0, 0.8, 0.01, 'ragged top (rebuild)');
   R(wall, c, 'slabLumps', 0, 0.4, 0.005, 'facet wander (rebuild)');
   R(wall, c, 'slabTaper', 0, 0.8, 0.01, 'taper (rebuild)');
+  const rows = wall.addFolder('Rows + crown');
+  R(rows, c, 'wallRows', 1, 2, 1, 'rows');
+  R(rows, c, 'rowSplitNear', 0, 4, 0.01, 'rows apart at the caster (m)');
+  R(rows, c, 'rowSplit', 0, 6, 0.01, 'rows apart at the end (m)');
+  R(rows, c, 'rowLean', 0, 0.8, 0.005, 'rows lean out (rad)');
+  R(rows, c, 'wallRamp', 0.3, 2.5, 0.01, 'far end height (×)');
+  R(rows, c, 'crownCount', 0, MAX_CROWN, 1, 'crown slabs');
+  R(rows, c, 'crownRadius', 0.3, 6, 0.01, 'crown radius (m)');
+  R(rows, c, 'crownHeight', 0.3, 8, 0.05, 'crown height (m)');
+  R(rows, c, 'crownWidth', 0.2, 4, 0.01, 'crown slab width (m)');
+  R(rows, c, 'crownLean', 0, 0.9, 0.005, 'crown leans out (rad)');
+  R(rows, c, 'crownSweep', 0, 1, 0.005, 'crown closes over (s)');
+  const living = wall.addFolder('Standing (aftershocks)');
+  R(living, c, 'heaveAmp', 0, 0.6, 0.005, 'jolt (× height)');
+  R(living, c, 'heaveSpeed', 0.5, 40, 0.1, 'runs at (m/s)');
+  R(living, c, 'heaveWidth', 0.2, 8, 0.05, 'width (m)');
+  R(living, c, 'heaveDelay', 0, 2, 0.01, 'starts after landing (s)');
+  R(living, c, 'heaveGlow', 0, 2, 0.01, 'cracks flare');
+  R(living, c, 'heaveDust', 0, 30, 0.1, 'dust puffs');
+  R(living, c, 'heaveRumble', 0, 1, 0.01, 'rumble');
+  R(living, c, 'creep', 0, 0.6, 0.005, 'creeps taller (×)');
+  const land = wall.addFolder('The landing');
+  R(land, c, 'landBurst', 0, 10, 0.05, 'shell (m)');
+  R(land, c, 'landShock', 0, 16, 0.05, 'shockwave (m)');
+  R(land, c, 'landShake', 0, 1.5, 0.01, 'knock');
+  R(land, c, 'landFlash', 0, 1, 0.01, 'flash');
+  R(land, c, 'landLight', 0, 60, 0.1, 'light punch');
+  R(land, c, 'landGrit', 0, 300, 1, 'grit');
+  R(land, c, 'landDust', 0, 120, 1, 'dust');
   const erupt = wall.addFolder('Eruption');
   R(erupt, c, 'eruptDelay', 0, 0.5, 0.005, 'behind the front (s)');
   R(erupt, c, 'riseTime', 0.02, 1, 0.005, 'rise (s)');
@@ -1239,6 +1363,7 @@ export function buildEditor(gui, c, Editor) {
   R(shards, c, 'shardFan', 0, 3.1, 0.01, 'fan (rad)');
   R(shards, c, 'shardForward', -1, 1, 0.01, 'down the line');
   R(shards, c, 'shardSides', 0, 1, 0.01, 'both sides');
+  R(shards, c, 'shardCross', 0, 1, 0.01, 'thrown back over the rift');
   R(shards, c, 'shardGravity', -40, -0.5, 0.1, 'gravity');
   R(shards, c, 'shardSpin', 0, 40, 0.1, 'spin (rad/s)');
   R(shards, c, 'shardStagger', 0, 0.3, 0.001, 'stagger (s)');
