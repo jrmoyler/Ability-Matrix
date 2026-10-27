@@ -76,7 +76,10 @@ test('signature: the draft conveys downed bodies downstream onto the centreline,
   assert.ok(hang.y > config.settings.hookHeight * 0.5);
   assert.ok(corpse.lastVelocity.y > 0, 'hoisted up the stem');
   assert.ok(hang.x < 10, 'the barb hangs back over the lane');
-  assert.ok(Math.abs(hang.x - (10 - 2 * config.settings.hookCurl * config.settings.laneWidth)) < 0.6, 'curl derived from the lane width');
+  const R = config.settings.hookCurl * config.settings.laneWidth;
+  const yaw = ability.hook.rotation.y;
+  assert.ok(Math.abs(hang.x - (10 - 2 * R * Math.cos(yaw))) < 1e-6, 'curl derived from the lane width');
+  assert.ok(Math.abs(hang.z - 2 * R * Math.sin(yaw)) < 1e-6);
   // Released exactly once when the hook unravels.
   run(ability, 600);
   assert.equal(caught.released, 1);
@@ -91,10 +94,11 @@ test('placement is derived: the hook stands at the end of the line and its tip f
   for (let i = 0; i < 120 && ability.phase === 'travel'; i++) ability.update(DT);
   ability.update(DT);
   assert.ok(Math.abs(ability._foot.x - 2) < 1e-6 && Math.abs(ability._foot.z - 15) < 1e-6);
-  const before = ability._hang.z;
+  const reach = () => Math.hypot(ability._hang.x - ability._foot.x, ability._hang.z - ability._foot.z);
+  const before = reach();
   settings[ID].laneWidth = config.settings.laneWidth * 1.5;
   ability.update(DT);
-  assert.ok(ability._hang.z < before - 0.3, 'wider lane, wider curl, the barb reaches further back');
+  assert.ok(reach() > before + 0.5, 'wider lane, wider curl, the barb reaches further');
   assert.equal(ability.coreMat.uniforms.uR.value, settings[ID].hookCurl * settings[ID].laneWidth);
   settings[ID].laneWidth = config.settings.laneWidth;
   const p = hookPoint(1, { height: 4, curl: 1, drop: 0.5, bow: 0 }, new Vector3());

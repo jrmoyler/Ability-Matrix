@@ -1,12 +1,15 @@
 // Render any castable in the real sandbox and save frames you can look at.
 //
 //   node tools/capture-cast.mjs <out-dir> <uid> [uid ...] [--frames=8,20,40,70] [--sheet]
+//                               [--distance=8] [--targets=cluster|ring|none]
 //
 // Each uid is cast once from the caster toward the dummies under a fixed 30 Hz
 // clock (software WebGL), and a PNG is written for every listed frame:
 // `<out-dir>/<pack>__<id>-f<frame>.png`. `--sheet` also writes one contact
 // sheet per uid (`<pack>__<id>-sheet.jpg`) with the frames side by side, which
 // is the quickest way for a reviewer — human or agent — to read a whole cast.
+// By default seven dummies stand in a cluster where the cast lands, so hits
+// and body reactions are in the frames (`--targets=ring` keeps the play ring).
 //
 // Use it to compare a cast with the reference bar (docs/castable-quality-standard.md
 // lists the reference uids), e.g.
@@ -134,7 +137,22 @@ try {
     report.captures.push(entry);
     const errorsBefore = pageErrors.length;
     try {
-      await page.evaluate(() => { matrix.clear(); app.dummies.reset?.(); app.paused = false; });
+      await page.evaluate(async ({ uid, targets }) => {
+        matrix.clear();
+        if (targets !== 'none') {
+          // Stand a cluster of bodies where the bridge's aim lands (70% into
+          // the cast's reach, straight ahead), so every capture shows hits.
+          try {
+            const { settings } = await import('/src/config/settings.js');
+            const s = (await matrix.preset(uid))?.settings ?? {};
+            const min = s.minRange ?? 0.5, max = s.range ?? min + 6;
+            const d = Math.max(2.5, min + (max - min) * 0.7);
+            Object.assign(settings.dummies, { formation: targets === 'ring' ? 'ring' : 'cluster', count: 7, minRadius: d - 0.5, radius: d + 0.5 });
+          } catch (error) { console.warn('[capture] could not place targets', error); }
+        }
+        app.dummies.reset?.();
+        app.paused = false;
+      }, { uid, targets: String(flags.targets ?? 'cluster') });
       await tick(3);
       await page.evaluate(async (uid) => {
         // The bridge's cast waits on animation frames; keep the clock running for it.

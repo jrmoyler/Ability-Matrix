@@ -35,7 +35,7 @@ export default {
     speed: 13, // the seed's lob travels the line at (m/s)
     cooldown: 5,
     castAnim: 'cast2',
-    zoneRadius: 3.4, // the heart's reach: tendrils bind every enemy inside (m)
+    zoneRadius: 4, // the heart's reach: tendrils bind every enemy inside (m)
     lifetime: 4.2, // nominal screen time for the HUD (s)
 
     /* --- anticipation: the seed forms at the hand --- */
@@ -71,32 +71,32 @@ export default {
     hitSpin: 1.4,
 
     /* --- 1 · the heart (hero) --- */
-    heartHeight: 2.1, // height of the heart pod (m)
-    heartWidth: 0.24, // pod radius (× R)
+    heartHeight: 2.8, // height of the heart pod (m)
+    heartWidth: 0.22, // pod radius (× R)
     heartRiseTime: 0.45, // it heaves out of the mound over (s)
     beatSquash: 0.16, // how hard a beat squeezes the pod
     beatSharpness: 7, // how fast a beat snaps and relaxes
-    heartGlow: 1.3, // flesh glow
-    heartVeinGlow: 2.6, // the veins that flush on every beat
+    heartGlow: 0.85, // flesh glow
+    heartVeinGlow: 2.2, // the veins that flush on every beat
     heartVeinScale: 3.2, // vein density
-    heartFresnel: 1.5, // translucent rim
+    heartFresnel: 0.9, // translucent rim
     heartAmbient: 0.32,
     witherTime: 0.75, // exit: the heart folds and sinks over this fraction of the fade
 
     /* --- 2 · the sepals and the mound --- */
-    sepalLength: 0.95, // crown sepals round the heart's mouth (m)
+    sepalLength: 1.15, // crown sepals round the heart's mouth (m)
     sepalOpen: 1.05, // how far they peel open at the peak (rad)
     sepalFlutter: 0.12, // sepals shiver with each beat (rad)
-    moundRadius: 0.5, // root mound (× R)
+    moundRadius: 0.42, // root mound (× R)
     moundHeight: 0.55, // (m)
     moundRoughness: 0.92,
 
     /* --- 3 · the tendrils --- */
-    rootRadius: 0.14, // tendril thickness at the mound (m)
+    rootRadius: 0.17, // tendril thickness at the mound (m)
     tipRadius: 0.03, // and at the tip (m)
     reachTime: 0.4, // tendrils whip out over (s)
     reachOvershoot: 0.18, // they overshoot and snap back
-    tendrilArc: 0.95, // arch of a tendril over the floor (m, + 0.15 × length)
+    tendrilArc: 1.3, // arch of a tendril over the floor (m, + 0.15 × length)
     anchorCount: 8, // extra roots plunging into the rim (≤ 8)
     anchorReach: 1.05, // where they plunge (× R)
     writheAmp: 0.11, // tendrils squirm (m)
@@ -110,7 +110,7 @@ export default {
     barkBump: 0.6,
     tendrilRim: 0.8, // green fresnel rim
     tendrilDiffuse: 0.95,
-    sapGlow: 2.4, // sap flowing in the tendrils
+    sapGlow: 1.6, // sap flowing in the tendrils
     sapSpeed: 1.6,
     retractTime: 0.7, // exit: tendrils draw back over this fraction of the fade
 
@@ -156,10 +156,10 @@ export default {
     impactFlash: 0.12, // (× explosion intensity)
     impactLight: 7, // light punch at the burst (× explosion intensity)
     beatLight: 2.4, // and on every beat
-    burstReach: 0.9, // EARTH shell grows to (× R)
+    burstReach: 0.75, // EARTH shell grows to (× R)
     burstLife: 0.65,
     burstIntensity: 0.75,
-    burstOpacity: 0.55,
+    burstOpacity: 0.3,
     decalLife: 3.4, // crack and stain stay (s)
     crackIntensity: 1.1,
     dustIntensity: 0.8,

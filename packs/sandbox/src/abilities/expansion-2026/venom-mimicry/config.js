@@ -69,9 +69,9 @@ export default {
 
     /* --- 2 · the serpent (hero) --- */
     serpentLength: 1.0, // spine length (× zoneRadius)
-    girth: 1, // body thickness (× authored)
-    hoodWidth: 1, // flared hood span (× authored)
-    hoodCup: 0.35, // how far the hood edges wrap forward
+    girth: 1.35, // body thickness (× authored)
+    hoodWidth: 0.9, // flared hood span (× authored)
+    hoodCup: 0.4, // how far the hood edges wrap forward
     hoodFold: 0.22, // hood width while folded (× flared)
     sinkDepth: 0.38, // risen from / sinks to this deep (× length)
     restLean: 0.2, // spine lean when risen (rad / length)
@@ -83,6 +83,8 @@ export default {
     swayAmp: 0.16, // travelling wave down the spine while it weaves
     swayRate: 2.3, // weave speed (rad/s)
     weaveYaw: 0.22, // side-to-side weave of the whole serpent (rad)
+    sideWave: 0.07, // sideways S-ripple down the spine (× length)
+    approachAngle: 0.7, // serpents come at their carrier this far off the line (rad), so the strike reads in profile
     hoodBreath: 0.12, // the flared hood breathes by this much
 
     /* --- 3 · serpent skin --- */
@@ -104,7 +106,7 @@ export default {
     flashGlow: 3.5, // the whole skin floods on a strike
 
     /* --- 4 · mimics --- */
-    mimicScale: 0.58, // a mimic is this big (× the serpent)
+    mimicScale: 0.72, // a mimic is this big (× the serpent)
     mimicLag: 0.24, // and imitates the serpent this late (s, per wave)
     mimicGlow: 1.25, // copies glow brighter — they are mostly venom
 
@@ -112,19 +114,19 @@ export default {
     threadWidth: 0.085, // thread radius (m)
     threadArc: 1.6, // arc height between carriers (m)
     threadTravel: 0.24, // a thread reaches its next carrier in (s)
-    threadGlow: 2.6,
+    threadGlow: 1.3,
     threadFlow: 2.2, // venom pulses flow along it at (cycles/s)
     threadBeads: 6, // pulses along a thread
 
     /* --- 6 · the pools --- */
-    poolGlow: 1.2,
-    poolVeins: 1, // vein strength in the stain
+    poolGlow: 0.9,
+    poolVeins: 0.7, // vein strength in the stain
     poolGrow: 0.45, // pools spread to full size over (s)
     poolOpacity: 0.92,
     mimicPool: 0.55, // a carrier's pool radius (× zoneRadius)
     colorPoolA: '#efffbc', // white-hot veins
     colorPoolB: '#8fe23b', // pale wet tint
-    colorPoolC: '#2f6416', // body of the stain
+    colorPoolC: '#1d4410', // body of the stain
     colorPoolD: '#0b0611', // deep, almost black violet
 
     /* --- 7 · particles --- */
@@ -155,13 +157,13 @@ export default {
     venomShake: 0.3,
     shakeDecay: 6,
     shakeFrequency: 18,
-    biteFlash: 0.14, // (× explosion intensity)
-    venomFlash: 0.2,
+    biteFlash: 0.1, // (× explosion intensity)
+    venomFlash: 0.1,
     biteLight: 6, // light punch (× explosion intensity)
     venomLight: 8,
-    burstIntensity: 0.8,
+    burstIntensity: 0.6,
     burstLife: 0.5,
-    burstOpacity: 0.55,
+    burstOpacity: 0.32,
     burstReach: 0.55, // venom splash shell (× zoneRadius)
     decalLife: 2.6, // stains and rings stay this long (s)
     stainAmount: 0.85, // how far a carrier's body is stained

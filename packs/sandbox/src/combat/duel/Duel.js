@@ -318,6 +318,14 @@ export class Duel {
     if (this.wizard) {
       this.app.dummies.removeBody(this.wizard);
       this.wizard.root.visible = false;
+      // Off the stage: nothing of it may linger in the combat state (a status
+      // badge floating over the spot it left, a mechanic still owned by it).
+      const m = this.app.combat?.manager;
+      const entity = this.ownerId ? m?.entities.get(this.ownerId) : null;
+      if (entity) {
+        entity.statuses.length = 0;
+        m.setAlive(this.ownerId, false);
+      }
     }
     this._reviveCaster();
     if (!silent) {

@@ -58,6 +58,7 @@ const SERPENT_VERTEX = /* glsl */ `
   uniform float uHoodCup;
   uniform float uHoodFold;
   uniform float uHoodBreath;
+  uniform float uSideWave;
 
   varying float vPart;
   varying vec3  vHood;
@@ -89,7 +90,8 @@ const SERPENT_VERTEX = /* glsl */ `
 
   // The hood, in spine space: (belly offset, s, lateral offset).
   vec3 vmHood(float b, float v, float side) {
-    float w = uHoodSpan * pow(max(sin(3.14159265 * pow(v, 0.8)), 0.0), 0.55);
+    // Broad and flat-topped like a cobra's: widest just above the middle.
+    float w = uHoodSpan * pow(max(sin(3.14159265 * pow(v, 0.68)), 0.0), 0.42);
     float flare = mix(uHoodFold, 1.0, aLife.y) * (1.0 + uHoodBreath * sin(aPose.w * 0.5) * aLife.y);
     float lateral = b * w * flare;
     // Behind the neck, edges wrapping forward round it, ribs corrugating it.
@@ -97,7 +99,7 @@ const SERPENT_VERTEX = /* glsl */ `
     x += 0.007 * sin(b * 3.14159265 * 4.5) * flare;
     float thick = 0.016 * (1.0 - b * b) * sin(3.14159265 * v) + 0.0025;
     x += side * thick * 0.5;
-    return vec3(x, 0.5 + 0.4 * v, lateral);
+    return vec3(x, 0.4 + 0.42 * v, lateral);
   }
 
   void vmVertex() {
@@ -122,7 +124,9 @@ const SERPENT_VERTEX = /* glsl */ `
     vec3 N = vec3(cos(th), -sin(th), 0.0);
     vec2 c = vmCentre(s);
     float L = aSize.x;
-    vmPos = vec3(c.x * L, c.y * L - aSize.y, 0.0) + N * off.x * L + vec3(0.0, 0.0, off.z * L);
+    // A sideways S travelling down the spine, so it weaves even seen from behind.
+    float side = uSideWave * sin(s * 5.0 - aPose.w * 0.8) * smoothstep(0.0, 0.25, s) * (1.0 - 0.5 * s);
+    vmPos = vec3(c.x * L, c.y * L - aSize.y, side * L) + N * off.x * L + vec3(0.0, 0.0, off.z * L);
     vmNormal = normalize(N * n.x + T * n.y + vec3(0.0, 0.0, n.z));
     vPart = aPart;
     vHood = aHood;
@@ -235,6 +239,7 @@ export function createSerpentMaterial() {
     uHoodCup: { value: 0.35 },
     uHoodFold: { value: 0.22 },
     uHoodBreath: { value: 0.12 },
+    uSideWave: { value: 0.07 },
     uRoughness: { value: 0.36 },
     uScaleSize: { value: 28 },
     uBandCount: { value: 11 },
@@ -312,6 +317,7 @@ export function createSerpentMaterial() {
     u.uHoodCup.value = c.hoodCup;
     u.uHoodFold.value = c.hoodFold;
     u.uHoodBreath.value = c.hoodBreath * g.turbulence;
+    u.uSideWave.value = c.sideWave * g.turbulence;
     u.uRoughness.value = c.roughness;
     u.uScaleSize.value = c.scaleSize * g.noiseFrequency;
     u.uBandCount.value = c.bandCount;
@@ -406,7 +412,7 @@ const THREAD_FRAGMENT = /* glsl */ `
     float n = snoise(vec3(vT * 9.0, uTime * 1.3, 0.0)) * 0.5 + 0.5;
     float x = clamp(0.2 + core * 0.45 + bead * 0.55 * uShaderIntensity + n * 0.12, 0.0, 1.0);
     vec3 col = gradient4(uColorD, uColorC, uColorB, uColorA, x);
-    col *= 1.0 + (bead * 2.4 + core * 0.6) * uGlowGain;
+    col *= 0.6 + (bead * 1.5 + core * 0.4) * uGlowGain;
     float a = clamp(0.55 + core * 0.45, 0.0, 1.0) * vBright * uOpacity;
     gl_FragColor = vec4(col, a);
   }
@@ -444,8 +450,8 @@ export function createThreadMaterial() {
     u.uBeads.value = c.threadBeads;
     u.uGlowGain.value = c.threadGlow * g.glow;
     u.uOpacity.value = g.opacity;
-    u.uColorA.value.copy(getColor(c.colorPoolA));
-    u.uColorB.value.copy(getColor(c.colorPoolB));
+    u.uColorA.value.copy(getColor(c.colorDripB));
+    u.uColorB.value.copy(getColor(c.colorScale));
     u.uColorC.value.copy(getColor(c.colorBand));
     u.uColorD.value.copy(getColor(c.colorPoolD));
   };

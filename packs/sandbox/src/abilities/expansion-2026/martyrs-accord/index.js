@@ -1029,7 +1029,7 @@ export class Ability extends BaseAbility {
       _obj.position.copy(_pos);
       const spin = c.shardSpin * (tc + skid * 0.3);
       _obj.rotation.set(dice(i, 3) * TAU + spin, dice(i, 4) * TAU + spin * 0.7, dice(i, 5) * TAU);
-      const size = S * 0.42 * c.shardSize * (0.6 + 0.6 * dice(i, 6)) * (1 - fadeT * fadeT);
+      const size = S * 0.9 * c.shardSize * (0.6 + 0.6 * dice(i, 6)) * (1 - fadeT * fadeT);
       _obj.scale.setScalar(Math.max(0.0001, size));
       _obj.updateMatrix();
       this.shards.setMatrixAt(i, _obj.matrix);

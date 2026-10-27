@@ -97,10 +97,11 @@ test('the serpent is placed so its strike lands on its carrier (derived from the
   for (const radius of [2, 3.2, 5]) {
     C.zoneRadius = radius;
     const base = new Vector3();
-    ability._base(0, base);
+    const facing = ability._base(0, base);
     const L = radius * C.serpentLength;
-    assert.ok(Math.abs(base.x + tip.x * L - 10) < 1e-6, 'tip reaches the host');
-    assert.ok(Math.abs(base.z) < 1e-6);
+    assert.ok(Math.abs(base.x + facing.x * tip.x * L - 10) < 1e-6, 'tip reaches the host');
+    assert.ok(Math.abs(base.z + facing.z * tip.x * L) < 1e-6);
+    assert.ok(Math.abs(Math.hypot(base.x - 10, base.z) - tip.x * L) < 1e-6);
   }
   C.zoneRadius = config.settings.zoneRadius;
   ability.destroy();

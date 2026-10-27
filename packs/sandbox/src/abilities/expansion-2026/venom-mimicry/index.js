@@ -424,6 +424,15 @@ export class Ability extends BaseAbility {
     this._facing.normalize();
   }
 
+  /** Swing a facing off the line it came along, so a strike reads in profile. */
+  _turn(v, sign) {
+    const a = this.config.approachAngle * sign;
+    const x = v.x * Math.cos(a) - v.z * Math.sin(a);
+    v.z = v.x * Math.sin(a) + v.z * Math.cos(a);
+    v.x = x;
+    return v;
+  }
+
   /** The bite: poison on the host, and a copy taken of what it already suffers. */
   _bite() {
     const c = this.config;
@@ -523,8 +532,9 @@ export class Ability extends BaseAbility {
     const L = this._length(i);
     spineTip(c.strikeLean, c.strikeCurl, _tip);
     if (i === 0) {
-      out.copy(this._target).addScaledVector(this._facing, -_tip.x * L);
-      return this._facing;
+      this._turn(_vel.copy(this._facing), 1);
+      out.copy(this._target).addScaledVector(_vel, -_tip.x * L);
+      return _vel;
     }
     const r = this.carriers[i];
     let fx = r.x - r.fromX;
@@ -537,8 +547,9 @@ export class Ability extends BaseAbility {
       fx /= l;
       fz /= l;
     }
-    out.set(r.x - fx * _tip.x * L, 0, r.z - fz * _tip.x * L);
     _vel.set(fx, 0, fz);
+    this._turn(_vel, i % 2 ? -1 : 1);
+    out.set(r.x - _vel.x * _tip.x * L, 0, r.z - _vel.z * _tip.x * L);
     return _vel;
   }
 
@@ -563,8 +574,8 @@ export class Ability extends BaseAbility {
       _at.y = 0.6;
       this.ctx.bursts?.spawn?.(BurstMode.WATER, _at, {
         radius: 0.15, endRadius: c.zoneRadius * c.burstReach * 0.6 * g.explosionIntensity, life: c.burstLife,
-        intensity: c.burstIntensity, opacity: c.burstOpacity * g.opacity, fresnel: 2 * g.fresnel,
-        colorA: getColor(c.colorPoolA), colorB: getColor(c.colorDripB), colorC: getColor(c.colorPoolD),
+        intensity: c.burstIntensity * 0.6, opacity: c.burstOpacity * 0.6 * g.opacity, fresnel: 2 * g.fresnel,
+        colorA: getColor(c.colorDripB), colorB: getColor(c.colorScale), colorC: getColor(c.colorPoolD),
       });
       if (this._scope) {
         const sent = this._scope.emit({
@@ -956,6 +967,8 @@ export function buildEditor(gui, c, Editor) {
   R(form, c, 'swayAmp', 0, 0.6, 0.005, 'sway');
   R(form, c, 'swayRate', 0, 8, 0.05, 'weave speed');
   R(form, c, 'weaveYaw', 0, 1, 0.01, 'side weave (rad)');
+  R(form, c, 'sideWave', 0, 0.3, 0.005, 'side S-ripple');
+  R(form, c, 'approachAngle', -1.5, 1.5, 0.01, 'approach off the line (rad)');
 
   const skin = sub(folder, '3 · Skin');
   color(skin, c, 'colorScale', 'scales');

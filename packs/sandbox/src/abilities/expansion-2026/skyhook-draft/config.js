@@ -59,13 +59,14 @@ export default {
     catchRadius: 1.6, // a body this close to the hook stem is hoisted (m)
 
     /* --- 1 · the skyhook (hero) --- */
-    hookHeight: 4.2, // stem height to the top of the curl (m)
-    hookCurl: 0.42, // curl radius (× lane width) — the tip hangs over the lane
+    hookHeight: 3.0, // stem height to the top of the curl (m)
+    hookCurl: 0.36, // curl radius (× lane width) — with hookYaw the barb hangs over the lane's edge
     hookDrop: 0.7, // the barb drops this far below the curl (m)
-    hookThickness: 0.34, // tube radius at mid-stem (m)
+    hookThickness: 0.5, // tube radius at mid-stem (m)
     hookTaper: 0.45, // tip radius (× thickness)
     hookFlare: 1.1, // the stem flares into the floor this wide (m)
-    hookHoist: 1.4, // the whole hook climbs this far into the sky over the linger (m)
+    hookHoist: 0.6, // the whole hook climbs this far into the sky over the linger (m)
+    hookYaw: 0.8, // the curl's plane is turned off the lane by (rad), so it reads as a crook from behind the caster
     hookSway: 0.35, // the curl swings across the lane (rad)
     hookSwayRate: 1.6, // swing rate (rad/s)
     seedSize: 0.16, // the hook at the hand (× full size)
@@ -74,25 +75,25 @@ export default {
     streamSpeed: 2.6, // streamlines flow up the tube at
     streamCount: 7, // streamlines round the tube
     coreGlow: 2.2, // brightness of the streamline core
-    sheathOpacity: 0.62, // the storm-dust sheath round the core
-    sheathScale: 1.35, // sheath radius (× tube radius)
+    sheathOpacity: 0.85, // the storm-dust sheath round the core
+    sheathScale: 1.45, // sheath radius (× tube radius)
     hookFresnel: 2.2, // rim sharpness
 
     /* --- 2 · the draft (streamline braid) --- */
     ribbonCount: 9, // streamlines in the braid (≤ 12)
-    ribbonWidth: 0.16, // (m)
+    ribbonWidth: 0.2, // (m)
     ribbonHeight: 0.35, // the braid rides this high (m)
     ribbonLayer: 0.55, // the braid's height spread (m)
     ribbonWave: 0.22, // wave amplitude (m)
     ribbonWaveLength: 3.2, // (m)
     ribbonFlow: 6, // dashes flow downstream at (m/s)
-    ribbonDash: 1.4, // dash spacing (m)
+    ribbonDash: 2.4, // dash spacing (m)
     ribbonGlow: 1.6,
     ribbonClimb: 0.75, // how far up the stem the braid climbs (× hook height)
 
     /* --- 3 · the scour (floor) --- */
-    scourGlow: 1.2, // combed streaks
-    scourDark: 0.7, // how dark the scoured groove is
+    scourGlow: 0.55, // combed streaks
+    scourDark: 0.85, // how dark the scoured groove is
     scourStreaks: 1, // streak density
     scourFlow: 1.6, // streaks crawl downstream at (m/s)
     vortexGlow: 1.4, // the swirl at the hook's foot
@@ -100,8 +101,8 @@ export default {
     scourDissolve: 0.85, // fraction of the exit spent dissolving
 
     /* --- 4 · torn plates (solid floor) --- */
-    plateCount: 14, // floor plates torn up round the hook (≤ 18)
-    plateSize: 0.55, // (m)
+    plateCount: 16, // floor plates torn up round the hook (≤ 18)
+    plateSize: 0.85, // (m)
     plateRing: 1.7, // ring radius round the stem (× flare)
     plateHeave: 0.55, // heaved up at the eruption (m)
     plateClimb: 1.6, // then drawn up the draft over the linger (m)

@@ -164,9 +164,10 @@ const HOOK_CORE_FRAGMENT = /* glsl */ `
     float rim = fresnelTerm(vViewDir, vNormalW, uFresnel, 1.0);
     float head = exp(-abs(vS - uGrow) * 55.0) * step(uGrow, 0.995);
     float burn = exp(-abs(vS - uUnravel) * 70.0) * step(0.001, uUnravel);
-    float I = st * (0.45 + 0.9 * n) * uShaderIntensity + rim * 0.7 + head * 2.2 + burn * 1.6;
+    float body = 0.35 + 0.5 * n;
+    float I = (body + st * (0.45 + 0.9 * n)) * uShaderIntensity + rim * 0.7 + head * 2.2 + burn * 1.6;
     vec3 col = gradient4(uCore, uTint, uBody, uDeep, clamp(1.05 - I * 0.75, 0.0, 1.0));
-    float a = (st * 0.65 * (0.4 + n) + rim * 0.55 + head + burn) * uFade;
+    float a = (body * 0.35 + st * 0.65 * (0.4 + n) + rim * 0.55 + head + burn) * uFade;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow * (0.35 + I), clamp(a, 0.0, 1.0));
   }
@@ -382,13 +383,15 @@ const BRAID_FRAGMENT = /* glsl */ `
     if (vAlong > uReach) discard;
     float edge = 1.0 - pow(abs(vAcross * 2.0 - 1.0), 2.0);
     float f = fract((vAlong - uClock * uFlow) / max(0.2, uDash) + vPhase * 3.0);
-    float dash = smoothstep(0.0, 0.2, f) * (1.0 - smoothstep(0.35, 0.85, f));
+    float dash = smoothstep(0.0, 0.3, f) * (1.0 - smoothstep(0.3, 0.95, f));
+    // Feathered in from the caster's feet, so the near ribbons never end in a hard cut.
+    float start = smoothstep(0.0, 2.5, vAlong);
     float head = exp(-(uReach - vAlong) * 2.5) * uTravel;
     float climb = smoothstep(0.75, 1.0, vU);
     float I = (0.22 + dash * 0.95 * uShaderIntensity) * edge + head * 1.8 + climb * 0.3;
     vec2 dm = dissolveMask(snoise01(vec3(vAlong * 0.6, vPhase * 7.0, 1.7)), uDissolve, 0.08);
     vec3 col = gradient4(uCore, uTint, uBody, uDeep, clamp(1.0 - I * 0.8, 0.0, 1.0)) + uTint * dm.y * 2.0;
-    float a = I * edge * dm.x * uFade;
+    float a = I * edge * dm.x * uFade * start;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(a, 0.0, 1.0));
   }
@@ -510,7 +513,7 @@ const SCOUR_FRAGMENT = /* glsl */ `
     float streak = pow(max(0.0, n), 3.0) * mix(1.0, 0.6 + 0.8 * snoise01(vec3(p * 0.7, 3.1)), uNoise);
     // Chevrons pointing at the hook.
     float cf = fract((p.x - uClock * uFlow) / 1.8 + abs(p.y) * 0.5 / max(0.3, uHalf));
-    float chev = smoothstep(0.0, 0.05, cf) * (1.0 - smoothstep(0.08, 0.2, cf)) * 0.55;
+    float chev = smoothstep(0.0, 0.05, cf) * (1.0 - smoothstep(0.08, 0.2, cf)) * 0.18;
     // The vortex torn into the floor at the hook's foot.
     vec2 q = vec2(p.x - uL, p.y);
     float r = length(q);

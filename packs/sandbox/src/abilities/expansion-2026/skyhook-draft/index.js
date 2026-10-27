@@ -765,7 +765,7 @@ export class Ability extends BaseAbility {
       hs.fade = gather;
     } else {
       hoist = c.hookHoist * (Easing.inOutCubic(linger) + fadeT * 0.4);
-      sway = this._calm ? 0 : c.hookSway * Math.sin(clock * c.hookSwayRate) * Math.min(1, linger * 3 + rise * 0.3);
+      sway = c.hookYaw + (this._calm ? 0 : c.hookSway * Math.sin(clock * c.hookSwayRate) * Math.min(1, linger * 3 + rise * 0.3));
       this.hook.position.set(L, hoist, 0);
       this.hook.scale.setScalar(1);
       this.hook.rotation.set(0, sway, 0);
@@ -792,7 +792,7 @@ export class Ability extends BaseAbility {
     bs.clock = clock;
     bs.hoist = hoist;
     bs.climb = c.ribbonClimb * c.hookHeight * Easing.outCubic(rise);
-    bs.fade = this.phase === 'travel' ? gather : 1;
+    bs.fade = this.phase === 'travel' ? (travelling ? 1 : 0) : 1;
     bs.dissolve = smooth(fadeT * 1.1);
     this.braidMat.userData.sync(bs);
 
@@ -945,6 +945,7 @@ export function buildEditor(gui, c, Editor) {
   R(hook, c, 'hookTaper', 0.1, 1.5, 0.01, 'tip taper');
   R(hook, c, 'hookFlare', 0, 3, 0.01, 'foot flare (m)');
   R(hook, c, 'hookHoist', 0, 5, 0.05, 'climbs into the sky (m)');
+  R(hook, c, 'hookYaw', -1.6, 1.6, 0.01, 'curl turned off the lane (rad)');
   R(hook, c, 'hookSway', 0, 1.2, 0.01, 'curl swing (rad)');
   R(hook, c, 'hookSwayRate', 0, 6, 0.05, 'swing rate');
   R(hook, c, 'seedSize', 0.05, 0.6, 0.01, 'hook at the hand (×)');

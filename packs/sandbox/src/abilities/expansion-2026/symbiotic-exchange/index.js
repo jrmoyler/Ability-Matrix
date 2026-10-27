@@ -773,6 +773,13 @@ export class Ability extends BaseAbility {
       this.seed.scale.setScalar(Math.max(0.001, c.seedSize * Easing.outBack(charge)));
       const spin = this._calm ? 0 : this.age * c.seedSpin;
       this.seed.rotation.set(spin * 0.7, spin, Math.PI * 0.35);
+      const hs = this._heartState;
+      hs.clock = this._clock;
+      hs.beat = 0.5 + 0.5 * Math.sin(this.age * 14);
+      hs.fill = 0.15 + 0.6 * charge;
+      hs.convert = 1;
+      hs.dry = 0;
+      this.heartMaterial.userData.sync(hs);
     }
     this.seed.visible = !landed;
 

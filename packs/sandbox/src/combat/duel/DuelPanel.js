@@ -223,7 +223,7 @@ export class DuelPanel {
       this.countOut.textContent = this.count.value;
     });
     this.count.addEventListener('change', () => setTargets(this.app, { count: Number(this.count.value) }));
-    p.append(el('div', {}, this.count, el('span', {}, 'Standing: ', this.countOut)));
+    p.append(el('div', {}, this.count, el('span', {}, 'Count: ', this.countOut)));
 
     p.append(el('h3', { textContent: 'Formation' }));
     const row = el('div', { className: 'duel-row', role: 'group', 'aria-label': 'Formation' });
@@ -254,10 +254,11 @@ export class DuelPanel {
       };
       minus.addEventListener('click', () => step(-1));
       plus.addEventListener('click', () => step(1));
-      grid.append(el('span', { title: a.hint }, a.label, el('small', { textContent: ` — ${a.hint}` })), minus, out, plus);
+      grid.append(el('span', { title: a.hint }, a.label), minus, out, plus);
       this.mixOut[id] = out;
     }
     p.append(grid);
+    p.append(el('p', { textContent: ARCHETYPE_IDS.map((id) => `${ARCHETYPES[id].label}: ${ARCHETYPES[id].hint}`).join(' ') }));
 
     const actions = el('div', { className: 'duel-row' });
     const reform = el('button', { type: 'button', textContent: 'Re-form now (T)' });
@@ -344,6 +345,13 @@ export class DuelPanel {
     const alive = this.app.dummies.aliveCount;
     const targets = `${alive} of ${settings.dummies.count} standing · ${FORMATIONS[settings.dummies.formation]?.label ?? 'Ring'}${settings.dummies.enabled ? '' : ' · hidden'}`;
     if (this.targetsStatus.textContent !== targets) this.targetsStatus.textContent = targets;
+    // The field can change from the bridge or the editor too: follow it.
+    const d = settings.dummies;
+    const signature = `${d.count}|${d.formation}|${ARCHETYPE_IDS.map((id) => d.mix[id]).join(',')}`;
+    if (signature !== this._targetsSignature) {
+      this._targetsSignature = signature;
+      this._refreshTargets();
+    }
 
     const round = duel.round;
     this.hud.classList.toggle('on', !!round);

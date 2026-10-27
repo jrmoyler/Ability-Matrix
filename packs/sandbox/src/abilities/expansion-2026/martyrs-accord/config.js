@@ -69,15 +69,15 @@ export default {
     colorDeep: '#3a0d0b', // oxblood deep
 
     /* --- 1 · the heart (lit reliquary gold) --- */
-    heartScale: 0.42, // heart height (× zoneRadius)
-    heartLift: 0.5, // gap between its tip and the floor (m)
+    heartScale: 0.56, // heart height (× zoneRadius)
+    heartLift: 1.05, // gap between its tip and the floor (m)
     heartSway: 0.28, // slow sway either side of facing the caster (rad)
-    heartColor: '#c98a2e', // gold
+    heartColor: '#e2a447', // gold
     enamelColor: '#4a0f0d', // oxblood enamel in the cleft and the tip
     heartMetalness: 0.92,
-    heartRoughness: 0.3,
-    heartEmissive: '#5a1d08',
-    heartEmissiveGlow: 0.45,
+    heartRoughness: 0.36,
+    heartEmissive: '#8a420e',
+    heartEmissiveGlow: 1.1,
     beatRate: 1.5, // heartbeats per second during the vigil
     beatAmount: 0.06, // scale throb per beat
     crackGlow: 3.2, // light in the crack network
@@ -93,19 +93,19 @@ export default {
     travelSpin: 7, // it turns while flying (rad/s)
 
     /* --- 2 · the aura --- */
-    auraGlow: 1.3,
+    auraGlow: 1.8,
     auraInflate: 0.05, // shell distance from the gold (heart units)
     auraFresnel: 2.4, // rim sharpness
     auraOpacity: 0.75,
 
     /* --- 3 · the swords --- */
     swordCount: 7, // swords shown (bound enemies take the nearest slots)
-    swordReach: 0.44, // blade length (× zoneRadius)
-    swordPitch: 0.55, // hilts raised above the heart (rad)
-    swordWidth: 1.6, // blade breadth (×)
+    swordReach: 0.72, // blade length (× zoneRadius)
+    swordPitch: 0.42, // hilts raised above the heart (rad)
+    swordWidth: 2.3, // blade breadth (×)
     plungeReach: 0.5, // drawn back before the thrust (× zoneRadius)
     tipDepth: 0.1, // points buried in the heart (× heart size)
-    bladeGlow: 2.2,
+    bladeGlow: 3.4,
     bladeOpacity: 0.95,
     boundBoost: 1.5, // swords of bound enemies burn brighter (×)
     hiltColor: '#8f5f1f',
@@ -191,12 +191,12 @@ export default {
     crackDecal: 1.1, // CRACK decal radius (× zoneRadius)
     scorchDecal: 0.8, // SCORCH decal radius (× zoneRadius)
     shockwaveWidth: 0.08,
-    burstReach: 1.1, // sacrifice shell grows to (× zoneRadius)
+    burstReach: 0.85, // sacrifice shell grows to (× zoneRadius)
     burstLife: 0.6,
     burstIntensity: 1,
-    burstOpacity: 0.55,
+    burstOpacity: 0.28,
     burstFresnel: 2.2,
-    burstSquash: 0.55,
+    burstSquash: 0.4,
     colorBurstA: '#fffbe9',
     colorBurstB: '#ffcf6a',
     colorBurstC: '#7a2414',
