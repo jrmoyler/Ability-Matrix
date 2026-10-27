@@ -301,6 +301,9 @@ export function createShardGeometry() {
     p.setZ(i, p.getZ(i) - (x * x + y * y) * 1.6);
   }
   g.computeVertexNormals();
+  // The gold material reads these; a shard has neither belt nor cleft.
+  g.setAttribute('aBelt', new Float32BufferAttribute(new Float32Array(p.count), 1));
+  g.setAttribute('aCleft', new Float32BufferAttribute(new Float32Array(p.count), 1));
   return g;
 }
 

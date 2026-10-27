@@ -113,7 +113,7 @@ const PLUME_VERTEX = /* glsl */ `
     // Swells toward the head, bulges at the running front.
     float r = mix(uMouthR, uHeadR, pow(s, 0.6));
     float front = exp(-pow((s - uHead) / 0.07, 2.0));
-    r *= 1.0 + 0.55 * front;
+    r *= 1.0 + 0.3 * front;
     r *= 1.0 + 0.28 * snoise(vec3(s * 9.0 - uClock * 1.7, cos(th) * 1.3, sin(th) * 1.3)) * uNoise;
     // A coil: the centre line corkscrews round the straight path.
     float coil = s * uTwist * 6.2831853 - uClock * 5.0;
@@ -425,11 +425,13 @@ const ICE_FRAGMENT = /* glsl */ `
     float cloud = fbm3(vLocal * vec3(4.0, 2.4, 4.0) * uScale + r * 0.6 + seed * 9.0) * 0.5 + 0.5;
     float veins = pow(1.0 - abs(snoise(vLocal * 6.0 * uScale + seed * 3.0)), 8.0);
 
-    vec3 body = mix(uIceDeep, uIce, 0.3 + 0.7 * wrap);
-    vec3 col = body * (0.32 + 0.68 * wrap) + uIceDeep * 0.35 * sky;
-    col += uIce * cloud * 0.35 * uGlow + uRim * veins * 0.25 * uGlow;
-    col += uRim * fres * 0.9;
-    col += vec3(1.0) * glint;
+    // Facets facing away from the eye fall into the deep: the cut reads.
+    float facing = clamp(dot(N, V), 0.0, 1.0);
+    vec3 body = mix(uIceDeep, uIce, wrap * (0.45 + 0.55 * facing));
+    vec3 col = body * (0.22 + 0.55 * wrap) + uIceDeep * 0.25 * sky;
+    col += mix(uIceDeep, uIce, cloud) * cloud * 0.3 * uGlow + uRim * veins * 0.18 * uGlow;
+    col += mix(uIce, uRim, 0.5) * fres * 0.45;
+    col += uRim * glint;
 
     // The seat flash: a plate locking on rings white, then cools.
     col += uCore * vState.y * 1.6 * uShaderIntensity;

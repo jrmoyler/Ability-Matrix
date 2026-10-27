@@ -22,7 +22,12 @@ A slick of black water races to the circle, the flagstones give way into a teal 
 6. **World** — light #2ed6c8 (14, r 16) sitting 0.9 m up *in* the water; per-slam shake; tear and finale flashes.
 
 ## What the capture shows
-_(see the dense pass below; filled from `docs/castables/sheets/linear-ext__kraken-sheet.jpg`)_
+Standard sheet: `sheets/linear-ext__kraken-sheet.jpg` (f8/20/40/70); dense pass f4–f90 read alongside it.
+- **f4–f10 (0.13–0.33 s)** — the surge: pale foam-splash patches (wet slick) step from the caster to the site; at f10 the rift is already a teal disc with glowing spiral and concentric rings, glyph ring visible.
+- **f16–f24 (0.53–0.80 s)** — the tear: a white-crested shockwave ring and a crown of spray on the boundary; the first crimson arms are coming up near-vertical, nearest-side first, a pale coiled tip still opening.
+- **f34–f48 (1.1–1.6 s)** — the full ring stands: 9 glossy crimson-to-pink arms (wet white highlights, rows of pale suckers visible) leaning out over the floor, thin whips between them; the maelstrom turns on the floor.
+- **f64 (2.1 s)** — the hammering: several arms arched *inward* in clean arcs with their points on the centre, one flooded pale teal (`strikeFlash` on landing), others rearing behind — the silhouette is different from every other frame.
+- **f90 (3.0 s)** — another phase of the rolling wave: front arm planted dead centre, side arms cocked high, spray mist rising off the rift. Exactly the "never the same twice" read the class comment promises, at a full ~9 m footprint that fills the frame at 8 m.
 
 ## Signature
 **Identity in motion**: nothing is ever still — the arms rear, whip, press and peel on their own clocks, and the silhouette is different on every frame until one synchronised slam ends it.

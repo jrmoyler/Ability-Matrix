@@ -21,7 +21,7 @@ in the circle and leaving a sun-print burned into the floor.
 
 ## Layers
 1. Figure — lofted hooded/robed body (18 profile rings × 56 segments, drapery folds) + two swept tapered arm tubes, `geometry.js#createFigureGeometry`; `createFigureMaterial` (vertex: arm lift round the shoulder, breath, hem ripple, sway, overexposure swell; fragment: inward bands, umbra, prismatic fresnel rim, white-out, upward burn dissolve), normal-blended so the dark core occludes; 3.0 m × ~1.0 m span; full ramp.
-2. Halo and shards — 36 instanced faceted crystal spindles (`createShardGeometry`), `MeshStandardMaterial` lit, shadow-casting on the world layer; 0.2–0.4 m; tint body, gold emissive cooling.
+2. Halo and shards — 36 instanced faceted crystal spindles (`createShardGeometry`), `MeshStandardMaterial` lit, shadow-casting on the world layer; 0.3–0.6 m; tint body, gold emissive cooling.
 3. Streamers — 10 spiral ribbons (`createStreamerGeometry`), additive `createStreamerMaterial`, scaled to (lureRadius, figure height); 0.12 m tall; core → body.
 4. Tethers — up to 8 arcs from exposed enemies to the heart, bent in the vertex shader (`createTetherMaterial`); 0.16 m wide; core → body.
 5. Floor — `createFieldMaterial` on a 10.6 m disc: strike circle, dashed lure ring, inward-running ray comb, umbra, white front, cooling sun-print, dissolve; normal-blended (it darkens the floor).

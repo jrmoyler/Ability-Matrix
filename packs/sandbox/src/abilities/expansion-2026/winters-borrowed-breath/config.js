@@ -47,7 +47,7 @@ export default {
     inhaleTime: 1.35, // the cyclone decelerates to a stop over (s, × lifetime) — the armour is minted over this
     holdTime: 0.5, // the complete carapace stands this long before it is given back (s, × lifetime)
     exitTime: 0.9, // the armour bursts, falls and dissolves over (s, × lifetime)
-    breathArmor: 0.62, // share of the plates the cyclone's own spin pays for (0..1)
+    breathArmor: 0.8, // share of the plates the cyclone's own spin pays for (0..1)
     velocityPerPlate: 1.4, // m/s of speed stolen from bodies that mints one more plate
     brake: 0.14, // fraction of a held body's velocity winter takes per 1/60 s
     holdHeight: 1.05, // held bodies are drawn to hang at (m)
@@ -74,11 +74,11 @@ export default {
 
     /* --- 1 · the plume (travel) --- */
     plumeMouth: 0.14, // radius at the caster's hand (m)
-    plumeHead: 0.62, // radius at the head of the breath (m)
+    plumeHead: 0.42, // radius at the head of the breath (m)
     plumeHeight: 1.45, // the breath leaves the hand at (m)
     plumeTwist: 3.2, // turns of the coil along the plume
-    plumeGlow: 1.5,
-    plumeOpacity: 0.8,
+    plumeGlow: 0.95,
+    plumeOpacity: 0.7,
     plumeSwallow: 0.45, // after the gust lands its tail is drawn in over (s)
 
     /* --- 2 · the cyclone --- */
@@ -100,12 +100,12 @@ export default {
     plateThickness: 0.11, // (m)
     plateFlight: 0.42, // a plate flies from the cyclone to its seat in (s)
     plateBreathe: 0.04, // the seated armour breathes by (× size) while it holds
-    plateGlow: 0.7, // inner frost light
+    plateGlow: 0.5, // inner frost light
     plateFresnel: 2.2, // rim power
     plateSpecular: 1.4, // sun glint
     crackGlow: 2.6, // cracks spreading over the plates before the return
     plateDissolve: 0.65, // fraction of the exit spent dissolving
-    plateColor: '#78c3ee', // ice body
+    plateColor: '#5aaee6', // ice body
     plateDeep: '#0e3166', // ice depth
     plateRim: '#e8f9ff', // rim and glints
 

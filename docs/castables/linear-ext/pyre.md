@@ -21,7 +21,12 @@ A line of fire runs to the circle, the ground inside splits into a molten crater
 6. **Floor & world** — scorch (#140b08, ember #ff7a22) under the path, around the boundary (3/s) and collared round each blade's foot; molten fracture star; shockwave + heat rings; light #ff7a26 (deliberately low: 4, r 17, at 45 % of the crown's height); shake, flash.
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-ext__pyre-sheet.jpg`)_
+Standard sheet: `sheets/linear-ext__pyre-sheet.jpg`; dense pass f4–f90.
+- **f4 (0.13 s)** — the fire line: a carpet of glowing red-orange ember scorch along the path, already reaching the site.
+- **f10 (0.33 s)** — the catch: an orange shockwave ring and molten spokes on the floor, a warm flash tinting the whole frame.
+- **f16–f24 (0.53–0.80 s)** — the bloom: blades erupting white-hot (the combustion front) round the circle, near side first, a pale shockwave ring 8 m across.
+- **f34–f90 (1.1–3.0 s)** — the blaze: a ring of hooked, opaque blades 1–2.5 m tall, white tips over orange bodies with dark red voids, leaning in and crossing; embers in the air; the inside floor shows a faint concentric glow. Silhouette is stable through the hold (the tongues crawl, a few late blades catch); the burn-out begins after 4.7 s, outside this window.
+- Honest read: at 8 m the blades read as **faceted fire-crystal** more than as soft flame — the flame field shows as colour bands on facets. The crater and the flame wall between blades are subtle compared with the blades, and the heat haze is off by default.
 
 ## Signature
 **Fire in the shape of a blade**: the same crown silhouette as the Glacial Crown, told apart entirely by material and by how it *ends* — consumed tip-first into ash, not shattered.
