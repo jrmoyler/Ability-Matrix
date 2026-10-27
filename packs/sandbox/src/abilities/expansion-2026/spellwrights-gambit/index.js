@@ -171,11 +171,13 @@ export class Ability extends BaseAbility {
   /* ------------------------------------------------------------------ */
 
   get impactDuration() {
-    return Math.max(1.5, this.config.beatInterval * 2 + 0.5);
+    // Both beats, then the linger. Hits land only on the beats, so the
+    // linger length is presentation only.
+    return Math.max(1.5, this.config.beatInterval * 2 + Math.max(0.2, this.config.lingerTime ?? 0.5));
   }
 
   get fadeDuration() {
-    return 0.7;
+    return Math.max(0.1, this.config.exitTime ?? 0.7);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1112,6 +1114,8 @@ export function buildEditor(gui, c, Editor) {
   R(cast, c, 'speed', 4, 80, 0.5, 'armillary flies at (m/s)');
   R(cast, c, 'lifetime', 0.2, 8, 0.05, 'nominal lifetime (s)');
   R(cast, c, 'cooldown', 0, 15, 0.05, 'cooldown');
+  R(cast, c, 'lingerTime', 0.2, 4, 0.05, 'linger after 2nd beat (s)');
+  R(cast, c, 'exitTime', 0.1, 3, 0.05, 'exit (s)');
   castAnim(cast, c);
   const flight = sub(cast, 'Flight');
   R(flight, c, 'travelScale', 0.1, 1.5, 0.01, 'size in flight (× rest)');

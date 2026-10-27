@@ -106,7 +106,7 @@ export default {
     webGrowSpan: 0.35, // how long one thread takes to cross (× hold)
     webTipHeat: 2.2, // white-hot growing tip
     webPulse: 1.6, // pulses running along finished threads
-    knotSize: 0.13, // knot radius (× radius)
+    knotSize: 0.08, // knot radius (× radius)
     knotGlow: 2.6,
 
     /* --- 5 · the new rock --- */
@@ -119,7 +119,7 @@ export default {
     rockColor: '#2a2140',
     rockRoughness: 0.55,
     rockMetalness: 0.35,
-    rockVeinGlow: 1.2, // violet glow in the plates' seams
+    rockVeinGlow: 0.45, // violet glow in the plates' seams
 
     /* --- 6 · the floor --- */
     floorRadius: 1.3, // stripped floor reaches (× zoneRadius)
@@ -137,7 +137,7 @@ export default {
     dustCount: 70, // dust thrown out of the pocket at the birth
     dustSize: 0.55,
     dustLife: 1.2,
-    dustSpeed: 7,
+    dustSpeed: 4,
     moteRate: 40, // newborn star motes rising inside the pocket (per second)
     moteSize: 0.09,
     moteLife: 1.4,

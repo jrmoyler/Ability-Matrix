@@ -31,6 +31,8 @@ export default {
     castAnim: 'cast2',
     zoneRadius: 4, // reach of both shapes (m) — the hit radius
     lifetime: 2.4, // nominal cast length, for the HUD (the beats set the real timing)
+    lingerTime: 0.9, // seconds the last shape stays planted after the second beat (presentation only)
+    exitTime: 0.8, // seconds the exit takes (blades pulled, armillary lifts, sigil dissolves)
 
     /* --- the gambit (gameplay) --- */
     firstShape: 'ring', // 'ring' | 'line' | 'burst'
@@ -58,7 +60,7 @@ export default {
     beamColor: '#ffffff', // the beam's hot foot
 
     /* --- 1 · the sigil (floor) --- */
-    fieldGlow: 1.8, // ink disc brightness
+    fieldGlow: 1.3, // ink disc brightness
     inkBleed: 1, // how much the brushed ink wanders (fbm)
     inkWash: 0.22, // ink wash that deepens as a beat charges
     etchGlow: 1, // linework brightness
@@ -97,15 +99,15 @@ export default {
     coreEmissive: '#5743ab',
     coreMetalness: 0.65,
     coreRoughness: 0.28,
-    bandGlow: 1.4, // armillary band brightness
+    bandGlow: 0.75, // armillary band brightness
     bandRunes: 24, // rune cells round each band
     bladeCount: 8, // orbiting runic blades (≤ 8)
-    bladeSize: 2, // blade scale (1 = 0.64 m long)
+    bladeSize: 2.6, // blade scale (1 = 0.64 m long)
     bladeRadius: 1.12, // blade orbit radius (× armillary radius)
     bladeSpread: 0.1, // the orbit widens this much per released beat (m)
     bladeCinch: 0.3, // the orbit tightens this much as a beat comes due (m)
     bladeBob: 0.18, // vertical bob of the blades (m)
-    bladeGlow: 1.4, // blade rune emissive when driven into the floor
+    bladeGlow: 0.55, // blade rune emissive when driven into the floor
     /* the blades ARE the release: they dive out of orbit and are driven into
        the floor in the shape that strikes, landing on the beat frame */
     bladeDive: 0.2, // seconds a blade takes to dive from the orbit to the floor
@@ -126,7 +128,7 @@ export default {
     colorChipB: '#8b7fd6',
     colorChipC: '#3b2f6e',
     colorChipD: '#120a2a',
-    ringGlow: 1, // floor ring brightness (× band glow)
+    ringGlow: 0.5, // floor ring brightness (× band glow)
 
     /* --- 4 · the release --- */
     releaseLife: 0.5, // each flare lasts (s)

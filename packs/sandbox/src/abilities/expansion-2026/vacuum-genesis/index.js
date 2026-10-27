@@ -320,6 +320,7 @@ export class Ability extends BaseAbility {
     this.failure = null;
     this._born = false;
     this._ruptured = false;
+    this._gathered = false;
     this._clock = 0;
     this._calm = prefersReducedMotion();
     this._heldCount = 0;
@@ -381,6 +382,7 @@ export class Ability extends BaseAbility {
       this._rupture();
     }
     if (this.phase === 'impact') {
+      if (!this._gathered && this.stagedTime >= 0.15) this._gather();
       this._carryHeld(dt);
       this._emitLinger(dt);
     }
@@ -498,11 +500,29 @@ export class Ability extends BaseAbility {
       const out = Math.min(24, c.hitImpulse * power);
       dummy.shove?.(_dir.x * out, Math.min(20, c.hitLift * power), _dir.z * out);
       dummy.release?.();
-      this._ruptureHits++;
+      if (!this._heldIdCount) this._ruptureHits++;
       this._held[i] = null;
     }
     this._heldCount = 0;
     this._ruptureFX();
+  }
+
+  /**
+   * With UCSM combat live the knockdown is the combat host's; once it has
+   * landed, the pocket takes hold of the bodies it felled so they float the
+   * same way they do on the dummy path. Presentation only: no extra hits.
+   */
+  _gather() {
+    this._gathered = true;
+    if (this._route() !== 'combat' || !this._heldIdCount || !this.ctx.dummies?.findBodies) return;
+    const R = this.config.zoneRadius;
+    const limit = Math.min(this._limit(), this._heldIdCount);
+    const found = this.ctx.dummies.findBodies(this.position.x, this.position.z, R, this._found);
+    for (const dummy of found) {
+      if (this._heldCount >= limit) break;
+      if (dummy.alive || typeof dummy.carry !== 'function') continue;
+      this._held[this._heldCount++] = dummy;
+    }
   }
 
   /** The pocket's flow: drift up to `floatHeight`, turn round the middle, stay inside. */

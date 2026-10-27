@@ -68,7 +68,6 @@ export default {
     hookShare: 0.05, // length of the hook (fraction of the band)
     bandWave: 0.06, // the band ripples in height as it lashes (× height)
     steelColor: '#2b4f86', // blued steel
-    steelDeep: '#0a1230', // the inner, unstressed coils
     steelMetalness: 0.9,
     steelRoughness: 0.28,
     steelEmissive: '#0d3a70',

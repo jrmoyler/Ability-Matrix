@@ -331,7 +331,7 @@ const SKIN_FRAGMENT = /* glsl */ `
 
     // Thin film: a noisy thickness drifts over the skin; the interference
     // colour slides between film and body as thickness and angle change.
-    float thick = fbm3(vec3(vLocal * uFilmScale * uNoiseScale, uClock * 0.12)) * uNoiseAmt;
+    float thick = fbm3(vLocal * uFilmScale * uNoiseScale + vec3(0.0, uClock * 0.12, 0.0)) * uNoiseAmt;
     float phase = thick * 9.0 + ndv * 5.0 + uClock * 0.4;
     float band = 0.5 + 0.5 * cos(phase);
     float band2 = 0.5 + 0.5 * cos(phase * 1.63 + 2.1);
@@ -347,7 +347,7 @@ const SKIN_FRAGMENT = /* glsl */ `
     float crack = (1.0 - smoothstep(0.0, 0.06 + 0.06 * uCrack, e)) * uCrack;
 
     // Crown-down noise dissolve with a burning edge.
-    float dn = mix(snoise01(vec3(vLocal * 3.1, 1.7)), 1.0 - vUv.y, 0.55);
+    float dn = mix(snoise01(vLocal * 3.1 + vec3(1.7)), 1.0 - vUv.y, 0.55);
     float keep = smoothstep(uDissolve - 0.004, uDissolve + 0.004, dn);
     float burn = (1.0 - smoothstep(uDissolve, uDissolve + uEdge, dn)) * keep * step(0.001, uDissolve);
 
@@ -440,7 +440,7 @@ const VOID_FRAGMENT = /* glsl */ `
     vec3 N = normalize(vNormalW);
     vec3 V = normalize(vViewDir);
     float ndv = abs(dot(N, V));
-    float dn = mix(snoise01(vec3(vLocal * 3.1, 1.7)), 1.0 - vUv.y, 0.55);
+    float dn = mix(snoise01(vLocal * 3.1 + vec3(1.7)), 1.0 - vUv.y, 0.55);
     if (dn < uDissolve) discard;
 
     // The sky behind the pocket, as seen through it: stars on a sphere of
@@ -456,7 +456,7 @@ const VOID_FRAGMENT = /* glsl */ `
     float born = step(h, uBirth * 0.55);
     float twinkle = 0.6 + 0.4 * sin(uClock * (2.0 + 5.0 * h) + h * 40.0);
     float star = exp(-d * d * 260.0) * born * twinkle * uStars;
-    float neb = fbm3(vec3(dir * 2.4, uClock * 0.05));
+    float neb = fbm3(dir * 2.4 + vec3(uClock * 0.05));
     neb = smoothstep(0.45, 0.85, neb) * uNebula;
 
     float lipFade = smoothstep(0.0, 0.2, vUv.y);
@@ -696,6 +696,7 @@ const FLOOR_FRAGMENT = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   ${noiseGLSL}
+  ${commonGLSL}
   ${CRACK_GLSL}
   void main() {
     vec2 p = (vUv - 0.5) * 2.0 * uReach;   // in pocket radii
