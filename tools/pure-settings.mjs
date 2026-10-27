@@ -295,10 +295,9 @@ export function settingsFor(spell) {
     groundGlow: 1.4,
     groundLife: 4.5,
     groundOpacity: 1,
-    groundLand: zone ? 0.32 : 0.2,
     groundHeat: p.solid ? 1.1 : 1.5,
     groundCoat: GROUND_COAT[spell.element],
-    ...(zone ? { groundTelegraph: 0.32 } : {}),
+    ...(zone ? { groundLand: 0.32, groundTelegraph: 0.32 } : {}),
     groundStain: 0.9,
     groundStainReach: zone ? 1.05 : 0.9,
     colorGroundA: body,
@@ -474,7 +473,7 @@ const GROUPS = [
 ];
 
 /** Keys only some casts have: zone/line framing, and the PBR of solid elements. */
-const OPTIONAL = new Set(['groundTelegraph', 'heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'detailRough', 'detailMetal', 'detailShadow']);
+const OPTIONAL = new Set(['groundLand', 'groundTelegraph', 'heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'detailRough', 'detailMetal', 'detailShadow']);
 
 const NOTE = {
   range: 'maximum cast distance, metres',

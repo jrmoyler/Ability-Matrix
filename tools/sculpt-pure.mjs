@@ -1486,23 +1486,28 @@ export class ${cls}Ability extends Ability {
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
    * and a line lays its strip behind the head; on the beat the field lands out
-   * to the rim over \`groundLand\` seconds, hot; it cools through the fade and
+   * to the rim over \`groundLand\` seconds (a line's strip is already down), hot; it cools through the fade and
    * breaks up over its last stretch. The residue decal outlives it.
    */
   _groundPose(committed, fadeT) {
     const c = settings[ID];
     const st = this._state;
-    if (!committed) {
-      st.land = ZONE ? 0 : 1;
-      st.pre = ZONE ? c.groundTelegraph * saturate(this.u * 1.4) : 0;
-      st.heat = ZONE ? 0 : 0.85;
+    if (!committed) {${zone ? `
+      st.land = 0;
+      st.pre = c.groundTelegraph * saturate(this.u * 1.4);
+      st.heat = 0;` : `
+      st.land = 1;
+      st.pre = 0;
+      st.heat = 0.85;`}
       st.erode = 0;
       return;
-    }
+    }${zone ? `
     const since = fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
     const landed = saturate(since / Math.max(0.05, c.groundLand));
-    st.land = ZONE ? 1.25 * Easing.outCubic(landed) : 1;
-    st.pre = ZONE ? c.groundTelegraph * (1 - landed) : 0;
+    st.land = 1.25 * Easing.outCubic(landed);
+    st.pre = c.groundTelegraph * (1 - landed);` : `
+    st.land = 1;
+    st.pre = 0;`}
     st.heat = fadeT < 1 ? 1 - 0.3 * fadeT : 0.7 * (1 - saturate((fadeT - 1) * 1.5));
     st.erode = fadeT < 1 ? 0 : saturate((fadeT - 1.4) / 0.6);
   }
@@ -2073,10 +2078,9 @@ export function buildEditor(gui, c, Editor) {
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
   R(floor, c, 'groundLife', 0.1, 12, 0.05, 'residue life (s)');
   R(floor, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
-  R(floor, c, 'groundLand', 0.05, 2, 0.01, 'lands in (s)');
   R(floor, c, 'groundHeat', 0, 4, 0.05, 'heat');
   R(floor, c, 'groundCoat', 0, 1, 0.01, 'stain .. coat');
-  ${zone ? "R(floor, c, 'groundTelegraph', 0, 1, 0.01, 'footprint before the beat');" : ''}
+  ${zone ? "R(floor, c, 'groundLand', 0.05, 2, 0.01, 'lands in (s)');\n  R(floor, c, 'groundTelegraph', 0, 1, 0.01, 'footprint before the beat');" : ''}
   R(floor, c, 'groundStain', 0, 1.5, 0.01, 'residue');
   R(floor, c, 'groundStainReach', 0.1, 2, 0.01, 'residue reach');
   floor.addColor(c, 'colorGroundA').name('ground');

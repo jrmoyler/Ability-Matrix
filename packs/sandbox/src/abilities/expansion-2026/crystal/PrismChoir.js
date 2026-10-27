@@ -824,8 +824,8 @@ export class PrismChoirAbility extends Ability {
       lf.armLength = travel;
 
       // The choir breaks the floor as the shards arrive.
-      const grow = saturate((t - c.spireStart) / Math.max(0.02, c.spireGrow));
-      this._updateChoir(dt, grow, 0, 1);
+      const rising = saturate((t - c.spireStart) / Math.max(0.02, c.spireGrow));
+      this._updateChoir(dt, rising, 0, 1);
 
       // The lens leaves the lance and becomes the split's pressure ring.
       const ls = this._lensState;

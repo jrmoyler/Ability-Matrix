@@ -1,5 +1,6 @@
-import { AdditiveBlending, Color, DoubleSide, AddEquation, CustomBlending, OneMinusSrcAlphaFactor, SrcAlphaFactor, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, AddEquation, CustomBlending, MeshDepthMaterial, OneFactor, OneMinusSrcAlphaFactor, RGBADepthPacking, SrcAlphaFactor, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
+import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
 import { settings } from '../../../config/settings.js';
 import { getColor } from '../../../utils/color.js';
@@ -171,6 +172,26 @@ export function createHousingMaterial(role = 'housing') {
     vertexShader: HOUSING_VERTEX,
     fragmentShader: HOUSING_FRAGMENT,
   });
+
+  // Shadow caster with the same fabrication front (without the noise jag),
+  // so the unbuilt part never throws a shadow. The mesh is on LAYER.SHAPED,
+  // which the sun's shadow camera renders with `customDepthMaterial`.
+  const depth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking, side: DoubleSide });
+  depth.onBeforeCompile = (shader) => {
+    for (const key of ['uBuild', 'uBaseY', 'uBuildHeight', 'uEdge', 'uBuildNoise']) shader.uniforms[key] = material.uniforms[key];
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vFabY;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvFabY = (modelMatrix * vec4(transformed, 1.0)).y;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFabY;\nuniform float uBuild;\nuniform float uBaseY;\nuniform float uBuildHeight;\nuniform float uEdge;\nuniform float uBuildNoise;')
+      .replace('#include <clipping_planes_fragment>', [
+        '#include <clipping_planes_fragment>',
+        'float fabH = (vFabY - uBaseY) / max(uBuildHeight, 1e-3);',
+        'if (uBuild * (1.0 + 2.0 * uBuildNoise + uEdge) - uBuildNoise - 0.001 < fabH) discard;',
+      ].join('\n'));
+  };
+  depth.customProgramCacheKey = () => 'adaptive-fabricator-housing-depth';
+  material.userData.depth = depth;
 
   /** @param {{build:number, baseY:number, height:number, flare:number}} s */
   material.userData.sync = (s) => {
@@ -350,9 +371,12 @@ const BEAM_FRAGMENT = /* glsl */ `
   uniform float uGlow;
   uniform float uNoise;
   uniform vec3  uColor;
+  uniform vec3  uBody;
+  uniform vec3  uDeep;
   varying vec2 vUv;
 
   ${noiseGLSL}
+  ${commonGLSL}
 
   void main() {
     float across = abs(vUv.x * 2.0 - 1.0);
@@ -363,7 +387,9 @@ const BEAM_FRAGMENT = /* glsl */ `
     float ends = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.9, 1.0, vUv.y));
     float alpha = (core + halo * mix(1.0, 0.3 + 1.4 * flow, uNoise)) * ends * uFade;
     if (alpha < 0.003) discard;
-    vec3 color = mix(uColor, vec3(1.0), core * 0.65) * uGlow * uGlobalGlow;
+    // Four-stop ramp across the bolt: white core → counter tint → body → deep.
+    vec3 ramp = gradient4(vec3(1.0), uColor, uBody, uDeep, across * 1.15 - flow * 0.15);
+    vec3 color = ramp * uGlow * uGlobalGlow * (0.55 + 0.45 * core);
     gl_FragColor = vec4(color, alpha);
   }
 `;
@@ -380,6 +406,8 @@ export function createBeamMaterial() {
       uGlow: { value: 2.6 },
       uNoise: { value: 1 },
       uColor: { value: new Color('#d6ffff') },
+      uBody: { value: new Color('#3ab5ec') },
+      uDeep: { value: new Color('#04121c') },
     }),
     vertexShader: UV_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
@@ -393,6 +421,8 @@ export function createBeamMaterial() {
     u.uGlow.value = c.beamGlow * g.glow;
     u.uNoise.value = c.beamNoise * g.noiseStrength;
     u.uColor.value.copy(getColor(s.color));
+    u.uBody.value.copy(getColor(c.colorSparkC));
+    u.uDeep.value.copy(getColor(c.deepColor));
   };
   return material;
 }
@@ -588,6 +618,111 @@ export function createWarpMaterial() {
     u.uStrength.value = s.strength * g.distortion;
     u.uScale.value = c.warpScale * g.noiseFrequency;
     u.uSpeed.value = c.warpSpeed * g.noiseSpeed;
+  };
+  return material;
+}
+
+/* ==================================================================== */
+/* The pad — the deep tone the sentry stands on                           */
+/* ==================================================================== */
+
+const PAD_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uFade;
+  uniform float uBuild;        // 0..1 assembled: the pad is laid as the sentry is cut
+  uniform float uHeat;         // deploy / shot heat in the seams, 0..1+
+  uniform float uPad;          // pad radius as a fraction of the disc
+  uniform float uDark;
+  uniform float uScorch;       // darkening past the pad, out to the rim
+  uniform float uRadius;
+  uniform float uSeams;
+  uniform float uSeamGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uHot;
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  float hexEdge(vec2 p) {
+    vec2 r = vec2(1.0, 1.7320508);
+    vec2 h = r * 0.5;
+    vec2 a = mod(p, r) - h;
+    vec2 b = mod(p - h, r) - h;
+    vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+    gv = abs(gv);
+    return 0.5 - max(dot(gv, normalize(vec2(1.0, 1.7320508))), gv.x);
+  }
+
+  void main() {
+    vec2 q = vUv * 2.0 - 1.0;
+    float r = length(q);
+    if (r > 1.0) discard;
+    float n = fbm3(vec3(q * 3.0, 0.7));
+    // The pad is laid outward from the sentry's foot as it is fabricated.
+    float laid = 1.0 - smoothstep(uPad * uBuild - 0.04, uPad * uBuild + 0.02, r + (n - 0.5) * 0.05);
+    float scorch = (1.0 - smoothstep(uPad, 1.0, r + (n - 0.5) * 0.2)) * uScorch * uBuild;
+    float a = max(laid * uDark * (0.85 + 0.15 * n), scorch);
+    // Plate seams in the laid pad, hot on deploy and on every shot.
+    float edge = hexEdge(q * uRadius * uSeams * 0.9);
+    float seam = (1.0 - smoothstep(0.0, 0.05, edge)) * laid;
+    float ring = exp(-abs(r - uPad * uBuild) * 60.0) * step(0.01, uBuild);
+    vec3 glow = gradient4(uHot, uBody, uDeep * 3.0, uDeep, 1.0 - clamp(uHeat, 0.0, 1.0)) * (seam * (0.25 + uHeat) + ring * 0.6) * uSeamGlow;
+    a = clamp(a * uFade, 0.0, 0.95);
+    if (a < 0.003 && dot(glow, glow) < 1e-6) discard;
+    // Premultiplied: darken with alpha, add the seams' light on top.
+    gl_FragColor = vec4(uDeep * a + glow * uFade * uGlobalGlow, a);
+  }
+`;
+
+/** Normal-blended (premultiplied) deep-tone pad with hot seams. */
+export function createPadMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor, // colour is premultiplied
+    blendDst: OneMinusSrcAlphaFactor,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uFade: { value: 1 },
+      uBuild: { value: 0 },
+      uHeat: { value: 0 },
+      uPad: { value: 0.4 },
+      uDark: { value: 0.7 },
+      uScorch: { value: 0.4 },
+      uRadius: { value: 6 },
+      uSeams: { value: 1 },
+      uSeamGlow: { value: 1.5 },
+      uDeep: { value: new Color('#04121c') },
+      uBody: { value: new Color('#3ab5ec') },
+      uHot: { value: new Color('#ffffff') },
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: PAD_FRAGMENT,
+  });
+  /** @param {{fade:number, build:number, heat:number}} s */
+  material.userData.sync = (s) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uFade.value = s.fade * g.opacity;
+    u.uBuild.value = s.build;
+    u.uHeat.value = s.heat;
+    u.uPad.value = Math.min(1, Math.max(0.02, c.padReach));
+    u.uDark.value = c.padDarkness;
+    u.uScorch.value = c.padScorch;
+    u.uRadius.value = c.zoneRadius;
+    u.uSeams.value = c.padSeams * c.gridScale * g.noiseFrequency * 0.5;
+    u.uSeamGlow.value = c.padSeamGlow * g.glow;
+    u.uDeep.value.copy(getColor(c.deepColor));
+    u.uBody.value.copy(getColor(c.colorSparkC));
+    u.uHot.value.copy(getColor(c.coreColor)).lerp(getColor('#ffffff'), 0.5);
   };
   return material;
 }

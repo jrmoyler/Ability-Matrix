@@ -35,6 +35,7 @@ import {
   createBeamMaterial,
   createFloorMaterial,
   createHousingMaterial,
+  createPadMaterial,
   createRingMaterial,
   createSeedMaterial,
   createWarpMaterial,
@@ -226,10 +227,17 @@ export class Ability extends BaseAbility {
     this.root = new Group();
     this.group.add(this.root);
 
-    /* ---- layer 2: the scan floor ---- */
+    /* ---- layer 2: the pad and the scan floor ---- */
+    const disc = own(createDiscGeometry());
+    this.padMat = own(createPadMaterial());
+    this.pad = new Mesh(disc, this.padMat);
+    this.pad.position.y = 0.03;
+    this.pad.renderOrder = 1;
+    this.root.add(this.pad);
     this.floorMat = own(createFloorMaterial());
-    this.floor = new Mesh(own(createDiscGeometry()), this.floorMat);
+    this.floor = new Mesh(disc, this.floorMat);
     this.floor.position.y = 0.04;
+    this.floor.renderOrder = 2;
     this.root.add(this.floor);
 
     /* ---- layer 3: the sentry ---- */
@@ -242,6 +250,10 @@ export class Ability extends BaseAbility {
     this._shaped = [];
     const solid = (geometry, material, parent) => {
       const mesh = new Mesh(geometry, material);
+      // Lit, shadow-casting machine: the shadow pass draws it with a depth
+      // material that honours the fabrication front.
+      mesh.customDepthMaterial = material.userData.depth;
+      mesh.castShadow = true;
       parent.add(mesh);
       this._shaped.push(mesh);
       return mesh;
@@ -343,11 +355,14 @@ export class Ability extends BaseAbility {
     this._haloPhase = 0;
     this._seedSpin = 0;
     this._warpKick = 0;
+    this._heat = 0;
+    this._unfold = 0;
 
     /** Scratch handed to the materials each frame — one apiece, reused. */
     this._housingState = { build: 0, baseY: 0, height: BUILD_HEIGHT, flare: 0 };
     this._coreState = { build: 0, baseY: 0, height: BUILD_HEIGHT, flare: 0 };
     this._floorState = { fade: 1, telegraph: 1, opacity: 1, sweep: 0, rings: 0 };
+    this._padState = { fade: 1, build: 0, heat: 0 };
     this._beamState = { fade: 0, color: config.settings.beamColor };
     this._haloState = { fade: 1, color: config.settings.beamColor, glow: 1.6 };
     this._ringState = { fade: 0, color: config.settings.beamColor, glow: 2 };
@@ -385,6 +400,8 @@ export class Ability extends BaseAbility {
     this._haloPhase = 0;
     this._seedSpin = 0;
     this._warpKick = 0;
+    this._heat = 0;
+    this._unfold = 0;
     this.trailEmitter.reset();
     this.moteEmitter.reset();
 
@@ -499,6 +516,7 @@ export class Ability extends BaseAbility {
 
     expansionImpact(this.ctx, c.coreColor, c.deployShake * g.explosionIntensity, c.deployFlash * g.explosionIntensity);
     this.lightBoost = c.deployLight * g.explosionIntensity;
+    this._heat = 1.2;
   }
 
   /* ------------------------------------------------------------------ */
@@ -587,6 +605,49 @@ export class Ability extends BaseAbility {
       colorA: getColor(color),
       colorB: getColor(c.beamColor),
     });
+    // The floor keeps the shot: a scorch that outlives the deploy.
+    if (c.scorchRadius > 0) {
+      this.ctx.decals?.spawn(DecalType.SCORCH, _pos, {
+        radius: c.scorchRadius,
+        life: c.scorchLife,
+        intensity: 0.85,
+        colorA: getColor(c.deepColor),
+        colorB: getColor(color),
+      });
+    }
+    // An ionised shell where it lands, and a flash shell at the emitter.
+    _pos.copy(this._targetPoint).setY(BODY_Y);
+    if (c.shotBurst > 0) {
+      this.ctx.bursts?.spawn(BurstMode.STORM, _pos, {
+        radius: 0.1,
+        endRadius: c.shotBurst * g.explosionIntensity,
+        life: c.shotBurstLife,
+        intensity: 1,
+        opacity: 0.6,
+        squash: 0.8,
+        colorA: getColor('#ffffff'),
+        colorB: getColor(color),
+        colorC: getColor(c.deepColor),
+      });
+    }
+    if (c.muzzleSize > 0) {
+      const scale = Math.max(0.05, c.housingScale);
+      _pos.copy(this._point).setY((HEAD_Y + 0.2) * scale);
+      _dir.copy(this._targetPoint).sub(this._point).setY(0);
+      if (_dir.lengthSq() > 1e-6) _pos.addScaledVector(_dir.normalize(), 0.6 * scale);
+      this.ctx.bursts?.spawn(BurstMode.STORM, _pos, {
+        radius: 0.05,
+        endRadius: c.muzzleSize,
+        life: c.muzzleLife,
+        intensity: 1.2,
+        opacity: 0.7,
+        squash: 1,
+        colorA: getColor('#ffffff'),
+        colorB: getColor(color),
+        colorC: getColor(c.colorSparkC),
+      });
+    }
+    this._heat = Math.max(this._heat, 0.8);
 
     // Scaled like the deploy beat: strike power drives knock, flash and light.
     this.lightBoost = c.shotLight * g.explosionIntensity;
@@ -648,6 +709,7 @@ export class Ability extends BaseAbility {
     this._ringPhase += c.ringSpeed * spin;
     this._haloPhase += c.haloSpin * spin;
     this._warpKick = Math.max(0, this._warpKick - dt * 4);
+    this._heat *= Math.exp(-dt * 2.2);
 
     this.root.position.copy(this._point);
     this.body.scale.setScalar(scale);
@@ -664,6 +726,12 @@ export class Ability extends BaseAbility {
     fs.sweep = this._sweepPhase;
     fs.rings = this._ringPhase;
     this.floorMat.userData.sync(fs);
+    this.pad.scale.set(c.zoneRadius, 1, c.zoneRadius);
+    const pd = this._padState;
+    pd.fade = fade;
+    pd.build = build;
+    pd.heat = this._heat;
+    this.padMat.userData.sync(pd);
 
     /* ---- the sentry ---- */
     const hs = this._housingState;
@@ -683,9 +751,20 @@ export class Ability extends BaseAbility {
     this.coreMat.userData.sync(cs);
 
     this.head.position.y = HEAD_Y - recoil * c.recoilDepth;
-    for (let i = 0; i < this.arms.length; i++) {
-      this.arms[i].rotation.z = -0.35 - c.vaneSway * Math.sin(this._vanePhase + (i * TAU) / VANES) - recoil * 0.2;
+    // The vanes arrive folded flat against the mast and swing open once the
+    // cut has passed the head; they fold back as it is un-made.
+    if (this.phase === AbilityPhase.IMPACT) {
+      this._unfold = saturate((this._buildAge - c.buildTime * 0.75) / Math.max(0.02, c.unfoldTime));
+    } else if (travelling) {
+      this._unfold = 0;
     }
+    const fold = c.unfoldFold * (1 - Easing.outBack(this._unfold));
+    const refold = fading ? c.unfoldFold * Easing.inQuad(1 - fade) : 0;
+    for (let i = 0; i < this.arms.length; i++) {
+      this.arms[i].rotation.z = -0.35 + fold + refold - c.vaneSway * this._unfold * Math.sin(this._vanePhase + (i * TAU) / VANES) - recoil * 0.2;
+    }
+    const shadows = c.shadows >= 0.5;
+    for (let i = 0; i < this._shaped.length; i++) this._shaped[i].castShadow = shadows;
 
     // Track the last target for a beat after a shot, otherwise keep scanning.
     if (this._hasTarget && this._beamAge < recoilTime * 2) {
@@ -757,6 +836,7 @@ export class Ability extends BaseAbility {
   onDestroy() {
     this.root.visible = false;
     this.seed.visible = false;
+    this._heat = 0;
     this.beam.visible = false;
     this.impactGroup.visible = false;
     this.warp.visible = false;
@@ -769,7 +849,10 @@ export class Ability extends BaseAbility {
     if (this._disposed) return;
     this._disposed = true;
     this.onDestroy();
-    for (const r of this.resources) r.dispose();
+    for (const r of this.resources) {
+      r.userData?.depth?.dispose?.();
+      r.dispose();
+    }
     super.dispose();
   }
 }
@@ -829,6 +912,13 @@ export function buildEditor(gui, c, Editor) {
   R(floor, c, 'sweepSpeed', -8, 8, 0.05, 'sweep (rad/s)');
   R(floor, c, 'ringSpeed', 0, 12, 0.05, 'pulse speed');
   R(floor, c, 'floorNoise', 0, 1, 0.01, 'noise breakup');
+  const pad = subFolder(floor, 'Pad');
+  pad.addColor(c, 'deepColor').name('deep tone');
+  R(pad, c, 'padReach', 0.05, 1, 0.01, 'pad radius (× scan)');
+  R(pad, c, 'padDarkness', 0, 1, 0.01, 'darkness');
+  R(pad, c, 'padSeams', 0.2, 4, 0.05, 'plate seams');
+  R(pad, c, 'padSeamGlow', 0, 6, 0.05, 'seam heat glow');
+  R(pad, c, 'padScorch', 0, 1, 0.01, 'scorch past the pad');
 
   const sentry = subFolder(folder, '3 · Sentry');
   const build = subFolder(sentry, 'Fabrication');
@@ -857,6 +947,9 @@ export function buildEditor(gui, c, Editor) {
   R(head, c, 'coreFlare', 0, 6, 0.05, 'core flare per shot');
   R(head, c, 'haloSpin', -8, 8, 0.05, 'halo turn (rad/s)');
   R(head, c, 'haloOpacity', 0, 1, 0.01, 'halo opacity');
+  R(head, c, 'unfoldTime', 0.02, 2, 0.01, 'vanes unfold over (s)');
+  R(head, c, 'unfoldFold', 0, 2.5, 0.01, 'vanes folded by (rad)');
+  R(build, c, 'shadows', 0, 1, 1, 'casts shadows');
 
   const shot = subFolder(folder, '4 · The shot');
   const beam = subFolder(shot, 'Beam');
@@ -875,6 +968,12 @@ export function buildEditor(gui, c, Editor) {
   R(arrival, c, 'impactFlash', 0, 1, 0.01, 'flash');
   R(arrival, c, 'hitDecalRadius', 0, 4, 0.05, 'arc decal (m)');
   R(arrival, c, 'hitDecalLife', 0.1, 3, 0.05, 'arc decal life');
+  R(arrival, c, 'muzzleSize', 0, 3, 0.05, 'muzzle flash (m)');
+  R(arrival, c, 'muzzleLife', 0.02, 1, 0.01, 'muzzle flash life');
+  R(arrival, c, 'shotBurst', 0, 4, 0.05, 'impact shell (m)');
+  R(arrival, c, 'shotBurstLife', 0.05, 1.5, 0.01, 'impact shell life');
+  R(arrival, c, 'scorchRadius', 0, 3, 0.05, 'scorch left (m)');
+  R(arrival, c, 'scorchLife', 0.2, 12, 0.1, 'scorch life (s)');
   const sparks = subFolder(shot, 'Sparks');
   R(sparks, c, 'sparkCount', 0, 96, 1, 'count');
   R(sparks, c, 'sparkSize', 0.01, 0.4, 0.005, 'size');

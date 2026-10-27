@@ -102,7 +102,9 @@ test('clock gathers bounded orbiting particles before the delayed strike', () =>
   ability.spawn(new Vector3(), new Vector3(1, 0, 0), 10);
   for (let i = 0; i < 60; i++) ability.update(1 / 60);
   assert.equal(hits.length, 0);
-  assert.ok(counts.length > 0 && counts.every((count) => count === 3));
+  // Orbiting puffs (moteCount) and, in flight, the throw's trail (trailCount).
+  assert.ok(counts.length > 0 && counts.every((count) => count === config.settings.moteCount || count === config.settings.trailCount));
+  assert.ok(counts.includes(config.settings.moteCount));
   for (let i = 0; i < 75; i++) ability.update(1 / 60);
   assert.equal(hits.length, 1);
   assert.ok(counts.includes(64));
