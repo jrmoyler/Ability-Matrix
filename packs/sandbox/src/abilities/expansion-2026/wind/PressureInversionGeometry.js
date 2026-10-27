@@ -16,6 +16,10 @@ import { BufferAttribute, BufferGeometry, PlaneGeometry } from 'three';
  *  - **the motes** — 128 points on a sunflower disc with a phase each; the
  *    vertex stage spirals them in (and, after the inversion, out).
  *  - **the lens** — a unit billboard quad for the distortion proxy.
+ *  - **the pressure column** — a closed tube in (v, around): `position.x`
+ *    runs 0..1 up the column, `position.y` 0..1 round it. The column
+ *    material lathes it into the well's hero: a waisted funnel that pinches
+ *    as the well tightens and blows out into a torn bell with the gust.
  */
 
 export const MOTE_COUNT = 128;
@@ -88,6 +92,30 @@ export function createMoteGeometry() {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('phase', new BufferAttribute(phase, 1));
+  return geometry;
+}
+
+/** Parameter-space tube for the pressure column: x up it, y round it. */
+export function createColumnGeometry(segments = 48, sides = 24) {
+  const positions = [];
+  const uvs = [];
+  const index = [];
+  for (let j = 0; j <= segments; j++) {
+    const v = j / segments;
+    for (let i = 0; i <= sides; i++) {
+      const a = i / sides;
+      positions.push(v, a, 0);
+      uvs.push(a, v);
+      if (j < segments && i < sides) {
+        const n = j * (sides + 1) + i;
+        index.push(n, n + 1, n + sides + 1, n + 1, n + sides + 2, n + sides + 1);
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+  geometry.setIndex(index);
   return geometry;
 }
 

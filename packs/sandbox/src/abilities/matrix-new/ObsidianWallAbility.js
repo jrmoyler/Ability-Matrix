@@ -31,8 +31,11 @@ export const ID = 'obsidianwall';
 
 const TAU = Math.PI * 2;
 
-/** Hard ceiling on slabs per wall; the spacing slider is clamped by it. */
-const MAX_SLABS = 40;
+/** Hard ceiling on slabs down the wall (both rows); the spacing slider is clamped by it. */
+const MAX_WALL = 40;
+/** Hard ceiling on the crown of slabs thrown up round the landing point. */
+const MAX_CROWN = 8;
+const MAX_SLABS = MAX_WALL + MAX_CROWN;
 /** Shards each slab can break into; `shardsPerSlab` clamps to this. */
 const SHARDS_PER = 10;
 const MAX_SHARDS = MAX_SLABS * SHARDS_PER;
@@ -48,6 +51,8 @@ const _base = new Vector3();
 const _dir = new Vector3();
 const _vel = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _axis = new Vector3();
+const _end = new Vector3();
 const _node = new Object3D();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
@@ -90,6 +95,23 @@ const _shardUsed = new Int32Array(SHARD_VARIANTS);
  *      exponential skid), so every launch slider reshapes a volley mid-air.
  *      `handlesOwnHits`: a shard still flying or skidding kills any body
  *      within `shardHitRadius`, thrown along the shard's own flight.
+ *
+ * ## The upgrade (2026): mass from behind, a landing, a living wall
+ *
+ * Seen from the caster the old single file of slabs collapsed into one
+ * sliver. The wall now stands in **two staggered rows** that split apart
+ * down the line (`rowSplitNear` → `rowSplit`) and lean *outward* off the
+ * glowing rift between them (`rowLean`), so it reads as a V of black glass
+ * torn open along the fissure. Where the front lands a **crown** of
+ * `crownCount` taller slabs heaves up in a ring of `crownRadius`, leaning out,
+ * erupting in a sweep that closes from the side the front came in
+ * (`crownSweep`) — that is the impact beat, with an EARTH shell, a shockwave,
+ * a broad CRACK, a flash, a knock and a fountain of grit (`land*`). While the
+ * wall stands it is not still: an **aftershock** runs down it from the caster
+ * to the crown again and again (`heave*`), each slab it passes jolting taller
+ * with its cracks flaring and a puff of dust, and the whole wall slowly
+ * creeps higher (`creep`). Then the charge and the break as before — wall
+ * slabs throw their shards out of their own row's side, crown slabs radially.
  *
  * ## The editor rule
  *
@@ -194,6 +216,11 @@ export class ObsidianWallAbility extends Ability {
     }
 
     this._clock = 0;
+    this._landClock = -1;
+    this._wallN = 0;
+    this._crownN = 0;
+    this._perRow = 0;
+    this._rows = 1;
     this._seed = 0;
     this._heat = 1;
     this._charge = 0;
@@ -307,33 +334,124 @@ export class ObsidianWallAbility extends Ability {
   /* Placement — every metre from live settings                          */
   /* ------------------------------------------------------------------ */
 
-  _count() {
+  /** Resolve how many slabs stand where, from the live settings. */
+  _layout() {
     const c = settings.obsidianwall;
-    const run = Math.max(0, this.length - c.wallStart);
-    return Math.max(1, Math.min(MAX_SLABS, Math.floor(run / Math.max(0.2, c.slabSpacing)) + 1));
+    const rows = Math.max(1, Math.min(2, Math.round(c.wallRows)));
+    const crown = Math.max(0, Math.min(MAX_CROWN, Math.round(c.crownCount)));
+    const spacing = Math.max(0.2, c.slabSpacing);
+    // The wall stops short of the crown so the ring is not buried in it.
+    const stop = crown > 0 ? Math.max(0, c.crownRadius * 0.55) : 0;
+    const run = Math.max(0, this.length - stop - c.wallStart);
+    const perRow = Math.max(1, Math.min(Math.floor(MAX_WALL / rows), Math.floor(run / spacing) + 1));
+    this._rows = rows;
+    this._perRow = perRow;
+    this._wallN = perRow * rows;
+    this._crownN = crown;
   }
 
-  /** Metres down the line slab `i` stands at. */
+  _count() {
+    this._layout();
+    return this._wallN + this._crownN;
+  }
+
+  _isCrown(i) {
+    return i >= this._wallN;
+  }
+
+  /** −1 / +1 for the two rows (0 for a single file or a crown slab). */
+  _row(i) {
+    if (this._isCrown(i) || this._rows < 2) return 0;
+    return i % 2 === 0 ? -1 : 1;
+  }
+
+  /** Metres down the line slab `i` stands at (a crown slab: the landing point). */
   _station(i) {
     const c = settings.obsidianwall;
+    if (this._isCrown(i)) return this.length;
     const spacing = Math.max(0.2, c.slabSpacing);
-    return Math.min(this.length, c.wallStart + i * spacing + this.slabs[i].along * spacing * 0.2 * settings.global.randomness);
+    const k = this._rows === 2 ? i >> 1 : i;
+    const stagger = this._rows === 2 && i % 2 === 1 ? 0.5 * spacing : 0;
+    return Math.min(this.length, c.wallStart + k * spacing + stagger + this.slabs[i].along * spacing * 0.2 * settings.global.randomness);
   }
 
-  /** Slab height, crowned toward the middle of the wall. */
+  /** Bearing of crown slab `i` round the landing point, radians from the line. */
+  _crownAngle(i) {
+    const j = i - this._wallN;
+    return (j / Math.max(1, this._crownN)) * TAU + Math.PI / Math.max(1, this._crownN) + this.slabs[i].yaw * 0.25 * settings.global.randomness;
+  }
+
+  /** Slab height, crowned toward the middle of the wall; the crown its own. */
   _slabHeight(i, count) {
     const c = settings.obsidianwall;
-    const f = count > 1 ? i / (count - 1) : 0.5;
+    const jit = 1 + this.slabs[i].height * c.heightJitter * settings.global.randomness;
+    if (this._isCrown(i)) return Math.max(0.1, c.crownHeight * jit);
+    const k = this._rows === 2 ? i >> 1 : i;
+    const f = this._perRow > 1 ? k / (this._perRow - 1) : 0.5;
     const crown = lerp(1, 0.55 + 0.45 * Math.sin(f * Math.PI), c.crestShape);
-    return Math.max(0.1, c.slabHeight * crown * (1 + this.slabs[i].height * c.heightJitter * settings.global.randomness));
+    // The wall builds toward the crown, so the far end reads over the near.
+    const ramp = lerp(1, c.wallRamp, f);
+    return Math.max(0.1, c.slabHeight * crown * ramp * jit);
   }
 
   _slabFoot(i, out) {
     const c = settings.obsidianwall;
-    this.pointAt(this._station(i) / this.length, out);
-    out.addScaledVector(this.side, this.slabs[i].lateral * c.lateralJitter * settings.global.randomness);
+    const g = settings.global;
+    if (this._isCrown(i)) {
+      const a = this._crownAngle(i);
+      this.pointAt(1, out);
+      const r = c.crownRadius * (1 + this.slabs[i].lateral * 0.15 * g.randomness);
+      out.addScaledVector(this.direction, Math.cos(a) * r).addScaledVector(this.side, Math.sin(a) * r);
+      out.y = 0;
+      return out;
+    }
+    const station = this._station(i);
+    this.pointAt(station / this.length, out);
+    const split = lerp(c.rowSplitNear, c.rowSplit, saturate(station / Math.max(0.1, this.length)));
+    out.addScaledVector(this.side, this._row(i) * split * 0.5 + this.slabs[i].lateral * c.lateralJitter * g.randomness);
     out.y = 0;
     return out;
+  }
+
+  /**
+   * The slab's orientation into `_node.quaternion`: its broad face along the
+   * run of the wall (tangent to the ring for the crown), leaning outward.
+   */
+  _orient(i) {
+    const c = settings.obsidianwall;
+    const g = settings.global;
+    const slab = this.slabs[i];
+    let lean;
+    if (this._isCrown(i)) {
+      const a = this._crownAngle(i);
+      // Tangent to the ring; rotating about it by −θ tips the top outward.
+      _axis.copy(this.direction).multiplyScalar(-Math.sin(a)).addScaledVector(this.side, Math.cos(a));
+      lean = -c.crownLean + slab.lean * c.leanJitter * g.randomness;
+    } else {
+      _axis.copy(this.direction);
+      // About the line, +θ tips the top toward +side: each row leans off the rift.
+      lean = this._row(i) * c.rowLean + slab.lean * c.leanJitter * g.randomness;
+    }
+    const yaw = Math.atan2(_axis.x, _axis.z) - Math.PI / 2 + slab.yaw * c.yawJitter * g.randomness * (this._isCrown(i) ? 0.3 : 1);
+    _q.setFromAxisAngle(_up, yaw);
+    _q2.setFromAxisAngle(_axis, lean);
+    _node.quaternion.copy(_q2).multiply(_q);
+  }
+
+  /**
+   * The aftershock: 0..1 how hard the travelling heave is lifting slab `i`
+   * right now. The heave runs from the caster to the crown, over and over,
+   * while the wall stands.
+   */
+  _heave(i) {
+    const c = settings.obsidianwall;
+    if (this._landClock < 0 || c.heaveAmp <= 0) return 0;
+    const t = this._clock - this._landClock - c.heaveDelay;
+    if (t <= 0) return 0;
+    const span = this.length + c.heaveWidth * 2;
+    const at = ((t * Math.max(0.1, c.heaveSpeed)) % span) - c.heaveWidth;
+    const d = (this._station(i) - at) / Math.max(0.05, c.heaveWidth);
+    return Math.exp(-d * d);
   }
 
   /** How far up slab `i` is: 0 buried, 1 standing, past 1 in the punch. */
@@ -358,6 +476,7 @@ export class ObsidianWallAbility extends Ability {
     this.emberEmitter.reset();
     this.trailEmitter.reset();
     this._clock = 0;
+    this._landClock = -1;
     this._seed = Math.random() * 100;
     this._heat = 1;
     this._charge = 0;
@@ -396,10 +515,22 @@ export class ObsidianWallAbility extends Ability {
 
   /** Erupt every slab the front has reached. */
   _call(reach) {
+    const c = settings.obsidianwall;
     const count = this._count();
     for (let i = 0; i < count; i++) {
       const slab = this.slabs[i];
-      if (slab.eruptAt < 0 && this._station(i) <= reach) slab.eruptAt = this._clock;
+      if (slab.eruptAt >= 0) continue;
+      if (this._isCrown(i)) {
+        // The crown waits for the landing, then closes round both sides from
+        // the bearing the front came in on (π, the caster's side).
+        if (this._landClock < 0) continue;
+        let a = this._crownAngle(i) % TAU;
+        if (a > Math.PI) a -= TAU;
+        if (a < -Math.PI) a += TAU;
+        slab.eruptAt = this._landClock + ((Math.PI - Math.abs(a)) / Math.PI) * c.crownSweep * settings.global.lifetime;
+      } else if (this._station(i) <= reach) {
+        slab.eruptAt = this._clock;
+      }
     }
   }
 
@@ -412,7 +543,9 @@ export class ObsidianWallAbility extends Ability {
   }
 
   onImpact() {
+    this._landClock = this._clock;
     this._call(this.length + 1e3);
+    this._landFx();
   }
 
   onFade(dt, t) {
@@ -470,15 +603,15 @@ export class ObsidianWallAbility extends Ability {
       const v = i % SLAB_VARIANTS;
       const mesh = this.slabMeshes[v];
       const slot = _slabUsed[v]++;
-      const H = this._slabHeight(i, count);
-      const W = Math.max(0.1, c.slabWidth * (1 + slab.width * c.widthJitter * g.randomness));
-      const T = Math.max(0.05, c.slabThickness);
+      const crownSlab = this._isCrown(i);
+      // Standing, the wall creeps taller and the aftershock jolts it.
+      const stood = this._landClock >= 0 ? saturate((this._clock - this._landClock) / Math.max(0.1, c.lifetime * g.lifetime)) : 0;
+      const heave = this._heave(i);
+      const H = this._slabHeight(i, count) * (1 + c.creep * stood + c.heaveAmp * heave);
+      const W = Math.max(0.1, (crownSlab ? c.crownWidth : c.slabWidth) * (1 + slab.width * c.widthJitter * g.randomness));
+      const T = Math.max(0.05, c.slabThickness * (crownSlab ? 1.15 : 1));
 
-      // Face along the wall: local X runs down the line.
-      const yaw = Math.atan2(this.direction.x, this.direction.z) - Math.PI / 2 + slab.yaw * c.yawJitter * g.randomness;
-      _q.setFromAxisAngle(_up, yaw);
-      _q2.setFromAxisAngle(this.direction, slab.lean * c.leanJitter * g.randomness);
-      _node.quaternion.copy(_q2).multiply(_q);
+      this._orient(i);
 
       this._slabFoot(i, _base);
       // Shiver while the wall charges.
@@ -495,7 +628,7 @@ export class ObsidianWallAbility extends Ability {
       _node.updateMatrix();
       mesh.setMatrixAt(slot, _node.matrix);
 
-      const heat = Math.exp(-(this._clock - slab.eruptAt) * c.heatDecay);
+      const heat = Math.min(1.5, Math.exp(-(this._clock - slab.eruptAt) * c.heatDecay) + heave * c.heaveGlow);
       const s = this._slabState[v].array;
       s[slot * 4 + 0] = slab.seed;
       s[slot * 4 + 1] = heat;
@@ -507,6 +640,7 @@ export class ObsidianWallAbility extends Ability {
         slab.erupted = true;
         this._eruptFx(i, _base, W);
       }
+      if (heave > 0.6) this._heaveFx(dt, _base, heave);
       standing++;
       lightAlong += this._station(i);
     }
@@ -536,9 +670,9 @@ export class ObsidianWallAbility extends Ability {
     fs.start.copy(this.origin).addScaledVector(this.direction, start);
     fs.dir.copy(this.direction);
     fs.side.copy(this.side);
-    const end = Math.min(this.length, this._station(count - 1) + c.slabSpacing * 0.6);
+    const end = this._crownN > 0 ? this.length : Math.min(this.length, this._station(Math.max(0, this._wallN - 1)) + c.slabSpacing * 0.6);
     fs.length = Math.max(0.2, end - start);
-    fs.width = 2 * (Math.max(c.fissureMargin, c.fissureBranch) + c.fissureWander + c.lateralJitter + 0.2);
+    fs.width = 2 * (Math.max(c.fissureMargin, c.fissureBranch, c.rowSplit * 0.5 + 0.6, this._crownN > 0 ? c.crownRadius : 0) + c.fissureWander + c.lateralJitter + 0.2);
     fs.open = Math.max(0, Math.min(this.front, end) - start);
     fs.frontAt = this.front - start;
     fs.heat = this._heat;
@@ -604,10 +738,17 @@ export class ObsidianWallAbility extends Ability {
     _base.addScaledVector(this.direction, shard.w * c.slabWidth * 0.4);
     const y0 = 0.15 + shard.h * H * 0.85;
 
-    /* the launch: out of either face, fanned, biased down the line */
-    const sign = shard.side < 0.5 * c.shardSides ? -1 : 1;
+    /* the launch: out of either face (out of its own side for a row, radially
+       for the crown), fanned, biased down the line */
     const a = shard.fan * c.shardFan * 0.5;
-    _dir.copy(this.side).multiplyScalar(sign * Math.cos(a)).addScaledVector(this.direction, Math.sin(a) + c.shardForward);
+    if (this._isCrown(i)) {
+      const b = this._crownAngle(i) + a;
+      _dir.copy(this.direction).multiplyScalar(Math.cos(b)).addScaledVector(this.side, Math.sin(b));
+    } else {
+      const row = this._row(i);
+      const sign = row !== 0 && shard.side >= 0.5 * c.shardSides * c.shardCross ? row : shard.side < 0.5 * c.shardSides ? -1 : 1;
+      _dir.copy(this.side).multiplyScalar(sign * Math.cos(a)).addScaledVector(this.direction, Math.sin(a) + c.shardForward);
+    }
     _dir.y = 0;
     if (_dir.lengthSq() < 1e-5) _dir.copy(this.side);
     _dir.normalize();

@@ -4,13 +4,16 @@ import {
   createVortexGeometry,
   createWellDiscGeometry,
   createMoteGeometry,
-  createLensGeometry
+  createLensGeometry,
+  createColumnGeometry
 } from './PressureInversionGeometry.js';
 import {
   createVortexMaterial,
   createWellFloorMaterial,
   createMoteMaterial,
-  createPressureLensMaterial
+  createPressureLensMaterial,
+  createColumnMaterial,
+  createWellBowlMaterial
 } from './PressureInversionMaterials.js';
 import { ParticleShape } from '../../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../../particles/ParticleEngine.js';
@@ -42,13 +45,13 @@ export const CONFIG = Object.freeze({
     range: 18, // maximum cast distance, metres
     minRange: 1, // closer than this and the cast is refused
     speed: 28, // how fast the carrier knot skims to the target, metres/second
-    lifetime: 1.1, // seconds the spent air takes to settle after the gust
+    lifetime: 0.85, // seconds the spent air takes to settle after the gust
     cooldown: 6, // seconds before the ability can be armed again
     castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
 
     /* --- light --- */
     lightColor: '#c7fff1',
-    lightIntensity: 3,
+    lightIntensity: 4,
     lightRadius: 9,
 
     /* ================================================================ */
@@ -65,17 +68,54 @@ export const CONFIG = Object.freeze({
     gustTime: 0.25, // fraction of `duration` the gust front takes to cross the well
 
     /* --- the vortex ribbons --- */
-    wellHeight: 1.75, // height of the spiral at the eye, metres
+    wellHeight: 2.6, // height of the spiral at the eye, metres
     innerRadius: 0.18, // eye radius, fraction of `radius`
     ribbonTurns: 3, // turns of the spiral from eye to rim
-    ribbonWidth: 0.24, // metres
+    ribbonWidth: 0.42, // metres
     ribbonStreaks: 12, // streamlines along a ribbon
     spinRate: 2, // radians/second the spiral turns (reverses with the gust)
     flowSpeed: 1.4, // streamline speed along the ribbon
-    ribbonGlow: 1.2,
+    ribbonGlow: 1.7,
     colorAirCore: '#b3fff0',
     colorAirEdge: '#0a6660',
     colorGust: '#f2fffb',
+
+    /* --- the pressure column: the hero (lathed in the vertex stage) --- */
+    columnHeight: 4.2, // metres
+    columnBaseRadius: 0.2, // foot radius, × the well radius
+    columnTopRadius: 0.5, // top radius, × the well radius
+    columnFlare: 1.6, // how late it flares toward the top
+    columnWaist: 0.4, // 0..1 up the column where it pinches
+    columnRestPinch: 0.18, // the waist at rest
+    columnPinch: 0.62, // extra pinch at full squeeze (the anticipation)
+    columnRise: 0.5, // seconds it takes to rise out of the eye (with an overshoot)
+    columnBurst: 1.5, // radius gain when the gust blows it out into a bell
+    columnSquash: 0.5, // fraction of its height lost to the gust
+    columnTearTime: 0.6, // fraction of the gust + settle over which it tears away
+    columnTwist: 1.5, // streamline twist, radians per metre up
+    columnStreams: 6,
+    columnWobble: 0.35, // metres it snakes
+    columnGlow: 1.6, // the streamline core
+    columnSqueezeGlow: 1.4, // the waist brightening as the well tightens
+    columnOpacity: 0.8, // the lit dust sheath — the mass
+    columnSheathScale: 1.12, // sheath radius × the core
+    columnFresnel: 2.2,
+    colorColumnCore: '#ffffff', // ramp: white-hot core
+    colorColumnTint: '#c7fff1', // ramp: pale tint
+    colorColumnBody: '#2b9e8c', // ramp: saturated body
+    colorColumnDeep: '#05231f', // ramp: deep
+
+    /* --- the pressure bowl: the floor's dark body (normal blended) --- */
+    bowlOpacity: 0.78,
+    bowlArms: 3, // spiral arms the dust is dragged into
+    colorBowlDeep: '#06201d',
+    colorBowlDust: '#4f7a71',
+    colorBowlRim: '#b9d8cf', // dust heaped at the gust front
+
+    /* --- the breath in at the hand (anticipation) --- */
+    handDraw: 40, // motes sucked into the hand as it is cast
+    handDrawRadius: 1.5, // metres out they are drawn from
+    handDrawTime: 0.3, // seconds they take to arrive
 
     /* --- the well floor --- */
     floorRings: 9, // isobars across the well
@@ -95,9 +135,9 @@ export const CONFIG = Object.freeze({
     colorMote: '#8cffd9',
 
     /* --- the carrier knot skimming to the target --- */
-    carrierRadius: 0.45, // metres
-    carrierHeight: 0.9, // metres
-    carrierGlow: 1.4,
+    carrierRadius: 0.7, // metres
+    carrierHeight: 1.4, // metres
+    carrierGlow: 2.2,
     carrierDust: 30, // dust puffs/second kicked up behind it
 
     /* --- the lens (screen distortion) --- */
@@ -120,17 +160,17 @@ export const CONFIG = Object.freeze({
     colorInflowA: '#ffffff',
     colorInflowB: '#c7fff1',
     colorInflowC: '#3fcab6',
-    colorInflowD: '#0b3b37',
+    colorInflowD: '#06302c',
 
     /* --- ground dust dragged round the well (pooled SMOKE, swirling) --- */
     dustRate: 26,
     dustSize: 0.9,
     dustLife: 1.8,
-    dustOpacity: 0.45,
+    dustOpacity: 0.55,
     colorDustA: '#c9d6cf',
     colorDustB: '#9aaaa2',
-    colorDustC: '#6a7872',
-    colorDustD: '#333c39',
+    colorDustC: '#5a6f69',
+    colorDustD: '#16231f',
 
     /* --- the gust: dust thrown out and streaks (pooled SMOKE + STREAK) --- */
     gustDust: 36, // dust puffs thrown out at the inversion
@@ -154,8 +194,8 @@ export const CONFIG = Object.freeze({
     landLight: 1.2, // light punch at touchdown, × lightIntensity
     wellRumble: 0.05, // continuous low camera rumble while the well pulls
     squeezeLight: 1.5, // light climbing as the well tightens, × lightIntensity
-    gustShake: 0.12, // camera knock at the inversion
-    gustFlash: 0.05, // screen flash at the inversion
+    gustShake: 0.3, // camera knock at the inversion
+    gustFlash: 0.12, // screen flash at the inversion
     gustLight: 3, // light punch at the inversion, × lightIntensity
     gustBurst: 4.5, // AIR pressure shell, metres
     gustBurstIntensity: 0.9,
@@ -221,6 +261,20 @@ const _up = new Vector3(0, 1, 0);
  *      radially; streaks whipping round the rim while it pulls.
  *   6. **the lens** (`createPressureLensMaterial`, `LAYER.DISTORTION`) — the
  *      air turning round the eye, then the gust's pressure ring.
+ *   8. **the pressure column** (`createColumnMaterial` × 2, the hero) — a
+ *      4.2 m waisted funnel lathed in the vertex stage, sized from the well
+ *      radius: an additive streamline core wound by the same integrated spin
+ *      as the ribbons, and a normal-blended, sun-lit dust sheath in the ramp's
+ *      deep teal that gives the well its mass. It rises out of the eye with an
+ *      overshoot, its waist pinches and burns as the well tightens, and at the
+ *      inversion it is blown out into a squat bell that tears apart from the
+ *      rim inward over the settle — the silhouette never stops changing.
+ *   9. **the pressure bowl** (`createWellBowlMaterial`) — a normal-blended,
+ *      deep-toned depression under the additive floor: dust dragged into
+ *      spiral arms, then combed radially outward behind the gust front with a
+ *      pale heap at the front. It stays through the settle.
+ *  10. **the breath in** — the carrier knot is born at the hand at full
+ *      size and motes are sucked into it before it leaves (anticipation).
  *   7. **the beats** — touchdown dust ring and light; a rumble while the well
  *      pulls; at the inversion an AIR shell, SHOCKWAVE + DUSTRING decals, a
  *      flash, the one camera knock, and a light punch.
@@ -301,6 +355,18 @@ export class PressureInversionAbility extends Ability {
     // once), so it costs a draw call and nothing else.
     this.sinkKnot = this._mesh(this.carrierGeometry, this.carrierMaterial, LAYER.VFX, 11);
 
+    /* ---- layer 8: the pressure column (core + sheath, one tube) ---- */
+    this.columnGeometry = createColumnGeometry(48, 24);
+    this.columnMaterial = createColumnMaterial(false);
+    this.columnSheathMaterial = createColumnMaterial(true);
+    this.column = this._mesh(this.columnGeometry, this.columnMaterial, LAYER.VFX, 12);
+    this.columnSheath = this._mesh(this.columnGeometry, this.columnSheathMaterial, LAYER.VFX, 10);
+
+    /* ---- layer 9: the pressure bowl, under the additive floor ---- */
+    this.bowlMaterial = createWellBowlMaterial();
+    this.bowl = this._mesh(this.floorGeometry, this.bowlMaterial, LAYER.VFX, 1);
+    this.bowl.rotation.x = -Math.PI / 2;
+
     /* ---- layer 6: the lens ---- */
     this.lensGeometry = createLensGeometry();
     this.lensMaterial = createPressureLensMaterial();
@@ -318,6 +384,10 @@ export class PressureInversionAbility extends Ability {
     this._floorState = { time: 0, fade: 1, polarity: 1, phase: 0, drift: 0, gust: 0, squeeze: 0, seed: 0 };
     this._moteState = { time: 0, fade: 1, polarity: 1, radius: 4, spin: 0 };
     this._lensState = { time: 0, polarity: 1, radius: 4, strength: 0, gust: 0, phase: 0 };
+    this._columnState = { radius: 4, grow: 0, squeeze: 0, bloom: 0, tear: 0, phase: 0, flow: 0, polarity: 1, fade: 1, seed: 0 };
+    this._bowlState = { fade: 1, phase: 0, gust: 0, seed: 0 };
+    /** Seconds since touchdown — the column's one clock. */
+    this._landed = -1;
 
     this.centre = new Vector3();
     this.found = [];
@@ -465,6 +535,10 @@ export class PressureInversionAbility extends Ability {
     this.dustMaterial.uniforms.uFade.value = 1;
     this.mat.uniforms.uFade.value = 1;
 
+    this._landed = -1;
+    this.column.visible = false;
+    this.columnSheath.visible = false;
+    this.bowl.visible = false;
     this.carrier.visible = true;
     this.sinkKnot.visible = false;
     this.floor.visible = false;
@@ -473,6 +547,35 @@ export class PressureInversionAbility extends Ability {
     for (const ribbon of this.ribbons) ribbon.visible = false;
     this._draw(0);
     this._drawCarrier();
+    this._handDraw();
+  }
+
+  /** The breath in: motes sucked into the knot at the hand before it leaves. */
+  _handDraw() {
+    if (!this.inflow) return;
+    const c = this.config;
+    const count = Math.round(c.handDraw * settings.global.particleCount);
+    if (count <= 0) return;
+    this._syncParticles();
+    this._resetEmit(frame.uTime.value);
+    _body.copy(this.origin).addScaledVector(this.direction, 0.6).setY(c.carrierHeight * 0.6);
+    _emit.size = c.inflowSize * 1.4;
+    _emit.life = c.handDrawTime;
+    _emit.lifeVariance = 0.2;
+    _emit.speedVariance = 0.1;
+    _emit.spread = 0;
+    for (let k = 0; k < count; k++) {
+      const a = Math.random() * TAU;
+      const e = (Math.random() - 0.3) * 1.2;
+      const r = c.handDrawRadius * (0.6 + 0.4 * Math.random());
+      _pos.set(_body.x + Math.cos(a) * r * Math.cos(e), Math.max(0.1, _body.y + Math.sin(e) * r), _body.z + Math.sin(a) * r * Math.cos(e));
+      _dir.copy(_body).sub(_pos);
+      const d = _dir.length();
+      _emit.position = _pos;
+      _emit.direction = _dir.divideScalar(Math.max(d, 1e-4));
+      _emit.speed = d / Math.max(0.05, c.handDrawTime);
+      this.inflow.emit(1, _emit);
+    }
   }
 
   /**
@@ -490,7 +593,7 @@ export class PressureInversionAbility extends Ability {
     (sinking ? this.sinkKnot : this.carrier).position.y = 0.02;
     const cs = this._carrierState;
     cs.time = this.age;
-    cs.fade = sinking ? sink : saturate(this.age / 0.08);
+    cs.fade = sinking ? sink : saturate(this.age / 0.05);
     cs.polarity = 1;
     // It breathes as it runs: the knot pulses in and out.
     cs.radius = c.carrierRadius * (1 + 0.15 * Math.sin(this.age * 10));
@@ -561,6 +664,37 @@ export class PressureInversionAbility extends Ability {
     ms.radius = c.radius;
     ms.spin = this._phase;
     this.dustMaterial.userData.sync(ms);
+
+    /* the column: one clock since touchdown, thresholds on the well's beats */
+    const col = this._columnState;
+    const since = Math.max(0, this._landed);
+    col.radius = c.radius;
+    col.grow = this._landed < 0 ? 0 : Easing.outBack(saturate(since / Math.max(0.02, c.columnRise * settings.global.lifetime)));
+    col.squeeze = this._squeeze;
+    col.bloom = this._bloom;
+    const inv = saturate(c.inversionPoint);
+    // Torn over the gust and the settle: 0 at the inversion, 1 at the end.
+    const tearFrom = t > inv ? (t - inv) / Math.max(0.02, 2 - inv) : 0;
+    col.tear = this.reversed ? smoothstep(0, Math.max(0.05, c.columnTearTime), tearFrom) : 0;
+    col.phase = this._phase;
+    col.flow = this._flow;
+    col.polarity = polarity;
+    col.fade = fade;
+    col.seed = this._seed;
+    this.column.position.copy(this.centre).setY(0);
+    this.columnSheath.position.copy(this.column.position);
+    this.columnMaterial.userData.sync(col);
+    this.columnSheathMaterial.userData.sync(col);
+
+    this.bowl.position.copy(this.centre);
+    this.bowl.position.y = 0.025;
+    this.bowl.scale.setScalar(c.radius);
+    const bs = this._bowlState;
+    bs.fade = fade * Math.max(grow, this.reversed ? 1 : 0);
+    bs.phase = this._phase;
+    bs.gust = this._gust;
+    bs.seed = this._seed;
+    this.bowlMaterial.userData.sync(bs);
 
     this.lens.position.copy(this.centre);
     const ls = this._lensState;
@@ -664,6 +798,10 @@ export class PressureInversionAbility extends Ability {
     this.floor.visible = true;
     this.dust.visible = true;
     this.lens.visible = true;
+    this._landed = 0;
+    this.column.visible = true;
+    this.columnSheath.visible = true;
+    this.bowl.visible = true;
     for (const ribbon of this.ribbons) ribbon.visible = true;
     this._draw(0);
     // No camera knock and no flash here: the one hard beat is the inversion.
@@ -682,6 +820,7 @@ export class PressureInversionAbility extends Ability {
   onFade(dt, t) {
     const c = this.config;
     const g = settings.global;
+    if (this._landed >= 0) this._landed += dt;
     if (t <= 1) {
       // The knot sinks into the eye while the ribbons grow in from the rim.
       if (this.sinkKnot.visible) {
@@ -722,6 +861,10 @@ export class PressureInversionAbility extends Ability {
       this._draw(t);
       this.lens.visible = t < 1.5;
       this.sinkKnot.visible = false;
+      if (t >= 1.999) {
+        this.column.visible = false;
+        this.columnSheath.visible = false;
+      }
     }
   }
 
@@ -1008,6 +1151,9 @@ export class PressureInversionAbility extends Ability {
     this.floor.visible = false;
     this.dust.visible = false;
     this.lens.visible = false;
+    this.column.visible = false;
+    this.columnSheath.visible = false;
+    this.bowl.visible = false;
     for (const ribbon of this.ribbons) ribbon.visible = false;
     this.mat.uniforms.uFade.value = 1;
   }
@@ -1024,6 +1170,10 @@ export class PressureInversionAbility extends Ability {
     this.lensMaterial.dispose();
     this.dustGeometry.dispose();
     this.dustMaterial.dispose();
+    this.columnGeometry.dispose();
+    this.columnMaterial.dispose();
+    this.columnSheathMaterial.dispose();
+    this.bowlMaterial.dispose();
     super.dispose();
   }
 }
@@ -1089,6 +1239,38 @@ export function buildEditor(gui, c, Editor) {
   color(ribbons, c, 'colorAirEdge', 'air edge');
   color(ribbons, c, 'colorGust', 'gust');
 
+  const column = sub(folder, '1 · Pressure column (hero)');
+  R(column, c, 'columnHeight', 0.5, 10, 0.05, 'height (m)');
+  R(column, c, 'columnBaseRadius', 0.02, 1, 0.005, 'foot (× well radius)');
+  R(column, c, 'columnTopRadius', 0.05, 1.5, 0.005, 'top (× well radius)');
+  R(column, c, 'columnFlare', 0.2, 5, 0.01, 'flare');
+  R(column, c, 'columnWaist', 0.05, 0.95, 0.01, 'waist at');
+  R(column, c, 'columnRestPinch', 0, 0.9, 0.01, 'waist at rest');
+  R(column, c, 'columnPinch', 0, 0.9, 0.01, 'pinch at full squeeze');
+  R(column, c, 'columnRise', 0.02, 2, 0.01, 'rises over (s)');
+  R(column, c, 'columnBurst', 0, 4, 0.01, 'gust blows it out (×)');
+  R(column, c, 'columnSquash', 0, 0.9, 0.01, 'gust squashes it');
+  R(column, c, 'columnTearTime', 0.05, 1.5, 0.01, 'tears away over');
+  R(column, c, 'columnTwist', -6, 6, 0.01, 'streamline twist (rad/m)');
+  R(column, c, 'columnStreams', 1, 16, 1, 'streamlines');
+  R(column, c, 'columnWobble', 0, 2, 0.01, 'snaking (m)');
+  R(column, c, 'columnGlow', 0, 8, 0.05, 'core glow');
+  R(column, c, 'columnSqueezeGlow', 0, 6, 0.05, 'waist burn when squeezed');
+  R(column, c, 'columnOpacity', 0, 1, 0.01, 'dust sheath opacity');
+  R(column, c, 'columnSheathScale', 0.5, 3, 0.01, 'sheath width (× core)');
+  R(column, c, 'columnFresnel', 0.2, 8, 0.05, 'sheath rim power');
+  color(column, c, 'colorColumnCore', 'core');
+  color(column, c, 'colorColumnTint', 'tint');
+  color(column, c, 'colorColumnBody', 'body');
+  color(column, c, 'colorColumnDeep', 'deep');
+
+  const bowl = sub(folder, '1 · Pressure bowl');
+  R(bowl, c, 'bowlOpacity', 0, 1, 0.01, 'opacity');
+  R(bowl, c, 'bowlArms', 1, 8, 1, 'spiral arms');
+  color(bowl, c, 'colorBowlDeep', 'deep');
+  color(bowl, c, 'colorBowlDust', 'dust');
+  color(bowl, c, 'colorBowlRim', 'gust heap');
+
   const floor = sub(folder, '1 · Well floor');
   R(floor, c, 'floorRings', 1, 30, 0.5, 'isobars');
   R(floor, c, 'ringSpeed', 0, 4, 0.01, 'isobar crawl');
@@ -1111,6 +1293,9 @@ export function buildEditor(gui, c, Editor) {
   R(carrier, c, 'carrierHeight', 0.1, 3, 0.01, 'height (m)');
   R(carrier, c, 'carrierGlow', 0, 6, 0.05, 'glow');
   R(carrier, c, 'carrierDust', 0, 200, 1, 'dust/second');
+  R(carrier, c, 'handDraw', 0, 200, 1, 'motes drawn into the hand');
+  R(carrier, c, 'handDrawRadius', 0.2, 4, 0.01, 'drawn in from (m)');
+  R(carrier, c, 'handDrawTime', 0.05, 1, 0.01, 'draw time (s)');
 
   const lens = sub(folder, '1 · Lens');
   R(lens, c, 'lensStrength', 0, 3, 0.01, 'well bend');

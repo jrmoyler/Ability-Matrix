@@ -55,7 +55,7 @@ export default {
     echoFlare: 1.6, // extra brightness the instant it is stamped
     echoFlareTime: 0.35, // seconds that flare takes to settle
     echoOpacity: 0.85,
-    echoGlow: 1.15,
+    echoGlow: 0.95,
     echoFill: 0.45, // brightness of the glass interior (rim is separate)
     echoFresnel: 2.2,
     echoFresnelPower: 2.4,
@@ -183,8 +183,8 @@ export default {
     snapWarpTime: 0.45,
     snapShake: 0.45,
     snapShakeTime: 0.35,
-    snapFlash: 0.45,
-    colorFlash: '#ffe9b8',
+    snapFlash: 0.2,
+    colorFlash: '#ffb45a',
 
     /* --- hits on the outbound dash --- */
     hitRadius: 1.1, // metres either side of the arc

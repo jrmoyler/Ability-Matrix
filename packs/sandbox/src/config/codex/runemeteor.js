@@ -45,19 +45,19 @@ export default {
     /* ================================================================ */
     /* 1 · THE FALL                                                      */
     /* ================================================================ */
-    dropHeight: 12, // metres above the circle the star kindles (in frame at 8 m)
+    dropHeight: 7, // metres above the circle the star kindles (in frame at 8 m)
     fallTime: 1.15, // seconds from kindling to landing (at least the travel)
     fallCurve: 2.2, // >1: hangs, then plummets
-    orbRadius: 0.55, // the crystal star, metres
+    orbRadius: 0.75, // the crystal star, metres
     orbSpin: 2.4, // radians/second
-    trailLength: 7, // metres of light column above it as it falls
+    trailLength: 4.5, // metres of light column above it as it falls
     trailWidth: 0.55,
-    trailGlow: 2.4,
+    trailGlow: 1.4,
 
     /* ================================================================ */
     /* 2 · THE CRYSTAL                                                   */
     /* ================================================================ */
-    coreGlow: 4.5, // the star's inner light
+    coreGlow: 3, // the star's inner light
     facetGlow: 1.6, // the cut facets catching it
     rimGlow: 3, // the fresnel rim
     swirlScale: 2.5, // the arcane swirl inside it
@@ -82,13 +82,13 @@ export default {
     unfoldStagger: 0.16, // seconds between the first and last landing
     arcHeight: 3.2, // metres they arc up on the way out
     tumble: 2.2, // extra turns they tumble on the way
-    glyphGlow: 3.2, // their carved runes
+    glyphGlow: 1.7, // their carved runes
     glyphScale: 5, // rune cells per metre
-    stoneRim: 1.1, // an arcane rim round each stone
+    stoneRim: 0.55, // an arcane rim round each stone
     crumbleEdge: 0.08, // the crumbling edge
     colorStone: '#3b3f52',
     colorStoneLight: '#6d728c',
-    colorGlyph: '#c4cdff',
+    colorGlyph: '#7f8cff',
     colorGlyphHot: '#fff6d8',
 
     /* ================================================================ */
@@ -107,9 +107,9 @@ export default {
     hoverHeight: 2.3, // metres the star rises to in the middle of its henge
     chargeTime: 0.75, // seconds the henge charges before the nova
     tetherWidth: 0.09, // beams from the star to each stone
-    tetherGlow: 3,
+    tetherGlow: 2,
     chaseRate: 6, // stones lit per second in the chase round the ring
-    colorTether: '#d4dbff',
+    colorTether: '#8f9cff',
 
     /* ================================================================ */
     /* 6 · THE SIGIL — on the floor                                      */
@@ -120,8 +120,8 @@ export default {
     floorOpacity: 0.9,
 
     /* --- 6b · the ground: the star's shadow, then the crater --- */
-    groundOpacity: 0.85,
-    groundShadow: 0.75, // how dark the circle gathers under the falling star
+    groundOpacity: 0.95,
+    groundShadow: 1, // how dark the circle gathers under the falling star
     crackCount: 9, // fissures out of the bowl
     crackReach: 2.1, // × craterRadius they run
     crackCool: 1.1, // seconds a fissure takes to cool
