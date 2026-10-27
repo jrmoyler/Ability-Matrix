@@ -22,7 +22,7 @@
 // Frames are evidence for a human or an image-reading agent; they do not by
 // themselves certify quality.
 import { createServer } from '../packs/sandbox/node_modules/vite/dist/node/index.js';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -44,6 +44,32 @@ if (!outDir || !uids.length) {
 const frames = String(flags.frames ?? '8,20,40,70').split(',').map(Number).filter((n) => n > 0).sort((a, b) => a - b);
 const port = Number(flags.port ?? 5190 + Math.floor(Math.random() * 400));
 mkdirSync(outDir, { recursive: true });
+
+// Software WebGL is CPU-bound: several builders capturing at once thrash the
+// machine until page loads time out. Take one of CAPTURE_SLOTS machine-wide
+// slots (a directory lock; stale after 40 min) and queue for it.
+const SLOTS = Number(process.env.CAPTURE_SLOTS ?? 2);
+const LOCK_ROOT = join(tmpdir(), 'capture-cast-slots');
+mkdirSync(LOCK_ROOT, { recursive: true });
+let slot = null;
+for (let waited = 0; slot === null; waited++) {
+  for (let i = 0; i < SLOTS && slot === null; i++) {
+    const dir = join(LOCK_ROOT, `slot-${i}`);
+    try {
+      mkdirSync(dir);
+      slot = dir;
+    } catch {
+      try { if (Date.now() - statSync(dir).mtimeMs > 40 * 60 * 1000) rmSync(dir, { recursive: true, force: true }); } catch {}
+    }
+  }
+  if (slot === null) {
+    if (waited % 12 === 0) console.error(`capture-cast: waiting for a capture slot (${SLOTS} busy)…`);
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+}
+const releaseSlot = () => { try { rmSync(slot, { recursive: true, force: true }); } catch {} };
+process.on('exit', releaseSlot);
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { releaseSlot(); process.exit(130); });
 
 const report = { uids, frames, captures: [], errors: [] };
 let server, browser;
@@ -157,6 +183,7 @@ try {
   writeFileSync(`${outDir}/report.json`, JSON.stringify(report, null, 2) + '\n');
   await browser?.close();
   await server?.close();
+  releaseSlot();
 }
 console.log(JSON.stringify({ out: outDir, captures: report.captures.map((c) => ({ uid: c.uid, sheet: c.sheet, frames: c.files.length, error: c.error })) }, null, 1));
 if (report.errors.length) process.exitCode = 1;
