@@ -743,10 +743,11 @@ const SIGIL_FRAGMENT = /* glsl */ `
     float fieldA = clamp(field * 0.7 + scorch * 0.45 * uFill, 0.0, 0.85);
     vec3 col = fieldCol * fieldA + light * lum * uGlow * uGlobalGlow;
     float alpha = clamp(fieldA + lum * 0.9, 0.0, 1.0);
-    col += uCore * dm.y * 2.0;
-    alpha *= dm.x;
+    // Un-premultiply: normal blending multiplies by alpha again.
+    vec3 rgb = col / max(alpha, 1e-3) + uCore * dm.y * 2.0;
+    alpha = max(alpha * dm.x, dm.y * 0.6 * step(0.003, alpha));
     if (alpha < 0.003) discard;
-    gl_FragColor = vec4(col / max(alpha, 1e-3) * alpha, alpha);
+    gl_FragColor = vec4(rgb, alpha);
   }
 `;
 
