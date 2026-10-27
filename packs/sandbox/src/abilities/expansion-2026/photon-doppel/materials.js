@@ -172,7 +172,7 @@ const FIGURE_FRAGMENT = /* glsl */ `
     // Distance to the heart the light drains into.
     vec3 h = (vLocal - vec3(0.0, uHeartY, 0.0)) * vec3(1.0, 0.75, 1.0);
     float d = length(h);
-    float n = fbm3(vec3(vLocal * 4.0 * uScale, uClock * 0.25));
+    float n = fbm3(vLocal * 4.0 * uScale + vec3(0.0, 0.0, uClock * 0.25));
     // Bands of light whose phase runs inward: sin(k·d + ωt) holds still
     // where d = (c − ωt)/k, which shrinks.
     float bands = pow(0.5 + 0.5 * sin((d * uBands * 6.0 + n * 2.5) + uClock * uFlow * 6.2831), 5.0);
@@ -194,7 +194,7 @@ const FIGURE_FRAGMENT = /* glsl */ `
     // Overexposure: everything clips to white.
     col = mix(col, uCore * 3.5, uWhite);
     // Burn-away from the hem up, with a white-hot edge.
-    float dn = snoise01(vec3(vLocal * vec3(9.0, 6.0, 9.0) * uScale, 1.7));
+    float dn = snoise01(vLocal * vec3(9.0, 6.0, 9.0) * uScale + 1.7);
     float threshold = uDissolve * 1.35 - (1.0 - vLocal.y) * 0.35;
     vec2 dm = dissolveMask(dn, threshold, 0.09);
     col += uCore * dm.y * 5.0 + uBody * dm.y * 2.0;

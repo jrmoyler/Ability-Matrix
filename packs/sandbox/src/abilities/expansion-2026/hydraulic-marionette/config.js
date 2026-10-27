@@ -26,7 +26,7 @@ export default {
   },
   settings: {
     /* --- the cast --- */
-    range: 18, // max cast distance (m)
+    range: 11, // max cast distance (m)
     minRange: 2, // closer than this and the cast is refused (m)
     speed: 16, // the spool flies to the circle at (m/s)
     cooldown: 5, // seconds before the cast can be armed again
@@ -63,7 +63,7 @@ export default {
     danceSway: 0.32, // and swings it round the ring (m)
 
     /* --- 1 · the control (hero) --- */
-    controlHeight: 3.7, // the control hangs this high over the circle (m)
+    controlHeight: 3.3, // the control hangs this high over the circle (m)
     controlSpan: 0.8, // half-length of the main bar (× zoneRadius)
     crossSpan: 0.56, // half-length of the crossbar (× zoneRadius)
     barThickness: 0.17, // bar radius (m)

@@ -72,7 +72,7 @@ export default {
     deepColor: '#140a3e', // deep indigo that grounds it
 
     /* --- 1 · the soma --- */
-    somaRadius: 0.55, // cell body radius (m)
+    somaRadius: 0.72, // cell body radius (m)
     somaHeight: 0.8, // its centre above the floor (m)
     somaLumps: 0.2, // fbm swelling of the membrane (× radius)
     somaStretch: 0.35, // hillock pulled out toward the axon (× radius)
@@ -82,13 +82,13 @@ export default {
     /* --- 2 · the dendrite crown (hero) --- */
     dendriteCount: 7, // primary arms (≤ 10)
     dendriteReach: 1, // rest landing radius (× zoneRadius)
-    dendriteThickness: 0.15, // arm radius at the soma (m)
+    dendriteThickness: 0.24, // arm radius at the soma (m)
     dendriteTaper: 0.72, // how much thinner the tip is (0..0.95)
     dendriteRise: 0.35, // where the arm leaves the soma (× somaHeight)
     twigAt: 0.42, // first side twig sprouts this far along the arm
     twigAt2: 0.68, // second side twig
     twigSpread: 0.55, // twigs splay off the arm's bearing (rad)
-    twigThickness: 0.55, // twig radius (× the arm where it sprouts)
+    twigThickness: 0.5, // twig radius (× the arm where it sprouts)
     writhe: 0.24, // sideways writhe of the arms (m)
     writheFrequency: 1.6, // waves along an arm
     writheSpeed: 3.2, // how fast the writhe runs (rad/s)
@@ -99,7 +99,7 @@ export default {
     potentialSwell: 0.45, // how much an arm swells as one passes
     membraneColor: '#1a2150', // the dark insulating membrane
     membraneSpecular: 0.6,
-    dendriteGlow: 1.5, // core showing through the membrane
+    dendriteGlow: 0.9, // core showing through the membrane
     potentialGlow: 3.2, // the potentials themselves
 
     /* --- 3 · the sheath (solid) --- */
@@ -108,8 +108,8 @@ export default {
     sheathColor: '#232c58',
     sheathMetalness: 0.55,
     sheathRoughness: 0.32,
-    sheathEmissive: '#2b46ff',
-    sheathGlow: 0.55,
+    sheathEmissive: '#1f33c8',
+    sheathGlow: 0.25,
     boutonSize: 0.28, // the synaptic terminal planted at each tip (m)
 
     /* --- 4 · the axon (travel) --- */

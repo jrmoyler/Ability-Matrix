@@ -127,6 +127,7 @@ export class App {
     // built before the manager and handed over in its context.
     this.dummies = new DummyField(this.environment);
     this.scene.add(this.dummies.group);
+    // Sparks when an archetype shrugs a blow off — set once the bursts exist.
 
     /**
      * Geometry that had to be loaded rather than generated, keyed by name.
@@ -136,6 +137,8 @@ export class App {
      * long after the assets have landed.
      */
     this.models = {};
+
+    this.dummies.fx = { bursts: this.bursts };
 
     this.abilities = new AbilityManager({
       scene: this.scene,
@@ -737,6 +740,8 @@ export class App {
     const beforeAbilityMovement = this.character.position.toArray();
     this.abilities.update(dt);
     for (const runtime of this.runtimes.values()) runtime.update(dt, raw);
+    // The Arch-Wizard (combat/duel): its brain, its body and its own casts.
+    this.duel?.update(dt, raw);
     // Legacy movement casts run after locomotion; keep their destination out of solid terrain.
     if (this.combat?.enabled && dt > 0 && this.combat.mechanics.systems.worldshape.regions.size) {
       const terrain = this.combat.mechanics.systems.worldshape;
@@ -748,9 +753,17 @@ export class App {
     // The targets step first, then read the casts that were just advanced: a
     // body has to be standing in this frame's pose before it can be knocked
     // out of it.
+    // Formations face away from the view (Line runs across it, Gauntlet away).
+    this.camera.getWorldDirection(this.dummies.forward);
+    this.dummies.forward.y = 0;
+    if (this.dummies.forward.lengthSq() < 1e-6) this.dummies.forward.set(0, 0, -1);
+    this.dummies.forward.normalize();
     this.dummies.update(dt, this.character.position);
     this.dummies.applyHits(this.abilities.active);
     for (const runtime of this.runtimes.values()) runtime.afterBodies(dt, this.elapsed);
+    // The CPU's hits on the dummies, then the referee's on the player.
+    this.duel?.afterBodies(dt);
+    this.duelPanel?.update(raw);
     // Every hit is in by now: the combat state steps and issues its reactions.
     this.combat?.update(dt);
     this.particles.flush();
@@ -794,6 +807,8 @@ export class App {
 
   dispose() {
     this.stop();
+    this.duelPanel?.dispose();
+    this.duel?.dispose();
     this.expansionDev?.dispose();
     this.expansionLive?.dispose();
     this.combat?.dispose();

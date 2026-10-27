@@ -98,7 +98,7 @@ export default {
     haloCount: 12, // shards hovering behind the head before the overexposure
     haloRadius: 0.24, // halo radius (× figure height)
     haloSpin: 0.9, // halo turn (rad/s)
-    shardSize: 0.3, // shard length (m)
+    shardSize: 0.45, // shard length (m)
     shardSpeed: 5, // thrown outward at (m/s)
     shardLift: 4.5, // thrown upward at (m/s)
     shardGravity: 14, // fall (m/s²)
@@ -116,8 +116,8 @@ export default {
     streamerOpacity: 0.9,
 
     /* --- 4 · the tethers (each exposed enemy) --- */
-    tetherGlow: 2,
-    tetherWidth: 0.16, // (m)
+    tetherGlow: 2.6,
+    tetherWidth: 0.24, // (m)
     tetherArc: 0.8, // how high the tether arcs (× its length × 0.25)
     tetherSpeed: 2.2, // pulses run into the decoy at
 

@@ -158,7 +158,8 @@ export function createCoilMaterial() {
           float n = cdNoise(q) * 0.6 + cdNoise(q * 2.3 + 7.1) * 0.4;
           // The underside (φ ≈ 0.5) runs cooler than the crown of the tube.
           float crown = 0.75 + 0.25 * cos(vCoil.y * 6.2831853);
-          float t = hot * uTemp * (0.55 + 0.55 * n) * crown + uPulse * hot * 0.35;
+          // Mostly red-to-orange iron; only hot spots and the front reach white.
+          float t = hot * uTemp * (0.3 + 0.55 * n * n) * crown + uPulse * hot * 0.3;
           float lead = exp(-pow((s - uFront) / 0.02, 2.0)) * step(0.0005, uFront) * step(uFront, 0.999);
           vec3 heat = heatRamp(t) * smoothstep(0.02, 0.18, t) * uHeatGlow
                     + heatRamp(1.0) * lead * uFrontGlow * uTemp;

@@ -649,7 +649,8 @@ export class Ability extends BaseAbility {
     const c = this.config;
     const u = this.u;
     out.copy(this.position);
-    if (u <= 0) out.addScaledVector(this.direction, 0.45);
+    // Gathered off the casting hand, beside the body so it reads over the shoulder.
+    if (u <= 0) out.addScaledVector(this.direction, 0.35).addScaledVector(this.side, -0.55);
     out.y = c.handHeight * (1 - u) + c.arcHeight * 4 * u * (1 - u) + 0.2 * u;
     return out;
   }

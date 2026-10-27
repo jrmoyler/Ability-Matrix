@@ -552,7 +552,7 @@ export class Ability extends BaseAbility {
     });
     this.ctx.decals?.spawn?.(DecalType.RIPPLE, _pos, {
       radius: r * 0.95, life: c.decalLife, intensity: c.rippleIntensity,
-      colorA: getColor(c.colorTint), colorB: getColor(c.colorDeep),
+      colorA: getColor(c.colorBody), colorB: getColor(c.colorDeep),
     });
     if (c.playShake > 0) this.ctx.shake?.add?.(c.playShake * power * g.cameraShake, c.shakeDecay, c.shakeFrequency);
     if (c.playFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorTint), c.playFlash * power);

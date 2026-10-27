@@ -58,7 +58,7 @@ export default {
 
     /* --- the beats (× global lifetime) --- */
     chargeTime: 0.28, // the slug gathers at the hand before it is thrown (s)
-    handHeight: 1.35, // where it gathers (m)
+    handHeight: 1.7, // where it gathers (m)
     arcHeight: 1.6, // height of the lob (m)
     riseTime: 0.36, // the coil screws up out of the floor over (s)
     payLinger: 1.15, // after the call the coil rings and cools for (s)
@@ -83,7 +83,7 @@ export default {
     /* --- 1 · the coil (lit iron, world layer) --- */
     coilOuter: 0.92, // outer turn radius (× zone radius)
     coilInner: 0.1, // inner tip radius (× zone radius)
-    coilHeight: 0.72, // dome height (× zone radius)
+    coilHeight: 0.85, // dome height (× zone radius)
     coilTurns: 3.25, // turns from floor to tip
     coilProfile: 1.8, // dome curvature (1 = cone)
     coilThickness: 0.055, // tube radius (× zone radius)
@@ -91,11 +91,11 @@ export default {
     beadDepth: 0.16, // bead swell (× tube radius)
     ironMetalness: 0.6,
     ironRoughness: 0.52,
-    heatGlow: 2.4, // emissive of the hot length
-    frontGlow: 3.2, // the white-hot leading edge
+    heatGlow: 1.5, // emissive of the hot length
+    frontGlow: 2.4, // the white-hot leading edge
     heatCrawl: 1.4, // speed of the hot spots crawling along the iron
     heatGrain: 5, // hot-spot density
-    tickFlash: 1.2, // the whole coil flares on a tick
+    tickFlash: 0.8, // the whole coil flares on a tick
     compress: 0.55, // the spring winds down to this height at full debt (× height)
     windTurn: 0.7, // and twists this far as it does (rad)
     spinSpeed: 0.22, // slow turn of the coil while it lives (rad/s)
@@ -111,7 +111,7 @@ export default {
     hobGlow: 1.5, // glow pooled under the coil
     hobSpiralWidth: 0.32, // width of the heat pooled under the coil (m)
     hobCracks: 2.2, // crack density (per m)
-    hobCrackGlow: 1.6, // crack brightness at full heat
+    hobCrackGlow: 2.2, // crack brightness at full heat
     hobRevealTime: 0.25, // scorch spreads from the slug's landing over (s)
     hobReleaseTime: 0.45, // fire ring runs out across the floor at the call over (s)
 
@@ -126,7 +126,7 @@ export default {
     plumeOpacity: 0.95,
 
     /* --- 4 · the slug (travel) --- */
-    slugSize: 0.34, // (m)
+    slugSize: 0.5, // (m)
     slugGlow: 2.8,
 
     /* --- 5 · debt brands --- */

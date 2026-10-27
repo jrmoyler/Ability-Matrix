@@ -40,6 +40,15 @@ async function boot() {
     }
     installMatrixBridge(app, 'sandbox');
     window.matrix.combat = app.combat.api();
+    // The Arch-Wizard duel and the Targets panel (combat/duel).
+    const [{ Duel }, { DuelPanel }, { installDuelBridge }] = await Promise.all([
+      import('./combat/duel/Duel.js'),
+      import('./combat/duel/DuelPanel.js'),
+      import('./combat/duel/DuelBridge.js')
+    ]);
+    app.duel = new Duel(app);
+    app.duelPanel = new DuelPanel(app, app.duel);
+    installDuelBridge(app, app.duel);
   } catch (error) {
     console.error('[boot] failed to start', error);
     new LoadingScreen().fail(

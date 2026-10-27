@@ -154,7 +154,7 @@ const HORN_FRAGMENT = /* glsl */ `
 
     // Lacquer: deep plum-bronze with a little of the body hue, fbm grain.
     float grain = fbm3(vLocal * 22.0 * uScale);
-    vec3 albedo = mix(uDeep * 1.4, uBody * 0.42, 0.35 + 0.3 * grain);
+    vec3 albedo = mix(uDeep * 1.1, uBody * 0.3, 0.25 + 0.3 * grain);
 
     float lambert = max(dot(N, L), 0.0);
     float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
@@ -185,7 +185,7 @@ const HORN_FRAGMENT = /* glsl */ `
       col = mix(col, rampAt(0.75 - 0.6 * depth) * (0.6 + uLitBands * 0.18 + uPlay * 3.0), 0.75 * depth);
     }
 
-    col += uCore * uPlay * (0.6 + fres) * 1.5;
+    col += mix(uBody, uTint, fres) * uPlay * (0.35 + fres) * 0.9;
     col += uTint * uSteal * 1.2;
     col += uCore * dm.y * 4.0;
     col *= uGlow * uGlobalGlow;

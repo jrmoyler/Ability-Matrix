@@ -91,11 +91,11 @@ export default {
     dissolveEdge: 0.08, // width of the burning edge as it dissolves
 
     /* --- 2 · the taps (waveform tethers) --- */
-    tapWidth: 0.11, // ribbon width (m)
-    tapAmplitude: 0.22, // corkscrew radius at mid-span (m)
+    tapWidth: 0.2, // ribbon width (m)
+    tapAmplitude: 0.3, // corkscrew radius at mid-span (m)
     tapWaves: 5, // turns of the corkscrew on the first tap (+1 per harmonic)
     tapFlow: 2.4, // packets per second running into the horn
-    tapGlow: 2.2,
+    tapGlow: 3,
     tapSag: 0.6, // the tether arcs up by this share of its rise
     tapReach: 0.35, // seconds for a new tap to reach the horn
     chestHeight: 1.15, // where on a body the tap is taken (m)
@@ -155,7 +155,7 @@ export default {
     decalLife: 2.2, // the RIPPLE ground ring lasts (s)
     shockwaveWidth: 0.07,
     shockwaveIntensity: 1.1,
-    rippleIntensity: 0.8,
+    rippleIntensity: 0.5,
 
     /* --- 8 · the lens (distortion) --- */
     lensDraw: 0.7, // inward suck under the bell while listening (× global distortion)

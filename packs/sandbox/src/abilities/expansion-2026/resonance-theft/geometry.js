@@ -84,7 +84,7 @@ function hornCentre(s, out) {
 /** Tube radius at s: exponential-horn flare with raised bands. */
 export function hornRadius(s) {
   const flare = Math.pow(smoothstep(0.78, 1, s), 3);
-  let r = 0.016 + 0.048 * Math.pow(s, 1.5) + 0.31 * flare;
+  let r = 0.028 + 0.062 * Math.pow(s, 1.2) + 0.29 * flare;
   // Raised brass bands at regular stations along the tube, gone in the bell.
   const band = Math.pow(Math.abs(Math.sin(Math.PI * s * 17)), 18) * (1 - smoothstep(0.86, 0.93, s));
   r *= 1 + 0.16 * band;
