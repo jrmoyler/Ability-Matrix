@@ -66,9 +66,9 @@ export default {
     controlHeight: 3.7, // the control hangs this high over the circle (m)
     controlSpan: 0.8, // half-length of the main bar (× zoneRadius)
     crossSpan: 0.56, // half-length of the crossbar (× zoneRadius)
-    barThickness: 0.14, // bar radius (m)
+    barThickness: 0.17, // bar radius (m)
     knuckleSize: 0.5, // the reservoir where the bars cross (m)
-    bulbSize: 0.26, // the beads of water on the bar ends (m)
+    bulbSize: 0.3, // the beads of water on the bar ends (m)
     rockAngle: 0.2, // the puppeteer's rock (rad)
     rockRate: 1.1, // rocks per second
     spinRate: 0.22, // slow turn of the whole control (rad/s)
@@ -78,13 +78,13 @@ export default {
     spoolScale: 0.28, // the control's size while it is still a spool at the hand
 
     /* --- 2 · the strings --- */
-    stringRadius: 0.05, // string radius (m)
+    stringRadius: 0.06, // string radius (m)
     stringSag: 0.5, // sag while a string is slack (m)
     stringWave: 0.13, // lateral ripple running down a string (m)
     stringWaveFreq: 2.4, // ripples along a string
     stringWaveSpeed: 7, // ripple speed (rad/s)
     tugBulge: 0.9, // a pumped tug swells the string by (× radius)
-    tugGlow: 2.4, // and lights it by
+    tugGlow: 1.6, // and lights it by
     hookSize: 0.24, // the bead of water each string hooks with (m)
     feedRadius: 0.065, // the feed line from the caster's hand to the control (m)
     feedSag: 0.9, // its sag (m)
@@ -95,14 +95,14 @@ export default {
     colorBody: '#1c8ad4', // the water itself
     colorDeep: '#04223f', // looking through thick water — grounds it on the dark floor
     liquidGloss: 110, // specular tightness
-    liquidSpecular: 2.4, // specular strength (HDR — bloom picks it up)
-    liquidEnv: 0.9, // reflection of the room
+    liquidSpecular: 2, // specular strength (HDR — bloom picks it up)
+    liquidEnv: 0.45, // reflection of the room
     liquidFresnel: 2.6, // rim power
-    liquidRim: 1.1, // rim brightness
+    liquidRim: 0.6, // rim brightness
     liquidFlow: 1.6, // speed the surface flows along the bars and strings
     liquidRipple: 0.45, // surface ripple (normal perturbation)
-    liquidCaustic: 0.9, // caustic veins inside the water
-    liquidGlow: 0.35, // the water's own light
+    liquidCaustic: 0.6, // caustic veins inside the water
+    liquidGlow: 0.12, // the water's own light
     dissolveEdge: 0.09, // foam edge when the control rains out
 
     /* --- 4 · the pool (floor) --- */
@@ -112,16 +112,16 @@ export default {
     poolRipple: 1, // ripple strength from the strings' tugs
     poolRingFreq: 9, // ripple rings per metre-ish
     poolRingSpeed: 3.2, // ripple speed
-    poolFoam: 0.75, // foam lace at the rim and on the crests
+    poolFoam: 0.5, // foam lace at the rim and on the crests
     poolSpecular: 1.5, // sun glint on the ripples
-    poolGlow: 1.1,
+    poolGlow: 0.8,
     poolDrain: 0.85, // fraction of the exit spent draining
 
     /* --- 5 · splash crowns --- */
-    crownHeight: 0.85, // crown splash height at a hook (m)
+    crownHeight: 0.5, // crown splash height at a hook (m)
     crownWidth: 0.55, // crown radius (m)
     crownLife: 0.55, // (s)
-    crownGlow: 1.6,
+    crownGlow: 0.9,
     crownSlam: 1.6, // crowns at the slam are this much bigger
 
     /* --- 6 · particles --- */

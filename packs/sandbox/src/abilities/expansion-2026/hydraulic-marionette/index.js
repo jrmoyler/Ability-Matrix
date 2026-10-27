@@ -400,7 +400,7 @@ export class Ability extends BaseAbility {
       // Local +X turned by the control's yaw: world bearing of the attach point.
       const ang = Math.atan2(_a.z, _a.x) - this._yaw;
       const ar = Math.hypot(_a.x, _a.z) / R;
-      const d = Math.abs(angleDelta(bearing, -ang)) + 0.8 * Math.abs(ar - reach);
+      const d = Math.abs(angleDelta(bearing, ang)) + 0.8 * Math.abs(ar - reach);
       if (d < cost) { cost = d; best = k; }
     }
     if (best < 0) best = 0;
@@ -478,7 +478,7 @@ export class Ability extends BaseAbility {
       s.seed = ((i + 1) * 0.6180339887) % 1;
       s.attach = this._pickAttach(0, 0.7);
       this._attachLocal(s.attach, _a);
-      s.bearing = -(Math.atan2(_a.z, _a.x) - this._yaw);
+      s.bearing = Math.atan2(_a.z, _a.x) - this._yaw;
       s.reach = Math.min(0.92, (Math.hypot(_a.x, _a.z) / Math.max(0.1, R)) * 0.95);
     }
   }
@@ -552,6 +552,11 @@ export class Ability extends BaseAbility {
   /** Where string `i`'s body starts — its hook point on the floor plan. */
   _startPoint(s, out) {
     const R = this.config.zoneRadius;
+    // A floor string turns with the control, so it always hangs under its attach point.
+    if (!s.body && s.active) {
+      this._attachLocal(s.attach, _w);
+      s.bearing = Math.atan2(_w.z, _w.x) - this._yaw;
+    }
     return out.set(this._centre.x + Math.cos(s.bearing) * s.reach * R, 0, this._centre.z + Math.sin(s.bearing) * s.reach * R);
   }
 

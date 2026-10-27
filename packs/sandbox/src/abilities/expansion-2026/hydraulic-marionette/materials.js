@@ -138,7 +138,7 @@ const LIQUID_FRAGMENT = /* glsl */ `
 
     // Thick water seen straight on is deep; the rim, thin, goes pale.
     float thickness = pow(ndv, 1.4);
-    vec3 water = mix(uBody, uDeep, thickness * 0.75);
+    vec3 water = mix(uBody, uDeep, 0.25 + thickness * 0.6);
     water *= 0.35 + 0.65 * wrap;
 
     float fres = pow(1.0 - ndv, uFresnelPow);
@@ -411,12 +411,12 @@ const CROWN_VERTEX = /* glsl */ `
     vec3 p = position;
     float a = uv.x * 6.2831853;
     // The rim is torn into spikes: a few tall fingers, a lot of small ones.
-    float spikes = pow(abs(sin(a * 5.0 + aCrown.y * 11.0)), 6.0) * 0.6 +
-                   pow(abs(sin(a * 13.0 + aCrown.y * 5.0)), 10.0) * 0.35 +
+    float spikes = pow(abs(sin(a * 5.0 + aCrown.y * 11.0)), 3.0) * 0.35 +
+                   pow(abs(sin(a * 13.0 + aCrown.y * 5.0)), 4.0) * 0.18 +
                    snoise(vec3(a * 1.5, aCrown.y * 7.0, 0.0)) * 0.12;
     float h = uv.y;
     // Rises fast, flares out, then the wall falls back as it thins.
-    float rise = sin(min(life, 1.0) * 3.1415927) * (1.0 + spikes * h * 1.4);
+    float rise = sin(min(life, 1.0) * 3.1415927) * (1.0 + spikes * h * 0.8);
     float flare = 1.0 + life * 0.9 + h * life * 0.6;
     p.xz *= flare;
     p.y *= rise;
