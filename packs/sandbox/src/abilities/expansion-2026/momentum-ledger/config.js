@@ -2,13 +2,19 @@
  * Momentum Ledger — motion, zone cast. Data only, no imports.
  *
  * Movement is measured while the ledger is active, then converted into a
- * bounded strike. The ledger lands on the target and *banks* the distance
+ * bounded strike. A cast-iron flywheel is thrown to the target and stands on
+ * its rim over an iron ledger plate, winding up for the whole bank — it is
+ * the store of momentum made visible. The ledger *banks* the distance
  * the caster actually walks for `chargeDuration` seconds (teleports and
  * velocity spikes above `maxSpeed` are rejected, not banked), capped at
  * `maxDistance`. Then it releases a shockwave whose knockback is
  * `baseImpulse + bonusImpulse × banked fraction`. The whole presentation is a
- * readout of that one number: the tally on the dial, the gauge glyphs, the
- * coils' compression, the wake you walked.
+ * readout of that one number: the teeth lit on the flywheel, the tally and
+ * sector on the dial and plate, the gauge glyphs, the coils' compression, the
+ * wake you walked. The wheel also shows an idle wind (`idleWind`) so a cast
+ * with nothing banked still reads as loading and letting go; that is
+ * presentation only and never changes the force. After the release the wheel
+ * hops along the banked direction and settles like a spun coin, then sinks.
  *
  * Every key below is a live editor control. Gameplay keys (range, radius,
  * timing, caps, force) keep their original names and defaults; the rest are
@@ -28,20 +34,23 @@ export default {
     /* --- the cast --- */
     range: 10,
     minRange: 0.5,
-    speed: 50, // the ledger flies to the target at (m/s)
+    speed: 16, // the flywheel is thrown to the target at (m/s) — slow enough to see
     cooldown: 5,
     castAnim: 'cast2',
     zoneRadius: 4.5, // release radius (m)
-    lifetime: 3, // nominal cast length, for the HUD
+    lifetime: 3.6, // nominal cast length, for the HUD
 
     /* --- the ledger (gameplay) --- */
-    chargeDuration: 2.2, // banks movement for (s) after landing
+    chargeDuration: 1.6, // banks movement for (s) after landing
     maxDistance: 12, // distance cap (m)
     maxSpeed: 10, // faster than this is a teleport, not banked (m/s)
     baseImpulse: 6, // knockback with nothing banked
     bonusImpulse: 12, // extra knockback at a full bank
     lift: 5,
     spin: 2,
+
+    lingerTime: 1.3, // seconds after the release before the exit (the wheel winds down)
+    fadeTime: 0.75, // seconds of exit (× global lifetime)
 
     /* --- light --- */
     lightColor: '#ffb088',
@@ -55,6 +64,44 @@ export default {
     trailColor: '#a8383d', // the walked wake
     springColor: '#d98966', // charge coils
     metalColor: '#8c4945', // ledger wheels
+
+    /* --- 0 · the flywheel (hero) --- */
+    // A 2.7 m cast-iron flywheel that is thrown to the target, stands on its
+    // rim and winds up for the whole bank — faster with every metre banked,
+    // and on its own idle wind even when nobody walks — then dumps its
+    // momentum and settles like a spun coin (Euler's disk) before sinking.
+    flywheelSize: 0.3, // wheel radius, × zoneRadius (0.3 × 4.5 = 1.35 m)
+    flywheelYaw: 0.55, // radians the wheel's face is turned off the aim (3/4 view)
+    flywheelSpin: 2.2, // rad/s at rest
+    flywheelChargeSpin: 16, // extra rad/s at a full wind
+    idleWind: 0.55, // the wind-up the wheel shows with nothing banked (visual only)
+    windCurve: 1.4, // how late the idle wind builds (>1 = late)
+    flywheelLunge: 1.2, // metres the wheel hops along the banked direction at the release (× (0.5 + bank))
+    flywheelHop: 0.5, // metres it leaves the floor in that hop
+    settleTilt: 1.42, // radians it falls through as it settles (π/2 = flat)
+    settlePrecession: 7, // rad/s the wobble precesses at its fastest
+    sinkDepth: 0.9, // × wheel radius it sinks into the plate on the exit
+    flywheelMetalness: 0.85,
+    flywheelRoughness: 0.32,
+    flywheelGlow: 1.0, // inner glow as it winds
+    throwHeight: 1.3, // metres the throw arcs up
+    throwScale: 0.45, // size in the hand, × full
+    landKnock: 0.12, // camera knock when it lands (× camera shake)
+    haloGlow: 2.0, // the spin halo
+    haloStreaks: 1.0, // rotational streaks pulled off the rim
+    haloSpan: 1.35, // halo radius, × wheel radius
+    rimSparkRate: 26, // sparks thrown off the rim per second at a full wind
+    ironColor: '#3a2a28',
+    colorWheelA: '#fff1d3', // core
+    colorWheelB: '#ffb088', // tint
+    colorWheelC: '#d6503a', // body
+    colorWheelD: '#2a0f14', // deep
+
+    /* --- the ledger plate (floor) --- */
+    plateOpacity: 0.88, // how solid the iron plate is on the floor
+    plateEngrave: 1.0, // engraved ledger columns and ticks
+    plateGlow: 1.6,
+    scorchCool: 1.4, // seconds the released wedge takes to cool
 
     /* --- 1 · the dial (floor) --- */
     landTime: 0.25, // the dial and wheels ease in over (s) on landing
@@ -71,7 +118,8 @@ export default {
     ringGlow: 1.6, // the lit wheel and release rings
 
     /* --- 3 · the coils --- */
-    springSize: 1,
+    springSize: 1, // × the tether length (1 = the coil reaches the axle)
+    coilThickness: 2.4, // girth of the tether coils
     coilGlow: 0.5, // emissive at rest; rises with the bank
     coilCharge: 0.8, // extra emissive at a full bank
 
