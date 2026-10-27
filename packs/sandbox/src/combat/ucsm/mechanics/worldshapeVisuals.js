@@ -1,6 +1,34 @@
-import { Group } from 'three';
+import { Group, Mesh } from 'three';
+import { LAYER } from '../../../core/Layers.js';
+import { WORLDSHAPE_TERRAINS } from './WorldshapeLook.js';
+import { attachWorldshapeFx, createWorldshapeShockMaterial } from './WorldshapeShaders.js';
+import { createWorldshapeGround } from './WorldshapeHeroGeometry.js';
+
+/**
+ * worldshapeVisuals — the solid rigs of the five authored terrains, their
+ * deterministic animation, and the damage-pulse cue.
+ *
+ * The solids are the readable gameplay: every ridge, spire and pylon stands
+ * on a collision centre the `WorldshapeManager` actually uses, and every
+ * vertex stays inside the advertised field radius. The glacier's ramp is the
+ * very cone the height query samples, so feet meet visible ice. The shader
+ * layers that sit on top (field lines, ground treatment, veil, motes, spray,
+ * shimmer) are added by `WorldshapeHeroGeometry#addWorldshapeHero`.
+ *
+ * Animation is a pure function of combat age, tagged per node as
+ * `userData.worldshapeMotion` and driven by `animateWorldshape`; reduced
+ * motion holds the authored first pose.
+ *
+ * The pulse cue (0.35 s) is a ring plus element debris, and now a shader
+ * shockwave that bursts from the centre to the rim and fades on its own cue
+ * age, so the pulse reads as an event rather than a flashing decal. The
+ * engine half of the same beat — camera shake, screen flash, a light punch
+ * and the terrain's ground mark, on arrival and on every pulse — is
+ * `WorldshapeBeats#worldshapeBeat`, played by the host that owns `app`.
+ */
 const TAU = Math.PI * 2;
 
+/** Tag a node for `animateWorldshape`, recording its authored rest pose. */
 function motion(node, type, phase = 0, extra = {}) {
   node.userData.worldshapeMotion = { type, phase, baseY: node.position.y, baseScale: node.scale.y, ...extra };
   return node;
@@ -139,22 +167,60 @@ export function animateWorldshape(root, age, reducedMotion) {
   });
 }
 
+/** Style → terrain slug, for pulse rings of the authored variants. */
+const STYLE_SLUG = {
+  scorched: 'the-scorched-kingdom',
+  glacier: 'glaciers-dominion',
+  stormground: 'stormground',
+  floodplain: 'the-living-floodplain',
+  glass: 'the-glass-labyrinth'
+};
+
+/** Shader shockwave for one pulse, on the pooled ground disc. */
+function pulseShock(v, g, data, spec, r) {
+  const slug = STYLE_SLUG[spec?.style] ?? 'continental-uprising';
+  const geoKey = 'worldshapeGround:geometry';
+  if (!v.geo[geoKey]) {
+    v.geo[geoKey] = createWorldshapeGround();
+    v.resources.push(v.geo[geoKey]);
+  }
+  const matKey = `worldshapePulse:${slug}`;
+  if (!v.mat[matKey]) {
+    const m = createWorldshapeShockMaterial(slug, v.terrainTime, spec?.height ?? data?.height ?? 0);
+    m.name = matKey;
+    v.mat[matKey] = m;
+    v.resources.push(m);
+  }
+  const ring = new Mesh(v.geo[geoKey], v.mat[matKey]);
+  ring.name = `worldshape-pulse:${slug}`;
+  ring.scale.set(r, 1, r);
+  ring.castShadow = false;
+  ring.receiveShadow = false;
+  ring.layers.set(LAYER.VFX);
+  g.add(ring);
+  attachWorldshapeFx(ring, v, { kind: 'shock', terrain: WORLDSHAPE_TERRAINS[slug], life: 0.35 });
+  return ring;
+}
+
+/** One damage pulse: an element-shaped ring of debris plus the shockwave. */
 export function buildWorldshapePulse(v, g, data, spec) {
   const r = spec?.radius ?? 4;
   const style = spec?.style;
   const material = { scorched: 'fire', glacier: 'ice', stormground: 'storm', floodplain: 'water', glass: 'terrainGlass' }[style] ?? 'gold';
   v.ring(g, material, r * 0.9, 0.14);
   if (style === 'floodplain') {
+    // Water pulses as concentric swells rather than debris.
     v.ring(g, material, r * 0.6, 0.12);
     v.ring(g, material, r * 0.3, 0.1);
   } else {
     const count = style === 'stormground' ? 12 : 10;
     for (let i = 0; i < count; i++) {
-      const a = i * TAU / count, d = r * (style === 'scorched' ? 0.6 : 0.78);
+      const a = (i * TAU) / count, d = r * (style === 'scorched' ? 0.6 : 0.78);
       const n = v.mesh(style === 'stormground' ? 'box' : 'shard', material, g,
         Math.sin(a) * d, 0.24, Math.cos(a) * d,
         style === 'glass' ? 0.18 : 0.09, style === 'scorched' ? 0.5 : 0.3, 0.09);
       n.rotation.z = a;
     }
   }
+  pulseShock(v, g, data, spec, r);
 }

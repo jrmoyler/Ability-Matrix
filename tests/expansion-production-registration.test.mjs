@@ -9,6 +9,9 @@ import { AbilityManager } from '../packs/sandbox/src/abilities/AbilityManager.js
 import { settings, DEFAULT_SETTINGS, ELEMENT_META, ELEMENTS } from '../packs/sandbox/src/config/settings.js';
 import { ELEMENT_OF } from '../packs/sandbox/src/config/elements.js';
 import { EXPANSION_STATUS } from '../packs/sandbox/src/abilities/expansion-2026/status.js';
+// Each case approves one cast on its own; every other cast is held as a candidate.
+const CANDIDATE_STATUS = Object.fromEntries(Object.keys(EXPANSION_STATUS).map((uid) => [uid, 'candidate']));
+
 import { expansionRoster } from '../packs/sandbox/src/abilities/expansion-2026/ProductionRoster.js';
 import { installProductionExpansion } from '../packs/sandbox/src/abilities/expansion-2026/ProductionRegistration.js';
 import { CombatStateManager } from '../packs/sandbox/src/combat/ucsm/CombatStateManager.js';
@@ -55,14 +58,14 @@ test('every expansion status is explicit and candidate rows stay out of public s
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /expansion\.abilities\.filter\(\(a\) => a\.status === 'live'\)/);
   const first = roster[0];
-  const trial = expansionRoster({ ...EXPANSION_STATUS, [first.uid]:'live' });
+  const trial = expansionRoster({ ...CANDIDATE_STATUS, [first.uid]:'live' });
   assert.equal(trial.find((x) => x.uid === first.uid).status, 'live');
-  assert.ok(trial.filter((x) => x.uid !== first.uid).every((x) => x.status === EXPANSION_STATUS[x.uid]));
+  assert.ok(trial.filter((x) => x.uid !== first.uid).every((x) => x.status === CANDIDATE_STATUS[x.uid]));
 });
 
 test('each hypothetical single-UID approval wires real App selection, aim, editor and preset defaults without modifying the legacy pools', async () => {
   for (const candidate of expansionRoster()) {
-    const statuses = { ...EXPANSION_STATUS, [candidate.uid]: 'live' };
+    const statuses = { ...CANDIDATE_STATUS, [candidate.uid]: 'live' };
     const roster = expansionRoster(statuses), app = appStub();
     const before = [...app.abilities.pools.keys()];
     const handle = installProductionExpansion(app, roster);
@@ -90,6 +93,25 @@ test('each hypothetical single-UID approval wires real App selection, aim, edito
   }
 });
 
+test('the shipped roster installs every promoted cast together, Thunderhead Parasite included', async () => {
+  const roster = expansionRoster();
+  const live = roster.filter((p) => p.status === 'live');
+  assert.equal(live.length, roster.length);
+  assert.ok(live.some((p) => p.uid === 'matrix-expansion/thunderhead-parasite'));
+  const app = appStub(), before = [...app.abilities.pools.keys()];
+  const handle = installProductionExpansion(app, roster);
+  assert.equal(handle.byUid.size, live.length);
+  for (const item of live) {
+    assert.ok(app.abilities.pools.has(item.ID), item.uid);
+    assert.equal(ELEMENT_OF[item.uid], item.config.meta.element);
+    assert.ok(app.uids.includes(item.uid), item.uid);
+    assert.equal((await app.select(item.uid, { prepare: false })).uid, item.uid);
+  }
+  handle.dispose();
+  assert.deepEqual([...app.abilities.pools.keys()], before);
+  app.abilities.dispose();
+});
+
 test('registration refuses collisions and rolls back when editor setup fails', () => {
   const app = appStub(), source = expansionRoster()[0];
   assert.throws(() => installProductionExpansion(app, [{ ...source, status:'live', ID:ELEMENTS[0] }]), /conflict/);
@@ -100,7 +122,7 @@ test('registration refuses collisions and rolls back when editor setup fails', (
   assert.equal(ELEMENT_OF[source.uid], undefined);
   assert.equal(app.expansionLive, undefined);
   app.abilities.dispose();
-  assert.throws(() => expansionRoster({ ...EXPANSION_STATUS, [source.uid]: 'unknown' }), /Invalid/);
+  assert.throws(() => expansionRoster({ ...CANDIDATE_STATUS, [source.uid]: 'unknown' }), /Invalid/);
 });
 
 test('approved candidates take the real native cast path and report their own UID and element', async () => {
@@ -124,7 +146,7 @@ test('approved candidates take the real native cast path and report their own UI
     });
     app.combat = adapter;
     adapter._install();
-    const roster = expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]:'live' });
+    const roster = expansionRoster({ ...CANDIDATE_STATUS, [candidate.uid]:'live' });
     const live = installProductionExpansion(app, roster);
     await app.select(candidate.uid);
     app._cast(new Vector3(), new Vector3(0,0,1), 5);
@@ -143,7 +165,7 @@ test('approved candidates take the real native cast path and report their own UI
 test('keyboard roster cycling reaches live expansion entries and returns to native entries', async () => {
   const candidate = expansionRoster()[0];
   const app = appStub();
-  const live = installProductionExpansion(app, expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]: 'live' }));
+  const live = installProductionExpansion(app, expansionRoster({ ...CANDIDATE_STATUS, [candidate.uid]: 'live' }));
   const armed = [];
   app.arm = async (uid) => { armed.push(uid); app.slot = { uid }; };
   app.slot = { uid: app.uidOf(ELEMENTS.at(-1)) };
@@ -165,7 +187,7 @@ test('live expansion presets use native bridge settings and reset to registered 
     const { installMatrixBridge } = await import('../packs/sandbox/src/bridge/MatrixBridge.js');
     const candidate = expansionRoster()[0], app = appStub();
     app.editor.refresh = () => {};
-    const live = installProductionExpansion(app, expansionRoster({ ...EXPANSION_STATUS, [candidate.uid]: 'live' }));
+    const live = installProductionExpansion(app, expansionRoster({ ...CANDIDATE_STATUS, [candidate.uid]: 'live' }));
     const bridge = installMatrixBridge(app);
     const preset = await bridge.preset(candidate.uid);
     assert.deepEqual(preset.settings, candidate.config.settings);

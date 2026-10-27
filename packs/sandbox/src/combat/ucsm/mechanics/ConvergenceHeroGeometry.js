@@ -1,68 +1,266 @@
-import { AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Points, ShaderMaterial } from 'three';
+import {
+  addMotes,
+  bindVfx,
+  createMoteGeometry,
+  createMoteMaterial,
+  createSurfaceMaterial,
+  FormBuilder,
+  MOTE_STYLE,
+  poolGeometry,
+  poolMaterial
+} from './ConvergenceCounterStanceVfx.js';
 
-/** Individual silhouettes for each implemented convergence, authored in local
- * cast coordinates and pooled by presentation. No cast allocates a geometry. */
-export const CONVERGENCE_HEROES=Object.freeze(['promethean-ignition','absolute-crystallization','storm-catalyst','hydrodynamic-synthesis','elemental-lithification','prismatic-multiplication']);
-const COLORS={ 'promethean-ignition':'#ff842d','absolute-crystallization':'#9adfff','storm-catalyst':'#b6a3ff','hydrodynamic-synthesis':'#38bfff','elemental-lithification':'#ce9a61','prismatic-multiplication':'#d1bbff' };
-export function createConvergenceHero(slug) {
- if(!CONVERGENCE_HEROES.includes(slug)) throw new Error('Unknown convergence hero');
- const pos=[],uv=[],idx=[];
- const ribbon=(points,width)=>{
-  const start=pos.length/3;
-  for(let i=0;i<points.length;i++){
-   const [x,y,z]=points[i], p=points[Math.max(0,i-1)],n=points[Math.min(points.length-1,i+1)];
-   const dx=n[0]-p[0],dz=n[2]-p[2],d=Math.hypot(dx,dz)||1;
-   // Offset across the horizontal footprint. Taper prevents hard cut ends.
-   const w=width*(.25+.75*Math.sin(Math.PI*(i+.5)/points.length));
-   pos.push(x-dz/d*w,y,z+dx/d*w,x+dz/d*w,y,z-dx/d*w);uv.push(i/(points.length-1),0,i/(points.length-1),1);
-   if(i){const a=start+(i-1)*2,b=start+i*2;idx.push(a,b,a+1,b,b+1,a+1);}
+/**
+ * Convergence hero surfaces — one authored energy silhouette per move.
+ *
+ * Every hero is a single indexed ribbon/facet geometry drawn with the kit's
+ * surface shader (fbm filaments, fresnel rim, root-to-tip reveal, burn-edge
+ * dissolve). They are authored in local cast space (+Z is the aim) and are
+ * **bounded by the move's strike footprint**: every vertex lies inside one of
+ * the shapes `convergenceStrikeShapes` returns, so the energy you see never
+ * promises reach the hit does not have (the test suite checks this).
+ *
+ *  - promethean-ignition — nine spiral flame arms arching out over the nova
+ *    disc, and six upright tongues licking off the core.
+ *  - absolute-crystallization — a twisted crystal cluster in the core disc,
+ *    a three-crystal crown on each satellite and rime spokes joining them
+ *    (the spokes cross where core and satellite discs overlap).
+ *  - storm-catalyst — ten jagged discharge spokes and three broken orbit arcs
+ *    over the reaction disc.
+ *  - hydrodynamic-synthesis — seven braided streams down the wave capsule and
+ *    three curling crests standing up out of it.
+ *  - elemental-lithification — a basalt spire, a ring of shards and a strata
+ *    band in each eruption disc.
+ *  - prismatic-multiplication — three refracted strands per beam with prism
+ *    facets riding each beam.
+ *
+ * A bounded companion `Points` layer (48 motes sampled off the hero) shares
+ * the hero's clock. Geometry and materials are pooled on the presentation and
+ * disposed with it; a cast allocates none of them.
+ */
+export const CONVERGENCE_HEROES = Object.freeze([
+  'promethean-ignition',
+  'absolute-crystallization',
+  'storm-catalyst',
+  'hydrodynamic-synthesis',
+  'elemental-lithification',
+  'prismatic-multiplication'
+]);
+
+/** Core / edge colours of each hero (the live values are in CONVERGENCE_LOOK.palette). */
+export const CONVERGENCE_HERO_COLORS = Object.freeze({
+  'promethean-ignition': ['#ff842d', '#ff3d0c'],
+  'absolute-crystallization': ['#9adfff', '#e8fbff'],
+  'storm-catalyst': ['#b6a3ff', '#f0e8ff'],
+  'hydrodynamic-synthesis': ['#38bfff', '#c8f4ff'],
+  'elemental-lithification': ['#ce9a61', '#ffcf73'],
+  'prismatic-multiplication': ['#d1bbff', '#9ef3ff']
+});
+
+/** How the motes over each hero move. */
+const MOTE_STYLES = Object.freeze({
+  'promethean-ignition': MOTE_STYLE.RISE,
+  'absolute-crystallization': MOTE_STYLE.FALL,
+  'storm-catalyst': MOTE_STYLE.ORBIT,
+  'hydrodynamic-synthesis': MOTE_STYLE.ORBIT,
+  'elemental-lithification': MOTE_STYLE.RISE,
+  'prismatic-multiplication': MOTE_STYLE.FALL
+});
+
+/** Motes per hero. Fixed: the live density is a draw range over it. */
+const HERO_MOTES = 48;
+
+/* ------------------------------------------------------------------------ */
+/* Authoring                                                                */
+/* ------------------------------------------------------------------------ */
+
+const TAU = Math.PI * 2;
+
+/** Nova: spiral flame arms over the disc plus upright tongues off the core. */
+function promethean(b) {
+  for (let k = 0; k < 9; k++) {
+    const a0 = (k * TAU) / 9;
+    const arm = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      const r = 0.4 + t * 2.5; // stays inside the 3.6 m nova
+      const a = a0 + t * 0.8; // the spiral sweep
+      arm.push([Math.sin(a) * r, 0.15 + Math.sin(t * Math.PI) * 1.1, Math.cos(a) * r]);
+    }
+    b.ribbon(arm, 0.18, 'xz');
   }
- };
- const diamond=(x,z,r,h,phase=0)=>{
-  const start=pos.length/3, top=[x+Math.sin(phase)*r*.16,h,z+Math.cos(phase)*r*.16];
-  const points=[[x-r,0,z],[x,0,z-r],[x+r,0,z],[x,0,z+r],top,[x,h*.43,z]];
-  for(const [px,py,pz] of points){pos.push(px,py,pz);uv.push(Math.max(0,Math.min(1,(px-x)/(2*r)+.5)),Math.max(0,Math.min(1,py/h)));}
-  for(const f of [[0,1,4],[1,2,4],[2,3,4],[3,0,4],[1,0,5],[2,1,5],[3,2,5],[0,3,5]])idx.push(...f.map(i=>start+i));
- };
- if(slug==='promethean-ignition') {
-  for(let k=0;k<9;k++){const a=k*Math.PI*2/9, pts=[];for(let i=0;i<=24;i++){const t=i/24,r=.4+t*2.5, angle=a+t*.8;pts.push([Math.sin(angle)*r,.15+Math.sin(t*Math.PI)*1.1,Math.cos(angle)*r]);}ribbon(pts,.18);}
- } else if(slug==='absolute-crystallization') {
-  diamond(0,0,.62,2.2);for(let i=0;i<6;i++){const a=i*Math.PI/3,x=Math.sin(a)*3,z=Math.cos(a)*3;diamond(x,z,.44,1.6,a);diamond(x*.87,z*.87,.18,.8,-a);}
- } else if(slug==='storm-catalyst') {
-  for(let k=0;k<10;k++){const a=k*Math.PI*2/10, pts=[];for(let i=0;i<=20;i++){const t=i/20,r=.35+t*3.2,offset=i===20?0:(i%2?.13:-.13);pts.push([Math.sin(a)*r+Math.cos(a)*offset,.3+.25*Math.sin(t*8+k),Math.cos(a)*r-Math.sin(a)*offset]);}ribbon(pts,.075);}
- } else if(slug==='hydrodynamic-synthesis') {
-  for(let k=-3;k<=3;k++){const pts=[];for(let i=0;i<=28;i++){const t=i/28;pts.push([k*.23+Math.sin(t*9+k)*.12,.24+.35*Math.sin(t*Math.PI)+Math.abs(k)*.07,-2+t*8]);}ribbon(pts,.08);}
- } else if(slug==='elemental-lithification') {
-  for(const z of [-2.5,0,2.5]){diamond(0,z,.74,2.5,z);for(let k=0;k<6;k++){const a=k*Math.PI/3;diamond(Math.sin(a)*.67,z+Math.cos(a)*.67,.2,.75,k);}}
- } else if(slug==='prismatic-multiplication') {
-  for(const a of [-.48,0,.48])for(let k=-1;k<=1;k++){const pts=[];for(let i=0;i<=24;i++){const t=i/24,r=t*6, offset=k*.11+Math.sin(t*10+k)*.045;pts.push([Math.sin(a)*r+Math.cos(a)*offset,.6+Math.sin(t*6+k)*.12,Math.cos(a)*r-Math.sin(a)*offset]);}ribbon(pts,.045);}
- }
- const g=new BufferGeometry();g.name=`convergence-hero:${slug}`;
- g.setAttribute('position',new Float32BufferAttribute(pos,3));g.setAttribute('uv',new Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();return g;
+  // Tongues: vertical strips that wrap around the core, leaning outward.
+  for (let k = 0; k < 6; k++) {
+    const a = (k * TAU) / 6 + 0.26;
+    const tongue = [];
+    for (let i = 0; i <= 11; i++) {
+      const t = i / 11;
+      const r = 0.55 + 0.25 * t + 0.08 * Math.sin(t * 7 + k);
+      tongue.push([Math.sin(a + t * 0.4) * r, 0.2 + t * 1.7, Math.cos(a + t * 0.4) * r]);
+    }
+    b.ribbon(tongue, 0.16, 'radial');
+  }
 }
-const VERTEX=`varying vec2 vUv;uniform float clock;uniform float identity;
- void main(){vUv=uv;vec3 p=position;p.y+=0.035*sin(uv.x*18.0-clock*(3.0+identity*.2));gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`;
-const FRAGMENT=`varying vec2 vUv;uniform float clock;uniform float identity;uniform vec3 tint;
- void main(){float rim=1.0-abs(vUv.y*2.0-1.0);float pulse=pow(max(0.0,sin(vUv.x*(16.0+identity*2.0)-clock*(2.4+identity*.25))),5.0);
- gl_FragColor=vec4(tint*(1.0+pulse),(.28+.55*rim)*(.72+.28*pulse));}`;
-const PARTICLE_VERTEX=`uniform float clock;varying float vFade;
- void main(){vec3 p=position;float phase=fract(clock*.25+position.y*.37);p.y+=phase*.7;vFade=sin(phase*3.14159265);
- vec4 mv=modelViewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(24.0/max(1.0,-mv.z),1.5,6.0);}`;
-const PARTICLE_FRAGMENT=`varying float vFade;uniform vec3 tint;
- void main(){float r=length(gl_PointCoord-vec2(.5));gl_FragColor=vec4(tint*1.5,(1.0-smoothstep(.1,.5,r))*vFade*.65);}`;
+
+/** Crown: core cluster, a crown on each satellite, rime spokes between. */
+function crystallization(b) {
+  b.facet(0, 1.1, 0, 0.62, 1.1, 0.42);
+  for (let k = 0; k < 4; k++) {
+    const a = (k * TAU) / 4 + 0.4;
+    b.facet(Math.sin(a) * 0.75, 0.6, Math.cos(a) * 0.75, 0.24, 0.6, 0.18, Math.sin(a) * 0.12, a);
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3;
+    const x = Math.sin(a) * 3, z = Math.cos(a) * 3;
+    b.facet(x, 0.8, z, 0.44, 0.8, 0.3, 0.08, a);
+    b.facet(x * 0.87, 0.4, z * 0.87, 0.18, 0.4, 0.12, -0.05, -a);
+    b.facet(x * 1.12, 0.32, z * 1.12, 0.14, 0.32, 0.1, 0.05, a * 2);
+    // Rime spoke: centre to satellite. The core (2.2 m) and satellite (0.85 m
+    // at 3 m) discs overlap, so a thin strip on the axis never leaves both.
+    const spoke = [];
+    for (let j = 0; j <= 18; j++) {
+      const t = 0.08 + (j / 18) * 0.9;
+      spoke.push([x * t, 0.06 + 0.05 * Math.sin(t * 19 + i), z * t]);
+    }
+    b.ribbon(spoke, 0.05, 'xz');
+  }
+}
+
+/** Reaction disc: jagged radial discharge and broken orbit arcs. */
+function storm(b) {
+  for (let k = 0; k < 10; k++) {
+    const a = (k * TAU) / 10;
+    const bolt = [];
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16;
+      const r = 0.35 + t * 3.2;
+      const kink = i === 16 ? 0 : i % 2 ? 0.13 : -0.13; // the zig-zag
+      bolt.push([Math.sin(a) * r + Math.cos(a) * kink, 0.3 + 0.25 * Math.sin(t * 8 + k), Math.cos(a) * r - Math.sin(a) * kink]);
+    }
+    b.ribbon(bolt, 0.075, 'xz');
+  }
+  for (let ring = 0; ring < 3; ring++) {
+    const r = 1.2 + ring;
+    for (let seg = 0; seg < 2; seg++) {
+      const a0 = seg * Math.PI + ring * 0.9;
+      const arc = [];
+      for (let i = 0; i <= 15; i++) {
+        const a = a0 + (i / 15) * Math.PI * 0.7;
+        arc.push([Math.sin(a) * r, 0.9 + ring * 0.35 + 0.08 * Math.sin(i * 1.9), Math.cos(a) * r]);
+      }
+      b.ribbon(arc, 0.05, 'xz');
+    }
+  }
+}
+
+/** Wave capsule: braided streams and curling crests. */
+function hydrodynamic(b) {
+  for (let k = -3; k <= 3; k++) {
+    const stream = [];
+    for (let i = 0; i <= 28; i++) {
+      const t = i / 28;
+      stream.push([k * 0.23 + Math.sin(t * 9 + k) * 0.12, 0.24 + 0.35 * Math.sin(t * Math.PI) + Math.abs(k) * 0.07, -2 + t * 8]);
+    }
+    b.ribbon(stream, 0.08, 'xz');
+  }
+  // Crests: a curl in the vertical plane through the aim, stood across the
+  // capsule (offset along x, which the capsule's 1.25 m radius bounds).
+  for (let c = 0; c < 3; c++) {
+    const z0 = -0.5 + c * 2.4;
+    const crest = [];
+    for (let i = 0; i <= 15; i++) {
+      const t = i / 15;
+      const a = t * Math.PI * 1.35;
+      crest.push([(c - 1) * 0.3, 0.2 + Math.sin(a) * 0.9 + t * 0.4, z0 + (1 - Math.cos(a)) * 0.55]);
+    }
+    b.ribbon(crest, 0.42, 'xz', 0.5);
+  }
+}
+
+/** Three eruption discs: spire, shard ring, strata band. */
+function lithification(b) {
+  for (const z of [-2.5, 0, 2.5]) {
+    b.facet(0, 1.25, z, 0.74, 1.25, 0.5, z * 0.03, z);
+    for (let k = 0; k < 6; k++) {
+      const a = (k * Math.PI) / 3;
+      b.facet(Math.sin(a) * 0.67, 0.38, z + Math.cos(a) * 0.67, 0.2, 0.38, 0.14, 0.04, k);
+    }
+    const band = [];
+    for (let i = 0; i <= 24; i++) {
+      const a = (i / 24) * TAU * 0.92 + z;
+      band.push([Math.sin(a) * 0.95, 0.12 + 0.05 * Math.sin(a * 5), z + Math.cos(a) * 0.95]);
+    }
+    b.ribbon(band, 0.06, 'xz', 0.4);
+  }
+}
+
+/** Fan of three beams: refracted strands and riding prism facets. */
+function prismatic(b) {
+  for (const a of [-0.48, 0, 0.48]) {
+    const ux = Math.sin(a), uz = Math.cos(a);
+    for (let k = -1; k <= 1; k++) {
+      const strand = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, r = t * 6;
+        const off = k * 0.11 + Math.sin(t * 10 + k) * 0.045;
+        strand.push([ux * r + uz * off, 0.6 + Math.sin(t * 6 + k) * 0.12, uz * r - ux * off]);
+      }
+      b.ribbon(strand, 0.045, 'xz');
+    }
+    for (let j = 1; j <= 4; j++) b.facet(ux * j * 1.3, 0.75, uz * j * 1.3, 0.12, 0.3, 0.1, 0, -a + j * 0.5);
+  }
+}
+
+const AUTHORS = {
+  'promethean-ignition': promethean,
+  'absolute-crystallization': crystallization,
+  'storm-catalyst': storm,
+  'hydrodynamic-synthesis': hydrodynamic,
+  'elemental-lithification': lithification,
+  'prismatic-multiplication': prismatic
+};
+
+/** Deterministic hero geometry for `slug`. Throws on an unknown slug. */
+export function createConvergenceHero(slug) {
+  if (!CONVERGENCE_HEROES.includes(slug)) throw new Error('Unknown convergence hero');
+  const b = new FormBuilder();
+  AUTHORS[slug](b);
+  return b.build(`convergence-hero:${slug}`);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Presentation                                                             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Add the hero surface and its motes to a convergence rig. Called by the
+ * presentation after the sculpture is built. The lifetime and per-cast
+ * strength come from the rig (`drawConvergenceArt` records them on the group),
+ * so the dissolve lands exactly on the move's real lifetime.
+ */
 export function addConvergenceHero(v, group, uid) {
- const slug=(uid??'mechanics/convergence/storm-catalyst').split('/').at(-1);
- if(!CONVERGENCE_HEROES.includes(slug)) return false;
- const key=`convergenceHero:${slug}`, material=`convergenceHeroMaterial:${slug}`, dots=`convergenceMotes:${slug}`, dotMat=`convergenceMoteMaterial:${slug}`;
- if(!v.geo[key]) {const g=createConvergenceHero(slug);v.geo[key]=g;v.resources.push(g);}
- if(!v.mat[material]) {const m=new ShaderMaterial({uniforms:{clock:v.terrainTime,identity:{value:CONVERGENCE_HEROES.indexOf(slug)},tint:{value:new Color(COLORS[slug])}},vertexShader:VERTEX,fragmentShader:FRAGMENT,transparent:true,depthWrite:false,side:DoubleSide,blending:AdditiveBlending});m.name=material;v.mat[material]=m;v.resources.push(m);}
- if(!v.geo[dots]) {
-  const original=v.geo[key].getAttribute('position'),p=[];
-  for(let i=0;i<48;i++){const j=Math.floor(i*original.count/48);p.push(original.getX(j),original.getY(j),original.getZ(j));}
-  const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(p,3));g.computeBoundingSphere();g.name=dots;v.geo[dots]=g;v.resources.push(g);
- }
- if(!v.mat[dotMat]) {const m=new ShaderMaterial({uniforms:{clock:v.terrainTime,tint:{value:new Color(COLORS[slug])}},vertexShader:PARTICLE_VERTEX,fragmentShader:PARTICLE_FRAGMENT,transparent:true,depthWrite:false,blending:AdditiveBlending});m.name=dotMat;v.mat[dotMat]=m;v.resources.push(m);}
- const hero=v.mesh(key,material,group);hero.name=key;hero.castShadow=false;hero.receiveShadow=false;
- const motes=new Points(v.geo[dots],v.mat[dotMat]);motes.name=dots;motes.frustumCulled=false;group.add(motes);
- return true;
+  const slug = (uid ?? 'mechanics/convergence/storm-catalyst').split('/').at(-1);
+  if (!CONVERGENCE_HEROES.includes(slug)) return false;
+  const [core, edge] = CONVERGENCE_HERO_COLORS[slug];
+  const identity = CONVERGENCE_HEROES.indexOf(slug);
+  const life = group.userData.convergenceLife ?? 1.8;
+  const strength = group.userData.convergenceStrength ?? 1;
+  const key = `convergenceHero:${slug}`;
+  const material = `convergenceHeroMaterial:${slug}`;
+  const dots = `convergenceMotes:${slug}`;
+  const dotMat = `convergenceMoteMaterial:${slug}`;
+  poolGeometry(v, key, () => createConvergenceHero(slug));
+  poolMaterial(v, material, () =>
+    createSurfaceMaterial({ clock: v.terrainTime, tint: core, tintB: edge, identity, paletteKey: slug })
+  );
+  poolGeometry(v, dots, () => createMoteGeometry(v.geo[key].getAttribute('position'), HERO_MOTES));
+  poolMaterial(v, dotMat, () =>
+    createMoteMaterial({ clock: v.terrainTime, tint: core, tintB: edge, style: MOTE_STYLES[slug], paletteKey: slug })
+  );
+  const hero = v.mesh(key, material, group);
+  hero.name = key;
+  hero.renderOrder = 5;
+  bindVfx(v, hero, 'convergence', { life, strength, seed: identity, role: 'surface' });
+  addMotes(v, group, 'convergence', dots, dotMat, { name: dots, life, strength, seed: identity });
+  return true;
 }

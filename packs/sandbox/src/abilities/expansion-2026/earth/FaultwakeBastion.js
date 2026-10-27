@@ -1,350 +1,963 @@
+import { InstancedMesh, Matrix4, Mesh, Points, Quaternion, Vector3 } from 'three';
+import { Ability } from '../../Ability.js';
 import {
-  BufferAttribute,
-  BufferGeometry,
-  AdditiveBlending,
-  Color,
-  InstancedMesh,
-  Matrix4,
-  Mesh,
-  PlaneGeometry,
-  Points,
-  RingGeometry,
-  DoubleSide,
-  ShaderMaterial,
-  Vector3,
-} from "three";
-import { Ability } from "../../Ability.js";
-import { LAYER } from "../../../core/Layers.js";
-import { settings } from "../../../config/settings.js";
-export const ID = "faultwake-bastion",
-  UID = "matrix-expansion/faultwake-bastion";
+  createColumnGeometry,
+  createRubbleGeometry,
+  addRockInstanceAttributes,
+  createFissureGeometry,
+  createShockGeometry,
+  createDebrisGeometry
+} from './FaultwakeBastionGeometry.js';
+import {
+  createRockMaterial,
+  createRockDepthMaterial,
+  createFissureMaterial,
+  createHeatVeilMaterial,
+  createDebrisMaterial,
+  createShockMaterial
+} from './FaultwakeBastionMaterials.js';
+import { ParticleShape } from '../../../particles/ParticleSystem.js';
+import { RateEmitter } from '../../../particles/ParticleEngine.js';
+import { DecalType } from '../../../effects/GroundDecals.js';
+import { BurstMode } from '../../../effects/BurstSphere.js';
+import { LAYER } from '../../../core/Layers.js';
+import { frame } from '../../../core/FrameUniforms.js';
+import { CAST_ANIMATIONS, settings } from '../../../config/settings.js';
+import { getColor } from '../../../utils/color.js';
+import { saturate, Easing } from '../../../utils/math.js';
+
+export const ID = 'faultwake-bastion',
+  UID = 'matrix-expansion/faultwake-bastion';
+
 export const CONFIG = Object.freeze({
   id: ID,
   meta: {
-    label: "Faultwake Bastion",
-    accent: "#d5a077",
-    element: "earth",
-    key: "",
-    cast: "line",
-    hint: "An advancing chain of fractured rock columns erupts and scatters enemies.",
-    glyph: '<path d="M8 80L18 40L30 70L43 17L56 71L72 35L91 80Z"/>',
+    label: 'Faultwake Bastion',
+    accent: '#d5a077',
+    element: 'earth',
+    key: '',
+    cast: 'line',
+    hint: 'An advancing chain of fractured rock columns erupts and scatters enemies.',
+    glyph: '<path d="M8 80L18 40L30 70L43 17L56 71L72 35L91 80Z"/>'
   },
   settings: {
-    range: 18,
-    minRange: 2,
-    speed: 14,
-    lifetime: 2.3,
-    cooldown: 4,
-    castAnim: "cast3",
-    lightColor: "#ca8753",
+    /* --- the cast itself --- */
+    range: 18, // maximum cast distance, metres
+    minRange: 2, // closer than this and the cast is refused
+    speed: 14, // how fast the fault runs out from the caster, metres/second
+    lifetime: 2.3, // seconds the bastion stands, settles and folds back down
+    cooldown: 4, // seconds before the ability can be armed again
+    castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
+    impactTime: 0.45, // seconds the terminal eruption rings before the fade
+
+    /* --- light --- */
+    lightColor: '#ca8753', // the dynamic light riding the front
     lightIntensity: 4,
     lightRadius: 8,
-    columns: 10,
-    columnWidth: 0.65,
-    height: 2.2,
-    reach: 1.3,
-    impulse: 5,
-    lift: 2.2,
-    dustOpacity: 0.7,
-    crackWidth: 1.2,
-    impactShake: 0.18,
-    impactFlash: 0.07,
-    settleOvershoot: 0.15,
-    settleDuration: 0.35,
-    sinkDepth: 1.1,
-  },
-});
-function rockGeometry() {
-  const pos = [],
-    idx = [];
-  const seg = 12,
-    rows = 8;
-  for (let y = 0; y <= rows; y++)
-    for (let i = 0; i <= seg; i++) {
-      const t = y / rows,
-        a = (i / seg) * Math.PI * 2,
-        rad =
-          (1 - 0.52 * t) *
-          (1 +
-            0.13 * Math.sin(i * 7.1 + y * 2.2) +
-            0.07 * Math.cos(i * 4.3 - y * 1.7));
-      pos.push(Math.cos(a) * rad, t * 2, Math.sin(a) * rad);
-      if (y < rows && i < seg) {
-        const n = y * (seg + 1) + i;
-        idx.push(n, n + 1, n + seg + 1, n + 1, n + seg + 2, n + seg + 1);
-      }
-    }
-  const top = pos.length / 3;
-  pos.push(0, 2.05, 0);
-  const bottom = pos.length / 3;
-  pos.push(0, 0, 0);
-  for (let i = 0; i < seg; i++) {
-    const upper = rows * (seg + 1) + i;
-    idx.push(top, upper + 1, upper, bottom, i, i + 1);
+
+    /* ================================================================ */
+    /* 1 · THE COLUMNS                                                   */
+    /* ================================================================ */
+
+    columns: 10, // basalt columns along the line (capped at 16)
+    columnWidth: 0.65, // radius of a column, metres
+    height: 2.2, // full height of the tallest column, metres
+    heightVariance: 0.3, // 0 all equal … 1 some columns half height
+    widthVariance: 0.2, // radius jitter, fraction
+    columnJitter: 0.24, // lateral wander off the aimed line, metres
+    columnLean: 0.14, // radians each column leans away from the line
+    columnTwist: 1, // random yaw, 0..1 of a hexagon's sixth
+    emergeLead: 1, // metres before the front reaches it that a column starts to rise
+    settleOvershoot: 0.15, // how far past full height the heave carries, fraction
+    settleDuration: 0.35, // seconds from arrival to settled on its seat
+    sinkDepth: 1.1, // how far it retreats under the floor, × its height
+    retreatStagger: 0.45, // 0 all sink together … 1 the far end folds first, one by one
+
+    /* --- the rock itself --- */
+    rockNoiseScale: 1.2, // scale of grit and strata in the column's own space
+    rockGrit: 1, // fbm grain strength
+    rockStrata: 1, // horizontal banding strength
+    dustCover: 0.55, // dust settled on the upward faces, 0..1
+    veinGlow: 2.6, // magma vein brightness (bloom picks up > 1)
+    veinWidth: 0.12, // how open the veins are while hot
+    veinRest: 0.08, // heat a settled column keeps, 0..1
+    heatDecay: 1.1, // seconds for a fresh column's veins to seal
+    burnEdge: 0.08, // width of the glowing rim on the exit dissolve
+    dissolveStart: 0.55, // fraction of the fade before the sinking columns start to crumble
+    colorRockDark: '#22150d',
+    colorRockLight: '#6e4a31',
+    colorRockDust: '#a48766',
+    colorMagma: '#ff5a14',
+    colorMagmaCore: '#ffd28a',
+
+    /* --- rubble kicked off each column's base --- */
+    rubblePerColumn: 3, // boulders thrown per column (capped at 3)
+    rubbleSize: 0.26, // metres across
+    rubbleSpeed: 3.2, // sideways throw, metres/second
+    rubbleUp: 4.5, // upward throw, metres/second
+    rubbleGravity: 16, // metres/second²
+    rubbleSpin: 7, // tumble, radians/second while airborne
+
+    /* ================================================================ */
+    /* 2 · THE FISSURE                                                   */
+    /* ================================================================ */
+
+    crackWidth: 1.2, // half-width of the scorched strip, metres
+    crackFresh: 2.5, // metres behind the front that stay white-hot
+    crackWander: 0.12, // how far the slit wanders off the line, metres
+    crackBranching: 1, // density of the branch cracks
+    crackGlow: 3, // brightness of the slit
+    crackCool: 1.6, // >1 the slit holds its heat into the fade
+    scarOpacity: 0.6, // scorched ground darkening, 0..1
+    telegraphLength: 2.5, // metres ahead of the front the seam pulses
+    telegraphGlow: 0.6, // brightness of that warning seam
+    colorCrackHot: '#ffc27a',
+    colorCrackEmber: '#d9380c',
+    colorCrackScar: '#140c08',
+
+    /* --- heat veil (screen distortion over the open fissure) --- */
+    veilWidth: 1.6, // × crackWidth
+    veilStrength: 0.6,
+    veilScale: 1.4, // shimmer noise frequency, 1/metres
+    veilSpeed: 1.2, // shimmer rise speed
+
+    /* ================================================================ */
+    /* 3 · DEBRIS AND PARTICLES                                          */
+    /* ================================================================ */
+
+    /* --- the debris cloud thrown behind the front (96 GPU points) --- */
+    dustOpacity: 0.7, // opacity of the thrown debris
+    debrisSize: 1, // chip size multiplier
+    debrisLift: 3.2, // launch speed upward, metres/second
+    debrisSpread: 1.6, // sideways scatter, metres/second
+    debrisGravity: 8, // metres/second²
+    debrisGlow: 2, // how hot a chip is when torn out
+    colorDebris: '#6b4128',
+
+    /* --- dust plumes off each eruption (pooled SMOKE) --- */
+    dustPerColumn: 10, // puffs when a column breaks the floor
+    dustRate: 36, // puffs/second trailing the front
+    dustSize: 0.8,
+    dustLife: 1.6,
+    dustRise: 0.7, // buoyancy, metres/second²
+    plumeOpacity: 0.55,
+    colorDustA: '#b49a7c',
+    colorDustB: '#8a6f55',
+    colorDustC: '#5a4636',
+    colorDustD: '#2e241c',
+
+    /* --- rock chips (pooled CHIP, lit) --- */
+    chipsPerColumn: 8,
+    chipSpeed: 5,
+    chipSize: 0.08,
+    chipLife: 1.2,
+    chipGravity: 12,
+    colorChipA: '#8f6a4c',
+    colorChipB: '#6b4b34',
+    colorChipC: '#4a3324',
+    colorChipD: '#2a1c13',
+
+    /* --- embers rising off the fissure (pooled SOFT, additive) --- */
+    emberRate: 70, // embers/second while the fissure is hot
+    emberSize: 0.05,
+    emberLife: 1.3,
+    emberRise: 1.8, // metres/second²
+    emberGlow: 2.6,
+    colorEmberA: '#fff1c4',
+    colorEmberB: '#ffa042',
+    colorEmberC: '#d9380c',
+    colorEmberD: '#3a0d02',
+
+    /* ================================================================ */
+    /* 4 · THE ERUPTION BEATS                                            */
+    /* ================================================================ */
+
+    impactShake: 0.18, // camera knock at the terminal eruption
+    impactFlash: 0.07, // screen flash at the terminal eruption
+    impactLight: 3, // light punch, × lightIntensity
+    impactRadius: 2.6, // how far the shock disc runs, metres
+    impactRingGlow: 2,
+    impactCracks: 3, // radial crack density on the disc
+    impactChips: 40, // chips at the terminal eruption
+    impactDust: 24, // dust puffs at the terminal eruption
+    burstSize: 2.4, // EARTH dust shell, metres
+    burstIntensity: 1,
+    crackDecalRadius: 3.2, // radial CRACK decal, metres
+    dustRingRadius: 3.6, // DUSTRING decal, metres
+    columnKnock: 0.035, // small camera knock as each column breaks the floor
+    columnLight: 0.6, // light punch per column, × lightIntensity
+    colorFlash: '#ffb070',
+    colorBurstA: '#ffd9a0',
+    colorBurstB: '#b8683a',
+    colorBurstC: '#3b2416',
+
+    /* ================================================================ */
+    /* 5 · HITS                                                          */
+    /* ================================================================ */
+
+    reach: 1.3, // half-width of the strip that throws a body, metres
+    impulse: 5, // eruption force, metres/second
+    lift: 2.2, // eruption lift, metres/second
+    hitSpin: 0.6 // tumble given to a thrown body
   }
-  const g = new BufferGeometry();
-  g.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
-function crackMaterial() {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: DoubleSide,
-    uniforms: {
-      uTime: { value: 0 },
-      uFront: { value: 0 },
-      uFade: { value: 1 },
-    },
-    vertexShader:
-      "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-    fragmentShader: `varying vec2 vUv; uniform float uTime,uFront,uFade;
-      void main(){float x=vUv.y-.5;float wander=.06*sin(vUv.x*19.)+.025*sin(vUv.x*57.);
-      float core=1.-smoothstep(.008,.035,abs(x-wander));
-      float branch=pow(max(0.,1.-abs(sin(vUv.x*92.+x*43.))*16.),3.)*(1.-smoothstep(.05,.45,abs(x)));
-      float reached=1.-smoothstep(uFront,uFront+.02,vUv.x);float glow=(core+branch*.35)*reached*uFade;
-      gl_FragColor=vec4(vec3(.85,.20,.025)*glow,glow*.85);}`,
-  });
-}
-function debrisMaterial() {
-  return new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    uniforms: {
-      uTime: { value: 0 },
-      uFront: { value: 0 },
-      uLength: { value: 1 },
-      uSpeed: { value: 1 },
-      uFade: { value: 1 },
-      uOrigin: { value: new Vector3() },
-      uDir: { value: new Vector3() },
-      uSide: { value: new Vector3() },
-    },
-    vertexShader: `attribute float aSeed;uniform float uTime,uFront,uLength,uSpeed;uniform vec3 uOrigin,uDir,uSide;varying float vA;
-      void main(){float along=position.x*uLength;float age=max(0.,uTime-along/max(.1,uSpeed));
-      vec3 p=uOrigin+uDir*along+uSide*(position.z+sin(aSeed*41.)*age*1.6);p.y=.12+age*(3.2+aSeed*2.)-age*age*4.;
-      vA=step(along,uFront)*step(0.,p.y)*(1.-smoothstep(.3,1.2,age));vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp((8.+aSeed*12.)/max(1.,-mv.z),1.,7.);gl_Position=projectionMatrix*mv;}`,
-    fragmentShader: `uniform float uFade;varying float vA;void main(){float edge=1.-smoothstep(.25,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(vec3(.55,.32,.18),edge*vA*uFade);}`,
-  });
-}
-function rockMaterial() {
-  return new ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
-    vertexShader:
-      "varying vec3 vP;varying vec3 vN;void main(){vP=position;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}",
-    fragmentShader: `varying vec3 vP,vN;uniform float uTime,uFade;float h(vec3 p){return fract(sin(dot(p,vec3(23.1,67.9,11.5)))*43758.5);}void main(){float grit=h(floor(vP*22.));float strata=.5+.5*sin(vP.y*34.+sin(vP.x*6.)*1.4);float crack=pow(max(0.,1.-abs(sin(vP.x*17.+vP.z*13.+vP.y*8.))*9.),3.);float light=.35+.65*max(0.,dot(normalize(vN),normalize(vec3(.4,.8,.3))));vec3 c=mix(vec3(.17,.085,.045),vec3(.5,.29,.15),grit*.36+strata*.3)*light+vec3(.5,.12,.015)*crack;gl_FragColor=vec4(c,uFade);}`,
-    transparent: true,
-    depthWrite: false,
-  });
-}
+});
+
+/** Columns one cast can raise; the instanced mesh is built at this size. */
+const MAX_COLUMNS = 16;
+/** Boulders per column, and the rubble mesh's capacity. */
+const RUBBLE_PER_COLUMN = 3;
+const MAX_RUBBLE = MAX_COLUMNS * RUBBLE_PER_COLUMN;
+/** Dice per column: lateral, height, width, yaw, lean. */
+const COLUMN_DICE = 5;
+/** Dice per boulder: heading, speed, up, spin, size. */
+const RUBBLE_DICE = 5;
+const TAU = Math.PI * 2;
+
+const _emit = {};
+const _pos = new Vector3();
+const _dir = new Vector3();
+const _base = new Vector3();
+const _scale = new Vector3();
+const _m = new Matrix4();
+const _qLean = new Quaternion();
+const _qYaw = new Quaternion();
+const _qSpin = new Quaternion();
+const _axis = new Vector3();
+const _up = new Vector3(0, 1, 0);
+
+/**
+ * FAULTWAKE BASTION — Earth, line cast.
+ *
+ * The ground does not *throw* rock at the target; it **stands up**. A fault
+ * opens at the caster's feet and runs down the aimed line, and in its wake the
+ * floor heaves up into a wall of hexagonal basalt columns — the way columnar
+ * basalt really fractures, six-sided and jointed — each one punching up past
+ * its seat, ringing, and settling. Whatever stands on the fault is thrown.
+ * At the far end the last column breaks the floor with a terminal eruption.
+ * Then the bastion folds back into the fissure, far end first, and the scar
+ * cools and erodes away.
+ *
+ * ## Layers (each a folder in the editor)
+ *
+ *   1. **the columns** (`createRockMaterial`, opaque, `LAYER.WORLD`) — one
+ *      instanced hexagonal prism per column, leaning off the line, magma veins
+ *      open while fresh and sealing as they cool (`aHeat` per instance), a
+ *      molten seam at the floor, a burning dissolve on the way out. Each column
+ *      also kicks three boulders (a second instanced mesh) off its base.
+ *   2. **the fissure** (`createFissureMaterial`) — the white-hot slit that
+ *      only exists behind the front, branch cracks, a scorched scar, and a
+ *      telegraph seam pulsing *ahead* of the front: the anticipation beat.
+ *      Over it, a **heat veil** on `LAYER.DISTORTION`.
+ *   3. **debris and particles** — the 96-point GPU debris cloud thrown behind
+ *      the front, plus three pooled systems: SMOKE plumes off each eruption
+ *      and the front, lit CHIPs, and embers rising off the hot fissure.
+ *   4. **the beats** — each column breaking the floor gets a dust ring, a
+ *      light punch and a small camera knock; the terminal eruption gets the
+ *      shock disc, an EARTH dust shell, CRACK + DUSTRING decals, a flash, a
+ *      camera knock and a big light punch.
+ *
+ * ## Hits (`handlesOwnHits`)
+ *
+ * Unchanged from the candidate: every body inside `reach` of the line between
+ * last frame's front and this frame's is thrown once, along the line. The
+ * columns are dressing on that sweep, never a separate hit volume.
+ *
+ * ## The editor rule
+ *
+ * A cast stores a seed, dice per column and per boulder, and the moment each
+ * column arrived. Every dimension, time and colour is read from
+ * `settings['faultwake-bastion']` every frame, so the wall re-shapes under the
+ * slider while it stands.
+ */
 export class FaultwakeBastionAbility extends Ability {
   constructor(ctx) {
     super(ID, ctx);
   }
+
   get handlesOwnHits() {
     return true;
   }
+
+  /** Columns plus boulders on screen. HUD readout only. */
+  get instanceCount() {
+    return this.columns.count + this.rubble.count;
+  }
+
   get impactDuration() {
-    return 0.45;
+    return Math.max(0.05, this.config.impactTime) * settings.global.lifetime;
   }
+
   get fadeDuration() {
-    return Math.max(0.2, this.config.lifetime);
+    return Math.max(0.2, this.config.lifetime) * settings.global.lifetime;
   }
+
+  /** Magma light: a slow, heavy pulse rather than a flicker. */
+  lightShimmer() {
+    return 0.88 + 0.12 * Math.sin(this.age * 5.1) * Math.sin(this.age * 1.7 + 0.6);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Construction                                                        */
+  /* ------------------------------------------------------------------ */
+
   createShaders() {
-    this.geo = rockGeometry();
-    this.mat = rockMaterial();
-    this.columns = new InstancedMesh(this.geo, this.mat, 16);
-    this.columns.layers.set(LAYER.VFX);
+    /* ---- layer 1: basalt columns + rubble (opaque, world layer) ---- */
+    this.geo = addRockInstanceAttributes(createColumnGeometry(), MAX_COLUMNS);
+    this.mat = createRockMaterial();
+    this.columns = new InstancedMesh(this.geo, this.mat, MAX_COLUMNS);
+    // Opaque rock occludes and is what soft particles fade against. It casts
+    // into the (per-frame) sun cascade through a patched depth material that
+    // runs the basalt's own below-floor discard and erosion dissolve, so the
+    // shadow sinks and crumbles with the column instead of staying solid.
+    this.columns.layers.set(LAYER.WORLD);
+    this.columns.castShadow = true;
+    this.columnDepthMaterial = createRockDepthMaterial(this.mat);
+    this.columns.customDepthMaterial = this.columnDepthMaterial;
     this.columns.frustumCulled = false;
+    this.columns.count = 0;
     this.group.add(this.columns);
-    this.crackGeometry = new PlaneGeometry(1, 1);
-    this.crackMaterial = crackMaterial();
+
+    this.rubbleGeometry = addRockInstanceAttributes(createRubbleGeometry(), MAX_RUBBLE);
+    this.rubbleMaterial = createRockMaterial();
+    this.rubble = new InstancedMesh(this.rubbleGeometry, this.rubbleMaterial, MAX_RUBBLE);
+    this.rubble.layers.set(LAYER.WORLD);
+    this.rubble.castShadow = true;
+    this.rubbleDepthMaterial = createRockDepthMaterial(this.rubbleMaterial);
+    this.rubble.customDepthMaterial = this.rubbleDepthMaterial;
+    this.rubble.frustumCulled = false;
+    this.rubble.count = 0;
+    this.group.add(this.rubble);
+
+    /* ---- layer 2: the fissure and its heat veil ---- */
+    this.crackGeometry = createFissureGeometry();
+    this.crackMaterial = createFissureMaterial();
     this.crack = new Mesh(this.crackGeometry, this.crackMaterial);
     this.crack.layers.set(LAYER.VFX);
+    this.crack.renderOrder = 2;
+    this.crack.frustumCulled = false;
     this.group.add(this.crack);
-    const particles = new Float32Array(96 * 3),
-      seeds = new Float32Array(96);
-    for (let i = 0; i < 96; i++) {
-      particles[i * 3] = (i % 32) / 31;
-      particles[i * 3 + 2] = Math.sin(i * 9.37) * 0.6;
-      seeds[i] = ((i * 37) % 97) / 97;
-    }
-    this.debrisGeometry = new BufferGeometry();
-    this.debrisGeometry.setAttribute(
-      "position",
-      new BufferAttribute(particles, 3),
-    );
-    this.debrisGeometry.setAttribute("aSeed", new BufferAttribute(seeds, 1));
-    this.debrisMaterial = debrisMaterial();
+
+    this.veilMaterial = createHeatVeilMaterial();
+    // Same ground strip, drawn wider into the distortion buffer only.
+    this.veil = new Mesh(this.crackGeometry, this.veilMaterial);
+    this.veil.layers.set(LAYER.DISTORTION);
+    this.veil.frustumCulled = false;
+    this.group.add(this.veil);
+
+    /* ---- layer 3: the debris cloud ---- */
+    this.debrisGeometry = createDebrisGeometry();
+    this.debrisMaterial = createDebrisMaterial();
     this.debris = new Points(this.debrisGeometry, this.debrisMaterial);
     this.debris.layers.set(LAYER.VFX);
     this.debris.frustumCulled = false;
     this.group.add(this.debris);
-    this.impactGeometry = new RingGeometry(0.86, 1, 72);
-    this.impactMaterial = new ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: DoubleSide,
-      blending: AdditiveBlending,
-      uniforms: { uFade: { value: 0 }, uTime: { value: 0 } },
-      vertexShader:
-        "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-      fragmentShader:
-        "varying vec2 vUv;uniform float uFade,uTime;void main(){vec2 p=vUv-.5;float a=atan(p.y,p.x);float cracks=pow(max(0.,sin(a*19.+sin(a*7.)*2.-uTime*4.)),6.);gl_FragColor=vec4(1.,.32,.06,uFade*(.2+cracks*.8));}",
-    });
+
+    /* ---- layer 4: the terminal shock disc ---- */
+    this.impactGeometry = createShockGeometry();
+    this.impactMaterial = createShockMaterial();
     this.impactRing = new Mesh(this.impactGeometry, this.impactMaterial);
     this.impactRing.layers.set(LAYER.VFX);
     this.impactRing.rotation.x = -Math.PI / 2;
+    this.impactRing.renderOrder = 3;
     this.impactRing.visible = false;
     this.group.add(this.impactRing);
-    this.m = new Matrix4();
+
+    /** Per-cast dice; filled in `onSpawn`, never reallocated. */
+    this._columnDice = new Float32Array(MAX_COLUMNS * COLUMN_DICE);
+    this._rubbleDice = new Float32Array(MAX_RUBBLE * RUBBLE_DICE);
+    /** Age at which each column broke the floor, or −1. */
+    this.columnArrival = new Float64Array(MAX_COLUMNS);
+    this._seed = 0;
+    this._heat = 1;
+
+    /** Scratch handed to the materials each frame — one object apiece. */
+    this._rockState = { time: 0, fade: 1 };
+    this._crackState = { time: 0, front: 0, fade: 1, heat: 1, length: 1, width: 1, seed: 0 };
+    this._veilState = { time: 0, front: 0, length: 1, strength: 1, seed: 0 };
+    this._debrisState = { time: 0, front: 0, length: 1, speed: 1, fade: 1, origin: this.origin, dir: this.direction, side: this.side };
+    this._shockState = { time: 0, fade: 0, seed: 0 };
+
     this.p = new Vector3();
     this.found = [];
     this.hit = new Set();
     this.prev = 0;
-    this.columnArrival = new Float64Array(16);
+    this._force = { impulse: 0, lift: 0, spin: 0 };
   }
-  createParticles() {}
+
+  createParticles() {
+    const particles = this.ctx.particles;
+    // The pooled systems are optional: a bare test context has none, and the
+    // cast must still run (and hit) without them.
+    this.dust = particles?.get?.(`${ID}.dust`, {
+      capacity: 900,
+      shape: ParticleShape.SMOKE,
+      additive: false,
+      curl: true,
+      softFade: 0.9
+    }) ?? null;
+    if (this.dust) {
+      const u = this.dust.uniforms;
+      u.uSizeIn.value = 0.12;
+      u.uFadeIn.value = 0.08;
+      u.uFadeOut.value = 0.6;
+      u.uEndSize.value = 2.6;
+      u.uDrag.value = 1.6;
+      u.uTurbFrequency.value = 0.5;
+      u.uTurbSpeed.value = 0.4;
+    }
+    this.chips = particles?.get?.(`${ID}.chips`, {
+      capacity: 900,
+      shape: ParticleShape.CHIP,
+      additive: false,
+      lit: true,
+      softFade: 0.2
+    }) ?? null;
+    if (this.chips) {
+      const u = this.chips.uniforms;
+      u.uSizeIn.value = 0.02;
+      u.uFadeIn.value = 0.02;
+      u.uFadeOut.value = 0.25;
+      u.uEndSize.value = 0.85;
+      u.uDrag.value = 0.35;
+    }
+    this.embers = particles?.get?.(`${ID}.embers`, {
+      capacity: 1200,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      curl: true,
+      softFade: 0.3
+    }) ?? null;
+    if (this.embers) {
+      const u = this.embers.uniforms;
+      u.uSizeIn.value = 0.1;
+      u.uFadeIn.value = 0.1;
+      u.uFadeOut.value = 0.5;
+      u.uEndSize.value = 0.3;
+      u.uDrag.value = 1.1;
+      u.uTurbFrequency.value = 0.9;
+      u.uTurbSpeed.value = 0.6;
+    }
+    this.dustEmitter = new RateEmitter();
+    this.emberEmitter = new RateEmitter();
+    this.sinkEmitter = new RateEmitter();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Casting                                                             */
+  /* ------------------------------------------------------------------ */
+
   onSpawn() {
+    const g = settings.global;
     this.prev = 0;
     this.hit.clear();
     this.columnArrival.fill(-1);
-    this.mat.uniforms.uFade.value = 1;
+    this._seed = Math.random() * 100;
+    this._heat = 1;
+    // Dice: each a signed or unsigned unit value, scaled by settings later.
+    for (let i = 0; i < this._columnDice.length; i++) this._columnDice[i] = Math.random();
+    for (let i = 0; i < this._rubbleDice.length; i++) this._rubbleDice[i] = Math.random();
+    this.dustEmitter.reset();
+    this.emberEmitter.reset();
+    this.sinkEmitter.reset();
+
     this.crack.visible = true;
+    this.veil.visible = true;
     this.debris.visible = true;
     this.impactRing.visible = false;
+    this.columns.visible = true;
+    this.rubble.visible = true;
+    this._shockState.fade = 0;
+    this._shockState.seed = this._seed;
+    this._crackState.seed = this._seed;
+    this._veilState.seed = this._seed;
     this._draw(0, 1);
+
+    // Anticipation: the ground at the caster's feet gives first.
+    this._puff(this.origin, Math.round(6 * g.particleCount), 0.3);
+    this.ctx.decals?.spawn?.(DecalType.DUSTRING, this.origin, {
+      radius: this.config.crackWidth * 1.2,
+      life: 0.8,
+      intensity: 0.5,
+      colorA: getColor(this.config.colorDustA),
+      colorB: getColor(this.config.colorDustC)
+    });
   }
+
+  /* ------------------------------------------------------------------ */
+  /* The wall                                                            */
+  /* ------------------------------------------------------------------ */
+
+  /** Live column count, clamped to the mesh's capacity. */
+  _columnCount() {
+    return Math.max(1, Math.min(MAX_COLUMNS, Math.round(this.config.columns)));
+  }
+
+  /**
+   * Pose every column, boulder and ground layer for a front `front` metres
+   * out and an overall `fade` (1 standing … 0 gone).
+   */
   _draw(front, fade) {
-    const n = Math.max(1, Math.min(16, Math.round(this.config.columns)));
+    const c = this.config;
+    const g = settings.global;
+    const n = this._columnCount();
+    const rubblePer = Math.max(0, Math.min(RUBBLE_PER_COLUMN, Math.round(c.rubblePerColumn)));
+    const lead = Math.max(0.05, c.emergeLead);
+    const stagger = saturate(c.retreatStagger) * 0.95;
+    const exit = 1 - fade;
+    const heats = this.geo.attributes.aHeat.array;
+    const rubbleHeats = this.rubbleGeometry.attributes.aHeat.array;
     this.columns.count = n;
+    this.rubble.count = n * rubblePer;
+
     for (let i = 0; i < n; i++) {
-      const d = (this.length * (i + 1)) / n,
-        emerge = Math.max(0.001, Math.min(1, (front - d + 1) / 1)),
-        jitter = Math.sin(i * 12.9) * 0.24;
-      if (front >= d && this.columnArrival[i] < 0)
+      const dice = i * COLUMN_DICE;
+      const d = (this.length * (i + 1)) / n;
+      // The column starts rising `lead` metres before the front reaches it.
+      const emerge = Easing.outCubic(saturate((front - d + lead) / lead));
+      if (front >= d && this.columnArrival[i] < 0) {
         this.columnArrival[i] = this.age;
-      const since =
-        this.columnArrival[i] < 0 ? 0 : this.age - this.columnArrival[i];
-      const settle =
-        1 +
-        this.config.settleOvershoot *
-          Math.sin(
-            Math.PI *
-              Math.min(1, since / Math.max(0.01, this.config.settleDuration)),
-          );
-      const sink = this.config.height * this.config.sinkDepth * (1 - fade) ** 2;
-      this.p
-        .copy(this.origin)
-        .addScaledVector(this.direction, d)
-        .addScaledVector(this.side, jitter);
-      const sx = this.config.columnWidth * (0.8 + 0.2 * Math.sin(i * 5.1)),
-        sy =
-          this.config.height *
-          0.5 *
-          (0.7 + 0.3 * Math.cos(i * 8.3)) *
-          emerge *
-          settle;
-      this.m.makeScale(sx, sy, sx);
-      this.m.setPosition(this.p.x, -sink, this.p.z);
-      this.columns.setMatrixAt(i, this.m);
+        this._erupt(i, d);
+      }
+      const since = this.columnArrival[i] < 0 ? 0 : this.age - this.columnArrival[i];
+      // The heave: past its seat and back, one swing, exactly 1 when settled.
+      const settle = 1 + c.settleOvershoot * Math.sin(Math.PI * Math.min(1, since / Math.max(0.01, c.settleDuration)));
+
+      // The retreat rolls home from the far end.
+      const delay = n > 1 ? stagger * (1 - i / (n - 1)) : 0;
+      const local = saturate((exit - delay) / Math.max(0.05, 1 - stagger));
+      const sink = c.height * c.sinkDepth * local * local;
+
+      // Placement: wander off the line, lean away from it, turn a little.
+      const lateral = (this._columnDice[dice] * 2 - 1) * c.columnJitter * g.randomness;
+      const side = lateral >= 0 ? 1 : -1;
+      _base.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(this.side, lateral);
+      // A positive turn about the heading tips the crown toward +side, so the
+      // columns splay away from the fault as if it had pushed them apart.
+      _axis.copy(this.direction);
+      _qLean.setFromAxisAngle(_axis, side * c.columnLean * (0.5 + this._columnDice[dice + 4]));
+      _qYaw.setFromAxisAngle(_up, this._columnDice[dice + 3] * c.columnTwist * (TAU / 6));
+      _qLean.multiply(_qYaw);
+
+      const sx = c.columnWidth * (1 - c.widthVariance * this._columnDice[dice + 2]);
+      const tall = 1 - c.heightVariance * this._columnDice[dice + 1];
+      const sy = c.height * 0.5 * tall * emerge * settle;
+      _scale.set(sx, Math.max(1e-4, sy), sx);
+      _pos.set(_base.x, -sink, _base.z);
+      _m.compose(_pos, _qLean, _scale);
+      this.columns.setMatrixAt(i, _m);
+
+      // Heat: glowing while it pushes up, sealing as it cools.
+      const cool = this.columnArrival[i] < 0 ? 1 : Math.exp(-since / Math.max(0.05, c.heatDecay));
+      heats[i] = Math.max(c.veinRest, cool) * (1 - local);
+
+      // Boulders thrown off the base when it broke the floor.
+      for (let k = 0; k < rubblePer; k++) {
+        const j = i * rubblePer + k;
+        this._poseRubble(j, i, since, sink, emerge);
+        rubbleHeats[j] = heats[i] * 0.6;
+      }
     }
     this.columns.instanceMatrix.needsUpdate = true;
-    this.mat.uniforms.uTime.value = this.age;
-    this.mat.uniforms.uFade.value = fade;
-    this.crack.position
-      .copy(this.origin)
-      .addScaledVector(this.direction, this.length / 2);
-    this.crack.position.y = 0.045;
-    this.crack.rotation.set(
-      -Math.PI / 2,
-      0,
-      -Math.atan2(this.direction.z, this.direction.x),
-    );
-    this.crack.scale.set(this.length, this.config.crackWidth * 2, 1);
-    this.crackMaterial.uniforms.uTime.value = this.age;
-    this.crackMaterial.uniforms.uFront.value = Math.min(1, front / this.length);
-    this.crackMaterial.uniforms.uFade.value = fade;
-    const du = this.debrisMaterial.uniforms;
-    du.uOrigin.value.copy(this.origin);
-    du.uDir.value.copy(this.direction);
-    du.uSide.value.copy(this.side);
-    du.uTime.value = this.age;
-    du.uLength.value = this.length;
-    du.uSpeed.value = this.config.speed * settings.global.speed;
-    du.uFront.value = front;
-    du.uFade.value = fade * this.config.dustOpacity;
+    this.rubble.instanceMatrix.needsUpdate = true;
+    this.geo.attributes.aHeat.needsUpdate = true;
+    this.rubbleGeometry.attributes.aHeat.needsUpdate = true;
+
+    // The rock dissolves only once the retreat is well under way.
+    const ds = saturate(c.dissolveStart);
+    const rockFade = 1 - saturate((exit - ds) / Math.max(0.05, 1 - ds));
+    this._rockState.time = this.age;
+    this._rockState.fade = rockFade;
+    this.mat.userData.sync(this._rockState);
+    this.rubbleMaterial.userData.sync(this._rockState);
+
+    this._drawGround(front, fade);
   }
+
+  /** One boulder: ballistic from the column's base, then at rest, then sunk. */
+  _poseRubble(j, i, since, sink, emerge) {
+    const c = this.config;
+    const g = settings.global;
+    const dice = j * RUBBLE_DICE;
+    const arrived = this.columnArrival[i] >= 0;
+    const size = c.rubbleSize * (0.6 + 0.8 * this._rubbleDice[dice + 4]);
+    if (!arrived || size <= 0) {
+      _m.makeScale(1e-4, 1e-4, 1e-4);
+      this.rubble.setMatrixAt(j, _m);
+      return;
+    }
+    const d = (this.length * (i + 1)) / this._columnCount();
+    const heading = this._rubbleDice[dice] * TAU;
+    const out = c.rubbleSpeed * (0.5 + this._rubbleDice[dice + 1]) * g.randomness;
+    const up = c.rubbleUp * (0.6 + 0.6 * this._rubbleDice[dice + 2]);
+    const grav = Math.max(0.1, c.rubbleGravity);
+    // Flight time until it lands back on the floor.
+    const flight = (2 * up) / grav;
+    const t = Math.min(since, flight);
+    const rest = size * 0.3;
+    _dir.set(Math.cos(heading), 0, Math.sin(heading));
+    _pos.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(_dir, c.columnWidth * 0.8 + out * t);
+    _pos.y = Math.max(rest, up * t - 0.5 * grav * t * t + rest) - sink;
+    _qSpin.setFromAxisAngle(_dir.set(_dir.z, 0.4, -_dir.x).normalize(), c.rubbleSpin * t + heading);
+    const s = size * Math.min(1, emerge * 1.5);
+    _scale.set(s, s, s);
+    _m.compose(_pos, _qSpin, _scale);
+    this.rubble.setMatrixAt(j, _m);
+  }
+
+  /** Fissure, veil and debris all follow the same front. */
+  _drawGround(front, fade) {
+    const c = this.config;
+    const g = settings.global;
+    const yaw = -Math.atan2(this.direction.z, this.direction.x);
+    // The strip's local X runs along the line, so its UV advances with travel.
+    this.crack.position.copy(this.origin).addScaledVector(this.direction, this.length / 2);
+    this.crack.position.y = 0.045;
+    this.crack.rotation.set(-Math.PI / 2, 0, yaw);
+    this.crack.scale.set(this.length, c.crackWidth * 2, 1);
+    const cs = this._crackState;
+    cs.time = this.age;
+    cs.front = Math.min(1, front / this.length);
+    cs.fade = fade;
+    cs.heat = this._heat;
+    cs.length = this.length;
+    cs.width = c.crackWidth * 2;
+    this.crackMaterial.userData.sync(cs);
+
+    this.veil.position.copy(this.crack.position);
+    this.veil.position.y = 0.08;
+    this.veil.rotation.copy(this.crack.rotation);
+    this.veil.scale.set(this.length, c.crackWidth * 2 * Math.max(0.1, c.veilWidth), 1);
+    const vs = this._veilState;
+    vs.time = this.age;
+    vs.front = cs.front;
+    vs.length = this.length;
+    vs.strength = this._heat * fade;
+    this.veilMaterial.userData.sync(vs);
+
+    const ds = this._debrisState;
+    ds.time = this.age;
+    ds.front = front;
+    ds.length = this.length;
+    ds.speed = c.speed * g.speed;
+    ds.fade = fade;
+    this.debrisMaterial.userData.sync(ds);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Phases                                                              */
+  /* ------------------------------------------------------------------ */
+
+  onTravel(dt) {
+    const front = Math.min(this.length, this.front);
+    this._hit(this.prev, front);
+    this.prev = front;
+    this._heat = 1;
+    this._draw(front, 1);
+    this._syncParticles();
+    this._frontFx(dt, front);
+    this._emberFx(dt, front, 1);
+  }
+
+  onImpact() {
+    const c = this.config;
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.pointAt(1, this.impactRing.position);
+    this.impactRing.position.y = 0.055;
+    this.impactRing.scale.setScalar(0.2);
+    this.impactRing.visible = true;
+    this._shockState.fade = 1;
+    this._shockState.time = this.age;
+    this.impactMaterial.userData.sync(this._shockState);
+
+    // Always issued, so the host's own envelope sees a zero when shake is off.
+    this.ctx.shake?.add?.(c.impactShake * g.cameraShake, 5, 18);
+    this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.impactFlash * power);
+    this.lightBoost = c.lightIntensity * c.impactLight * power;
+
+    this.pointAt(1, _pos);
+    _pos.y = 0;
+    this.ctx.bursts?.spawn?.(BurstMode.EARTH, _pos, {
+      radius: c.burstSize * 0.2,
+      endRadius: c.burstSize * power,
+      life: 0.7,
+      intensity: c.burstIntensity,
+      opacity: 0.7,
+      displace: 0.4,
+      turbulence: 1,
+      squash: 0.6,
+      colorA: getColor(c.colorBurstA),
+      colorB: getColor(c.colorBurstB),
+      colorC: getColor(c.colorBurstC)
+    });
+    this.ctx.decals?.spawn?.(DecalType.CRACK, _pos, {
+      radius: c.crackDecalRadius * power,
+      life: Math.max(0.5, this.fadeDuration),
+      intensity: 1,
+      colorA: getColor(c.colorCrackEmber),
+      colorB: getColor(c.colorCrackHot)
+    });
+    this.ctx.decals?.spawn?.(DecalType.DUSTRING, _pos, {
+      radius: c.dustRingRadius * power,
+      life: 1.4,
+      intensity: 0.9,
+      colorA: getColor(c.colorDustA),
+      colorB: getColor(c.colorDustC)
+    });
+    this._syncParticles();
+    this._chipBurst(_pos, Math.round(c.impactChips * g.particleCount), 1.4);
+    this._puff(_pos, Math.round(c.impactDust * g.particleCount), c.crackWidth);
+  }
+
+  onFade(dt, t) {
+    const c = this.config;
+    const fade = t > 1 ? 2 - t : 1;
+    // The fissure holds its heat into the fade, then cools to scar.
+    this._heat = t > 1 ? Math.pow(fade, Math.max(0.1, c.crackCool)) : 1;
+    this._draw(this.length, fade);
+    this._syncParticles();
+    if (t <= 1) {
+      this.impactRing.scale.setScalar(0.2 + Easing.outCubic(t) * c.impactRadius);
+      this._shockState.fade = (1 - t) * (1 - t);
+    } else {
+      this.impactRing.visible = false;
+      this._shockState.fade = 0;
+    }
+    this._shockState.time = this.age;
+    this.impactMaterial.userData.sync(this._shockState);
+    this._emberFx(dt, this.length, this._heat * fade);
+    if (t > 1) this._sinkFx(dt, fade);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Hits                                                                */
+  /* ------------------------------------------------------------------ */
+
   _hit(from, to) {
     if (!this.ctx.dummies?.findTargets) return;
+    const c = this.config;
     this.pointAt((from + to) / (2 * this.length), this.p);
-    const targets = this.ctx.dummies.findTargets(
-      this.p.x,
-      this.p.z,
-      Math.hypot((to - from) / 2, this.config.reach),
-      this.found,
-    );
+    const targets = this.ctx.dummies.findTargets(this.p.x, this.p.z, Math.hypot((to - from) / 2, c.reach), this.found);
+    this._force.impulse = c.impulse;
+    this._force.lift = c.lift;
+    this._force.spin = c.hitSpin;
     for (const d of targets) {
       if (this.hit.has(d)) continue;
       const x = d.position.x - this.origin.x,
         z = d.position.z - this.origin.z,
         along = x * this.direction.x + z * this.direction.z,
         lat = Math.abs(x * this.side.x + z * this.side.z);
-      if (along < from - 0.3 || along > to + 0.3 || lat > this.config.reach)
-        continue;
+      if (along < from - 0.3 || along > to + 0.3 || lat > c.reach) continue;
       this.hit.add(d);
-      d.kill?.(
-        this.direction.x,
-        this.direction.z,
-        { impulse: this.config.impulse, lift: this.config.lift, spin: 0.6 },
-        false,
-      );
+      if (d.kill?.(this.direction.x, this.direction.z, this._force, false)) {
+        // The throw, read on the body: chips and a punch of magma light.
+        _pos.copy(d.position).setY(0.4);
+        this._chipBurst(_pos, Math.round(14 * settings.global.particleCount), 1);
+        this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.columnLight);
+      }
     }
   }
-  onTravel() {
-    const front = Math.min(this.length, this.front);
-    this._hit(this.prev, front);
-    this.prev = front;
-    this._draw(front, 1);
+
+  /* ------------------------------------------------------------------ */
+  /* Beats and effects                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /** A column has just broken the floor at `d` metres down the line. */
+  _erupt(i, d) {
+    const c = this.config;
+    const g = settings.global;
+    this.pointAt(Math.min(1, d / this.length), _pos);
+    _pos.y = 0;
+    this._syncParticles();
+    this._puff(_pos, Math.round(c.dustPerColumn * g.particleCount), c.columnWidth);
+    this._chipBurst(_pos, Math.round(c.chipsPerColumn * g.particleCount), 1);
+    this.ctx.decals?.spawn?.(DecalType.DUSTRING, _pos, {
+      radius: c.columnWidth * 2.2,
+      life: 0.9,
+      intensity: 0.6,
+      colorA: getColor(c.colorDustA),
+      colorB: getColor(c.colorDustC)
+    });
+    this.ctx.shake?.add?.(c.columnKnock * g.cameraShake, 7, 26);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.columnLight * (0.6 + 0.4 * (i % 2)));
   }
-  onImpact() {
-    this.pointAt(1, this.impactRing.position);
-    this.impactRing.position.y = 0.055;
-    this.impactRing.scale.setScalar(0.2);
-    this.impactRing.visible = true;
-    this.impactMaterial.uniforms.uFade.value = 1;
-    this.ctx.shake?.add?.(
-      this.config.impactShake * settings.global.cameraShake,
-      5,
-      18,
-    );
-    this.ctx.flash?.trigger?.(
-      this.lightColor.set(this.config.lightColor),
-      this.config.impactFlash * settings.global.explosionIntensity,
-    );
+
+  _resetEmit(time) {
+    _emit.radius = 0;
+    _emit.direction = _up;
+    _emit.speed = 0;
+    _emit.speedVariance = 0.35;
+    _emit.spread = 0.5;
+    _emit.inherit = null;
+    _emit.anchor = null;
+    _emit.size = 0.1;
+    _emit.sizeVariance = 0.4;
+    _emit.life = 1;
+    _emit.lifeVariance = 0.35;
+    _emit.spin = 0;
+    _emit.tint = null;
+    _emit.time = time;
   }
-  onFade(_dt, t) {
-    this._draw(this.length, t > 1 ? 2 - t : 1);
-    if (t <= 1) {
-      this.impactRing.scale.setScalar(0.2 + t * this.config.reach * 2);
-      this.impactMaterial.uniforms.uFade.value = (1 - t) * (1 - t);
-      this.impactMaterial.uniforms.uTime.value = this.age;
-    } else this.impactRing.visible = false;
+
+  /** Dust rolling off a point on the floor. */
+  _puff(at, count, radius) {
+    if (!this.dust || count <= 0) return;
+    const c = this.config;
+    this._resetEmit(frame.uTime.value);
+    _pos.copy(at).setY(0.15);
+    _emit.position = _pos;
+    _emit.radius = Math.max(0.05, radius * 0.6);
+    _emit.speed = 1.2;
+    _emit.spread = 0.9;
+    _emit.size = c.dustSize;
+    _emit.life = c.dustLife;
+    _emit.spin = 0.6;
+    this.dust.emit(count, _emit);
   }
+
+  /** Rock chips sprayed up and out. */
+  _chipBurst(at, count, strength) {
+    if (!this.chips || count <= 0) return;
+    const c = this.config;
+    this._resetEmit(frame.uTime.value);
+    _dir.copy(_up);
+    _emit.position = at;
+    _emit.radius = 0.2;
+    _emit.direction = _dir;
+    _emit.speed = c.chipSpeed * strength;
+    _emit.speedVariance = 0.5;
+    _emit.spread = 0.85;
+    _emit.size = c.chipSize;
+    _emit.life = c.chipLife;
+    _emit.spin = 8;
+    this.chips.emit(count, _emit);
+  }
+
+  /** Dust trailing the travelling front. */
+  _frontFx(dt, front) {
+    if (!this.dust) return;
+    const c = this.config;
+    const n = Math.round(this.dustEmitter.tick(dt, c.dustRate) * settings.global.particleCount);
+    if (n <= 0) return;
+    this._resetEmit(frame.uTime.value);
+    this.pointAt(Math.min(1, front / this.length), _pos);
+    _pos.y = 0.1;
+    _emit.position = _pos;
+    _emit.radius = c.crackWidth * 0.5;
+    _emit.speed = 0.8;
+    _emit.spread = 0.9;
+    _emit.size = c.dustSize * 0.7;
+    _emit.life = c.dustLife * 0.8;
+    _emit.spin = 0.5;
+    this.dust.emit(n, _emit);
+  }
+
+  /** Embers lifting off the open fissure behind the front. */
+  _emberFx(dt, front, strength) {
+    if (!this.embers || strength <= 0.01 || front <= 0) return;
+    const c = this.config;
+    const n = Math.round(this.emberEmitter.tick(dt, c.emberRate * strength) * settings.global.particleCount);
+    if (n <= 0) return;
+    this._resetEmit(frame.uTime.value);
+    _emit.speed = 0.6;
+    _emit.spread = 0.4;
+    _emit.size = c.emberSize;
+    _emit.life = c.emberLife;
+    _emit.radius = 0.08;
+    for (let k = 0; k < n; k++) {
+      // Weighted toward the freshest few metres behind the front.
+      const s = Math.max(0, front - Math.pow(Math.random(), 2) * Math.min(front, 6));
+      this.pointAt(s / this.length, _pos);
+      _pos.addScaledVector(this.side, (Math.random() * 2 - 1) * 0.15).setY(0.06);
+      _emit.position = _pos;
+      this.embers.emit(1, _emit);
+    }
+  }
+
+  /** Dust shaken loose as the columns fold back under the floor. */
+  _sinkFx(dt, fade) {
+    if (!this.dust) return;
+    const c = this.config;
+    const rate = c.dustRate * 0.6 * Math.sin(Math.PI * saturate(1 - fade));
+    const n = Math.round(this.sinkEmitter.tick(dt, rate) * settings.global.particleCount);
+    if (n <= 0) return;
+    this._resetEmit(frame.uTime.value);
+    _emit.speed = 0.5;
+    _emit.spread = 1;
+    _emit.size = c.dustSize * 0.6;
+    _emit.life = c.dustLife * 0.7;
+    _emit.radius = c.columnWidth * 0.6;
+    const count = this._columnCount();
+    for (let k = 0; k < n; k++) {
+      const i = Math.floor(Math.random() * count);
+      this.pointAt((i + 1) / count, _pos);
+      _pos.y = 0.1;
+      _emit.position = _pos;
+      this.dust.emit(1, _emit);
+    }
+  }
+
+  /** Pooled systems are shared by name; refresh them from settings every frame. */
+  _syncParticles() {
+    const c = this.config;
+    const g = settings.global;
+    if (this.dust) {
+      this.dust.setGradient(getColor(c.colorDustA), getColor(c.colorDustB), getColor(c.colorDustC), getColor(c.colorDustD));
+      const u = this.dust.uniforms;
+      u.uGravity.value.set(0, c.dustRise, 0);
+      u.uSizeScale.value = g.particleSize;
+      u.uLifeScale.value = g.particleLifetime;
+      u.uSpeedScale.value = g.particleSpeed;
+      u.uOpacity.value = c.plumeOpacity * g.opacity;
+      u.uTurbulence.value = 0.5 * g.turbulence;
+    }
+    if (this.chips) {
+      this.chips.setGradient(getColor(c.colorChipA), getColor(c.colorChipB), getColor(c.colorChipC), getColor(c.colorChipD));
+      const u = this.chips.uniforms;
+      u.uGravity.value.set(0, -c.chipGravity, 0);
+      u.uSizeScale.value = g.particleSize;
+      u.uLifeScale.value = g.particleLifetime;
+      u.uSpeedScale.value = g.particleSpeed;
+      u.uOpacity.value = g.opacity;
+      u.uTurbulence.value = 0.1 * g.turbulence;
+    }
+    if (this.embers) {
+      this.embers.setGradient(getColor(c.colorEmberA), getColor(c.colorEmberB), getColor(c.colorEmberC), getColor(c.colorEmberD));
+      const u = this.embers.uniforms;
+      u.uGravity.value.set(0, c.emberRise, 0);
+      u.uSizeScale.value = g.particleSize;
+      u.uLifeScale.value = g.particleLifetime;
+      u.uSpeedScale.value = g.particleSpeed;
+      u.uOpacity.value = g.opacity;
+      u.uGlow.value = c.emberGlow * g.glow;
+      u.uTurbulence.value = 0.8 * g.turbulence;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Pooling                                                             */
+  /* ------------------------------------------------------------------ */
+
   onDestroy() {
     this.hit.clear();
     this.columns.count = 0;
+    this.rubble.count = 0;
     this.crack.visible = false;
+    this.veil.visible = false;
     this.debris.visible = false;
     this.impactRing.visible = false;
   }
+
   dispose() {
     this.geo.dispose();
     this.mat.dispose();
+    this.columnDepthMaterial.dispose();
+    this.rubbleGeometry.dispose();
+    this.rubbleMaterial.dispose();
+    this.rubbleDepthMaterial.dispose();
     this.crackGeometry.dispose();
     this.crackMaterial.dispose();
+    this.veilMaterial.dispose();
     this.debrisGeometry.dispose();
     this.debrisMaterial.dispose();
     this.impactGeometry.dispose();
@@ -352,22 +965,161 @@ export class FaultwakeBastionAbility extends Ability {
     super.dispose();
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Editor                                                                  */
+/* ---------------------------------------------------------------------- */
+
+/** A sub-folder where the GUI supports them; flat otherwise (test GUIs). */
+const sub = (parent, title) => (typeof parent.addFolder === 'function' ? parent.addFolder(title) : parent);
+const gradient = (folder, c, prefix, title, Editor) => {
+  // `Editor.gradient` nests a folder; a flat GUI gets the four stops inline.
+  if (typeof Editor.gradient === 'function' && typeof folder.addFolder === 'function') {
+    return Editor.gradient(folder, c, prefix, title);
+  }
+  const group = sub(folder, title);
+  for (const stop of ['A', 'B', 'C', 'D']) group.addColor(c, `${prefix}${stop}`);
+  return group;
+};
+const castAnimation = (folder, c, Editor) =>
+  typeof Editor.castAnimation === 'function' ? Editor.castAnimation(folder, c) : folder.add(c, 'castAnim', CAST_ANIMATIONS);
+const color = (folder, c, key, label) => {
+  const controller = folder.addColor(c, key);
+  return controller?.name ? controller.name(label) : controller;
+};
+
 export function buildEditor(gui, c, Editor) {
-  const f = gui.addFolder("Faultwake Bastion"),
-    R = Editor.range;
-  R(f, c, "columns", 3, 16, 1, "column count");
-  R(f, c, "columnWidth", 0.1, 2, 0.05, "column width");
-  R(f, c, "height", 0.5, 4, 0.1, "height");
-  R(f, c, "settleOvershoot", 0, 0.6, 0.01, "rise overshoot");
-  R(f, c, "settleDuration", 0.05, 1.5, 0.05, "settle time");
-  R(f, c, "sinkDepth", 0, 2, 0.05, "retreat depth");
-  R(f, c, "reach", 0.3, 3, 0.05, "hit reach");
-  R(f, c, "impulse", 0, 15, 0.1, "eruption force");
-  R(f, c, "lift", 0, 8, 0.1, "eruption lift");
-  R(f, c, "dustOpacity", 0, 1, 0.01, "dust opacity");
-  R(f, c, "crackWidth", 0.1, 3, 0.05, "fissure width");
-  R(f, c, "impactShake", 0, 1, 0.01, "impact shake");
-  R(f, c, "impactFlash", 0, 0.5, 0.01, "impact flash");
-  f.close();
-  return f;
+  const folder = gui.addFolder('⛰  Faultwake Bastion');
+  const R = Editor.range;
+
+  const cast = sub(folder, 'The cast');
+  R(cast, c, 'range', 4, 48, 0.1, 'max range');
+  R(cast, c, 'minRange', 0, 12, 0.1, 'min range');
+  R(cast, c, 'speed', 2, 60, 0.1, 'fault runs at (m/s)');
+  R(cast, c, 'lifetime', 0.2, 8, 0.05, 'stands for (s)');
+  R(cast, c, 'impactTime', 0.05, 3, 0.01, 'eruption rings for (s)');
+  R(cast, c, 'cooldown', 0, 30, 0.1, 'cooldown');
+  castAnimation(cast, c, Editor);
+
+  const light = sub(folder, 'Light');
+  color(light, c, 'lightColor', 'colour');
+  R(light, c, 'lightIntensity', 0, 30, 0.1, 'intensity');
+  R(light, c, 'lightRadius', 1, 40, 0.1, 'radius');
+
+  const columns = sub(folder, '1 · The columns');
+  R(columns, c, 'columns', 3, MAX_COLUMNS, 1, 'column count');
+  R(columns, c, 'columnWidth', 0.1, 2, 0.05, 'column width');
+  R(columns, c, 'height', 0.5, 4, 0.1, 'height');
+  R(columns, c, 'heightVariance', 0, 0.9, 0.01, 'height variance');
+  R(columns, c, 'widthVariance', 0, 0.9, 0.01, 'width variance');
+  R(columns, c, 'columnJitter', 0, 1.5, 0.01, 'wander off the line (m)');
+  R(columns, c, 'columnLean', 0, 0.8, 0.01, 'lean (rad)');
+  R(columns, c, 'columnTwist', 0, 1, 0.01, 'twist');
+  R(columns, c, 'emergeLead', 0.05, 4, 0.05, 'rises ahead of the front (m)');
+  R(columns, c, 'settleOvershoot', 0, 0.6, 0.01, 'rise overshoot');
+  R(columns, c, 'settleDuration', 0.05, 1.5, 0.05, 'settle time');
+  R(columns, c, 'sinkDepth', 0, 2, 0.05, 'retreat depth');
+  R(columns, c, 'retreatStagger', 0, 1, 0.01, 'retreat stagger');
+
+  const rock = sub(folder, '1 · Rock');
+  R(rock, c, 'rockNoiseScale', 0.2, 5, 0.01, 'grain scale');
+  R(rock, c, 'rockGrit', 0, 3, 0.01, 'grit');
+  R(rock, c, 'rockStrata', 0, 3, 0.01, 'strata');
+  R(rock, c, 'dustCover', 0, 1, 0.01, 'dust on top faces');
+  R(rock, c, 'veinGlow', 0, 10, 0.05, 'magma glow');
+  R(rock, c, 'veinWidth', 0.01, 0.5, 0.005, 'vein width');
+  R(rock, c, 'veinRest', 0, 1, 0.01, 'heat kept when settled');
+  R(rock, c, 'heatDecay', 0.05, 5, 0.05, 'veins seal over (s)');
+  R(rock, c, 'burnEdge', 0.005, 0.4, 0.005, 'crumble edge');
+  R(rock, c, 'dissolveStart', 0, 1, 0.01, 'crumbles after (fade)');
+  color(rock, c, 'colorRockDark', 'rock dark');
+  color(rock, c, 'colorRockLight', 'rock light');
+  color(rock, c, 'colorRockDust', 'dust');
+  color(rock, c, 'colorMagma', 'magma');
+  color(rock, c, 'colorMagmaCore', 'magma core');
+
+  const rubble = sub(folder, '1 · Rubble');
+  R(rubble, c, 'rubblePerColumn', 0, RUBBLE_PER_COLUMN, 1, 'boulders per column');
+  R(rubble, c, 'rubbleSize', 0, 1, 0.01, 'size (m)');
+  R(rubble, c, 'rubbleSpeed', 0, 10, 0.05, 'throw out (m/s)');
+  R(rubble, c, 'rubbleUp', 0, 12, 0.05, 'throw up (m/s)');
+  R(rubble, c, 'rubbleGravity', 1, 40, 0.1, 'gravity');
+  R(rubble, c, 'rubbleSpin', 0, 30, 0.1, 'tumble');
+
+  const fissure = sub(folder, '2 · The fissure');
+  R(fissure, c, 'crackWidth', 0.1, 3, 0.05, 'fissure width');
+  R(fissure, c, 'crackFresh', 0.05, 10, 0.05, 'white-hot behind front (m)');
+  R(fissure, c, 'crackWander', 0, 0.5, 0.005, 'wander (m)');
+  R(fissure, c, 'crackBranching', 0, 3, 0.01, 'branching');
+  R(fissure, c, 'crackGlow', 0, 12, 0.05, 'glow');
+  R(fissure, c, 'crackCool', 0.1, 5, 0.01, 'holds heat');
+  R(fissure, c, 'scarOpacity', 0, 1, 0.01, 'scorch');
+  R(fissure, c, 'telegraphLength', 0, 8, 0.05, 'warning seam ahead (m)');
+  R(fissure, c, 'telegraphGlow', 0, 3, 0.01, 'warning glow');
+  color(fissure, c, 'colorCrackHot', 'white-hot');
+  color(fissure, c, 'colorCrackEmber', 'ember');
+  color(fissure, c, 'colorCrackScar', 'scar');
+  R(fissure, c, 'veilWidth', 0.1, 4, 0.05, 'heat veil width (× fissure)');
+  R(fissure, c, 'veilStrength', 0, 3, 0.01, 'heat veil strength');
+  R(fissure, c, 'veilScale', 0.1, 6, 0.05, 'heat veil scale');
+  R(fissure, c, 'veilSpeed', 0, 6, 0.05, 'heat veil speed');
+
+  const debris = sub(folder, '3 · Debris');
+  R(debris, c, 'dustOpacity', 0, 1, 0.01, 'debris opacity');
+  R(debris, c, 'debrisSize', 0, 4, 0.01, 'debris size');
+  R(debris, c, 'debrisLift', 0, 10, 0.05, 'debris lift');
+  R(debris, c, 'debrisSpread', 0, 6, 0.05, 'debris spread');
+  R(debris, c, 'debrisGravity', 0.5, 30, 0.1, 'debris gravity');
+  R(debris, c, 'debrisGlow', 0, 8, 0.05, 'debris heat');
+  color(debris, c, 'colorDebris', 'debris');
+
+  const fx = sub(folder, '3 · Particles');
+  R(fx, c, 'dustPerColumn', 0, 60, 1, 'dust per column');
+  R(fx, c, 'dustRate', 0, 200, 1, 'dust trailing front/s');
+  R(fx, c, 'dustSize', 0.05, 3, 0.01, 'dust size');
+  R(fx, c, 'dustLife', 0.1, 6, 0.05, 'dust lifetime');
+  R(fx, c, 'dustRise', -2, 4, 0.01, 'dust rise');
+  R(fx, c, 'plumeOpacity', 0, 1, 0.01, 'dust opacity');
+  gradient(fx, c, 'colorDust', 'dust gradient', Editor);
+  R(fx, c, 'chipsPerColumn', 0, 60, 1, 'chips per column');
+  R(fx, c, 'chipSpeed', 0, 20, 0.1, 'chip speed');
+  R(fx, c, 'chipSize', 0.01, 0.4, 0.005, 'chip size');
+  R(fx, c, 'chipLife', 0.1, 4, 0.05, 'chip lifetime');
+  R(fx, c, 'chipGravity', 0, 40, 0.1, 'chip gravity');
+  gradient(fx, c, 'colorChip', 'chip gradient', Editor);
+  R(fx, c, 'emberRate', 0, 400, 1, 'embers/second');
+  R(fx, c, 'emberSize', 0.005, 0.3, 0.005, 'ember size');
+  R(fx, c, 'emberLife', 0.1, 5, 0.05, 'ember lifetime');
+  R(fx, c, 'emberRise', -2, 6, 0.05, 'ember rise');
+  R(fx, c, 'emberGlow', 0, 10, 0.05, 'ember glow');
+  gradient(fx, c, 'colorEmber', 'ember gradient', Editor);
+
+  const beats = sub(folder, '4 · The eruption');
+  R(beats, c, 'impactShake', 0, 1, 0.01, 'impact shake');
+  R(beats, c, 'impactFlash', 0, 0.5, 0.01, 'impact flash');
+  R(beats, c, 'impactLight', 0, 10, 0.05, 'light punch (× intensity)');
+  R(beats, c, 'impactRadius', 0.2, 10, 0.05, 'shock disc (m)');
+  R(beats, c, 'impactRingGlow', 0, 8, 0.05, 'shock glow');
+  R(beats, c, 'impactCracks', 0.5, 10, 0.05, 'shock cracks');
+  R(beats, c, 'impactChips', 0, 200, 1, 'chips');
+  R(beats, c, 'impactDust', 0, 120, 1, 'dust puffs');
+  R(beats, c, 'burstSize', 0, 8, 0.05, 'dust shell (m)');
+  R(beats, c, 'burstIntensity', 0, 4, 0.01, 'shell brightness');
+  R(beats, c, 'crackDecalRadius', 0, 10, 0.05, 'crack decal (m)');
+  R(beats, c, 'dustRingRadius', 0, 10, 0.05, 'dust ring (m)');
+  R(beats, c, 'columnKnock', 0, 0.3, 0.005, 'per-column knock');
+  R(beats, c, 'columnLight', 0, 4, 0.01, 'per-column light (× intensity)');
+  color(beats, c, 'colorFlash', 'flash');
+  color(beats, c, 'colorBurstA', 'shell inner');
+  color(beats, c, 'colorBurstB', 'shell mid');
+  color(beats, c, 'colorBurstC', 'shell outer');
+
+  const hits = sub(folder, '5 · Hits');
+  R(hits, c, 'reach', 0.3, 3, 0.05, 'hit reach');
+  R(hits, c, 'impulse', 0, 15, 0.1, 'eruption force');
+  R(hits, c, 'lift', 0, 8, 0.1, 'eruption lift');
+  R(hits, c, 'hitSpin', 0, 4, 0.01, 'tumble');
+
+  folder.close();
+  return folder;
 }

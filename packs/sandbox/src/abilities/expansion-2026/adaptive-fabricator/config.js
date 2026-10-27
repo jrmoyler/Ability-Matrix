@@ -1,3 +1,17 @@
+/**
+ * Adaptive Fabricator — settings block. Data only, no imports.
+ *
+ * A zone cast that throws a fabrication seed to the circle, assembles a
+ * hexagonal sentry there and lets it scan. Every `shotInterval` the sentry
+ * reads the nearest visible enemy's statuses through the combat bridge and
+ * answers with the element that counters them (wet → storm, burning → frost,
+ * chilled/frozen → fire, otherwise neutral tech). Every number below is a live
+ * editor slider and is read every frame, so dragging one mid-deploy reshapes
+ * the sentry while it stands.
+ *
+ * Gameplay keys (`life`, `zoneRadius`, `shotInterval`, `damage`, `hit*`) are
+ * the attack; everything else is presentation.
+ */
 export default {
   id: 'adaptiveFabricator',
   meta: {
@@ -5,33 +19,151 @@ export default {
     accent: '#7ff0ff',
     element: 'tech',
     cast: 'zone',
-    hint: 'Tech — deploy a device that counters hostile exposure; with combat off, it fires neutral tech',
+    hint: 'Tech — deploy a sentry that reads enemy exposure and fires the counter-element; with combat off, it fires neutral tech',
     glyph:
       '<path d="M50 10L84 30V70L50 90L16 70V30Z"/><circle cx="50" cy="50" r="19"/><path d="M50 25V12M50 88V75M25 50H12M88 50H75"/>',
   },
   settings: {
-    range: 18,
-    minRange: 1,
-    speed: 30,
-    cooldown: 8,
-    castAnim: 'cast2',
-    zoneRadius: 6,
-    lifetime: 6,
-    life: 6,
-    shotInterval: 0.9,
-    damage: 0.35,
-    hitImpulse: 5,
-    hitLift: 2.5,
-    hitSpin: 1,
+    /* --- the cast itself --- */
+    range: 18, // maximum throw distance, metres
+    minRange: 1, // closer than this and the cast is refused
+    speed: 30, // how fast the fabrication seed flies, metres/second
+    cooldown: 8, // seconds before the ability can be armed again
+    castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
+    zoneRadius: 6, // scan radius around the sentry, metres
+    lifetime: 6, // shared-contract lifetime; the deploy itself is timed by `life`
+    life: 6, // seconds the sentry stands and fires
+    fadeTime: 0.7, // seconds it takes to un-fabricate once `life` is spent
+
+    /* --- the attack (combat-bound; preserved exactly) --- */
+    shotInterval: 0.9, // seconds between attributed shots
+    damage: 0.35, // damage per shot submitted to the combat bridge
+    hitImpulse: 5, // knockback along turret → target, m/s
+    hitLift: 2.5, // upward kick on a knockdown, m/s
+    hitSpin: 1, // tumble on a knockdown
+
+    /* --- light --- */
     lightColor: '#7ff0ff',
-    impactShake: 0.12,
-    impactFlash: 0.08,
     lightIntensity: 5,
     lightRadius: 9,
-    metalColor: '#284258',
-    coreColor: '#7ff0ff',
-    beamColor: '#d6ffff',
-    impactRadius: 0.8,
-    impactDuration: 0.45,
+    lightHeight: 1.5, // metres above the floor the deploy light sits
+    shotLight: 1.5, // light punch per shot
+    deployLight: 6, // light punch when the sentry lands
+
+    /* ================================================================ */
+    /* 1 · FABRICATION SEED (travel)                                     */
+    /* ================================================================ */
+    seedSize: 0.26, // half-height of the faceted seed, metres
+    seedSpin: 9, // radians/second it tumbles in flight
+    seedArc: 1.4, // apex of its flight arc, metres
+    seedGlow: 2.2, // emissive strength of the seed shell
+    trailRate: 70, // trail streaks per second
+    trailSize: 0.07,
+    trailLife: 0.35,
+    trailSpeed: 1.2,
+    trailColor: '#a5efff', // tint over the shared streak gradient
+
+    /* ================================================================ */
+    /* 2 · SCAN FLOOR                                                    */
+    /* ================================================================ */
+    telegraphOpacity: 0.35, // how bright the landing circle is during travel
+    floorOpacity: 1, // multiplier on the deployed scan disc
+    floorGlow: 2, // emissive strength of the disc
+    gridScale: 3.2, // hex cells per metre-ish across the disc
+    gridOpacity: 0.22, // weight of the hex grid
+    spokes: 6, // radial spokes (one per emitter vane)
+    sweepSpeed: 1.8, // radians/second the radar sweep turns
+    ringSpeed: 3, // how fast the concentric pulses run outward
+    floorNoise: 0.5, // noise breakup of the disc
+
+    /* ================================================================ */
+    /* 3 · THE SENTRY (housing)                                          */
+    /* ================================================================ */
+    housingScale: 1, // overall scale of the sentry
+    buildTime: 0.55, // seconds from the seed landing to fully assembled
+    buildEdge: 0.09, // height of the glowing fabrication edge (× sentry)
+    buildNoise: 0.18, // raggedness of that edge
+    buildGlow: 3, // how hot the edge burns
+    metalColor: '#284258', // housing plate colour
+    trimColor: '#7fd6ff', // panel seams and rim light
+    panelScale: 7, // panel seams per metre
+    panelGlow: 0.6, // how bright the seams glow
+    rimPower: 2.5, // fresnel falloff on the housing
+    rimStrength: 0.55, // fresnel weight on the housing
+    shine: 0.7, // specular strength
+    grime: 0.35, // fbm grime darkening the plates
+
+    /* --- the head --- */
+    headSpin: 0.6, // radians/second the head turns while scanning
+    vaneSway: 0.12, // how far the emitter vanes breathe while scanning
+    vaneSpeed: 1.8, // vane breathing rate
+    recoilTime: 0.18, // seconds a shot's kick takes to settle
+    recoilDepth: 0.1, // how far the head drops on a shot, metres
+    coreColor: '#7ff0ff', // the energy core and emitter tips
+    coreGlow: 1.6, // core brightness at rest
+    coreFlare: 1.5, // extra core brightness on a shot
+    haloSpin: 1.4, // radians/second the segmented halo turns
+    haloOpacity: 0.8,
+
+    /* ================================================================ */
+    /* 4 · THE SHOT                                                      */
+    /* ================================================================ */
+    beamColor: '#d6ffff', // neutral (tech) beam colour
+    stormColor: '#c4b7ff', // beam colour when countering a wet target
+    frostColor: '#b9f2ff', // … a burning target
+    fireColor: '#ffb05c', // … a chilled or frozen target
+    beamTime: 0.18, // seconds the beam stays drawn
+    beamWidth: 0.07, // beam half-width, metres
+    beamGlow: 2.6, // beam brightness
+    beamNoise: 1, // noise flowing down the beam
+    impactRadius: 0.8, // arrival ring size at the struck target, metres
+    impactDuration: 0.45, // seconds the arrival rings live
+    impactShake: 0.12, // camera knock per shot
+    impactFlash: 0.08, // screen flash per shot
+    sparkCount: 24, // sparks thrown off the struck target
+    sparkSize: 0.06,
+    sparkLife: 0.35,
+    sparkSpeed: 5,
+    particleGravity: -3, // gravity on the shared streak system, m/s²
+    particleDrag: 1.2, // drag on the shared streak system
+    // The one pooled streak system's lifetime gradient. Every particle layer
+    // (trail, sparks, landing debris, motes) is tinted over it.
+    colorSparkA: '#ffffff',
+    colorSparkB: '#a5efff',
+    colorSparkC: '#3ab5ec',
+    colorSparkD: '#164673',
+    hitDecalRadius: 0.9, // scorch-arc decal under the struck target
+    hitDecalLife: 0.6,
+
+    /* ================================================================ */
+    /* 5 · DEPLOY BEAT                                                   */
+    /* ================================================================ */
+    deployShake: 0.2, // camera knock when the seed lands
+    deployFlash: 0.12, // screen flash when the seed lands
+    shockRadius: 3.2, // landing shockwave, metres
+    debrisCount: 26, // fabrication debris thrown up on landing
+    debrisSize: 0.12,
+    debrisLife: 0.8,
+    debrisSpeed: 4,
+    debrisColor: '#9fb6c4', // debris tint; also the dust-ring decal
+
+    /* ================================================================ */
+    /* 6 · AMBIENT MOTES                                                 */
+    /* ================================================================ */
+    moteRate: 14, // data motes per second rising from the scan field
+    moteSize: 0.05,
+    moteLife: 1.3,
+    moteRise: 0.9, // metres/second they climb
+    moteColor: '#7ff0ff', // mote tint
+
+    /* ================================================================ */
+    /* 7 · DISTORTION                                                    */
+    /* ================================================================ */
+    warpStrength: 0.35, // heat shimmer above the emitters
+    warpShot: 1.2, // extra shimmer on each shot
+    warpWidth: 1.6, // metres
+    warpHeight: 2.4, // metres
+    warpScale: 2.2, // noise scale
+    warpSpeed: 1.4, // noise speed
   },
 };

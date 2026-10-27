@@ -1,243 +1,848 @@
-import { prefersReducedMotion, addCommonEditorControls, syncParticleGlobals } from '../ExpansionAtmosphere.js';
-import {
-  AdditiveBlending, BufferAttribute, BufferGeometry, CatmullRomCurve3, Color,
-  DoubleSide, Group, Mesh, MeshStandardMaterial, PlaneGeometry, ShaderMaterial,
-  TorusGeometry, TubeGeometry, Vector3
-} from 'three';
+import { Color, Group, Mesh, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
-import { settings } from '../../../config/settings.js';
+import { settings, CAST_ANIMATIONS } from '../../../config/settings.js';
 import { ParticleShape } from '../../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../../particles/ParticleEngine.js';
 import { frame } from '../../../core/FrameUniforms.js';
 import { BurstMode } from '../../../effects/BurstSphere.js';
 import { DecalType } from '../../../effects/GroundDecals.js';
+import { getColor } from '../../../utils/color.js';
+import { prefersReducedMotion, syncParticleGlobals } from '../ExpansionAtmosphere.js';
+import {
+  canopyLeafGeometry,
+  canopyThornGeometry,
+  canopyStrikeGeometry,
+  canopyBranchGeometry,
+  canopyVineGeometry,
+  canopyCrownGeometry,
+  canopyBudGeometry,
+  canopyDiscGeometry
+} from './PredatoryCanopyGeometry.js';
+import {
+  createBarkMaterial,
+  createLeafMaterial,
+  createRootMaterial,
+  createShadeMaterial,
+  createStrikeMaterial,
+  createBudMaterial,
+  createSnapMaterial
+} from './PredatoryCanopyMaterials.js';
+
+// The authored foliage builders are part of this module's public surface.
+export { canopyLeafGeometry, canopyThornGeometry, canopyStrikeGeometry };
 
 export const ID = 'exp-predatory-canopy';
+
 const TAU = Math.PI * 2;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+
+/** Limbs round the crown; three leaves and one vine hang off each. */
+const BRANCHES = 12;
+const LEAVES_PER_BRANCH = 3;
+/** Thorns ringed round the snare. */
+const THORNS = 12;
+/** Vines that lash at the target. */
+const STRIKE_VINES = 3;
+/** Distinct vine shapes (the twelve vines cycle through them). */
+const VINE_VARIANTS = 3;
+
 const temp = new Vector3();
+const _emit = {};
+const _pos = new Vector3();
+const _down = new Vector3(0, -1, 0);
+const _up = new Vector3(0, 1, 0);
 
-// Leaves are not cards: their curved, tapered surface has independent midrib
-// and serrated silhouette. A vertex shader bends each leaf from its stem.
-export function canopyLeafGeometry() {
-  const cols = 7, rows = 17, vertices = [], uv = [], indices = [];
-  for (let j = 0; j < rows; j++) {
-    const t = j / (rows - 1);
-    const width = Math.sin(Math.PI * t) ** 0.8 * (1 - 0.12 * t);
-    for (let i = 0; i < cols; i++) {
-      const x = i / (cols - 1) * 2 - 1;
-      const serration = 1 + 0.11 * Math.sin(t * Math.PI * 12) * Math.abs(x) ** 5;
-      vertices.push(x * width * 0.42 * serration, t * 1.65, Math.sin(Math.PI * t) * (1 - x*x) * 0.18);
-      uv.push(i / (cols - 1), t);
-      if (j < rows - 1 && i < cols - 1) {
-        const n = j * cols + i;
-        indices.push(n, n + cols, n + 1, n + 1, n + cols, n + cols + 1);
-      }
-    }
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3));
-  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
-  g.setIndex(indices); g.computeVertexNormals();
-  return g;
+/** Set a shared particle uniform only if the system (or a test stand-in) has it. */
+function setUniform(system, name, value) {
+  const u = system?.uniforms?.[name];
+  if (u) u.value = value;
 }
 
-/** A curved, tapering trap thorn; a bent spine gives the lunge its silhouette. */
-export function canopyThornGeometry() {
-  const p=[],uv=[],indices=[],rows=25,cols=13;
-  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
-    const t=j/(rows-1),a=i*TAU/(cols-1),r=.13*(1-t)**1.15;
-    p.push(Math.cos(a)*r+.25*t*t,t,Math.sin(a)*r);uv.push(i/(cols-1),t);
-    if(j<rows-1&&i<cols-1){const n=j*cols+i;indices.push(n,n+cols,n+1,n+1,n+cols,n+cols+1);}
-  }
-  const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(indices);g.computeVertexNormals();return g;
-}
-
-/** Normalized ribbon surface for a target-seeking strike vine. */
-export function canopyStrikeGeometry() {
-  const p=[],uv=[],idx=[],rows=49;
-  for(let j=0;j<rows;j++){const t=j/(rows-1);for(let side=0;side<2;side++){p.push(side?1:-1,t,0);uv.push(side,t);}if(j<rows-1){const n=j*2;idx.push(n,n+2,n+1,n+1,n+2,n+3);}}
-  const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(new Float32Array(p),3));g.setAttribute('uv',new BufferAttribute(new Float32Array(uv),2));g.setIndex(idx);g.computeVertexNormals();return g;
-}
-function canopyStrikeMaterial(){return new ShaderMaterial({transparent:true,depthWrite:false,side:DoubleSide,uniforms:{uTime:{value:0},uAnchor:{value:new Vector3()},uTarget:{value:new Vector3()},uProgress:{value:0},uWidth:{value:.12},uFade:{value:0},uColor:{value:new Color('#365423')},uVein:{value:new Color('#a9eb6a')}},vertexShader:`varying vec2 vUv;uniform vec3 uAnchor,uTarget;uniform float uTime,uProgress,uWidth;void main(){vUv=uv;float t=uv.y*uProgress;vec3 mid=(uAnchor+uTarget)*.5+vec3(0.,.8,0.);vec3 p=(1.-t)*(1.-t)*uAnchor+2.*(1.-t)*t*mid+t*t*uTarget;vec2 d=uTarget.xz-uAnchor.xz;vec2 side=vec2(-d.y,d.x)/max(.001,length(d));float w=uWidth*sin(t*3.14159)*(uv.x*2.-1.);p.xz+=side*w;p.y+=sin(t*12.-uTime*4.)*.04*sin(t*3.14159);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying vec2 vUv;uniform float uTime,uFade;uniform vec3 uColor,uVein;void main(){float mid=exp(-abs(vUv.x-.5)*22.);float vein=pow(max(0.,cos(vUv.y*38.-uTime*2.)),14.);gl_FragColor=vec4(mix(uColor,uVein,mid*.35+vein*.2),uFade);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`});}
-
-function canopyLeafMaterial() {
-  return new ShaderMaterial({
-    side: DoubleSide, transparent: true, depthWrite: false,
-    uniforms: { uTime: { value: 0 }, uFade: { value: 1 }, uColor: { value: new Color('#55a837') }, uRim: { value: new Color('#d1ff82') } },
-    vertexShader: `varying vec2 vUv; varying vec3 vN; uniform float uTime;
-      void main(){ vUv=uv; vN=normalize(normalMatrix*normal); vec3 p=position;
-      p.z += sin(uTime*2.3 + position.y*3.8 + position.x*7.0)*0.045*uv.y;
-      gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`,
-    fragmentShader: `varying vec2 vUv; varying vec3 vN; uniform vec3 uColor,uRim; uniform float uFade;
-      void main(){float mid=1.0-smoothstep(0.0,0.035,abs(vUv.x-0.5));
-      float veins=pow(max(0.0,cos((vUv.y+abs(vUv.x-.5)*0.65)*55.0)),18.0)*0.25;
-      float rim=pow(1.0-abs(dot(normalize(vN),vec3(0.,0.,1.))),2.0);
-      vec3 col=uColor*(0.55+0.35*vUv.y)+uRim*(0.22*mid+veins+0.2*rim);
-      gl_FragColor=vec4(col,uFade);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-      }`
-  });
-}
-
-function rootMaterial() {
-  return new ShaderMaterial({
-    transparent: true, depthWrite: false, side: DoubleSide, blending: AdditiveBlending,
-    uniforms: { uTime: {value:0}, uFade:{value:1}, uColor:{value:new Color('#a9eb6a')}, uTrigger:{value:0} },
-    vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader: `varying vec2 vUv; uniform float uTime,uFade,uTrigger; uniform vec3 uColor;
-      void main(){vec2 p=vUv*2.-1.;float r=length(p);float a=atan(p.y,p.x);
-      float ring=exp(-abs(r-.9)*100.)+0.55*exp(-abs(r-.67)*85.);
-      float roots=pow(max(0.,cos(a*12.+sin(r*18.-uTime*1.5))),18.)*smoothstep(.15,.7,r)*(1.-smoothstep(.92,1.,r));
-      float pulse=.65+.35*sin(uTime*3.+r*14.);float alpha=(ring+roots*.5)*uFade*(.32+.3*uTrigger)*pulse;
-      gl_FragColor=vec4(uColor,alpha);
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-      }`
-  });
-}
-
-function twig(angle, radius, height, seed) {
-  const points = [];
-  for (let i=0; i<=12; i++) {
-    const t=i/12, r=radius*t, bend=Math.sin(t*Math.PI)*(.25 + seed*.14);
-    points.push(new Vector3(Math.cos(angle)*r - Math.sin(angle)*bend, height - t*t*.85, Math.sin(angle)*r + Math.cos(angle)*bend));
-  }
-  return new TubeGeometry(new CatmullRomCurve3(points), 32, 0.075, 7, false);
-}
-
-/** A real overhead trap: it arms after arrival, waits for a living target, then lashes once. */
+/**
+ * PREDATORY CANOPY — Nature, zone cast. A real overhead trap: it arms after
+ * arrival, waits for a living target, then lashes once.
+ *
+ * ## The acts
+ *
+ *   - **travel** — a ribbed seed pod with four folded leaves flies to the
+ *     circle at `seedHeight`, turning, light seeping from its seams.
+ *   - **unfurl** — on landing the pod is gone and the canopy opens from a
+ *     point over `armDelay` (eased), with a soft knock on the camera, a leaf
+ *     burst and a lift of light.
+ *   - **the wait** — leaves flutter, pollen drifts, sun flecks move through
+ *     the dappled shade, roots creep in from the snare's rim.
+ *   - **the windup** — the first living body inside `zoneRadius` (the
+ *     nearest one, after `armDelay`) wakes it: the warning ring races in,
+ *     thorns stab up out of the floor, the vines swing in, the leaves
+ *     bristle, sap flushes the bark, the camera rumbles, and three lashing
+ *     vines grow from the crown toward the body — tracking it as it moves.
+ *   - **the lash** — after `triggerWindup` the body is struck once (if it is
+ *     still inside, still the same body, and dummies are still on): AIR
+ *     shell, DUSTRING, splinters, torn leaves, a snap of bent air, a knock,
+ *     a flash and a punch of light. The vines withdraw over `strikeDuration`.
+ *   - **wither** — at the end of `lifetime` the canopy sinks by
+ *     `dropDistance`, draws in by `retreatStrength`, sheds its leaves and
+ *     dissolves tip-first, the thorns sinking back into the floor.
+ *
+ * ## Layers (each a folder in the editor)
+ *
+ *   1. **the canopy** — braided crown (`canopyCrownGeometry`), twelve knotted
+ *      limbs with forks (`canopyBranchGeometry`), thirty-six serrated leaves
+ *      (`canopyLeafGeometry`) and twelve hooked vines (`canopyVineGeometry`).
+ *      Bark is a lit ridged/mossy shader (`createBarkMaterial`); leaves are
+ *      wrap-lit and translucent (`createLeafMaterial`). Both wither with a
+ *      noise dissolve and a burning edge.
+ *   2. **the snare** — an additive root sigil (`createRootMaterial`) and a
+ *      dark, normal-blended leaf shadow (`createShadeMaterial`) on the floor.
+ *   3. **the lash** — curved thorns (`canopyThornGeometry`) and three GPU-bent
+ *      strike vines (`createStrikeMaterial`), a snap on `LAYER.DISTORTION`
+ *      (`createSnapMaterial`), the AIR burst and DUSTRING decal.
+ *   4. **particles** — falling LEAF particles and SOFT pollen from the canopy
+ *      (pooled, shared), lit CHIP splinters off the struck body.
+ *   5. **the seed pod** — `canopyBudGeometry` + `createBudMaterial`.
+ *   6. **the beats** — unfurl knock, windup rumble, lash knock/flash/light.
+ *
+ * ## Combat
+ *
+ * The canopy answers `handlesOwnHits` and strikes through the sandbox
+ * dummies directly (`findTargets`, `kill`): the host attributes that kill to
+ * this cast. A dummy recycled (new `standGeneration`) or removed after the
+ * trigger is never struck, and nothing is struck once dummies are disabled.
+ * `settings.global.lifetime` scales the staged clock, so the arm, windup and
+ * lash keep their order and proportion.
+ *
+ * ## The editor rule
+ *
+ * A cast keeps only the trigger/strike timestamps and its target. Every
+ * dimension, time and colour is read from the settings every frame.
+ */
 export class PredatoryCanopyAbility extends Ability {
-  constructor(ctx) { super(ID, ctx); }
-  get handlesOwnHits() { return true; }
-  get impactDuration(){return this.config.lifetime*this.lifetimeScale;}
- get lifetimeScale(){return Math.max(.1,settings.global.lifetime);}
- get stagedTime(){return this.impactTime/this.lifetimeScale;}
-  get fadeDuration(){return this.config.fade*this.lifetimeScale;}
-  get instanceCount() { return this.leaves.length + this.branches.length + this.tendrils.length; }
-  createShaders() {
-    this.root = new Group(); this.root.name = 'predatory-canopy'; this.group.add(this.root);
-    this.root.visible = false;
-    this.geometries=[]; this.materials=[];
-    const ownG=(g)=>{this.geometries.push(g);return g;};
-    const ownM=(m)=>{this.materials.push(m);return m;};
-    this.leafGeo=ownG(canopyLeafGeometry()); this.leafMat=ownM(canopyLeafMaterial());
-    this.bark=ownM(new MeshStandardMaterial({color:0x365423,roughness:.82,metalness:.04,transparent:true}));
-    this.roots=ownM(rootMaterial());
-    this.ground=new Mesh(ownG(new PlaneGeometry(2,2)),this.roots);this.ground.rotation.x=-Math.PI/2;this.ground.position.y=.035;this.root.add(this.ground);
-    this.strikeRig=new Group();this.group.add(this.strikeRig);this.strikeRig.visible=false;const strikeGeometry=ownG(canopyStrikeGeometry());this.strikeMaterials=[];for(let i=0;i<3;i++){const material=ownM(canopyStrikeMaterial()),vine=new Mesh(strikeGeometry,material);vine.layers.set(LAYER.VFX);vine.frustumCulled=false;this.strikeRig.add(vine);this.strikeMaterials.push(material);}
-    this.leaves=[];this.branches=[];this.tendrils=[];
-    for(let i=0;i<12;i++) {
-      const a=i*TAU/12, branch=new Mesh(ownG(twig(a, 3.7, 0, i%3)),this.bark);
-      branch.position.y=4.8;this.root.add(branch);this.branches.push(branch);
-      for(let k=0;k<3;k++) {
-        const leaf=new Mesh(this.leafGeo,this.leafMat),r=1.1+k*.86;
-        leaf.position.set(Math.cos(a)*r,4.8-.12*k,Math.sin(a)*r);leaf.userData.canopyX=leaf.position.x;leaf.userData.canopyZ=leaf.position.z;leaf.userData.canopyYOffset=-.12*k;
-        leaf.rotation.set(-.35, -a+Math.PI/2, (k%2?1:-1)*.46);
-        leaf.scale.setScalar(.72+(i%3)*.09); this.root.add(leaf);this.leaves.push(leaf);
-      }
-      const tendon=new Mesh(ownG(new TubeGeometry(new CatmullRomCurve3([
-        new Vector3(0,0,0),new Vector3(.4,-1.0,.3),new Vector3(-.3,-2.6,.2),new Vector3(0,-4.1,0)
-      ]),32,.045,6,false)),this.bark);
-      tendon.position.set(Math.cos(a)*2,4.8,Math.sin(a)*2);tendon.userData.canopyX=tendon.position.x;tendon.userData.canopyZ=tendon.position.z; tendon.rotation.y=a;
-      this.root.add(tendon); this.tendrils.push(tendon);
-    }
-    const thorn=ownG(canopyThornGeometry());this.thorns=[];for(let i=0;i<12;i++){const a=i*TAU/12,spike=new Mesh(thorn,this.bark);spike.position.set(Math.cos(a)*1.2,.03,Math.sin(a)*1.2);spike.rotation.set(.3*Math.sin(a),-a,-.3*Math.cos(a));spike.visible=false;this.root.add(spike);this.thorns.push(spike);}
-    this.seed=new Group();this.group.add(this.seed);this.seed.visible=false;this.seedLeaves=[];for(let i=0;i<4;i++){const leaf=new Mesh(this.leafGeo,this.leafMat);leaf.rotation.set(.7,i*TAU/4,0);leaf.scale.setScalar(.3);this.seed.add(leaf);this.seedLeaves.push(leaf);}this.seed.traverse(n=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
-    this.crown=new Mesh(ownG(new TorusGeometry(.46,.075,8,48)),this.bark);
-    this.crown.rotation.x=Math.PI/2;this.crown.position.y=4.8;this.root.add(this.crown);
-    this.root.traverse((n)=>{if(n.isMesh){n.layers.set(LAYER.VFX);n.frustumCulled=false;}});
-    this._found=[];this._target=null;this._triggerAt=-1;this._struck=false;
+  constructor(ctx) {
+    super(ID, ctx);
   }
-  createParticles() {
-    this.leafParticles = this.ctx.particles?.get('exp.canopy.leaves', { capacity: 600, shape: ParticleShape.LEAF, additive: false, lit: true, curl: true, softFade: .3 });
-    this.moteParticles = this.ctx.particles?.get('exp.canopy.motes', { capacity: 480, shape: ParticleShape.SOFT, additive: true, curl: true, softFade: .3 });
-    this.leafEmitter = new RateEmitter(); this.moteEmitter = new RateEmitter();
-    this._emitPosition = new Vector3(); this._emitDown = new Vector3(0,-1,0);
-    this._cueA=new Color();this._cueB=new Color();this._cueDark=new Color();
-  }
-  onSpawn() {this.reduceMotion=prefersReducedMotion();
-    this.root.visible=false;this.seed.visible=true;this.seed.position.copy(this.origin);this._target=null;this._triggerAt=-1;this._strikeAt=-1;this._struck=false;this.strikeRig.visible=false;for(const thorn of this.thorns)thorn.visible=false;
-    this.leafEmitter.reset(); this.moteEmitter.reset();
-    const c=this.config, leaf=this._cueB.set(c.leafColor), rim=this._cueA.set(c.leafRim), bark=this._cueDark.set(c.barkColor);
-    this.leafParticles?.setGradient(leaf,rim,leaf,bark);
-    this.moteParticles?.setGradient(rim,leaf,bark,bark);this.lastLeafPalette=[c.leafColor,c.leafRim,c.barkColor].join('|');
-    this.root.scale.setScalar(1);this.leafMat.uniforms.uFade.value=1;this.roots.uniforms.uFade.value=1;
-  }
-  onTravel() {const c=this.config,visualTime=this.reduceMotion?0:this.age;this.seed.position.copy(this.position);this.seed.position.y=.8;this.seed.rotation.y=visualTime*3;this.seed.scale.setScalar(c.seedScale??1);this.leafMat.uniforms.uTime.value=visualTime;this.leafMat.uniforms.uFade.value=1;this.leafMat.uniforms.uColor.value.set(c.leafColor);this.leafMat.uniforms.uRim.value.set(c.leafRim);}
-  onImpact() {
-    this.seed.visible=false;this.strikeRig.position.copy(this.position);this.root.position.copy(this.position);this.root.position.y=0;this.root.visible=true;
-    this.root.updateMatrix();this.onFade(0,0);
-  }
-  onFade(dt, t) {const visualTime=this.reduceMotion?0:this.age;
-    const c=this.config, elapsed=this.stagedTime;
-    const palette=[c.leafColor,c.leafRim,c.barkColor].join('|');if(palette!==this.lastLeafPalette){const leaf=this._cueB.set(c.leafColor),rim=this._cueA.set(c.leafRim),bark=this._cueDark.set(c.barkColor);this.leafParticles?.setGradient(leaf,rim,leaf,bark);this.moteParticles?.setGradient(rim,leaf,bark,bark);this.lastLeafPalette=palette;}
-    const fade=t <= 1 ? 1 : 1-clamp01(t-1);
-    const opening=ease(elapsed / Math.max(.01,c.armDelay)),closing=t<=1?0:clamp01(t-1),width=opening*(1-closing*clamp01(c.retreatStrength??.8));
-    this.root.scale.set(Math.max(.01,width),1,Math.max(.01,width));
-    this.ground.scale.set(c.zoneRadius,c.zoneRadius,1);
-    const h=Math.max(1,c.canopyHeight-closing*(c.dropDistance??1.5)), spread=Math.max(.5,c.canopySpread)/4;
-    for(const branch of this.branches){branch.position.y=h;branch.scale.set(spread,1,spread);}
-    for(const leaf of this.leaves){leaf.position.set(leaf.userData.canopyX*spread,h+leaf.userData.canopyYOffset,leaf.userData.canopyZ*spread);}
-    for(const vine of this.tendrils){vine.position.set(vine.userData.canopyX*spread,h,vine.userData.canopyZ*spread);vine.scale.y=h/4.8;}
-    this.crown.position.y=h;
-    this.leafMat.uniforms.uTime.value=visualTime;this.leafMat.uniforms.uFade.value=fade;
-    this.leafMat.uniforms.uColor.value.set(c.leafColor);this.leafMat.uniforms.uRim.value.set(c.leafRim);
-    this.bark.color.set(c.barkColor);this.bark.opacity=fade;this.roots.uniforms.uTime.value=visualTime;this.roots.uniforms.uFade.value=fade;this.roots.uniforms.uColor.value.set(c.rootColor);
-    if(dt>0 && this.phase===AbilityPhase.IMPACT && elapsed>=c.armDelay && this._triggerAt<0) {
-      const field=this.ctx.dummies;
-      if(field?.findTargets){
-        const found=field.findTargets(this.position.x,this.position.z,c.zoneRadius,this._found);
-        let nearest=null,nearestDistance=Infinity;for(const d of found){if(!d.alive)continue;const distance=Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z);if(distance>c.zoneRadius)continue;if(distance<nearestDistance){nearest=d;nearestDistance=distance;}}this._target=nearest;
-        if(this._target) { this._triggerAt=elapsed; this._targetGeneration=field.standGeneration?.(this._target)??null; }
-        this._found.length=0;
-      }
-    }
-    const wind=this._triggerAt<0?0:clamp01((elapsed-this._triggerAt)/Math.max(.01,c.triggerWindup));
-    this.roots.uniforms.uTrigger.value=wind;
-    const target=this._target,field=this.ctx.dummies,targetCurrent=!!target&&settings.dummies.enabled&&(this._targetGeneration===null||field?.standGeneration?.(target)===this._targetGeneration)&&(!Array.isArray(field?.slots)||field.slots.some(slot=>slot?.dummy===target)),dist=targetCurrent?Math.hypot(target.position.x-this.position.x,target.position.z-this.position.z):Infinity,release=this._strikeAt<0?1:1-clamp01((elapsed-this._strikeAt)/Math.max(.1,c.strikeDuration??.6));
-    this.strikeRig.visible=targetCurrent&&wind>0&&release>0&&dist<=c.zoneRadius;
-    if(this.strikeRig.visible){for(let i=0;i<this.strikeMaterials.length;i++){const a=i*TAU/3,mat=this.strikeMaterials[i];mat.uniforms.uAnchor.value.set(Math.cos(a)*c.canopySpread*.28,h,Math.sin(a)*c.canopySpread*.28);mat.uniforms.uTarget.value.set(target.position.x-this.position.x,.35,target.position.z-this.position.z);mat.uniforms.uProgress.value=wind;mat.uniforms.uWidth.value=c.strikeWidth??.12;mat.uniforms.uTime.value=visualTime;mat.uniforms.uFade.value=fade*release;mat.uniforms.uColor.value.set(c.barkColor);mat.uniforms.uVein.value.set(c.rootColor);}}
 
-    syncParticleGlobals(this.leafParticles);syncParticleGlobals(this.moteParticles);
-    if (!this.reduceMotion && this.leafParticles && this.moteParticles && this.phase===AbilityPhase.IMPACT) {
-      this._emitPosition.copy(this.position).setY(h*.85);
-      const leafCount=this.leafEmitter.tick(dt,Math.max(0,c.leafRate)*(wind>0?3.5:1)*settings.global.particleCount), moteCount=this.moteEmitter.tick(dt,Math.max(0,c.moteRate)*settings.global.particleCount);
-      const params={position:this._emitPosition, radius:c.zoneRadius*.7, direction:this._emitDown, speed:.55, spread:.7, size:c.leafSize, life:1.7, spin:3, time:frame.uTime.value};
-      if(leafCount)this.leafParticles.emit(leafCount,params);
-      if(moteCount)this.moteParticles.emit(moteCount,{...params,speed:.2,size:.07,life:1.2});
+  get handlesOwnHits() {
+    return true;
+  }
+
+  get impactDuration() {
+    return this.config.lifetime * this.lifetimeScale;
+  }
+
+  get lifetimeScale() {
+    return Math.max(0.1, settings.global.lifetime);
+  }
+
+  /** Seconds into the impact phase on the authored (unscaled) clock. */
+  get stagedTime() {
+    return this.impactTime / this.lifetimeScale;
+  }
+
+  get fadeDuration() {
+    return this.config.fade * this.lifetimeScale;
+  }
+
+  get instanceCount() {
+    return this.leaves.length + this.branches.length + this.tendrils.length;
+  }
+
+  /** Light through leaves: a slow dapple, not a flicker. */
+  lightShimmer() {
+    return 0.85 + 0.15 * Math.sin(this.age * 1.7) * Math.sin(this.age * 0.6 + 1.1);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Construction                                                        */
+  /* ------------------------------------------------------------------ */
+
+  createShaders() {
+    this.root = new Group();
+    this.root.name = 'predatory-canopy';
+    this.group.add(this.root);
+    this.root.visible = false;
+    this.geometries = [];
+    this.materials = [];
+    const ownG = (g) => (this.geometries.push(g), g);
+    const ownM = (m) => (this.materials.push(m), m);
+
+    this.leafGeo = ownG(canopyLeafGeometry());
+    this.leafMat = ownM(createLeafMaterial());
+    this.bark = ownM(createBarkMaterial());
+
+    /* ---- 2 · the snare: root sigil and dappled shade ---- */
+    const disc = ownG(canopyDiscGeometry());
+    this.roots = ownM(createRootMaterial());
+    this.ground = new Mesh(disc, this.roots);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.position.y = 0.035;
+    this.ground.renderOrder = 3;
+    this.root.add(this.ground);
+    this.shadeMat = ownM(createShadeMaterial());
+    this.shade = new Mesh(disc, this.shadeMat);
+    this.shade.rotation.x = -Math.PI / 2;
+    this.shade.position.y = 0.028;
+    this.shade.renderOrder = 2;
+    this.root.add(this.shade);
+
+    /* ---- 3 · the lashing vines ---- */
+    this.strikeRig = new Group();
+    this.group.add(this.strikeRig);
+    this.strikeRig.visible = false;
+    const strikeGeometry = ownG(canopyStrikeGeometry());
+    this.strikeMaterials = [];
+    for (let i = 0; i < STRIKE_VINES; i++) {
+      const material = ownM(createStrikeMaterial());
+      const vine = new Mesh(strikeGeometry, material);
+      vine.layers.set(LAYER.VFX);
+      vine.frustumCulled = false; // bent on the GPU
+      this.strikeRig.add(vine);
+      this.strikeMaterials.push(material);
     }
-    for(const thorn of this.thorns){thorn.visible=wind>0;thorn.scale.set(1,Math.max(.001,wind*(c.thornLength??1.5)),1);}
-    for(let i=0;i<this.tendrils.length;i++) {
-      const v=this.tendrils[i];v.rotation.z=Math.sin(i*TAU/12)*wind*.42;v.rotation.x=Math.cos(i*TAU/12)*wind*.42;
-    }
-    if(dt>0 && this._target && !this._struck && wind>=1){
-      this._struck=true;this._strikeAt=elapsed;
-      const d=this._target;
-      if(targetCurrent && d.alive && Math.hypot(d.position.x-this.position.x,d.position.z-this.position.z)<=c.zoneRadius){
-        temp.set(this.position.x-d.position.x,0,this.position.z-d.position.z);
-        if(temp.lengthSq()<1e-6) temp.copy(this.direction);temp.normalize();
-        const hit=d.kill(temp.x,temp.z,{impulse:c.hitImpulse,lift:c.hitLift,spin:c.hitSpin});
-        if(hit && !this.reduceMotion) {
-          const a=this._cueA.set(c.leafRim), b=this._cueB.set(c.leafColor), dark=this._cueDark.set(c.barkColor);
-          this.ctx.bursts?.spawn(BurstMode.AIR,d.position,{radius:.15,endRadius:Math.min(3,c.zoneRadius*.6),life:.55,intensity:.5,colorA:a,colorB:b,colorC:dark});
-          this.ctx.decals?.spawn(DecalType.DUSTRING,d.position,{radius:Math.min(4,c.zoneRadius),life:.9,intensity:.55,colorA:b,colorB:dark});
-        }
+
+    /* ---- 1 · the canopy: limbs, leaves, vines, crown ---- */
+    this.leaves = [];
+    this.branches = [];
+    this.tendrils = [];
+    const vines = [];
+    for (let v = 0; v < VINE_VARIANTS; v++) vines.push(ownG(canopyVineGeometry(v * 1.7)));
+    for (let i = 0; i < BRANCHES; i++) {
+      const a = (i * TAU) / BRANCHES;
+      const branch = new Mesh(ownG(canopyBranchGeometry(a, 3.7, i % 3)), this.bark);
+      branch.position.y = 4.8;
+      this.root.add(branch);
+      this.branches.push(branch);
+      for (let k = 0; k < LEAVES_PER_BRANCH; k++) {
+        const leaf = new Mesh(this.leafGeo, this.leafMat);
+        const r = 1.1 + k * 0.86;
+        leaf.position.set(Math.cos(a) * r, 4.8 - 0.12 * k, Math.sin(a) * r);
+        // Authored positions at spread 4; the ability rescales from these.
+        leaf.userData.canopyX = leaf.position.x;
+        leaf.userData.canopyZ = leaf.position.z;
+        leaf.userData.canopyYOffset = -0.12 * k;
+        leaf.rotation.set(-0.35, -a + Math.PI / 2, (k % 2 ? 1 : -1) * 0.46);
+        leaf.scale.setScalar(0.72 + (i % 3) * 0.09);
+        this.root.add(leaf);
+        this.leaves.push(leaf);
       }
+      const tendon = new Mesh(vines[i % VINE_VARIANTS], this.bark);
+      tendon.position.set(Math.cos(a) * 2, 4.8, Math.sin(a) * 2);
+      tendon.userData.canopyX = tendon.position.x;
+      tendon.userData.canopyZ = tendon.position.z;
+      tendon.rotation.y = a;
+      this.root.add(tendon);
+      this.tendrils.push(tendon);
+    }
+
+    /* ---- 3 · thorns ringed round the snare ---- */
+    const thorn = ownG(canopyThornGeometry());
+    this.thorns = [];
+    for (let i = 0; i < THORNS; i++) {
+      const a = (i * TAU) / THORNS;
+      const spike = new Mesh(thorn, this.bark);
+      spike.position.set(Math.cos(a) * 1.2, 0.03, Math.sin(a) * 1.2);
+      spike.rotation.set(0.3 * Math.sin(a), -a, -0.3 * Math.cos(a));
+      spike.visible = false;
+      this.root.add(spike);
+      this.thorns.push(spike);
+    }
+
+    /* ---- 5 · the seed pod ---- */
+    this.seed = new Group();
+    this.group.add(this.seed);
+    this.seed.visible = false;
+    this.budMat = ownM(createBudMaterial());
+    this.bud = new Mesh(ownG(canopyBudGeometry()), this.budMat);
+    this.seed.add(this.bud);
+    this.seedLeaves = [];
+    for (let i = 0; i < 4; i++) {
+      const leaf = new Mesh(this.leafGeo, this.leafMat);
+      leaf.rotation.set(0.7, (i * TAU) / 4, 0);
+      leaf.scale.setScalar(0.3);
+      this.seed.add(leaf);
+      this.seedLeaves.push(leaf);
+    }
+    this.seed.traverse((n) => {
+      if (n.isMesh) {
+        n.layers.set(LAYER.VFX);
+        n.frustumCulled = false;
+      }
+    });
+
+    this.crown = new Mesh(ownG(canopyCrownGeometry()), this.bark);
+    this.crown.rotation.x = Math.PI / 2;
+    this.crown.position.y = 4.8;
+    this.root.add(this.crown);
+    this.root.traverse((n) => {
+      if (n.isMesh) {
+        n.layers.set(LAYER.VFX);
+        n.frustumCulled = false;
+      }
+    });
+
+    /* ---- 3 · the snap of bent air at the struck body ---- */
+    this.snapMat = ownM(createSnapMaterial());
+    this.snap = new Mesh(disc, this.snapMat);
+    this.snap.rotation.x = -Math.PI / 2;
+    this.snap.layers.set(LAYER.DISTORTION);
+    this.snap.frustumCulled = false;
+    this.snap.visible = false;
+    this.group.add(this.snap);
+
+    this._found = [];
+    this._target = null;
+    this._triggerAt = -1;
+    this._strikeAt = -1;
+    this._struck = false;
+    this._withered = false;
+    this._snapAt = -1;
+    // Vine presence: 1 while the snared body is current and inside the zone,
+    // easing to 0 over strikeDuration when it leaves, so the vines withdraw
+    // instead of vanishing. _vineTarget holds the last valid aim (rig space).
+    this._presence = 0;
+    this._vineTarget = new Vector3();
+  }
+
+  createParticles() {
+    this.leafParticles = this.ctx.particles?.get('exp.canopy.leaves', { capacity: 600, shape: ParticleShape.LEAF, additive: false, lit: true, curl: true, softFade: 0.3 });
+    this.moteParticles = this.ctx.particles?.get('exp.canopy.motes', { capacity: 480, shape: ParticleShape.SOFT, additive: true, curl: true, softFade: 0.3 });
+    // Splinters are wood, not light: lit and occluding.
+    this.splinters = this.ctx.particles?.get(`${ID}.splinters`, { capacity: 360, shape: ParticleShape.CHIP, additive: false, lit: true, softFade: 0.2 }) ?? null;
+    this.leafEmitter = new RateEmitter();
+    this.moteEmitter = new RateEmitter();
+    this._emitPosition = new Vector3();
+    this._emitDown = new Vector3(0, -1, 0);
+    this._cueA = new Color();
+    this._cueB = new Color();
+    this._cueDark = new Color();
+    this._palette = ['', '', ''];
+    // Reused emission records — never allocated per frame.
+    this._leafEmit = { position: this._emitPosition, radius: 1, direction: this._emitDown, speed: 0.55, spread: 0.7, size: 0.13, life: 1.7, spin: 3, time: 0 };
+    this._moteEmit = { position: this._emitPosition, radius: 1, direction: this._emitDown, speed: 0.2, spread: 0.7, size: 0.07, life: 1.2, spin: 3, time: 0 };
+    this._burstOpts = { radius: 0.15, endRadius: 2, life: 0.55, intensity: 0.5, colorA: this._cueA, colorB: this._cueB, colorC: this._cueDark };
+    this._decalOpts = { radius: 3, life: 0.9, intensity: 0.55, colorA: this._cueB, colorB: this._cueDark };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Palette                                                             */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * The shared leaf and pollen gradients follow the live foliage colours,
+   * re-set only when a colour actually changes (they are pooled systems
+   * other casts may be drawing from).
+   */
+  _syncFoliagePalette(c, force) {
+    const p = this._palette;
+    if (!force && p[0] === c.leafColor && p[1] === c.leafRim && p[2] === c.barkColor) return;
+    p[0] = c.leafColor;
+    p[1] = c.leafRim;
+    p[2] = c.barkColor;
+    const leaf = this._cueB.set(c.leafColor);
+    const rim = this._cueA.set(c.leafRim);
+    const bark = this._cueDark.set(c.barkColor);
+    this.leafParticles?.setGradient(leaf, rim, leaf, bark);
+    this.moteParticles?.setGradient(rim, leaf, bark, bark);
+    this.lastLeafPalette = p;
+  }
+
+  /** Per-frame shared particle uniforms, guarded for partial stand-ins. */
+  _syncParticles(c) {
+    const gl = settings.global;
+    syncParticleGlobals(this.leafParticles);
+    syncParticleGlobals(this.moteParticles);
+    syncParticleGlobals(this.splinters);
+    setUniform(this.leafParticles, 'uOpacity', gl.opacity);
+    setUniform(this.moteParticles, 'uOpacity', gl.opacity);
+    setUniform(this.moteParticles, 'uGlow', gl.glow);
+    if (this.splinters) {
+      this.splinters.setGradient(getColor(c.colorSplinterA), getColor(c.colorSplinterB), getColor(c.colorSplinterC), getColor(c.colorSplinterD));
+      this.splinters.uniforms?.uGravity?.value.set(0, -12, 0);
+      setUniform(this.splinters, 'uDrag', 0.7);
+      setUniform(this.splinters, 'uOpacity', gl.opacity);
     }
   }
-  onDestroy(){this.root.visible=false;this.seed.visible=false;this.strikeRig.visible=false;this._target=null;this._found.length=0;}
-  dispose(){for(const g of this.geometries)g.dispose();for(const m of this.materials)m.dispose();super.dispose();}
+
+  /* ------------------------------------------------------------------ */
+  /* Casting                                                             */
+  /* ------------------------------------------------------------------ */
+
+  onSpawn() {
+    this.reduceMotion = prefersReducedMotion();
+    this.root.visible = false;
+    this.seed.visible = true;
+    this.seed.position.copy(this.origin);
+    this._target = null;
+    this._targetGeneration = null;
+    this._triggerAt = -1;
+    this._strikeAt = -1;
+    this._struck = false;
+    this._withered = false;
+    this._snapAt = -1;
+    this._presence = 0;
+    this._vineTarget.set(0, 0.35, 0);
+    this._found.length = 0;
+    this.strikeRig.visible = false;
+    this.snap.visible = false;
+    for (const thorn of this.thorns) thorn.visible = false;
+    this.leafEmitter.reset();
+    this.moteEmitter.reset();
+    this._syncFoliagePalette(this.config, true);
+    this.root.scale.setScalar(1);
+    this.leafMat.uniforms.uFade.value = 1;
+    this.leafMat.uniforms.uDissolve.value = 0;
+    this.leafMat.uniforms.uBristle.value = 0;
+    this.bark.uniforms.uDissolve.value = 0;
+    this.bark.uniforms.uWake.value = 0;
+    this.roots.uniforms.uFade.value = 1;
+    this.budMat.uniforms.uFade.value = 1;
+  }
+
+  onTravel() {
+    const c = this.config;
+    const visualTime = this.reduceMotion ? 0 : this.age;
+    this.seed.position.copy(this.position);
+    this.seed.position.y = c.seedHeight ?? 0.8;
+    this.seed.rotation.y = visualTime * (c.seedSpin ?? 3);
+    // The pod flies point-first, nodding as it goes.
+    this.seed.rotation.x = Math.sin(visualTime * 5) * 0.15;
+    this.seed.scale.setScalar(c.seedScale ?? 1);
+    this.leafMat.userData.sync(c);
+    this.leafMat.uniforms.uTime.value = visualTime;
+    this.leafMat.uniforms.uFade.value = 1;
+    this.budMat.userData.sync(c);
+    this.budMat.uniforms.uTime.value = visualTime;
+    this._syncParticles(c);
+  }
+
+  onImpact() {
+    const c = this.config;
+    const gl = settings.global;
+    this.seed.visible = false;
+    this.strikeRig.position.copy(this.position);
+    this.root.position.copy(this.position);
+    this.root.position.y = 0;
+    this.root.visible = true;
+    this.root.updateMatrix();
+    // The pod bursts: a soft knock, a lift of the light, a spray of leaves.
+    if (!this.reduceMotion) this.ctx.shake?.add?.((c.unfurlShake ?? 0.1) * gl.explosionIntensity, 3, 12);
+    this.lightBoost = (c.strikeLight ?? 9) * 0.4 * gl.explosionIntensity;
+    this._leafBurst(this.position, (c.canopyHeight ?? 4.8) * 0.5, c.strikeLeaves ?? 18, c);
+    this.onFade(0, 0);
+  }
+
+  /** A one-shot spray of the canopy's leaves (count × particleCount). */
+  _leafBurst(at, height, count, c) {
+    if (!this.leafParticles || this.reduceMotion) return;
+    const n = Math.min(64, Math.round(count * settings.global.particleCount));
+    if (n <= 0) return;
+    _pos.copy(at).setY(height);
+    _emit.position = _pos;
+    _emit.radius = 0.6;
+    _emit.direction = _up;
+    _emit.speed = (c.leafSpeed ?? 0.55) * 4;
+    _emit.speedVariance = 0.5;
+    _emit.spread = 1;
+    _emit.inherit = null;
+    _emit.anchor = null;
+    _emit.size = c.leafSize;
+    _emit.sizeVariance = 0.4;
+    _emit.life = c.leafLifetime ?? 1.7;
+    _emit.lifeVariance = 0.3;
+    _emit.spin = 5;
+    _emit.tint = null;
+    _emit.time = frame.uTime.value;
+    this.leafParticles.emit(n, _emit);
+  }
+
+  /** Is the triggered body still the one the trap saw, and still in play? */
+  _targetCurrent(target, field) {
+    if (!target || !settings.dummies.enabled) return false;
+    if (this._targetGeneration !== null && field?.standGeneration?.(target) !== this._targetGeneration) return false;
+    if (Array.isArray(field?.slots)) {
+      for (const slot of field.slots) if (slot?.dummy === target) return true;
+      return false;
+    }
+    return true;
+  }
+
+  onFade(dt, t) {
+    const visualTime = this.reduceMotion ? 0 : this.age;
+    const c = this.config;
+    const gl = settings.global;
+    const elapsed = this.stagedTime;
+    this._syncFoliagePalette(c, false);
+
+    const fade = t <= 1 ? 1 : 1 - clamp01(t - 1);
+    const opening = ease(elapsed / Math.max(0.01, c.armDelay));
+    const closing = t <= 1 ? 0 : clamp01(t - 1);
+    const width = opening * (1 - closing * clamp01(c.retreatStrength ?? 0.8));
+    this.root.scale.set(Math.max(0.01, width), 1, Math.max(0.01, width));
+    this.ground.scale.set(c.zoneRadius, c.zoneRadius, 1);
+    const shadeR = Math.max(0.5, c.canopySpread) * 1.15;
+    this.shade.scale.set(shadeR, shadeR, 1);
+
+    /* ---- the canopy: height, spread, wither ---- */
+    const h = Math.max(1, c.canopyHeight - closing * (c.dropDistance ?? 1.5));
+    const spread = Math.max(0.5, c.canopySpread) / 4;
+    for (const branch of this.branches) {
+      branch.position.y = h;
+      branch.scale.set(spread, 1, spread);
+    }
+    for (const leaf of this.leaves) {
+      leaf.position.set(leaf.userData.canopyX * spread, h + leaf.userData.canopyYOffset, leaf.userData.canopyZ * spread);
+    }
+    for (const vine of this.tendrils) {
+      vine.position.set(vine.userData.canopyX * spread, h, vine.userData.canopyZ * spread);
+      vine.scale.y = h / 4.8;
+    }
+    this.crown.position.y = h;
+    this.crown.rotation.z = visualTime * (c.crownSpin ?? 0.12);
+
+    this.leafMat.userData.sync(c);
+    this.leafMat.uniforms.uTime.value = visualTime;
+    this.leafMat.uniforms.uFade.value = fade;
+    this.leafMat.uniforms.uDissolve.value = closing;
+    this.bark.userData.sync(c);
+    this.bark.uniforms.uTime.value = visualTime;
+    this.bark.uniforms.uFade.value = fade;
+    this.bark.uniforms.uDissolve.value = closing * 0.85;
+    this.roots.userData.sync(c);
+    this.roots.uniforms.uTime.value = visualTime;
+    this.roots.uniforms.uFade.value = fade;
+    this.roots.uniforms.uArm.value = opening;
+    this.shadeMat.userData.sync(c);
+    this.shadeMat.uniforms.uTime.value = visualTime;
+    this.shadeMat.uniforms.uFade.value = fade * opening;
+
+    /* ---- the snare: who walks in first ---- */
+    if (dt > 0 && this.phase === AbilityPhase.IMPACT && elapsed >= c.armDelay && this._triggerAt < 0) {
+      const field = this.ctx.dummies;
+      if (field?.findTargets) {
+        const found = field.findTargets(this.position.x, this.position.z, c.zoneRadius, this._found);
+        let nearest = null;
+        let nearestDistance = Infinity;
+        for (const d of found) {
+          if (!d.alive) continue;
+          const distance = Math.hypot(d.position.x - this.position.x, d.position.z - this.position.z);
+          if (distance > c.zoneRadius) continue;
+          if (distance < nearestDistance) {
+            nearest = d;
+            nearestDistance = distance;
+          }
+        }
+        this._target = nearest;
+        if (this._target) {
+          this._triggerAt = elapsed;
+          this._presence = 1;
+          this._targetGeneration = field.standGeneration?.(this._target) ?? null;
+        }
+        this._found.length = 0;
+      }
+    }
+
+    const wind = this._triggerAt < 0 ? 0 : clamp01((elapsed - this._triggerAt) / Math.max(0.01, c.triggerWindup));
+    this.roots.uniforms.uTrigger.value = wind;
+    const target = this._target;
+    const field = this.ctx.dummies;
+    const targetCurrent = this._targetCurrent(target, field);
+    const dist = targetCurrent ? Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z) : Infinity;
+    const release = this._strikeAt < 0 ? 1 : 1 - clamp01((elapsed - this._strikeAt) / Math.max(0.1, c.strikeDuration ?? 0.6));
+    // The tree wakes with the windup and settles once the vines withdraw.
+    const awake = wind * release;
+    this.bark.uniforms.uWake.value = awake;
+    this.leafMat.uniforms.uBristle.value = awake * (c.leafBristle ?? 1);
+    if (awake > 0 && this._strikeAt < 0 && dt > 0 && !this.reduceMotion) {
+      this.ctx.shake?.rumble?.((c.windupRumble ?? 0.35) * wind * gl.explosionIntensity, dt);
+    }
+
+    /* ---- the strike vines grow toward the target and track it ---- */
+    // Visibility rides on the withdraw ramps only: the strike release after a
+    // lash, and the presence ramp if the body walks out of the snare or is
+    // flung past the zone. Either way the vines fade back, never pop.
+    const present = targetCurrent && dist <= c.zoneRadius;
+    if (present) this._vineTarget.set(target.position.x - this.position.x, 0.35, target.position.z - this.position.z);
+    const presenceStep = dt / Math.max(0.1, c.strikeDuration ?? 0.6);
+    this._presence = present ? Math.min(1, this._presence + presenceStep) : Math.max(0, this._presence - presenceStep);
+    const vineRelease = release * this._presence;
+    this.strikeRig.visible = wind > 0 && vineRelease > 0;
+    if (this.strikeRig.visible) {
+      for (let i = 0; i < this.strikeMaterials.length; i++) {
+        const a = (i * TAU) / STRIKE_VINES;
+        const mat = this.strikeMaterials[i];
+        mat.userData.sync(c);
+        mat.uniforms.uAnchor.value.set(Math.cos(a) * c.canopySpread * 0.28, h, Math.sin(a) * c.canopySpread * 0.28);
+        mat.uniforms.uTarget.value.copy(this._vineTarget);
+        mat.uniforms.uProgress.value = wind;
+        mat.uniforms.uTime.value = visualTime;
+        mat.uniforms.uFade.value = fade * vineRelease;
+      }
+    }
+
+    /* ---- particles: falling leaves and pollen under the canopy ---- */
+    this._syncParticles(c);
+    if (!this.reduceMotion && this.phase === AbilityPhase.IMPACT) {
+      this._emitPosition.copy(this.position).setY(h * 0.85);
+      const leafCount = this.leafEmitter.tick(dt, Math.max(0, c.leafRate) * (wind > 0 ? 3.5 : 1) * gl.particleCount);
+      const moteCount = this.moteEmitter.tick(dt, Math.max(0, c.moteRate) * gl.particleCount);
+      const time = frame.uTime.value;
+      if (leafCount && this.leafParticles) {
+        const e = this._leafEmit;
+        e.radius = c.zoneRadius * 0.7;
+        e.speed = c.leafSpeed ?? 0.55;
+        e.size = c.leafSize;
+        e.life = c.leafLifetime ?? 1.7;
+        e.time = time;
+        this.leafParticles.emit(leafCount, e);
+      }
+      if (moteCount && this.moteParticles) {
+        const e = this._moteEmit;
+        e.radius = c.zoneRadius * 0.7;
+        e.speed = c.moteSpeed ?? 0.2;
+        e.size = c.moteSize ?? 0.07;
+        e.life = c.moteLifetime ?? 1.2;
+        e.time = time;
+        this.moteParticles.emit(moteCount, e);
+      }
+    }
+
+    /* ---- thorns stab up with the windup and sink as it withers ---- */
+    for (const thorn of this.thorns) {
+      thorn.visible = wind > 0;
+      thorn.scale.set(1, Math.max(0.001, wind * (c.thornLength ?? 1.5) * (1 - closing)), 1);
+    }
+    const curl = c.tendrilCurl ?? 0.42;
+    for (let i = 0; i < this.tendrils.length; i++) {
+      const v = this.tendrils[i];
+      v.rotation.z = Math.sin((i * TAU) / BRANCHES) * wind * curl;
+      v.rotation.x = Math.cos((i * TAU) / BRANCHES) * wind * curl;
+    }
+
+    /* ---- the lash ---- */
+    if (dt > 0 && this._target && !this._struck && wind >= 1) {
+      this._struck = true;
+      this._strikeAt = elapsed;
+      const d = this._target;
+      if (targetCurrent && d.alive && Math.hypot(d.position.x - this.position.x, d.position.z - this.position.z) <= c.zoneRadius) {
+        // The vines haul the body in toward the trunk.
+        temp.set(this.position.x - d.position.x, 0, this.position.z - d.position.z);
+        if (temp.lengthSq() < 1e-6) temp.copy(this.direction);
+        temp.normalize();
+        const hit = d.kill(temp.x, temp.z, { impulse: c.hitImpulse, lift: c.hitLift, spin: c.hitSpin });
+        if (hit) this._onLash(d, c);
+      }
+    }
+    this._updateSnap(c, elapsed, visualTime);
+
+    /* ---- wither: the canopy sheds as it starts to go ---- */
+    if (t > 1 && !this._withered) {
+      this._withered = true;
+      this._leafBurst(this.position, h * 0.85, c.shedLeaves ?? 40, c);
+    }
+  }
+
+  /** The beat of a landed lash. Cosmetic only; the kill already happened. */
+  _onLash(d, c) {
+    const gl = settings.global;
+    this.lightBoost = (c.strikeLight ?? 9) * gl.explosionIntensity;
+    if (this.reduceMotion) return;
+    const a = this._cueA.set(c.leafRim);
+    const b = this._cueB.set(c.leafColor);
+    const dark = this._cueDark.set(c.barkColor);
+    const burst = this._burstOpts;
+    burst.endRadius = Math.min(3, c.zoneRadius * 0.6);
+    burst.colorA = a;
+    burst.colorB = b;
+    burst.colorC = dark;
+    this.ctx.bursts?.spawn(BurstMode.AIR, d.position, burst);
+    const decal = this._decalOpts;
+    decal.radius = Math.min(4, c.zoneRadius);
+    decal.colorA = b;
+    decal.colorB = dark;
+    this.ctx.decals?.spawn(DecalType.DUSTRING, d.position, decal);
+    this.ctx.shake?.add?.((c.strikeShake ?? 0.3) * gl.explosionIntensity, 3.5, 18);
+    this.ctx.flash?.trigger?.(getColor(c.flashColor ?? c.leafRim), (c.strikeFlash ?? 0.12) * gl.explosionIntensity);
+    // Splinters off the body and leaves torn loose above it.
+    if (this.splinters) {
+      const n = Math.min(96, Math.round((c.splinterBurst ?? 26) * gl.particleCount));
+      if (n > 0) {
+        _pos.copy(d.position).setY(0.9);
+        _emit.position = _pos;
+        _emit.radius = 0.35;
+        _emit.direction = _up;
+        _emit.speed = c.splinterSpeed ?? 4;
+        _emit.speedVariance = 0.5;
+        _emit.spread = 1;
+        _emit.inherit = null;
+        _emit.anchor = null;
+        _emit.size = c.splinterSize ?? 0.07;
+        _emit.sizeVariance = 0.6;
+        _emit.life = c.splinterLifetime ?? 0.9;
+        _emit.lifeVariance = 0.3;
+        _emit.spin = 8;
+        _emit.tint = null;
+        _emit.time = frame.uTime.value;
+        this.splinters.emit(n, _emit);
+      }
+    }
+    this._leafBurst(d.position, 1.4, c.strikeLeaves ?? 18, c);
+    this._snapAt = this.stagedTime;
+    this.snap.position.set(d.position.x, 0.06, d.position.z);
+  }
+
+  /** The ring of bent air running out from the struck body. */
+  _updateSnap(c, elapsed, visualTime) {
+    if (this._snapAt < 0) {
+      this.snap.visible = false;
+      return;
+    }
+    const p = clamp01((elapsed - this._snapAt) / Math.max(0.05, c.snapDuration ?? 0.45));
+    const strength = (c.snapWarp ?? 0.8) * Math.max(0, Math.min(2, settings.global.distortion));
+    this.snap.visible = !this.reduceMotion && p < 1 && strength > 0;
+    const r = c.snapRadius ?? 2.4;
+    this.snap.scale.set(r, r, 1);
+    this.snapMat.uniforms.uProgress.value = p;
+    this.snapMat.uniforms.uStrength.value = strength;
+    this.snapMat.uniforms.uTime.value = visualTime;
+  }
+
+  onDestroy() {
+    this.root.visible = false;
+    this.seed.visible = false;
+    this.strikeRig.visible = false;
+    this.snap.visible = false;
+    for (const thorn of this.thorns) thorn.visible = false;
+    this._target = null;
+    this._found.length = 0;
+  }
+
+  dispose() {
+    for (const g of this.geometries) g.dispose();
+    for (const m of this.materials) m.dispose();
+    super.dispose();
+  }
 }
+
 export const AbilityType = PredatoryCanopyAbility;
+
+/* -------------------------------------------------------------------- */
+/* Editor                                                               */
+/* -------------------------------------------------------------------- */
+
+/** Degrades for hosts/tests that pass bare folders or no `Editor`. */
+function editorKit(Editor) {
+  const named = (ctl, label) => (label && typeof ctl?.name === 'function' ? ctl.name(label) : ctl);
+  const sub = (folder, title) => (typeof folder.addFolder === 'function' ? folder.addFolder(title) : folder);
+  const R = (folder, c, key, min, max, step, label) =>
+    typeof Editor?.range === 'function' ? Editor.range(folder, c, key, min, max, step, label) : named(folder.add(c, key, min, max, step), label);
+  const C = (folder, c, key, label) => named(folder.addColor(c, key), label);
+  const G = (folder, c, prefix, title) => {
+    if (typeof Editor?.gradient === 'function' && typeof folder.addFolder === 'function') return Editor.gradient(folder, c, prefix, title);
+    const group = sub(folder, title);
+    C(group, c, `${prefix}A`, 'birth');
+    C(group, c, `${prefix}B`, 'early');
+    C(group, c, `${prefix}C`, 'late');
+    C(group, c, `${prefix}D`, 'death');
+    return group;
+  };
+  const anim = (folder, c) =>
+    typeof Editor?.castAnimation === 'function' ? Editor.castAnimation(folder, c) : named(folder.add(c, 'castAnim', CAST_ANIMATIONS), 'cast animation');
+  return { R, C, G, sub, anim };
+}
+
 export function buildEditor(gui, c, Editor) {
-  const f=gui.addFolder('Predatory Canopy');
-  for(const [key,min,max,step] of [['zoneRadius',1,8,.1],['canopyHeight',2,9,.1],['canopySpread',1,7,.1],['seedScale',.25,2,.05],['armDelay',.1,3,.05],['triggerWindup',.1,1,.05],['thornLength',.25,3,.05],['strikeWidth',.03,.5,.01],['strikeDuration',.1,2,.05],['retreatStrength',0,1,.05],['dropDistance',0,4,.1],['leafRate',0,80,1],['moteRate',0,80,1],['leafSize',.02,.5,.01],['lifetime',2,12,.1]]) f.add(c,key,min,max,step);
-  addCommonEditorControls(f,c,Editor);return f;
+  const { R, C, G, sub, anim } = editorKit(Editor);
+  const f = gui.addFolder('❦  Predatory Canopy');
+
+  const cast = sub(f, 'The cast');
+  R(cast, c, 'range', 1, 48, 0.1, 'max range');
+  R(cast, c, 'minRange', 0, 20, 0.1, 'min range');
+  R(cast, c, 'speed', 1, 60, 0.1, 'pod speed (m/s)');
+  R(cast, c, 'cooldown', 0, 30, 0.1, 'cooldown');
+  R(cast, c, 'lifetime', 2, 12, 0.1, 'canopy hangs for');
+  R(cast, c, 'fade', 0.1, 5, 0.1, 'withers over');
+  anim(cast, c);
+
+  const trap = sub(f, 'The trap');
+  R(trap, c, 'zoneRadius', 1, 8, 0.1, 'snare radius (m)');
+  R(trap, c, 'armDelay', 0.1, 3, 0.05, 'arms after (s)');
+  R(trap, c, 'triggerWindup', 0.1, 1, 0.05, 'windup (s)');
+  R(trap, c, 'hitImpulse', 0, 24, 0.1, 'knockback');
+  R(trap, c, 'hitLift', 0, 20, 0.1, 'lift');
+  R(trap, c, 'hitSpin', 0, 8, 0.05, 'spin');
+
+  const canopy = sub(f, '1 · Canopy');
+  R(canopy, c, 'canopyHeight', 2, 9, 0.1, 'height (m)');
+  R(canopy, c, 'canopySpread', 1, 7, 0.1, 'spread (m)');
+  R(canopy, c, 'retreatStrength', 0, 1, 0.05, 'draws in as it withers');
+  R(canopy, c, 'dropDistance', 0, 4, 0.1, 'sinks as it withers (m)');
+  R(canopy, c, 'crownSpin', 0, 1, 0.01, 'crown turn (rad/s)');
+  R(canopy, c, 'tendrilCurl', 0, 1.2, 0.01, 'vine swing on trigger (rad)');
+  const leaves = sub(canopy, 'Leaves');
+  R(leaves, c, 'leafFlutter', 0, 3, 0.05, 'flutter');
+  R(leaves, c, 'leafVariegation', 0, 1, 0.01, 'variegation');
+  R(leaves, c, 'leafBristle', 0, 3, 0.05, 'bristle on trigger');
+  C(leaves, c, 'leafColor', 'leaf');
+  C(leaves, c, 'leafRim', 'rim and veins');
+  const bark = sub(canopy, 'Bark');
+  R(bark, c, 'barkRidge', 0.2, 4, 0.05, 'furrow scale');
+  R(bark, c, 'barkMoss', 0, 1, 0.01, 'moss');
+  C(bark, c, 'barkColor', 'bark');
+  C(bark, c, 'mossColor', 'moss');
+
+  const snare = sub(f, '2 · Snare');
+  R(snare, c, 'rootGlow', 0, 4, 0.05, 'root glow');
+  R(snare, c, 'rootCount', 3, 32, 1, 'root lobes');
+  C(snare, c, 'rootColor', 'roots and sap');
+  R(snare, c, 'shadeOpacity', 0, 1, 0.01, 'shade darkness');
+  R(snare, c, 'shadeScale', 0.2, 4, 0.05, 'fleck size');
+  C(snare, c, 'shadeColor', 'shade');
+
+  const lash = sub(f, '3 · Lash');
+  R(lash, c, 'thornLength', 0.25, 3, 0.05, 'thorn length (m)');
+  R(lash, c, 'strikeWidth', 0.03, 0.5, 0.01, 'vine width (m)');
+  R(lash, c, 'strikeArc', 0, 3, 0.05, 'vine arc (m)');
+  R(lash, c, 'strikeGlow', 0, 4, 0.05, 'vine glow');
+  R(lash, c, 'strikeDuration', 0.1, 2, 0.05, 'vines withdraw over');
+  R(lash, c, 'snapWarp', 0, 3, 0.05, 'air snap strength');
+  R(lash, c, 'snapRadius', 0.3, 8, 0.1, 'air snap radius (m)');
+  R(lash, c, 'snapDuration', 0.05, 2, 0.01, 'air snap lasts');
+
+  const motes = sub(f, '4 · Particles');
+  R(motes, c, 'leafRate', 0, 80, 1, 'leaves/second');
+  R(motes, c, 'leafSize', 0.02, 0.5, 0.01, 'leaf size');
+  R(motes, c, 'leafSpeed', 0, 4, 0.05, 'leaf drift');
+  R(motes, c, 'leafLifetime', 0.2, 5, 0.05, 'leaf lifetime');
+  R(motes, c, 'moteRate', 0, 80, 1, 'pollen/second');
+  R(motes, c, 'moteSize', 0.01, 0.3, 0.005, 'pollen size');
+  R(motes, c, 'moteSpeed', 0, 2, 0.01, 'pollen drift');
+  R(motes, c, 'moteLifetime', 0.2, 5, 0.05, 'pollen lifetime');
+  R(motes, c, 'strikeLeaves', 0, 64, 1, 'leaves torn at the lash');
+  R(motes, c, 'shedLeaves', 0, 64, 1, 'leaves shed on wither');
+  R(motes, c, 'splinterBurst', 0, 96, 1, 'splinters at the lash');
+  R(motes, c, 'splinterSize', 0.01, 0.3, 0.005, 'splinter size');
+  R(motes, c, 'splinterSpeed', 0, 12, 0.1, 'splinter speed');
+  R(motes, c, 'splinterLifetime', 0.1, 3, 0.05, 'splinter lifetime');
+  G(motes, c, 'colorSplinter', 'splinter gradient');
+
+  const pod = sub(f, '5 · Seed pod');
+  R(pod, c, 'seedScale', 0.25, 2, 0.05, 'size');
+  R(pod, c, 'seedHeight', 0.1, 3, 0.05, 'flight height (m)');
+  R(pod, c, 'seedSpin', 0, 12, 0.1, 'spin (rad/s)');
+  R(pod, c, 'seedGlow', 0, 4, 0.05, 'seam glow');
+
+  const beats = sub(f, '6 · Beats');
+  R(beats, c, 'unfurlShake', 0, 1, 0.01, 'unfurl shake');
+  R(beats, c, 'windupRumble', 0, 2, 0.01, 'windup rumble');
+  R(beats, c, 'strikeShake', 0, 1, 0.01, 'lash shake');
+  R(beats, c, 'strikeFlash', 0, 1, 0.01, 'lash flash');
+  R(beats, c, 'strikeLight', 0, 30, 0.1, 'lash light punch');
+  C(beats, c, 'flashColor', 'flash');
+
+  const light = sub(f, 'Light');
+  R(light, c, 'lightIntensity', 0, 30, 0.1, 'intensity');
+  R(light, c, 'lightRadius', 1, 40, 0.1, 'radius');
+  C(light, c, 'lightColor', 'colour');
+  return f;
 }

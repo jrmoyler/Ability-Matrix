@@ -16,6 +16,9 @@ const { PackAdapter } = await import('../../packs/sandbox/src/combat/ucsm/PackAd
 const { installProductionExpansion } = await import('../../packs/sandbox/src/abilities/expansion-2026/ProductionRegistration.js');
 const { expansionRoster } = await import('../../packs/sandbox/src/abilities/expansion-2026/ProductionRoster.js');
 const { EXPANSION_STATUS } = await import('../../packs/sandbox/src/abilities/expansion-2026/status.js');
+// Each case approves one cast on its own; every other cast is held as a candidate.
+const CANDIDATE_STATUS = Object.fromEntries(Object.keys(EXPANSION_STATUS).map((uid) => [uid, 'candidate']));
+
 const { App } = await import('../../packs/sandbox/src/core/App.js');
 class Element { constructor(){this.children=[];this.style={};this.value='';} append(...elements){this.children.push(...elements);if(!this.value&&elements[0]?.value)this.value=elements[0].value;} setAttribute(){} addEventListener(){} remove(){} }
 const gui={addFolder(){return {add(){return {name(){return this;}}},addColor(){return {name(){return this;}}},close(){},destroy(){}}}};
@@ -40,7 +43,7 @@ test('production casts apply their authored force to real dummies in both combat
     const app=Object.assign(Object.create(App.prototype),{abilities,scene:ctx.scene,character:ctx.character,dummies,editor:{gui},nativePack:new Map(),runtimes:new Map(),renderer:{gl:{domElement:{}}},hud:{setElement(){},showToast(){}},aim:{object3D:{visible:true},setElement(){},cancel(){},facing:0},cooldowns:new Map(),slot:null,_throwBody(){}});
     host=Object.assign(Object.create(PackAdapter.prototype),{app,manager:combat,enabled,cues:false,scope:null,_meta:new WeakMap(),_wrapped:new WeakSet(),_tracked:new Set(),_ids:new WeakMap(),_byId:new Map(),_nextDummy:0,mechanics:{systems:{worldshape:{blocked:()=>false}},beforeStep(){},update(){},cue(){},clear(){}},feed:{update(){},badges(){}}});
     app.combat=host;host._install();
-    const item=expansionRoster().find(c=>c.ID===id);const live=installProductionExpansion(app,expansionRoster({...EXPANSION_STATUS,[item.uid]:'live'}));
+    const item=expansionRoster().find(c=>c.ID===id);const live=installProductionExpansion(app,expansionRoster({...CANDIDATE_STATUS,[item.uid]:'live'}));
     const observed=[],victim=element==='shadow'?nextTarget:target,originalKill=victim.kill.bind(victim);victim.kill=(x,z,force,...rest)=>{observed.push({x,z,force:{...force}});return originalKill(x,z,force,...rest);};Object.assign(settings[id],{hitImpulse:4,hitLift:2,hitSpin:.5});
     host.update(1/60);
     await app.select(item.uid,{prepare:false});app._cast(new Vector3(),new Vector3(0,0,1),5);const candidate=abilities.active[0];assert.ok(candidate,id);

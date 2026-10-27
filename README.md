@@ -1,6 +1,6 @@
 # Collective Ability Matrix
 
-**230 castable abilities** (225 abilities, 3 buffs, 2 summons) from 9 groups, **sorted into 23 elements, ten each**, plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
+**256 castable abilities** (251 abilities, 3 buffs, 2 summons) from 10 groups: the original 230, **sorted into 23 elements, ten each**, and 26 Matrix Expansion casts, plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
 
 Open the matrix, pick any ability, cast it, tune it, and copy its settings as a preset for your own Three.js games. Walk the caster around the arena while you do it.
 
@@ -38,6 +38,7 @@ An unstamped `sw.js` (a source checkout, `vite` dev) is a pass-through, so local
 | Linear Extended | vendored `linear-extended` engine | 10 | Includes the Cyber Serpent model |
 | Hand Cast | vendored `handcast` engine | 9 | Includes the drone, monowheel and phoenix rigs; the two summons are drivable |
 | Ability Casting | vendored `casting` engine | 9 | The shark, wolf, dragon, gyroscope, amethyst, tome and reliquary rigs, with ragdolls |
+| Matrix Expansion | sandbox engine (native) | 26 | Live: casts with their own combat rules (echoes, inherited marks, recorded paths, deployed sentries) through the expansion combat adapter. See [Matrix Expansion](#matrix-expansion--26) |
 
 ### How the source packs run inside it
 
@@ -149,8 +150,8 @@ Every cast in the sandbox, from every pack, reports into one combat state, `comb
 - **Reactions.** When an arriving element meets one already there (a status on the body it hits, a region under it, a region its footprint overlaps), the pair resolves in one of four tiers: the spec's **15 authored** pairs (Storm Conduction, Glacial Bloom, Wildfire …), **70 tag rules** (heat + air → Firestorm, electric + device → Overload …), **generic** stacking with no invented fusion, or a stated **incompatibility** (Lightning into Earth is Grounded). All 276 unordered pairs are covered. Order matters: an authored reaction lands harder when its driver arrives second.
 - **Bounds.** Chain depth (default 3), reactions per tick and per body, one reaction of a name per cast, diminishing returns on repeats and an intensity cap. A reaction's own product never sets the same reaction off again. Only the manager deals secondary damage, through an outbox the adapter applies once; VFX never do.
 - **In the sandbox.** A feed lists reactions as they land, chips above each body show its statuses, and a reaction rings the floor in both elements' colours. Toggles and the budget are in the editor under **Combat — unified state**. From the console: `matrix.combat.preview('water', 'storm')`, `matrix.combat.pairs()`, `matrix.combat.log()`.
-- **Five playable mechanic representatives.** Infernal Circuit, Aegis Exemplar, Shatterpoint Reversal, Continental Uprising and Storm Catalyst run through UCSM in the sandbox. Open **Combat mechanics**, select a move (buttons or Alt+Z/X/C/V/B) and click the arena. The opt-in incoming attack drill supports real counter/block/dodge practice. See [mechanic contracts and controls](docs/foundational-mechanics.md) and [validation evidence](evidence/mechanics/VALIDATION.md).
-- **Unimplemented content stays locked.** The 46 standard additions and other 110 mechanic moves remain `status: 'proposed', selectable: false`. `EXPANSION_REGISTRY` contains the full 161-entry design roster; `IMPLEMENTED_MECHANICS` contains the five playable entries and `PROPOSED` the remaining 156. New portable presets are in `presets/mechanics/`.
+- **31 playable mechanic moves.** The five family representatives (Infernal Circuit, Aegis Exemplar, Shatterpoint Reversal, Continental Uprising and Storm Catalyst) and 26 more run through UCSM in the sandbox. Open **Combat mechanics**, select a move (buttons or Alt+Z/X/C/V/B) and click the arena. The opt-in incoming attack drill supports real counter/block/dodge practice. Each family's look is live in the editor (**Convergence**, **Counter**, **Stance**, **Weave** and **Worldshape** folders). See [mechanic contracts and controls](docs/foundational-mechanics.md) and [validation evidence](evidence/mechanics/VALIDATION.md).
+- **Unimplemented content stays locked.** `EXPANSION_REGISTRY` holds the full 161-entry design roster: 46 standard castables and 115 mechanic moves. A standard entry is selectable once its Matrix Expansion cast is live (14 are), a mechanic move once it is implemented (31 are); the other 116 stay `status: 'proposed', selectable: false`. New portable presets are in `presets/mechanics/`.
 
 `tests/ucsm.test.mjs` pins the pair coverage, determinism, order sensitivity, exactly-once commits, the budgets, expiry, team policy and the registry; `tests/line-trail.test.mjs` pins the trail.
 
@@ -523,6 +524,39 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Shear Force **new** | `codex/shearforce` | Elemental Codex | line | 2–18 |  |
 | Moment Swing **new** | `codex/moment` | Elemental Codex | line | 2–18 |  |
 | Press Lance **new** | `codex/presslance` | Elemental Codex | line | 2–18 |  |
+## Matrix Expansion · 26
+
+Native sandbox casts whose rules go past a single hit: an ash echo that follows your recent path, a thread that locks struck bodies in ice, a storm that attaches to one target, poison that evolves on its host, a sentry that reads enemy exposure and fires the counter-element. Each cast lives in `packs/sandbox/src/abilities/expansion-2026/<cast>/`, is built to the same contract as the originals (`packs/sandbox/SANDBOX_NATIVE_CONTRACT.md`) and binds the expansion combat adapter ([docs/expansion-combat-adapter.md](docs/expansion-combat-adapter.md)) for its hits, statuses and terrain. Promotion is per UID in `expansion-2026/status.js`: a `live` cast is installed in the sandbox and listed in the matrix, while a `candidate` stays hidden. Presets are in `presets/expansion/` (`node tools/extract-expansion.mjs` regenerates them).
+
+| Ability | uid | Element | Kind / aim | Range (m) | Circle (m) |
+|---------|-----|---------|------------|-----------|------------|
+| Ashen Doppelganger | `matrix-expansion/ashen-doppelganger` | Fire | zone | 0–18 |  |
+| Absolute Zero Thread | `matrix-expansion/absolute-zero-thread` | Frost | line | 1–20 |  |
+| Fulminant Relay | `matrix-expansion/fulminant-relay` | Storm | line | 2–20 |  |
+| Thunderhead Parasite | `matrix-expansion/thunderhead-parasite` | Storm | zone | 0–18 |  |
+| Tidal Memory | `matrix-expansion/tidal-memory` | Water | line | 2–20 |  |
+| Faultwake Bastion | `matrix-expansion/faultwake-bastion` | Earth | line | 2–18 |  |
+| Prism Choir | `matrix-expansion/prism-choir` | Crystal | line | 2–20 |  |
+| Pressure Inversion | `matrix-expansion/pressure-inversion` | Wind | zone | 1–18 |  |
+| Overtone Spiral | `matrix-expansion/overtone-spiral` | Sound | zone | 1–18 |  |
+| Predatory Canopy | `matrix-expansion/predatory-canopy` | Nature | zone | 2–18 | 4 |
+| Celestial Cartography | `matrix-expansion/celestial-cartography` | Cosmic | zone | 2–18 | 4.2 |
+| Toxin Evolution | `matrix-expansion/toxin-evolution` | Poison | zone | 2–18 | 3.5 |
+| Nightshade Inheritance | `matrix-expansion/nightshade-inheritance` | Shadow | zone | 2–18 | 3.5 |
+| Heliostat Verdict | `matrix-expansion/heliostat-verdict` | Light | zone | 2–18 | 4 |
+| Vigil of Embers | `matrix-expansion/vigil-of-embers` | Holy | zone | 2–18 | 4 |
+| Mass Weft | `matrix-expansion/mass-weft` | Gravity | line | 2–18 | 1.1 |
+| Hollow Meridian | `matrix-expansion/hollow-meridian` | Void | line | 2–18 | 1.4 |
+| Pulse Covenant | `matrix-expansion/pulse-covenant` | Blood | zone | 0.5–8 | 3.2 |
+| Spellwright's Gambit | `matrix-expansion/spellwrights-gambit` | Arcane | zone | 1–18 | 4 |
+| Mirage Procession | `matrix-expansion/mirage-procession` | Illusion | line | 1–20 |  |
+| Borrowed Tomorrow | `matrix-expansion/borrowed-tomorrow` | Time | zone | 1–20 | 3.6 |
+| Momentum Ledger | `matrix-expansion/momentum-ledger` | Motion | zone | 0.5–10 | 4.5 |
+| Adaptive Fabricator | `matrix-expansion/adaptive-fabricator` | Tech | zone | 1–18 | 6 |
+| Vector Breakwater | `matrix-expansion/vector-breakwater` | Force | line | 1–20 |  |
+| Cinder Crown | `matrix-expansion/cinder-crown` | Fire | zone | 0–18 | 4 |
+| Glacier Bell | `matrix-expansion/glacier-bell` | Frost | zone | 0–18 | 4 |
+
 ## Moves
 
 - Walk and run (the soldier's own clips), and dash (the run, leaned into)

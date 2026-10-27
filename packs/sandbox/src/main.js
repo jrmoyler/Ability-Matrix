@@ -3,6 +3,10 @@ import { installMatrixBridge } from './bridge/MatrixBridge.js';
 import { LoadingScreen } from './ui/HUD.js';
 import { PackAdapter } from './combat/ucsm/PackAdapter.js';
 import { hasLiveExpansion } from './abilities/expansion-2026/status.js';
+import { Editor } from './ui/Editor.js';
+import { buildMechanicLookEditors } from './combat/ucsm/mechanics/ConvergenceCounterStanceEditor.js';
+import { buildWeaveEditor, WEAVE_LOOK } from './combat/ucsm/mechanics/WeaveLook.js';
+import { buildWorldshapeEditor, WORLDSHAPE_LOOK } from './combat/ucsm/mechanics/WorldshapeLook.js';
 
 /**
  * Entry point.
@@ -22,6 +26,10 @@ async function boot() {
     // Every cast, from every pack, reports into one combat state (combat/ucsm).
     app.combat = new PackAdapter(app);
     app.combat.buildEditor(app.editor.gui);
+    // Look folders for the five mechanic families' presentation.
+    buildMechanicLookEditors(app.editor.gui, Editor);
+    buildWeaveEditor(app.editor.gui, WEAVE_LOOK, Editor);
+    buildWorldshapeEditor(app.editor.gui, WORLDSHAPE_LOOK, Editor);
     if (hasLiveExpansion()) {
       const { installProductionExpansion } = await import('./abilities/expansion-2026/ProductionRegistration.js');
       installProductionExpansion(app);
