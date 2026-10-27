@@ -180,17 +180,14 @@ function appendGeometry(soup, geometry, offset, part, total, scale = [1, 1, 1]) 
   const g = geometry.index ? geometry.toNonIndexed() : geometry;
   const p = g.attributes.position;
   const P = (i) => [p.getX(i) * scale[0] + offset[0], p.getY(i) * scale[1] + offset[1], p.getZ(i) * scale[2] + offset[2]];
-  // The extruded outline is convex enough about its own centroid per facet
-  // that "inside" is best taken from the extrusion's mid-plane under the facet.
+  // three's extrusion already winds every facet outward (CCW), so its own
+  // winding is kept: the "inside" hint is placed just behind each facet.
   for (let i = 0; i < p.count; i += 3) {
     const a = P(i), b = P(i + 1), c = P(i + 2);
-    const hint = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, offset[2]];
-    // Side walls sit on the mid-plane; push their hint toward the outline centre.
-    if (Math.abs(a[2] - offset[2]) + Math.abs(b[2] - offset[2]) + Math.abs(c[2] - offset[2]) < 1e-5 * 3 ||
-      (Math.abs(a[2] - b[2]) > 1e-6 || Math.abs(a[2] - c[2]) > 1e-6)) {
-      hint[0] *= 0.6;
-      hint[1] = offset[1] + (hint[1] - offset[1]) * 0.6;
-    }
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const hint = [(a[0] + b[0] + c[0]) / 3 - nx, (a[1] + b[1] + c[1]) / 3 - ny, (a[2] + b[2] + c[2]) / 3 - nz];
     const w = (v) => [part, v[1] / total, 0, 0];
     soup.tri(a, b, c, w(a), w(b), w(c), hint);
   }

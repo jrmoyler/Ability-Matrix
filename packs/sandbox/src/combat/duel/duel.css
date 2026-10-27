@@ -37,6 +37,9 @@
   min-height: 28px;
   line-height: 28px;
 }
+.duel-panel [hidden] {
+  display: none !important;
+}
 .duel-panel h3 {
   font-size: 12px;
   font-weight: 650;
@@ -283,9 +286,9 @@
     max-height: 45vh;
   }
   .duel-hud {
-    top: auto;
-    bottom: 120px;
+    top: 70px;
     gap: 10px;
+    padding: 6px 10px;
   }
   .duel-hp {
     width: 130px;
