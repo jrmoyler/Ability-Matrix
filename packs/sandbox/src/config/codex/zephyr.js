@@ -66,11 +66,11 @@ export default {
 
     /* --- shading --- */
     edgeWidth: 0.05, // width of the bright cutting edge, × the disc
-    edgeGlow: 4.2, // brightness of the cutting edge (bloom > 1)
-    bodyOpacity: 0.35, // the translucent blade body (additive)
-    blurAmount: 0.5, // the faint full disc of the spin blur
+    edgeGlow: 2.6, // brightness of the cutting edge (bloom > 1)
+    bodyOpacity: 0.2, // the translucent blade body (additive)
+    blurAmount: 0.28, // the faint full disc of the spin blur
     swirlLines: 6, // wind lines streaming round each disc
-    swirlGlow: 0.9,
+    swirlGlow: 0.5,
     fringe: 1.2, // chromatic fringe trailing the edges
     fringeSpread: 0.11, // radians between the three fringe bands
     rimGlow: 1.1, // extra glow when a disc is seen edge-on
@@ -80,7 +80,7 @@ export default {
     colorFringeR: '#ff5c8a',
     colorFringeG: '#7affc4',
     colorFringeB: '#5a7cff',
-    bodyFill: 0.78, // opacity of the lit, normal-blended blade mass under the bright pass
+    bodyFill: 0.9, // opacity of the lit, normal-blended blade mass under the bright pass
     bodyBevel: 0.14, // how far in from the edge the bevel catches the light (× disc)
     colorDiscBody: '#3cc39e', // ramp: saturated jade body
     colorDiscDeep: '#0a3530', // ramp: deep
@@ -102,17 +102,17 @@ export default {
     scuffWidth: 0.022, // width of the scratched line, metres
     scuffArc: 0.65, // 0..1 how much of each loop is drawn (lower = open spirals)
     scuffDust: 0.3, // half-width of the dust band the disc swept, metres
-    scuffOpacity: 0.42,
+    scuffOpacity: 0.26,
     scuffDustOpacity: 0.18,
     scuffGlow: 1.1, // how bright the fresh mark glows behind the disc
     scuffGlowLength: 2.2, // metres it cools over behind each disc
     scuffErode: 0.7, // how raggedly it fades
     scuffFurrow: 0.42, // half-width of the filled furrow each strand cuts, metres
-    scuffFurrowOpacity: 0.55,
+    scuffFurrowOpacity: 0.8,
     eyeRadius: 1.15, // the spiral eye the cyclone scours, × its top radius
     eyeArms: 3,
     eyeSpin: 0.25, // how fast the eye turns, × the cyclone's spin
-    eyeOpacity: 0.62,
+    eyeOpacity: 0.8,
     colorScuffDeep: '#10302b', // furrow + eye (ramp: deep)
     colorScuff: '#e9f2ea',
     colorScuffDust: '#93a39b',
@@ -165,7 +165,7 @@ export default {
     mergeTime: 0.18, // 0..1 through the puff the discs take to fold into it
     puffRadius: 0.5, // radius at its base, metres — a narrow foot
     puffTopRadius: 2.3, // radius at its top
-    puffHeight: 5.2,
+    puffHeight: 4.6,
     puffFlare: 1.9, // how late it flares out toward the top
     puffSpin: 9, // radians/second it turns
     puffTwist: 1.4, // twist of its bands, radians per metre up

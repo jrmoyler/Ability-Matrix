@@ -72,10 +72,15 @@ export default {
     /* --- 3 · the ground --- */
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
-    groundLife: 2.2, // seconds the stamp lingers
-    groundOpacity: 1, // strength of the stamp
+    groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
+    groundOpacity: 1, // strength of the field
+    groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
+    groundCoat: 0.12, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
+    groundStain: 0.9, // strength of the residue decal left at the beat
+    groundStainReach: 0.9, // residue radius, × the circle (zone) or × the ground width (line)
     colorGroundA: '#5f76f2',
     colorGroundB: '#071355',
+    colorGroundStain: '#24143a', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
     detailCount: 12, // pieces thrown (max 48)
@@ -85,9 +90,10 @@ export default {
     detailLift: 1.1, // how high the pieces climb, metres
     detailSpin: 1, // how fast the pieces orbit, × body spin
     detailGlow: 1.56, // rim light on the pieces
-    detailOpacity: 0.8, // how solid the pieces are
+    detailOpacity: 0.85, // how solid the pieces are
     detailSwing: 1, // how far each piece folds its parts, × authored swing
     detailEdge: 1, // light along the piece arrises
+    detailDeep: 0.7, // 0..1 how far the pieces fall from body to deep tone across their form
     colorDetailA: '#dfe4ff',
     colorDetailB: '#5f76f2',
     colorDetailC: '#071355',
@@ -100,7 +106,10 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.43, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.85, // how solid the rig is
+    heroOpacity: 0.9, // how solid the rig is
+    heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
+    heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
+    heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
     colorHeroA: '#dfe4ff',
     colorHeroB: '#5f76f2',
     colorHeroC: '#071355',
@@ -149,11 +158,15 @@ export default {
     colorFlash: '#dfe4ff',
     burstRadius: 2, // burst size, metres
     burstLife: 0.7,
+    burstOpacity: 0.5, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 4, // fragments thrown up and out on the beat
+    impactDust: 4, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#5f76f2',
     colorBurstC: '#071355',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
+    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#5f76f2',
     colorShockB: '#ffffff',
 

@@ -53,7 +53,7 @@ export default {
     /* --- 1 · the well (the hero) --- */
     rimSeat: 0.92, // rim radius (× zoneRadius)
     footSeat: 0.7, // outer wall meets the floor at (× zoneRadius)
-    rimHeight: 1.35, // lip height (m)
+    rimHeight: 1.15, // lip height (m)
     lipRadius: 0.16, // the rolled lip's thickness (m)
     throatRadius: 0.42, // the hole at the bottom (m)
     throatHeight: 0.1, // where the inner wall meets the throat (m)
@@ -92,8 +92,8 @@ export default {
     vortexTop: 1.5, // radius at the top (m)
     vortexTwist: 2.4, // turns over its height
     vortexFlow: 1.3, // downward flow speed
-    vortexOpacity: 0.62,
-    vortexGlow: 1.2, // violet edge light in the smoke
+    vortexOpacity: 0.78,
+    vortexGlow: 1.8, // violet edge light in the smoke
 
     /* --- 4 · the floor (excision field) --- */
     fieldSeat: 1.32, // field radius (× zoneRadius)

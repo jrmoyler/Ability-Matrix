@@ -664,7 +664,8 @@ export function createGaleVortexMaterial(sheath = false) {
     depthWrite: false,
     depthTest: true,
     blending: sheath ? NormalBlending : AdditiveBlending,
-    side: sheath ? FrontSide : DoubleSide,
+    // Front faces only: the back wall winds the other way and would cross-hatch.
+    side: FrontSide,
     toneMapped: false,
     uniforms: sharedUniforms({
       uBase: { value: new Vector3() },

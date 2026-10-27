@@ -189,7 +189,7 @@ export default {
     castDrawTime: 0.22, // seconds they take to arrive
     fanRadius: 3.8, // the blast fan combed into the floor where the blade tore, metres
     fanSpread: 0.3, // seconds it takes to spread to full size
-    fanOpacity: 0.62,
+    fanOpacity: 0.78,
     fanStreaks: 9, // how finely it is combed
     colorFan: "#15212b", // fan + scour deep (ramp: deep)
     colorBurstA: "#ffffff",
@@ -216,11 +216,11 @@ export default {
     vortexLiftOff: 0.9, // metres the foot lifts off the floor as it unravels
     vortexSpin: 8, // rad/s — the two turn opposite ways
     vortexTwist: 1.4, // streamline twist, radians per metre up
-    vortexStreams: 5,
+    vortexStreams: 4,
     vortexWobble: 0.4, // metres it snakes
     vortexSwaySpeed: 1.3,
-    vortexGlow: 2.2, // the streamline core
-    vortexOpacity: 0.6, // the lit dust sheath
+    vortexGlow: 1.6, // the streamline core
+    vortexOpacity: 0.85, // the lit dust sheath
     vortexSheathScale: 1.22, // sheath radius × the core
     vortexDust: 120, // puffs/second drawn up the walls
     vortexUpdraft: 2.6, // m/s
@@ -231,7 +231,7 @@ export default {
     footSpin: 0.35, // how fast the footprint turns, × the vortex spin
     colorVortexCore: "#ffffff", // ramp: white-hot core
     colorVortexTint: "#bfe6ff", // ramp: pale tint
-    colorVortexBody: "#4b8fc0", // ramp: saturated body
+    colorVortexBody: "#3f7fae", // ramp: saturated body
     colorVortexDeep: "#0d2033", // ramp: deep
 
     /* ================================================================ */

@@ -436,13 +436,13 @@ export class Ability extends BaseAbility {
       bank = calm ? 0 : c.swapBank * Math.sin(th) * (i ? 1 : -1);
     } else if (k < b.slam) {
       const s = clamp01((k - b.swapEnd) / Math.max(1e-3, b.slam - b.swapEnd));
-      out.copy(away).setY(heave + (-c.slamSink - heave) * s * s);
+      out.copy(away).setY(heave + (c.settleProud - c.slamSink - heave) * s * s);
       yaw += calm ? 0 : c.swapSpin * (i ? -1 : 1);
     } else {
       yaw += calm ? 0 : c.swapSpin * (i ? -1 : 1);
       const s = clamp01((k - b.slam) / Math.max(1e-3, b.end - b.slam));
-      // Bounce off the slam and settle a hand proud; grind into the lock.
-      const settle = c.settleProud + (-c.slamSink - c.settleProud) * Math.exp(-5 * s) * Math.cos(9 * s);
+      // Bounce off the slam and settle standing proud of the floor; grind into the lock.
+      const settle = c.settleProud - c.slamSink * Math.exp(-5 * s) * Math.cos(9 * s);
       out.copy(away).setY(settle);
       yaw += calm ? 0 : c.lockTwist * outCubic(s) * (i ? 1 : -1);
       if (!calm && s < 0.6) {
@@ -477,8 +477,10 @@ export class Ability extends BaseAbility {
       const at = j === 0 ? _A : _B;
       _pos.copy(at).setY(0.05);
       this._burstAt(_pos, 1);
+      // A ring of cracks round the kerf (the socket shader draws the cracks
+      // that stay; a full CRACK disc would paint over the pit).
       this.ctx.decals?.spawn?.(DecalType.CRACK, _pos, {
-        radius: c.zoneRadius * (1 + c.crackReach), life: c.decalLife, intensity: c.crackIntensity,
+        radius: c.zoneRadius * (1 + c.crackReach), life: c.decalLife * 0.35, intensity: c.crackIntensity * 0.5,
         colorA: getColor(c.colorTint), colorB: getColor(c.colorDeep),
       });
     }
@@ -1007,7 +1009,7 @@ export function buildEditor(gui, c, Editor) {
   R(plugs, c, 'swapBank', 0, 1.2, 0.01, 'bank (rad)');
   R(plugs, c, 'lockTwist', -2, 2, 0.01, 'lock twist (rad)');
   R(plugs, c, 'slamSink', 0, 1, 0.01, 'slam sink (m)');
-  R(plugs, c, 'settleProud', -0.2, 0.6, 0.01, 'rests proud (m)');
+  R(plugs, c, 'settleProud', -0.2, 1.5, 0.01, 'rests proud (m)');
   R(plugs, c, 'rockRoughness', 0, 1, 0.01, 'roughness');
   R(plugs, c, 'rockMetalness', 0, 1, 0.01, 'metalness');
   R(plugs, c, 'rockGrit', 0, 3, 0.05, 'grit');

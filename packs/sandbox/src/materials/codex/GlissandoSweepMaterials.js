@@ -168,6 +168,15 @@ const GROUND_VERTEX = /* glsl */ `
   }
 `;
 
+/*
+ * The ground is a filled field, not a sigil. Before the beat it is a faint
+ * footprint (zone casts) or the strip the head has already crossed (line
+ * casts); on the beat it lands from the centre out to the rim behind a hot lip,
+ * holds through the linger with the element's own pattern carved into it,
+ * cools, and finally breaks up from the rim inward. The colour is the ramp's
+ * dark end — the stain the element leaves, mixed toward a pale coat for the
+ * elements that frost or bleach — with the body tone in the carving.
+ */
 const GROUND_FRAGMENT = /* glsl */ `
   precision highp float;
   uniform float uTime;
@@ -176,8 +185,14 @@ const GROUND_FRAGMENT = /* glsl */ `
   uniform float uErode;
   uniform float uOpacity;
   uniform float uPhrase;
+  uniform float uLand;
+  uniform float uPre;
+  uniform float uHeat;
+  uniform float uCoat;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
+  uniform vec3 uColorStain;
+  uniform vec3 uColorHot;
   uniform vec2 uResolution;
   uniform sampler2D uSceneDepth;
   uniform float uCameraNear;
@@ -194,14 +209,32 @@ const GROUND_FRAGMENT = /* glsl */ `
     float ang = atan(q.y, q.x);
     float grain = snoise(vec3(vWorld.xz * 0.85, uSeed)) * 0.5 + 0.5;
     float pat = smoothstep(0.08, 0.0, abs(fract(rad * 9.0 - uTime * 0.80) - 0.5));
-    float mask = pat * (1.0 - smoothstep(0.92, 1.08, rad)) * uOpacity * (1.0 - uErode);
-    mask *= 0.40 + 0.60 * grain;
-    mask *= 1.0 + uPhrase * 0.15;
-    if (mask < 0.02) discard;
-    vec3 col = mix(uColorA, uColorB, clamp(pat, 0.0, 1.0)) * (0.55 + uGlow);
+    pat = clamp(pat, 0.0, 1.0);
+    float rag = fbm3(vec3(vWorld.xz * 0.45, uSeed * 3.7)) * 0.5 + 0.5;
+    // A ragged strip from the hand to the head, landing behind the head.
+    float reach = abs(q.x) * 2.0 * (0.8 + 0.4 * rag);
+    reach = max(reach, 1.0 - smoothstep(0.0, 0.08, vUv.y));
+    float lead = vUv.y - uLand;
+    float foot = 1.0 - smoothstep(0.8, 1.0, reach);
+    float landed = 1.0 - smoothstep(-0.12, 0.0, lead);
+    float cover = foot * max(landed, uPre);
+    float lip = foot * (1.0 - smoothstep(0.0, 0.1, abs(lead)));
+    // Cooling out: the field breaks up from its edge inward.
+    cover *= smoothstep(uErode, uErode + 0.2, (1.0 - reach) * 0.55 + grain * 0.45);
+    float mask = cover * uOpacity * (0.86 + 0.14 * grain);
+    if (mask < 0.01) discard;
+    vec3 dark = mix(uColorStain, uColorB, 0.3 + 0.4 * grain);
+    vec3 pale = mix(uColorA, vec3(1.0), 0.4);
+    vec3 col = mix(dark, pale, uCoat) * (0.72 + 0.28 * rag);
+    col = mix(col, uColorA * (0.5 + 0.4 * uCoat), pat * 0.55);
+    float heat = uHeat * uGlow;
+    col += uColorA * pat * heat * 0.45;
+    col += uColorA * (1.0 - smoothstep(0.0, 0.55, reach)) * heat * 0.2;
+    col += uColorHot * lip * heat * 1.6;
+    col *= 1.0 + uPhrase * 0.08;
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.45);
-    gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+    gl_FragColor = vec4(col * uGlobalGlow, mask);
   }
 `;
 
@@ -286,6 +319,7 @@ const VOICE_FRAGMENT = /* glsl */ `
   }
 `;
 
+
 const DETAIL_VERTEX = /* glsl */ `
   attribute float aSeed;
   attribute vec3 aEdge;
@@ -338,12 +372,21 @@ const DETAIL_VERTEX = /* glsl */ `
   }
 `;
 
+/*
+ * Energy over a dark body. The deep stop fills the faces that look at the
+ * camera, the body colour climbs the span and the lit side, and the light
+ * tint rides the silhouette as a fresnel shell, so the rig reads as a volume
+ * of something rather than as its own outline. Hot parts and arrises glow on
+ * top and feed the bloom.
+ */
 const DETAIL_FRAGMENT = /* glsl */ `
   precision highp float;
   uniform float uTime;
   uniform float uOpacity;
   uniform float uGlow;
   uniform float uEdge;
+  uniform float uRim;
+  uniform float uDeep;
   uniform float uDissolve;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
@@ -370,35 +413,36 @@ const DETAIL_FRAGMENT = /* glsl */ `
     vec3 view = normalize(cameraPosition - vWorld);
     float rim = pow(1.0 - abs(dot(n, view)), 2.2);
     float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
-    float pat = abs(sin(vWorld.y * 18.0 - uTime * 6.0));
-    // The body of the solid stays below white so its form reads; the bright
-    // terms (hot cores, arrises, rim) ride on top of it and feed the bloom.
-    vec3 col = mix(uColorC * 0.7, uColorA * 0.9, pow(lit, 1.6));
-    // Face and part tint: no two faces of an authored solid read the same.
-    col *= 0.84 + 0.3 * fract(vInfo.y * 0.61803 + vInfo.x * 0.37);
-    col = mix(col, uColorB * 0.85, clamp(pat, 0.0, 1.0) * 0.3);
-    // Hot core parts (glow weight) breathe.
-    col += uColorB * vStyle.y * (0.55 + 0.35 * sin(uTime * 3.0 + vInfo.x * 1.7));
-    // Arrises: distance to the nearest real edge, a hairline whatever the size
-    // on screen, dropped once a triangle is too small to carry one.
+    float pat = clamp(abs(sin(vWorld.y * 18.0 - uTime * 6.0)), 0.0, 1.0);
+    float form = clamp(0.15 + 0.45 * vSpan + 0.4 * lit, 0.0, 1.0);
+    vec3 col = mix(uColorC, uColorB, mix(1.0, form, uDeep));
+    col *= 0.86 + 0.28 * fract(vInfo.y * 0.61803 + vInfo.x * 0.37);
+    col = mix(col, uColorC, pat * 0.35 * uDeep);
+    col += uColorB * pat * 0.22 * uGlow;
+    // The fresnel shell.
+    col += mix(uColorB, uColorA, rim) * rim * uRim * uGlow * 1.15;
+    // Hot core parts breathe.
+    col += mix(uColorB, uColorA, 0.6) * vStyle.y * (1.1 + 0.5 * sin(uTime * 3.0 + vInfo.x * 1.7)) * uGlow;
+    // Arrises: a hairline, dropped once a triangle is too small to carry one.
     float edge = min(min(vEdge.x, vEdge.y), vEdge.z);
     float slope = fwidth(edge) + 1e-4;
     float line = (1.0 - smoothstep(slope * 0.6, slope * 1.7, edge)) * (1.0 - smoothstep(0.14, 0.3, slope)) * vStyle.x;
-    col += uColorA * line * uEdge * 0.55 * (0.5 + 0.5 * lit);
-    col += uColorB * rim * uGlow * 0.35;
-    col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
-    float mask = uOpacity;
+    col += uColorA * line * uEdge * 0.3;
+    col *= 0.9 + 0.1 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
+    float mask = uOpacity * clamp(0.72 + 0.28 * rim + 0.3 * vStyle.y + 0.2 * line, 0.0, 1.0);
     if (uDissolve > 0.0) {
       float cut = snoise01(vWorld * 1.7 + vec3(vSeed * 9.0, uTime * 0.2, 0.0));
       mask *= smoothstep(uDissolve, uDissolve + 0.12, cut);
+      col += uColorA * (1.0 - smoothstep(uDissolve, uDissolve + 0.08, cut)) * 1.5;
     }
     if (mask < 0.02) discard;
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.3);
     if (mask < 0.02) discard;
-    gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+    gl_FragColor = vec4(col * uGlobalGlow, mask);
   }
 `;
+
 
 function shapeUniforms() {
   return {
@@ -528,8 +572,14 @@ export function createGlissandoSweepGroundMaterial() {
       uErode: { value: 0 },
       uOpacity: { value: 1 },
       uPhrase: { value: 0 },
+      uLand: { value: 0 },
+      uPre: { value: 0 },
+      uHeat: { value: 0 },
+      uCoat: { value: 0 },
       uColorA: { value: new Color() },
-      uColorB: { value: new Color() }
+      uColorB: { value: new Color() },
+      uColorStain: { value: new Color() },
+      uColorHot: { value: new Color() }
     }),
     vertexShader: GROUND_VERTEX,
     fragmentShader: GROUND_FRAGMENT
@@ -538,18 +588,24 @@ export function createGlissandoSweepGroundMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    u.uCenter.value.copy(st.center);
+    u.uCenter.value.copy(st.groundCenter);
     u.uDir.value.copy(st.dir);
     u.uSide.value.copy(st.side);
     u.uLength.value = Math.max(0.2, st.foot);
     u.uWidth.value = Math.max(0.2, st.footWidth);
     u.uSeed.value = st.seed;
     u.uGlow.value = c.groundGlow * g.glow;
-    u.uErode.value = st.dissolve;
-    u.uOpacity.value = c.groundOpacity * g.opacity * st.fade;
+    u.uErode.value = st.erode;
+    u.uOpacity.value = c.groundOpacity * g.opacity;
     u.uPhrase.value = st.phrase;
+    u.uLand.value = st.land;
+    u.uPre.value = st.pre;
+    u.uHeat.value = c.groundHeat * st.heat;
+    u.uCoat.value = c.groundCoat;
     u.uColorA.value.copy(getColor(c.colorGroundA));
     u.uColorB.value.copy(getColor(c.colorGroundB));
+    u.uColorStain.value.copy(getColor(c.colorGroundStain));
+    u.uColorHot.value.copy(getColor(c.colorB));
   };
   return material;
 }
@@ -589,19 +645,25 @@ export function createGlissandoSweepVoiceMaterial() {
   return material;
 }
 
-/** `rig` true builds the hero rig's material: the same shader, its own look. */
+/**
+ * `rig` true builds the hero rig's material: the same shader, its own look.
+ * sound is energy: emissive over a dark body, normal-blended and
+ * depth-writing, on LAYER.VFX.
+ */
 export function createGlissandoSweepDetailMaterial(rig = false) {
   const material = new ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
       uOpacity: { value: 1 },
       uGlow: { value: 1 },
       uEdge: { value: 1 },
+      uRim: { value: 1 },
+      uDeep: { value: 0.75 },
       uDissolve: { value: 0 },
       uGrowArt: { value: 0 },
       uOpenArt: { value: 0 },
@@ -613,15 +675,18 @@ export function createGlissandoSweepDetailMaterial(rig = false) {
     vertexShader: DETAIL_VERTEX,
     fragmentShader: DETAIL_FRAGMENT
   });
+  material.userData.solid = false;
+  const u = material.uniforms;
   material.userData.sync = (st) => {
     const c = settings[ID];
     const g = settings.global;
-    const u = material.uniforms;
     const k = rig ? 'hero' : 'detail';
     const K = rig ? 'Hero' : 'Detail';
     u.uOpacity.value = c[k + 'Opacity'] * g.opacity * st.fade;
     u.uGlow.value = c[k + 'Glow'] * g.glow * st.pulse;
     u.uEdge.value = c[k + 'Edge'];
+    u.uRim.value = g.fresnel;
+    u.uDeep.value = c[k + 'Deep'];
     u.uSwing.value = c[k + 'Swing'];
     u.uGrowArt.value = Math.min(1, Math.max(0, st.grow));
     u.uOpenArt.value = Math.min(1, Math.max(0, st.beat));

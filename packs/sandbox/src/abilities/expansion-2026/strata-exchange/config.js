@@ -84,8 +84,8 @@ export default {
     swapSpin: 1.6, // yaw each plug turns during the exchange (rad)
     swapBank: 0.35, // bank into the turn (rad)
     lockTwist: 0.5, // quarter-turn grind into the lock after the slam (rad)
-    slamSink: 0.16, // the slam drives the crown this far under the floor (m)
-    settleProud: 0.1, // the crown then rests this far proud of the floor (m)
+    slamSink: 0.35, // the slam drives the plug this far below where it comes to rest (m)
+    settleProud: 0.75, // the plug rests jammed this far proud of the floor — a stepped mesa (m)
     rockRoughness: 0.88,
     rockMetalness: 0.04,
     rockGrit: 1, // grain strength in the strata

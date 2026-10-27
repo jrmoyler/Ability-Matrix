@@ -163,7 +163,7 @@ export function createWellMaterial() {
           float r = length(vLocal.xz);
           float phi = atan(vLocal.z, vLocal.x);
           vec3 V = normalize(vViewPosition);
-          float fres = pow(1.0 - abs(dot(normal, V)), 3.0);
+          float fres = pow(1.0 - abs(dot(normal, V)), 4.0);
           vec3 glow = vec3(0.0);
 
           // Inner wall: spiral grooves, their light running down to the throat.
@@ -173,7 +173,7 @@ export function createWellMaterial() {
           float pulse = 0.65 + 0.35 * uTickFlash;
           glow += voidRamp(0.3 + 0.65 * q) * line * uGrooveGlow * inner * pulse * (0.35 + 0.65 * q);
           // Concentric ledger lines every so often down the well.
-          float rings = 1.0 - smoothstep(0.0, 0.05, abs(fract(q * 6.0) - 0.5) - 0.44);
+          float rings = smoothstep(0.44, 0.49, abs(fract(q * 6.0) - 0.5));
           glow += voidRamp(0.4) * rings * inner * 0.25 * uGrooveGlow;
 
           // The photon lip round the throat, and its flare at the swallow.
@@ -194,7 +194,7 @@ export function createWellMaterial() {
 
           // Outer wall: engraved columns that fill with light as the ledger fills.
           float outer = etRegion(0.0);
-          float col = 1.0 - smoothstep(0.0, 0.08, abs(fract(vWell.z * 36.0) - 0.5) - 0.42);
+          float col = smoothstep(0.43, 0.49, abs(fract(vWell.z * 36.0) - 0.5));
           float filled = smoothstep(0.0, 1.0, uLevied / max(1.0, uTicks));
           glow += voidRamp(0.45 + 0.3 * filled) * col * outer * q * (0.15 + 0.6 * filled) * uLedgerGlow * 0.5;
 

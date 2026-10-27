@@ -72,10 +72,17 @@ export default {
     /* --- 3 · the ground --- */
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
-    groundLife: 2.2, // seconds the stamp lingers
-    groundOpacity: 1, // strength of the stamp
+    groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
+    groundOpacity: 1, // strength of the field
+    groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
+    groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
+    groundCoat: 0.1, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
+    groundTelegraph: 0.32, // how strongly the footprint shows before the beat
+    groundStain: 0.9, // strength of the residue decal left at the beat
+    groundStainReach: 1.05, // residue radius, × the circle (zone) or × the ground width (line)
     colorGroundA: '#fa5b38',
     colorGroundB: '#5e1708',
+    colorGroundStain: '#2a2a30', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
     detailCount: 16, // pieces thrown (max 48)
@@ -85,9 +92,13 @@ export default {
     detailLift: 0.72, // how high the pieces climb, metres
     detailSpin: 1, // how fast the pieces orbit, × body spin
     detailGlow: 1.2, // rim light on the pieces
-    detailOpacity: 0.8, // how solid the pieces are
+    detailOpacity: 1, // how solid the pieces are
     detailSwing: 1, // how far each piece folds its parts, × authored swing
     detailEdge: 1, // light along the piece arrises
+    detailDeep: 0.7, // 0..1 how far the pieces fall from body to deep tone across their form
+    detailRough: 0.38, // roughness of the lit pieces
+    detailMetal: 0.62, // metalness of the lit pieces
+    detailShadow: 1, // 1 = the pieces cast shadows
     colorDetailA: '#ffe6d4',
     colorDetailB: '#fa5b38',
     colorDetailC: '#5e1708',
@@ -100,7 +111,13 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.85, // how solid the rig is
+    heroOpacity: 1, // how solid the rig is
+    heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
+    heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
+    heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
+    heroRough: 0.38, // roughness of the lit rig
+    heroMetal: 0.62, // metalness of the lit rig
+    heroShadow: 1, // 1 = the rig casts shadows
     colorHeroA: '#ffe6d4',
     colorHeroB: '#fa5b38',
     colorHeroC: '#5e1708',
@@ -149,11 +166,15 @@ export default {
     colorFlash: '#ffe6d4',
     burstRadius: 3.8, // burst size, metres
     burstLife: 0.7,
+    burstOpacity: 0.16, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 24, // fragments thrown up and out on the beat
+    impactDust: 23, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#fa5b38',
     colorBurstC: '#5e1708',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
+    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#fa5b38',
     colorShockB: '#ffffff',
 
