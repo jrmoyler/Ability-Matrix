@@ -31,6 +31,14 @@ import { getColor } from '../../utils/color.js';
  *    shines hot right behind the blade and cools over `scarGlowLength`. It
  *    erodes raggedly when the cast fades.
  *
+ *  - **the pressure sheath** — the blade's lit body: a tube along the same
+ *    crescent arc, normal-blended, shaded from the ramp's deep underside to
+ *    its pale top (`createGaleSheathMaterial`).
+ *  - **the severed vortices** — the linger: two leaning, snaking funnels,
+ *    each an additive streamline core over a lit dust sheath, unravelling
+ *    from the foot up (`createGaleVortexMaterial`). The scar shader also
+ *    carries the blast fan and the vortices' spiral footprints.
+ *
  * Every material reads `settings.gale` in `userData.sync(state)`; `state`
  * carries only what the ability knows that the settings do not (the integrated
  * phases, the form/dissolve envelopes, the extents of the cut).
