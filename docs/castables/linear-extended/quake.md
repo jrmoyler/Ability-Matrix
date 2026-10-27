@@ -21,7 +21,11 @@ A rupture front shears slabs of the floor upward behind it — knee-high at the 
 6. **Particles** — grit `CHIP` (#9c9384 → #22201c), motes (#efe6d2 → #2c2a25); light #c9b596 (r 16).
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__quake-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__quake-sheet.jpg`; dense pass f4–f90.
+- **f4–f10 (0.13–0.33 s)** — a pale dust pool lights up around the caster's feet and the first knee-high grey blocks shear up just ahead.
+- **f16 (0.53 s)** — the rift reaches the end: a line of tumbled grey slabs runs downrange, a white dust disc spreads at the far end.
+- **f24–f34 (0.8–1.1 s)** — the blast: a cluster of tall, flat-sided broken slabs with tilted, chamfered tops (the tallest ≈ 4 m) stands at the end, shrapnel chunks in the air all round, a wide pale dust sheet lit on the floor.
+- **f48–f90 (1.6–3.0 s)** — shrapnel has landed and lies scattered as real shadow-casting rocks up to the frame edges; dark fissure lines run out across the floor; the slabs stand photographed-grey in the sun with no glow anywhere; the dust sheet stays lit around the cluster. Reads as geology at a glance.
 
 ## Signature
 **Geology, not magic**: nothing emissive — photographic stone in the sun with real shadows, dust that rolls along the ground, rocks that bounce and rest, and slabs that get dustier the longer they stand.

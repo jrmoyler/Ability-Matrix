@@ -21,7 +21,10 @@ A fracture front runs down the line and a wedge of cold amethyst crystals with g
 6. **World** — gas burst shell, shockwave, light, shake, flash.
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__venom-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__venom-sheet.jpg`; dense pass f4–f90.
+- **f4–f16 (0.13–0.53 s)** — the eruption is visible because of the **birth flash**: each gem tears out of the floor pale mint-green-white, then cools to violet within 0.2 s, so the travelling front is a moving band of pale green over a growing trail of purple. At f16 the frame is green-tinted by the impact flash and the end cluster is coming up green-white.
+- **f24–f34 (0.8–1.1 s)** — the full read: a dense starburst of tall, sharp violet crystals (to ≈ 3 m) round a glowing yellow-green kernel, a green shockwave ring on the floor, broken violet rubble back to the caster's feet, green motes in the air. Purple glass lit green from inside — exactly the colour logic in the material.
+- **f48–f90 (1.6–3.0 s)** — stable silhouette; the kernel halo swells into a soft green bloom behind the cluster, motes drift. The crystals do not move after impact (linger motion is glow, drip and gas).
 
 ## Signature
 **Cold purple glass lit from within by something green** — the venom is a substance held inside the gems (the only strongly emissive, only green term), never a green crystal with a purple glow.

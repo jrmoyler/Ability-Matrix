@@ -26,6 +26,7 @@ A cratered, lava-seamed boulder 1.6 m across leaves the caster's hand trailing a
 - **f20 (0.67 s)** — one frame before impact: the rock is near the floor, seams white, the plume now standing *up* off it like a torch — the read of "something heavy is about to land".
 - **f40 (1.33 s)** — the fireball shell has torn into big yellow-orange facets 4–5 m tall around a white core; under it an orange star of fissures and a pale shockwave ring 6 m across; glowing chunks scattered.
 - **f70 (2.33 s)** — everything in the air is gone; what remains is the **floor answer**: a dozen orange fissure arms with dark basalt lumps along them and ember-lit chunks lying around — readable from 15 m.
+- **Dense pass (f4–f90)** — f4–f16: the rock is visible from the first frames high over the line, plume trailing; f24 (0.80 s): the impact frame — a white-hot ball of light on the floor with a thin shockwave ring (impact lands ≈ 0.75 s, matching 14.9 m ÷ 21 m/s); f34 (1.13 s): the faceted yellow fireball shell ≈ 5 m tall; f48–f90 (1.6–3.0 s): only the floor answers — the orange fissure star with basalt lips and cooling chunks, still bright at 3 s.
 
 ## Signature
 **You watch it arrive**: heat is a function of flight progress (`u^chargeCurve`), so the explosion lands on a rock that has visibly been heating for 0.7 s — and the ground tears open in real geometry rather than a decal.

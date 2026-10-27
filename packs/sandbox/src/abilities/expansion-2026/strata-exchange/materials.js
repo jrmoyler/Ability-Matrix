@@ -263,7 +263,9 @@ const SOCKET_FRAGMENT = /* glsl */ `
     float ca = ang / 6.2831853 * cells + snoise(vec3(r * 0.9, 0.0, uSeed)) * 0.35;
     float cell = floor(ca);
     float reach = R + (uOuter - R) * (0.35 + 0.65 * fract(sin((cell + uSeed) * 91.7) * 4375.5));
-    float line = exp(-abs(fract(ca) - 0.5) * 34.0 * (0.6 + r / max(uOuter, 0.01)));
+    float line = exp(-abs(fract(ca) - 0.5) * 55.0 * (0.6 + r / max(uOuter, 0.01)));
+    // Broken into segments, like real ground cracks, not a sunburst.
+    line *= smoothstep(0.38, 0.62, snoise(vec3(r * 2.2, cell * 1.7, uSeed)) * 0.5 + 0.5);
     float crack = line * step(R, r) * (1.0 - smoothstep(reach * 0.75, reach, r)) * uOpen;
     float crackHeat = exp(-(r - R) / max(0.2, (uOuter - R) * 0.35));
     float stain = (1.0 - smoothstep(R, R + (uOuter - R) * 0.8, r)) * step(R * 0.98, r) * uOpen;
@@ -305,10 +307,10 @@ const SOCKET_FRAGMENT = /* glsl */ `
         vec3 rock = strata(band) * (0.8 + 0.25 * snoise(vec3(wallAng * 6.0, d * 14.0, 1.0)));
         // Light falls on the far wall, the near wall is in its own shadow.
         float lit = 0.45 + 0.55 * clamp(dot(-normalize(hit + 1e-4), normalize(uLightDir.xz + 1e-4)), 0.0, 1.0);
-        col = rock * lit * exp(-wallDepth * uPitShade);
+        col = rock * lit * 0.75 * exp(-wallDepth * uPitShade);
         // Seams between bands glow, strongest near the lip.
         float seam = exp(-abs(fract(band * 5.0) - 0.0) * 30.0) + exp(-abs(fract(band * 5.0) - 1.0) * 30.0);
-        col += mix(uBody, uTint, exp(-wallDepth)) * seam * uPitSeams * uKerfGlow * 0.35 * exp(-wallDepth * 0.8);
+        col += mix(uBody, uTint, exp(-wallDepth)) * seam * uPitSeams * uKerfGlow * 0.2 * exp(-wallDepth * 0.8);
       }
       float edge = smoothstep(pitR, pitR - 0.06, r);
       outCol.rgb = mix(outCol.rgb, col, edge);

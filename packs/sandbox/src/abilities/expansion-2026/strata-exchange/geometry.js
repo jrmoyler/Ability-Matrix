@@ -57,29 +57,35 @@ export function createPlugGeometry(seed = 7, segments = 44) {
   const bandRadius = [1.0, 0.95, 1.04, 0.92, 0.99];
   /** Rows: y, radius, band coordinate, seam, root, cap, outline function. */
   const rows = [];
-  const crownWobble = outline(random, 3, 0.03);
+  const crownWobble = outline(random, 4, 0.06);
+  // The strata dip: every band boundary is tilted the same way, as real beds are.
+  const dipAngle = random() * Math.PI * 2;
+  const dip = 0.06;
   rows.push({ y: 0.035, r: 0.0, band: 0, seam: 0, root: 0, cap: 1, wob: crownWobble });
   rows.push({ y: 0.03, r: 0.55, band: 0, seam: 0, root: 0, cap: 1, wob: crownWobble });
   rows.push({ y: 0.012, r: 0.93, band: 0, seam: 0, root: 0, cap: 1, wob: crownWobble });
   let y = 0;
   for (let b = 0; b < thick.length; b++) {
-    const wob = outline(random, 4, 0.05);
+    const wob = outline(random, 5, 0.09);
+    // Each band sits a little off the axis of the one above: a stepped, broken flank.
+    const shiftX = (random() - 0.5) * 0.09;
+    const shiftZ = (random() - 0.5) * 0.09;
     const top = y;
     const bottom = y - thick[b];
     const r = bandRadius[b];
     const band0 = b / thick.length;
     const band1 = (b + 1) / thick.length;
-    rows.push({ y: top - 0.012, r, band: band0 + 0.01, seam: 0, root: 0, cap: b === 0 ? 0.6 : 0, wob });
-    rows.push({ y: (top + bottom) * 0.5, r: r * 1.01, band: (band0 + band1) * 0.5, seam: 0, root: 0, cap: 0, wob });
-    rows.push({ y: bottom + 0.022, r: r * 0.985, band: band1 - 0.01, seam: 0.15, root: 0, cap: 0, wob });
+    rows.push({ y: top - 0.012, r, band: band0 + 0.01, seam: 0, root: 0, cap: b === 0 ? 0.6 : 0, wob, sx: shiftX, sz: shiftZ, tilt: b === 0 ? 0 : 1 });
+    rows.push({ y: (top + bottom) * 0.5, r: r * 1.01, band: (band0 + band1) * 0.5, seam: 0, root: 0, cap: 0, wob, sx: shiftX, sz: shiftZ, tilt: 1 });
+    rows.push({ y: bottom + 0.022, r: r * 0.985, band: band1 - 0.01, seam: 0.15, root: 0, cap: 0, wob, sx: shiftX, sz: shiftZ, tilt: 1 });
     if (b < thick.length - 1) {
       // The groove between two bands: pinched in, where the seam light lives.
-      rows.push({ y: bottom, r: Math.min(r, bandRadius[b + 1]) * 0.9, band: band1, seam: 1, root: 0, cap: 0, wob });
+      rows.push({ y: bottom, r: Math.min(r, bandRadius[b + 1]) * 0.9, band: band1, seam: 1, root: 0, cap: 0, wob, sx: shiftX, sz: shiftZ, tilt: 1 });
     }
     y = bottom;
   }
   // The torn root: ragged, tapering, spiky.
-  const rootWob = outline(random, 6, 0.16);
+  const rootWob = outline(random, 7, 0.22);
   rows.push({ y: -1.05, r: 0.8, band: 1, seam: 0.3, root: 0.6, cap: 0, wob: rootWob });
   rows.push({ y: -1.14, r: 0.62, band: 1, seam: 0, root: 1, cap: 0, wob: rootWob });
   rows.push({ y: -1.25, r: 0.4, band: 1, seam: 0, root: 1, cap: 0, wob: rootWob });
@@ -100,12 +106,13 @@ export function createPlugGeometry(seed = 7, segments = 44) {
     for (let i = 0; i <= segments; i++) {
       const a = (i / segments) * Math.PI * 2;
       const n = grain[j * segments + (i % segments)];
-      const spikes = row.root > 0.5 ? n * 0.22 : n * 0.025;
+      const spikes = row.root > 0.5 ? n * 0.4 : n * 0.05;
       const rad = Math.max(0, row.r * (1 + row.wob(a) + spikes));
       const k = j * stride + i;
-      pos[k * 3] = Math.cos(a) * rad;
-      pos[k * 3 + 1] = row.y + (row.root > 0.5 ? n * 0.05 : 0);
-      pos[k * 3 + 2] = Math.sin(a) * rad;
+      const tilt = row.tilt ? dip * Math.cos(a - dipAngle) * Math.min(1, rad) : 0;
+      pos[k * 3] = Math.cos(a) * rad + (row.sx ?? 0);
+      pos[k * 3 + 1] = row.y + tilt + (row.root > 0.5 ? n * 0.12 : 0);
+      pos[k * 3 + 2] = Math.sin(a) * rad + (row.sz ?? 0);
       band[k] = row.band;
       seam[k] = row.seam;
       root[k] = row.root;

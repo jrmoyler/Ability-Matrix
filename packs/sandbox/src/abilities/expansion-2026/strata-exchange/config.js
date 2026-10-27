@@ -34,7 +34,7 @@ export default {
     speed: 15, // the lodestone flies to the target at (m/s)
     cooldown: 5,
     castAnim: 'cast3',
-    zoneRadius: 2, // radius of each socket — the plug that is torn out (m)
+    zoneRadius: 1.9, // radius of each socket — the plug that is torn out (m)
     lifetime: 3.8, // nominal cast length, for the HUD (s)
 
     /* --- placement (derived — see the header) --- */
@@ -75,11 +75,11 @@ export default {
 
     /* --- 1 · the plugs (lit rock, world layer) --- */
     plugFit: 0.94, // plug radius (× zoneRadius) — a little under the socket
-    plugDepth: 1.5, // depth of the banded body (m); the torn root hangs a further 35 %
-    heaveHeight: 2.6, // plug crown height while it hangs (m) — the root clears the floor
+    plugDepth: 2, // depth of the banded body (m); the torn root hangs a further 35 %
+    heaveHeight: 3, // plug crown height while it hangs (m) — the root clears the floor
     heaveOvershoot: 0.12, // fraction the heave overshoots before it hangs
     shudder: 0.05, // tremor while it hangs (m)
-    vaultHeight: 2.6, // the vaulting plug rises this much above the hang (m)
+    vaultHeight: 2.4, // the vaulting plug rises this much above the hang (m)
     swingWidth: 0.85, // the other plug swings out sideways (× half span)
     swapSpin: 1.6, // yaw each plug turns during the exchange (rad)
     swapBank: 0.35, // bank into the turn (rad)
@@ -101,10 +101,10 @@ export default {
 
     /* --- 2 · the sockets (floor) --- */
     kerfGlow: 2.6, // the cut round each socket
-    kerfWidth: 0.12, // (m)
+    kerfWidth: 0.1, // (m)
     crackReach: 0.9, // radial cracks run out this far beyond the kerf (× radius)
-    crackGlow: 1.4,
-    pitShade: 0.85, // how dark the pit walls fall with depth
+    crackGlow: 1.1,
+    pitShade: 1.1, // how dark the pit walls fall with depth
     pitSeams: 1, // glowing strata lines on the pit walls
     scribeTime: 0.85, // fraction of the travel the telegraph circles take to draw
     healTime: 0.7, // fraction of the exit spent closing the kerfs

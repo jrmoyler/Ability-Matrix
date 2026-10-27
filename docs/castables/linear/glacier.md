@@ -24,6 +24,7 @@ A cold front lays a trail of rime patches to the circle, the disc freezes outwar
 - **f8 (0.27 s)** — the front is mid-flight: a frost-burst bubble around the caster's hands and a line of white rime patches stepping toward the target, a cyan glint where it will land. The path is visible before the crown exists.
 - **f20 (0.67 s)** — the bloom: a white freezing-vapour dome over the circle, the blade wall already standing round its edge as a dense starburst, the white sheet with a bright boundary band; rime stepping-stones lead back to the caster.
 - **f40 / f70 (1.3 / 2.3 s)** — the dome is gone; a full ring of pale, see-through blades 1–2.5 m tall, leaning out and crossing, open in the middle, standing on a white disc. Glints and veil keep it alive, but the silhouette itself is static through the hold (this cast's motion lives in its entry sweep, the falling snow and its plate-by-plate exit).
+- **Dense pass (f4–f90)** — f4: frost bubble at the hands; f10 (0.33 s): the vapour dome lands at the site with a wide crown-shaped splash of ice; f16–f24 (0.53–0.8 s): blades erupt round the dome, shockwave ring across the floor; f34–f90 (1.1–3.0 s): the dome is gone and the ring of blades stands unchanged over the white disc — the crown is static through its hold.
 
 ## Signature
 **A wall you look into**: the middle is deliberately empty (`coreShare` 0) and the blades are near-empty glass carried by their edges — the opposite treatment to the Frost Lance, so two frost casts are told apart by material before silhouette.

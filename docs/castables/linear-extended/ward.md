@@ -22,7 +22,11 @@ A surge of melt runs to the circle, the stone inside shatters into plates with m
 7. **Particles** — embers `SOFT` (#ffe6bd → #2c0503), obsidian flecks `CHIP`, gore droplets `SOFT` non-additive (#c11a1e → #210306), smoke `SMOKE`; gore splat decals (#5c0a10 / #c0201c).
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__ward-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__ward-sheet.jpg`; dense pass f4–f90.
+- **f4 (0.13 s)** — orange muzzle flash at the hand, a trail of dark-red gore marks starting on the floor.
+- **f8–f10 (0.27–0.33 s)** — the seal: a low red barrier band with a ring of burning runes, the floor inside fractured into glowing magma plates, a white-hot flare in the middle, the whole frame washed red.
+- **f16–f24 (0.53–0.8 s)** — the membrane has risen to full height (its rim leaves the top of the frame at 8 m); an 8.5 m pale shockwave ring rolls outward; obsidian slabs stand inside.
+- **f34–f90 (1.1–3.0 s)** — the standing ward: a translucent blood-red cylinder with downward-running streaks, rune bands glowing at its foot and rim, the far wall visible through the near one, dark faceted obsidian slabs with red veins around a bright core flare, magma seams in the floor; the hit dummy lies outside tagged `burning`. Brightness pulses frame to frame with the beat; the silhouette itself (a cylinder) stays fixed — its life is in the beat, the runs and the flare, not in shape change.
 
 ## Signature
 **It is alive**: one heartbeat envelope, evaluated once per frame, is handed to every material, the light, the camera and the emitters — eight separate systems pulse as one organ.

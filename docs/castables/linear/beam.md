@@ -26,6 +26,7 @@ The caster winds up a ball of light in both hands while motes spiral into it, th
 - **f20 (0.67 s)** — just after impact: the impact shell is a huge faceted white-cyan bubble around the near beam, a second shell at the far end, a 7 m shockwave ring on the floor, orange-white coils spiralling up the column toward the target (seen end-on from behind, the coils read as a corkscrew of rings). Struck dummy tagged `illuminated` + `burning`.
 - **f40 (1.33 s)** — the held beam: a narrow white core rod inside stacked hoop rings and warm coils, a flat orange shock disc around the far end; cyan sparks on the floor at the feet.
 - **f70 (2.33 s)** — gone; a dotted cyan ember/scorch line to a small burn pool at the target. Exit is a clean blink, not a pop, because it first collapses to a thread.
+- **Dense pass (f4–f90)** — f4–f10: orb only, cyan pool of light under the caster; f16 (0.53 s): release — muzzle shell bubble, floor ring at the feet, coils already corkscrewing downrange; f24–f48 (0.8–1.6 s): the held beam, white rod + warm coils, hoop rings and flat shock disc at the far end; f64 (2.13 s): gone, only the dotted scorch line — collapse took < 0.5 s.
 
 ## Signature
 **A fourth beat in front of travel** — the charge — and a column that reads as a *solid rod of light* because its core is weighted to the axis while its sheath is weighted to the rim.

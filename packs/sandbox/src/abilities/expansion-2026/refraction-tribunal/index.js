@@ -121,8 +121,9 @@ const SPECTRUM = [
  *   9. **the lens** (`createLensMaterial`, `LAYER.DISTORTION`).
  *
  * ## Placement is derived
- * Judges stand at `judgeRing × zoneRadius` on a triangle whose first vertex
- * faces the caster, so the witness always enters the near judge. The bow is
+ * Judges stand at `judgeRing × zoneRadius` on a triangle that shows the
+ * caster an edge (judge 0 front-left), so the witness enters judge 0 and no
+ * judge stands between the caster and the verdict. The bow is
  * solved, not tuned: a judge of height `H` seated `Rj` from the centre puts
  * its point over the centre when it leans in by `asin(Rj / H)`, so the bow
  * angle is computed from `zoneRadius` every frame (and `H` grows when the
