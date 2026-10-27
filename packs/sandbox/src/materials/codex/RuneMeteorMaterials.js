@@ -706,6 +706,11 @@ const GROUND_FRAGMENT = /* glsl */ `
     float a = max(shade, max(bowl * (0.75 + 0.2 * n), lip * 0.7));
     a = max(a, crack);
     vec3 col = mix(uDeep, uBody, clamp(lip + bowl * n * 0.35, 0.0, 1.0));
+    // The pool is not just dark: a faint cold glow gathers at its heart and
+    // rune-light veins it, so the telegraph reads on a dark floor.
+    float vein = pow(1.0 - abs(fbm3(vec3(vXZ * 1.3, uSeed + uTime * 0.2))), 18.0);
+    col += uHot * uShade * (1.0 - step(0.01, uCrater)) * (pool * 0.35 + vein * disc * 0.6) * uGlobalGlow;
+    a = max(a, uShade * disc * vein * 0.6);
     col += uHot * crack * (0.25 + uHeat * 2.5) * uGlobalGlow;
     col += uHot * bowl * pow(1.0 - r / C, 2.0) * uHeat * 0.8 * uGlobalGlow;
     a *= uOpacity * uFade;

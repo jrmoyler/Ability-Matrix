@@ -209,13 +209,14 @@ export default {
     breakShake: 0.5,
     breakShakeDuration: 0.5,
     breakFlash: 0.25,
-    breakBurst: 2.6, // metres, a shell at a few points down the wall
+    breakBurst: 1.8, // metres, a shell at a few points down the wall
     breakBursts: 3,
+    breakShellFrom: 0.35, // shells only from this fraction of the wall on (not at the camera)
     breakGrit: 1.6, // × grit per slab
     trailRate: 260, // dust trailing the shards, per second
     colorFlash: "#c8b8ff",
-    colorBurstA: "#d8c8ff",
-    colorBurstB: "#6a4cc8",
+    colorBurstA: "#b8a0ff",
+    colorBurstB: "#3a2478",
     colorBurstC: "#1a1428"
   }
 };

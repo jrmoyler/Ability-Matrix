@@ -82,11 +82,11 @@ export const CONFIG = Object.freeze({
     formTime: 0.45, // seconds to condense on arrival
     seedScale: 0.4, // the stormlet's size in flight (× cloud)
     softFade: 0.5, // metres of soft intersection with the scene
-    flashGlow: 4, // brightness of lightning inside the cloud
-    idleFlash: 2.4, // ambient sheet-lightning flickers per second
+    flashGlow: 2.6, // brightness of lightning inside the cloud
+    idleFlash: 1.6, // ambient sheet-lightning flickers per second
     colorCloudDark: '#06061a', // deep: the belly
     colorCloudMid: '#2c2f78', // body
-    colorCloudLit: '#9aa3f0', // tint: the sun-lit crown
+    colorCloudLit: '#7c86d6', // tint: the sun-lit crown
     colorCloudFlash: '#eef1ff', // core: lightning inside it
 
     /* ================================================================ */

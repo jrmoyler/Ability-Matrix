@@ -1143,7 +1143,8 @@ export class ObsidianWallAbility extends Ability {
       this.ctx.flash.trigger(getColor(c.colorFlash), c.breakFlash * g.explosionIntensity);
       this.lightBoost = c.breakLight * g.explosionIntensity;
     }
-    if (every > 0 && i % every === 0) {
+    // Shells only down the far two-thirds: one at the caster's feet would fill the camera.
+    if (every > 0 && i % every === 0 && i >= Math.floor(count * c.breakShellFrom)) {
       _pos.copy(_base).setY(H * 0.45);
       this.ctx.bursts.spawn(BurstMode.EARTH, _pos, {
         radius: 0.3,
@@ -1382,6 +1383,7 @@ export function buildEditor(gui, c, Editor) {
   R(brk, c, 'breakFlash', 0, 1, 0.01, 'flash');
   R(brk, c, 'breakBurst', 0, 8, 0.05, 'shell (m)');
   R(brk, c, 'breakBursts', 0, 8, 1, 'shells down the wall');
+  R(brk, c, 'breakShellFrom', 0, 1, 0.01, 'shells start at (× wall)');
   R(brk, c, 'breakGrit', 0, 5, 0.05, 'grit (×)');
   brk.addColor(c, 'colorFlash').name('flash');
   brk.addColor(c, 'colorBurstA').name('shell inner');

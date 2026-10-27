@@ -45,7 +45,7 @@ export default {
     /* ================================================================ */
     /* 1 · THE FALL                                                      */
     /* ================================================================ */
-    dropHeight: 7, // metres above the circle the star kindles (in frame at 8 m)
+    dropHeight: 5.5, // metres above the circle the star kindles (in frame at 8 m)
     fallTime: 1.15, // seconds from kindling to landing (at least the travel)
     fallCurve: 2.2, // >1: hangs, then plummets
     orbRadius: 0.75, // the crystal star, metres
@@ -155,7 +155,7 @@ export default {
     dustSize: 0.8,
     dustLife: 1.4,
     dustOpacity: 0.42,
-    colorDustA: '#aab0d4',
+    colorDustA: '#7d84b8',
     colorDustB: '#5d6290',
     colorDustC: '#2f3258',
     colorDustD: '#11132a',

@@ -54,18 +54,18 @@ export default {
     grainScale: 2.6, // features per metre in the grain
 
     /* --- shading --- */
-    colorSandLight: "#e2b878", // sunlit sand
-    colorSandDark: "#8a5a2e", // sand in its own shade
+    colorSandLight: "#c99a5e", // sunlit sand
+    colorSandDark: "#74481f", // sand in its own shade
     colorUnderside: "#4b2e18", // the shadowed hollow under the lip
     colorStreak: "#fff0cf", // wind-blown streaks along the back (the core stop)
     colorSandDeep: "#3a2210", // the deep stop: where the sand meets the floor
     contactShade: 0.45, // metres up the wave the floor-contact darkening reaches
     undersideDarkness: 0.85, // 0..1 how dark the face under the lip goes
     ambient: 0.3, // light that reaches the shade side
-    streakStrength: 0.55, // wind streak brightness
+    streakStrength: 0.18, // wind streak brightness
     streakScale: 1.4, // streak frequency across the wave
     streakFlow: 3.2, // how fast the streaks blow back off the crest
-    crestGlow: 0.25, // the backlit spray edge along the top of the crest
+    crestGlow: 0.15, // the backlit spray edge along the top of the crest
     waveOpacity: 1.0,
     floorFade: 0.08, // metres of height over which the wave fades into the floor
     softFade: 0.25, // metres — soft intersection against scene geometry
@@ -168,8 +168,8 @@ export default {
     /* ================================================================ */
     /* 5 · THE MOUND — the barchan the wave collapses into (linger)      */
     /* ================================================================ */
-    moundHeight: 1.25, // metres
-    moundWidth: 2.9, // half-width, metres
+    moundHeight: 1.6, // metres
+    moundWidth: 3.2, // half-width, metres
     moundTail: 2.4, // long back slope
     moundLead: 0.7, // short slip face
     moundCurl: 0.12, // a little lip

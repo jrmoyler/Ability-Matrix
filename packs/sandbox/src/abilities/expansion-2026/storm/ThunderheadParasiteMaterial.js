@@ -133,9 +133,14 @@ const CLOUD_FRAGMENT = /* glsl */ `
     // point within the cluster and glows through the thin edges most.
     float d = length(vLocal - uSheetPos);
     float inner = exp(-d * d * 2.2) * (0.5 + 0.5 * (1.0 - ndv));
-    float flood = uFlash * (0.55 + 0.45 * (1.0 - vHeight));
+    // A strike floods the cloud from its belly, where the bolt leaves, and
+    // shows through the thin silhouette more than the dense face — so the
+    // crown keeps its dark body and the storm never turns into a white blob.
+    float belly = pow(1.0 - vHeight, 1.5);
+    float flood = uFlash * belly * (0.35 + 0.65 * (1.0 - ndv));
     vec3 lit = uColorFlash * (inner * uSheet + flood) * uFlashGlow * uGlobalGlow * uShaderIntensity;
-    color += lit;
+    // Soft-clip so stacked flashes roll off instead of clipping to white.
+    color += lit / (1.0 + 0.35 * dot(lit, vec3(0.333)));
 
     float alpha = body * formed * uOpacity;
     vec2 screenUV = gl_FragCoord.xy / uResolution;

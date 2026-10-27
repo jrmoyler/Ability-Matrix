@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3, Vector4 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -587,6 +587,8 @@ const PILLAR_FRAGMENT = /* glsl */ `
   uniform vec3  uColorCore;
   uniform vec3  uColorA;
   uniform vec3  uColorB;
+  uniform vec3  uColorDeep;
+  uniform float uCoreWidth;
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -619,9 +621,14 @@ const PILLAR_FRAGMENT = /* glsl */ `
     float foot = smoothstep(0.0, 0.02, y);
     float hotFoot = exp(-y * 14.0) * 2.0;
 
-    vec3 col = mix(uColorA, uColorB, smoothstep(0.1, 0.9, y + fres * 0.3));
-    vec3 color = col * (fres * 1.4 + streak * (0.4 + fres) * uShaderIntensity)
-               + uColorCore * (pow(facing, 3.0) * uCore * (0.4 + 0.6 * top) + hotFoot);
+    // One heat field through a four-stop ramp: a thin white axis (HDR only
+    // there), the pale tint round it, the saturated body at the walls and the
+    // deep violet at the rim and up the column — never a white slab.
+    float axis = pow(facing, uCoreWidth);
+    float heat = clamp(axis * (0.55 + 0.45 * top) + streak * 0.18 + hotFoot * 0.25 - y * 0.25, 0.0, 1.0);
+    vec3 col = gradient4(uColorCore, uColorA, uColorB, uColorDeep, 1.0 - heat);
+    vec3 color = col * (0.35 + fres * 0.9 + streak * (0.3 + fres) * uShaderIntensity)
+               + uColorCore * (axis * uCore * (0.4 + 0.6 * top) + hotFoot * 0.6);
 
     float a = top * foot * uIntensity * uOpacity;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
@@ -655,7 +662,9 @@ export function createGlyphPillarMaterial() {
       uOpacity: { value: 1 },
       uColorCore: { value: new Color() },
       uColorA: { value: new Color() },
-      uColorB: { value: new Color() }
+      uColorB: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uCoreWidth: { value: 10 }
     }),
     vertexShader: PILLAR_VERTEX,
     fragmentShader: PILLAR_FRAGMENT
@@ -681,8 +690,95 @@ export function createGlyphPillarMaterial() {
     u.uColorCore.value.copy(getColor(c.colorPillarCore));
     u.uColorA.value.copy(getColor(c.colorPillarA));
     u.uColorB.value.copy(getColor(c.colorPillarB));
+    u.uColorDeep.value.copy(getColor(c.colorPillarDeep));
+    u.uCoreWidth.value = c.pillarCoreTight;
   };
 
+  return material;
+}
+
+/* ---------------------------------------------------------------------- */
+/* The seal stones                                                          */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The seal stones — one InstancedMesh, lit obsidian (`MeshStandardMaterial`
+ * on `LAYER.WORLD`, shadowing), with a bespoke patch: runes engraved round
+ * the body band and the sigil on the striking face, glowing from an
+ * instanced `aSeal` (x = glow, y = charge throb, z = seed). The engraving is
+ * computed from the stone's own (local) position, so it turns with the stone.
+ */
+export function createGlyphSealMaterial() {
+  const material = new MeshStandardMaterial({
+    color: 0x1c1530,
+    roughness: 0.38,
+    metalness: 0.15,
+    flatShading: true
+  });
+  const uniforms = {
+    uSealRune: { value: new Color('#b49cff') },
+    uSealHot: { value: new Color('#f4f2ff') },
+    uSealGlow: { value: 2 },
+    uSealRunes: { value: 12 }
+  };
+  material.userData.uniforms = uniforms;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aPart;\nattribute vec4 aSeal;\nvarying vec3 vSealLocal;\nvarying float vSealPart;\nvarying vec4 vSeal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSealLocal = position;\nvSealPart = aPart;\nvSeal = aSeal;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', [
+        '#include <common>',
+        'uniform vec3 uSealRune;',
+        'uniform vec3 uSealHot;',
+        'uniform float uSealGlow;',
+        'uniform float uSealRunes;',
+        'varying vec3 vSealLocal;',
+        'varying float vSealPart;',
+        'varying vec4 vSeal;',
+        'float sealHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }'
+      ].join('\n'))
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          float ang = atan(vSealLocal.z, vSealLocal.x) / 6.2831853 + 0.5;
+          float engraved = 0.0;
+          if (vSealPart > 0.5 && vSealPart < 1.5) {
+            // Rune band: cells round the body, three of five strokes lit per cell.
+            float cx = ang * uSealRunes;
+            vec2 cell = vec2(fract(cx), (vSealLocal.y - 0.08) / 0.18);
+            float id = sealHash(vec2(floor(cx), vSeal.z));
+            float s = 0.0;
+            s += step(0.45, fract(id * 3.1)) * (1.0 - smoothstep(0.06, 0.12, abs(cell.y - 0.2)));
+            s += step(0.45, fract(id * 7.3)) * (1.0 - smoothstep(0.06, 0.12, abs(cell.y - 0.8)));
+            s += step(0.45, fract(id * 11.7)) * (1.0 - smoothstep(0.06, 0.12, abs(cell.x - 0.5)));
+            s += step(0.6, fract(id * 17.9)) * (1.0 - smoothstep(0.05, 0.1, abs(cell.x - cell.y)));
+            engraved = clamp(s, 0.0, 1.0) * step(0.15, cell.x) * step(cell.x, 0.85) * step(0.0, cell.y) * step(cell.y, 1.0);
+          } else if (vSealPart < 0.5) {
+            // Striking face: the sigil in relief — two rings and a star.
+            float r = length(vSealLocal.xz);
+            float a = atan(vSealLocal.z, vSealLocal.x);
+            engraved = exp(-abs(r - 0.82) * 40.0) + exp(-abs(r - 0.55) * 40.0)
+                     + exp(-abs(r * cos(mod(a, 1.0471976) - 0.5235988) - 0.45) * 30.0) * step(r, 0.82);
+          }
+          float lip = vSealPart > 1.5 ? 0.0 : 0.15;
+          float glow = vSeal.x * (1.0 + vSeal.y);
+          totalEmissiveRadiance += mix(uSealRune, uSealHot, clamp(engraved * vSeal.y, 0.0, 1.0)) * (engraved + lip) * glow * uSealGlow;
+        }`);
+  };
+  material.customProgramCacheKey = () => 'glyph-barrage-seal';
+  /** Read settings into the patch every frame. */
+  material.userData.sync = () => {
+    const c = settings.glyphs;
+    const g = settings.global;
+    material.color.copy(getColor(c.colorSeal));
+    material.roughness = c.sealRoughness;
+    material.metalness = c.sealMetalness;
+    uniforms.uSealRune.value.copy(getColor(c.colorSealRune));
+    uniforms.uSealHot.value.copy(getColor(c.colorLine));
+    uniforms.uSealGlow.value = c.sealGlow * g.glow;
+    uniforms.uSealRunes.value = Math.max(3, Math.round(c.sealRunes));
+  };
   return material;
 }
 

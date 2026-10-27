@@ -116,9 +116,9 @@ export default {
     blightScale: 1, // radius, × zoneRadius (the circle a host is searched in)
     blightTelegraph: 0.6, // how far the veins have crept in from the rim when the vessel lands, 0..1
     blightVeins: 9, // veins round the rim
-    blightSharp: 10, // vein thinness (higher = finer threads)
-    blightGlow: 1.2, // emissive gain of the veins and their pulses
-    blightDarken: 0.5, // how dark the rot stains the floor between veins
+    blightSharp: 7, // vein thinness (higher = finer threads)
+    blightGlow: 1.6, // emissive gain of the veins and their pulses
+    blightDarken: 0.8, // how dark the rot stains the floor between veins
 
     /* ================================================================ */
     /* 6 · THE SPORES — orbiting the host                                */

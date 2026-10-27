@@ -743,7 +743,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this._redraw(this.length);
     const f = t > 1 ? Math.max(0, 2 - t) : 1;
     // The exit sweep runs over the first part of the fade.
-    this._exit = t > 1 ? saturate((t - 1) / Math.max(0.05, this.config.shatterSweepStart)) : -1;
+    const cc = this.config;
+    this._exit = t > 1 && t - 1 >= cc.shatterSweepDelay ? saturate((t - 1 - cc.shatterSweepDelay) / Math.max(0.05, cc.shatterSweepStart)) : -1;
     this.material.uniforms.uFade.value = f;
     this.motesMat.uniforms.uFade.value = f;
     this.frostRingMaterial.uniforms.uFade.value = f;
@@ -1204,6 +1205,7 @@ export function buildEditor(gui, c, Editor) {
   R(spine, c, 'pulseWidth', 0.1, 6, 0.05, 'pulse width (m)');
   R(spine, c, 'pulseGrow', 0, 0.6, 0.005, 'pulse ratchet (×)');
   R(spine, c, 'pulseGlow', 0, 6, 0.05, 'pulse flare');
+  R(spine, c, 'shatterSweepDelay', 0, 0.9, 0.01, 'exit sweep starts at (× fade)');
   R(spine, c, 'shatterSweepStart', 0.05, 1, 0.01, 'exit sweep over (× fade)');
   R(spine, c, 'shatterSweep', 0, 1, 0.01, 'sweep stagger');
   R(spine, c, 'spineChips', 0, 40, 1, 'chips per crystal');

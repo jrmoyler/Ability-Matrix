@@ -202,7 +202,7 @@ export class Ability extends BaseAbility {
 
   get impactDuration() {
     const c = this.config;
-    const tail = 0.35 * settings.global.lifetime;
+    const tail = 0.2 * settings.global.lifetime;
     if (!this._n || !this.totalStrikes) return c.strikeStart + 0.8 + tail;
     return this.launchTime(this.totalStrikes - 1) + c.ripTime + c.lungeTime + Math.max(c.holdTime + c.returnTime, c.holdTime + c.crumbleTime) + tail;
   }

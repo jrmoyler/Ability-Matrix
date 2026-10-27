@@ -174,15 +174,16 @@ export const CONFIG = Object.freeze({
     pulseSpeed: 9, // m/s a pulse of cold runs the thread through the linger
     pulseWidth: 1.4, // m
     pulseGrow: 0.14, // each crystal ratchets this much taller as a pulse passes
-    pulseGlow: 1.6, // white flare as it passes
-    shatterSweepStart: 0.55, // fraction of the fade the exit sweep takes
+    pulseGlow: 1.2, // white flare as it passes
+    shatterSweepDelay: 0.42, // fraction of the fade the spine stands (pulsing) before the sweep
+    shatterSweepStart: 0.5, // fraction of the fade the exit sweep takes
     shatterSweep: 0.85, // stagger from the cluster back to the hand
     spineChips: 8, // lit ice chips per crystal as it bursts
-    spineRough: 0.12,
-    spineGlow: 0.45, // cold glow inside the ice
-    spineRimGlow: 1.3,
+    spineRough: 0.22,
+    spineGlow: 0.22, // cold glow inside the ice
+    spineRimGlow: 0.6,
     spineFresnel: 2.6,
-    colorSpine: '#bfe9ff', // tint (lit body)
+    colorSpine: '#8cc8ec', // tint (lit body)
     colorSpineDeep: '#0b2f5c', // deep
     colorSpineRim: '#d8f6ff', // pale rim
     colorSpineCore: '#ffffff' // white-hot pulse core
