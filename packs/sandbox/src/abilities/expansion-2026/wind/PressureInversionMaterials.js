@@ -647,7 +647,8 @@ export function createColumnMaterial(sheath = false) {
     depthWrite: false,
     depthTest: true,
     blending: sheath ? NormalBlending : AdditiveBlending,
-    side: sheath ? FrontSide : DoubleSide,
+    // Front faces only: the far wall winds the other way and would cross-hatch.
+    side: FrontSide,
     toneMapped: false,
     uniforms: sharedUniforms({
       uHeight: { value: 4 },

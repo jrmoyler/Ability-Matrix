@@ -39,7 +39,7 @@ const TAU = Math.PI * 2;
 /** Profile parameter where the lip ends and the dome begins. */
 export const LIP_T = 0.14;
 /** Superellipse exponent of the dome: > 2 gives the bubble full shoulders. */
-export const DOME_N = 2.5;
+export const DOME_N = 2.2;
 
 /* ---------------------------------------------------------------------- */
 /* The profile — shared by JS and GLSL                                     */

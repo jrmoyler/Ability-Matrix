@@ -66,12 +66,12 @@ export default {
 
     /* --- shading --- */
     edgeWidth: 0.05, // width of the bright cutting edge, × the disc
-    edgeGlow: 2.6, // brightness of the cutting edge (bloom > 1)
+    edgeGlow: 1.8, // brightness of the cutting edge (bloom > 1)
     bodyOpacity: 0.2, // the translucent blade body (additive)
     blurAmount: 0.28, // the faint full disc of the spin blur
     swirlLines: 6, // wind lines streaming round each disc
     swirlGlow: 0.5,
-    fringe: 1.2, // chromatic fringe trailing the edges
+    fringe: 0.7, // chromatic fringe trailing the edges
     fringeSpread: 0.11, // radians between the three fringe bands
     rimGlow: 1.1, // extra glow when a disc is seen edge-on
     softFade: 0.3,
@@ -102,9 +102,9 @@ export default {
     scuffWidth: 0.022, // width of the scratched line, metres
     scuffArc: 0.65, // 0..1 how much of each loop is drawn (lower = open spirals)
     scuffDust: 0.3, // half-width of the dust band the disc swept, metres
-    scuffOpacity: 0.26,
+    scuffOpacity: 0.16,
     scuffDustOpacity: 0.18,
-    scuffGlow: 1.1, // how bright the fresh mark glows behind the disc
+    scuffGlow: 0.7, // how bright the fresh mark glows behind the disc
     scuffGlowLength: 2.2, // metres it cools over behind each disc
     scuffErode: 0.7, // how raggedly it fades
     scuffFurrow: 0.42, // half-width of the filled furrow each strand cuts, metres

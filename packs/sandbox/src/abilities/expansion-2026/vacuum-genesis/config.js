@@ -78,7 +78,7 @@ export default {
     seedTrailSize: 0.08,
 
     /* --- 2 · the skin (hero) --- */
-    domeHeight: 0.82, // dome height (× zoneRadius)
+    domeHeight: 0.92, // dome height (× zoneRadius)
     lipCurl: 0.16, // the floor lip curls out this far (× zoneRadius)
     skinGlow: 1.6,
     skinOpacity: 0.85,
@@ -134,7 +134,7 @@ export default {
     dustRingIntensity: 0.9,
 
     /* --- 7 · particles --- */
-    dustCount: 70, // dust thrown out of the pocket at the birth
+    dustCount: 54, // dust thrown out of the pocket at the birth
     dustSize: 0.55,
     dustLife: 1.2,
     dustSpeed: 4,
@@ -153,10 +153,10 @@ export default {
     /* --- 8 · the bursts --- */
     birthBurstReach: 1.25, // air shell thrown out at the birth (× radius)
     birthBurstLife: 0.55,
-    ruptureBurstReach: 1.6, // shell at the rupture (× radius)
+    ruptureBurstReach: 1.3, // shell at the rupture (× radius)
     ruptureBurstLife: 0.7,
     burstIntensity: 1,
-    burstOpacity: 0.7,
+    burstOpacity: 0.45,
     burstFresnel: 2.4,
 
     /* --- 9 · the lens (distortion) --- */

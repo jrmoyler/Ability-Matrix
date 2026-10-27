@@ -782,7 +782,9 @@ export class Ability extends BaseAbility {
     s.strength = this._born ? 1 - exitT : 0;
     s.shock = this._born ? Math.exp(-st * 7) + (this._ruptured ? Math.exp(-exitS * 6) : 0) : 0;
 
-    this.root.position.copy(this.position);
+    // Before the birth the pocket's floor telegraph waits at the end of the line.
+    if (this._born) this.root.position.copy(this.position);
+    else this.pointAt(1, this.root.position);
     this.root.position.y = 0;
     const pocketOn = this._born && exitT < 1;
     this.skin.visible = pocketOn;
