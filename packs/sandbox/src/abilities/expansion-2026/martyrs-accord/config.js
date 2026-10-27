@@ -80,9 +80,9 @@ export default {
     heartEmissiveGlow: 1.1,
     beatRate: 1.5, // heartbeats per second during the vigil
     beatAmount: 0.06, // scale throb per beat
-    crackGlow: 3.2, // light in the crack network
+    crackGlow: 2.2, // light in the crack network
     crackScale: 3.2, // crack cell density
-    woundGlow: 4, // light where each sword went in
+    woundGlow: 2.2, // light where each sword went in
     woundSize: 0.18, // wound spread (cosine width)
     beltGlow: 1.4, // chased belt answering the heartbeat
     recoil: 0.14, // the heart is knocked back by each sword (m)
@@ -102,7 +102,7 @@ export default {
     swordCount: 7, // swords shown (bound enemies take the nearest slots)
     swordReach: 0.72, // blade length (× zoneRadius)
     swordPitch: 0.42, // hilts raised above the heart (rad)
-    swordWidth: 2.3, // blade breadth (×)
+    swordWidth: 2.8, // blade breadth (×)
     plungeReach: 0.5, // drawn back before the thrust (× zoneRadius)
     tipDepth: 0.1, // points buried in the heart (× heart size)
     bladeGlow: 3.4,
@@ -146,7 +146,7 @@ export default {
     floorFill: 0.6, // sanctified field opacity
     floorRayGlow: 1.6, // accord rays to the bound
     sealWidth: 0.07, // line width (m)
-    searGlow: 2.4, // the sacrifice's sear ring and cracks
+    searGlow: 2.0, // the sacrifice's sear ring and cracks
     searTime: 0.5, // the sear runs out over (s)
     floorNoise: 1, // mottling
     dissolveTime: 0.75, // fraction of the exit spent dissolving

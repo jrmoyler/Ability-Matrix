@@ -643,7 +643,7 @@ export class Ability extends BaseAbility {
       this.ctx.bursts?.spawn?.(BurstMode.WATER, _at, {
         radius: 0.2, endRadius: c.zoneRadius * c.burstReach * power, life: c.burstLife,
         intensity: c.burstIntensity, opacity: c.burstOpacity * g.opacity, fresnel: 2 * g.fresnel, squash: 0.8,
-        colorA: getColor(c.colorPoolA), colorB: getColor(c.colorDripB), colorC: getColor(c.colorPoolD),
+        colorA: getColor(c.colorDripB), colorB: getColor(c.colorScale), colorC: getColor(c.colorPoolD),
       });
       _at.y = 0.05;
       this.ctx.decals?.spawn?.(DecalType.RIPPLE, _at, {

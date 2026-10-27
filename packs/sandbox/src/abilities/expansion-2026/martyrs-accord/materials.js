@@ -716,7 +716,7 @@ const SIGIL_FRAGMENT = /* glsl */ `
     // The filled field: amber near the heart, oxblood toward the rim.
     float inside = 1.0 - smoothstep(0.96, 1.02, r);
     float field = inside * uFill * uFillAmount * (0.55 + 0.45 * mottle);
-    float pool = exp(-r * r * 6.0) * (0.6 + 0.4 * uBeat) * uFill;
+    float pool = exp(-r * r * 6.0) * (0.6 + 0.4 * uBeat) * uFill * (uSear >= 0.0 ? 0.25 : 1.0);
 
     // The sear: a white-hot ring runs out, the ground behind it cracks and cools.
     float sear = 0.0;
@@ -740,7 +740,7 @@ const SIGIL_FRAGMENT = /* glsl */ `
     // Field colour (normal-blended): amber body → oxblood deep, dark scorch.
     vec3 fieldCol = mix(uBody * 0.55, uDeep, smoothstep(0.2, 1.0, r));
     fieldCol = mix(fieldCol, uDeep * 0.35, scorch * 0.7);
-    float fieldA = clamp(field * 0.7 + scorch * 0.45 * uFill, 0.0, 0.85);
+    float fieldA = clamp(field * 0.7 * (1.0 - scorch * uCool * 0.5) + scorch * 0.55 * uFill, 0.0, 0.85);
     vec3 col = fieldCol * fieldA + light * lum * uGlow * uGlobalGlow;
     float alpha = clamp(fieldA + lum * 0.9, 0.0, 1.0);
     // Un-premultiply: normal blending multiplies by alpha again.

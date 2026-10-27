@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -307,6 +307,433 @@ function syncCrescent(u, state) {
   u.uRoll.value = state.roll;
   u.uForm.value = state.form;
   u.uSpread.value = state.spread;
+}
+
+/* -------------------------------------------------------------------- */
+/* The pressure sheath — the blade's body                               */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The blade alone is a sheet a few centimetres thick: edge-on, from behind
+ * the caster, it collapses to a line. The sheath is what gives it mass — a
+ * tube (`createGaleTubeGeometry`) whose spine is the *same* `bladeEdge` arc,
+ * seated `uSeat` of the body depth behind the edge, with an elliptical section
+ * `uThick` tall and a share of the body deep. It is normal-blended and lit by
+ * the sun, so its underside goes to the ramp's dark deep tone and its top to
+ * the pale tint: a cushion of compressed, dust-laden air the bright edge rides
+ * on. Tips thin to nothing on the same taper as the blade; it tears on the
+ * same noise threshold the blade does.
+ */
+const SHEATH_VERTEX = /* glsl */ `
+  uniform float uThick;       // half-height of the section at the apex, metres
+  uniform float uSeat;        // where it sits, fraction of the body behind the edge
+  uniform float uWidthK;      // half-width of the section, × the body depth
+  uniform float uSheathTaper;
+  uniform float uFlutter;
+  uniform float uPhase;
+  uniform float uSeed;
+
+  varying vec2  vS;           // x: bearing -1..1, y: 0..1 round the section
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+  ${CRESCENT_GLSL}
+
+  void main() {
+    float u = position.x * 2.0 - 1.0;
+    float ang = position.y * 6.2831853;
+    vec3 outward;
+    float depth;
+    vec3 e = bladeEdge(u, outward, depth);
+    float prof = pow(max(1.0 - u * u, 0.0), max(uSheathTaper, 0.05));
+    float halfW = max(depth * uWidthK, 0.015);
+    float halfH = max(uThick * uForm * prof, 0.012);
+    vec3 c = e - outward * depth * uSeat;
+    float ca = cos(ang);
+    float sa = sin(ang);
+    vec3 p = c + outward * ca * halfW + vec3(0.0, sa * halfH, 0.0);
+    // The back of the cushion shivers with the body.
+    p.y += uFlutter * (0.5 - 0.5 * ca) * snoise(vec3(u * 3.0, sa, uPhase + uSeed));
+    vec3 n = normalize(outward * (ca / halfW) + vec3(0.0, sa / halfH, 0.0));
+    p = rollLocal(p);
+    n = rollLocal(n);
+
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vViewDir = cameraPosition - world.xyz;
+    vS = vec2(u, position.y);
+    vec4 mv = viewMatrix * world;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const SHEATH_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uSeed;
+  uniform float uTime;
+  uniform float uFlow;
+  uniform float uStreakScale;
+  uniform float uTipFade;
+  uniform float uDissolve;
+  uniform float uOpacity;
+  uniform float uFresnel;
+  uniform float uNoise;
+  uniform float uFade;
+  uniform float uSoftFade;
+  uniform vec3  uTint;
+  uniform vec3  uBodyColor;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
+
+  uniform vec2      uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float     uCameraNear;
+  uniform float     uCameraFar;
+
+  varying vec2  vS;
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    float u = vS.x;
+    float au = abs(u);
+    float ang = vS.y * 6.2831853;
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    if (!gl_FrontFacing) N = -N;
+
+    // Dust streaming back off the edge: stretched along the bearing.
+    vec3 q = vec3(u * uStreakScale * 0.45, cos(ang) * 1.3 + uFlow * 0.35, sin(ang) * 1.3 + uSeed);
+    float n = fbm3(q) * 0.5 + 0.5;
+    n = mix(0.6, n, clamp(uNoise, 0.0, 1.0));
+
+    float ndl = dot(N, normalize(uLightDir)) * 0.5 + 0.5;
+    float rim = fresnelTerm(V, N, uFresnel, 1.0);
+    vec3 col = mix(uDeep, uBodyColor, ndl * (0.4 + 0.75 * n));
+    col = mix(col, uTint, clamp(rim * 0.55 + smoothstep(0.75, 1.0, ndl) * 0.25, 0.0, 1.0));
+
+    float tip = 1.0 - smoothstep(1.0 - max(uTipFade, 0.01), 1.0, au);
+    float tearN = fbm3(vec3(u * 2.6, cos(ang) - uTime * 1.8, uSeed)) * 0.5 + 0.5;
+    float thr = uDissolve * 1.25 - 0.1;
+    float keep = uDissolve <= 0.0 ? 1.0 : smoothstep(thr, thr + 0.08, tearN);
+
+    float a = uOpacity * smoothstep(0.18, 0.62, n) * (1.0 - 0.55 * clamp(rim, 0.0, 1.0)) * tip * keep * uFade;
+    if (a < 0.004) discard;
+    vec2 screenUV = gl_FragCoord.xy / uResolution;
+    a *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+  }
+`;
+
+/** The blade's body: a lit, normal-blended cushion of dense air. */
+export function createGaleSheathMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uRadius: { value: 1.8 },
+      uArc: { value: 2.3 },
+      uBody: { value: 0.85 },
+      uTaper: { value: 0.75 },
+      uSweep: { value: 0.2 },
+      uBow: { value: 0.08 },
+      uRoll: { value: 0 },
+      uForm: { value: 1 },
+      uSpread: { value: 1 },
+      uThick: { value: 0.3 },
+      uSeat: { value: 0.4 },
+      uWidthK: { value: 0.55 },
+      uSheathTaper: { value: 0.6 },
+      uFlutter: { value: 0.06 },
+      uPhase: { value: 0 },
+      uFlow: { value: 0 },
+      uStreakScale: { value: 7 },
+      uTipFade: { value: 0.5 },
+      uDissolve: { value: 0 },
+      uOpacity: { value: 0.55 },
+      uFresnel: { value: 2.2 },
+      uNoise: { value: 1 },
+      uFade: { value: 1 },
+      uSoftFade: { value: 0.4 },
+      uTint: { value: new Color() },
+      // \`uBody\` is the crescent's depth (shared GLSL); the colour is uBodyColor.
+      uBodyColor: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: SHEATH_VERTEX,
+    fragmentShader: SHEATH_FRAGMENT
+  });
+
+  /** @param {object} state the blade's state */
+  material.userData.sync = (state) => {
+    const c = settings.gale;
+    const g = settings.global;
+    const u = material.uniforms;
+    syncCrescent(u, state);
+    u.uSeed.value = state.seed;
+    u.uThick.value = Math.max(0.01, c.sheathThickness);
+    u.uSeat.value = c.sheathSeat;
+    u.uWidthK.value = c.sheathWidth;
+    u.uSheathTaper.value = c.sheathTaper;
+    u.uFlutter.value = c.flutter * g.noiseStrength;
+    u.uPhase.value = state.phase;
+    u.uFlow.value = state.flow;
+    u.uStreakScale.value = c.streakScale * g.noiseFrequency;
+    u.uTipFade.value = c.tipFade;
+    u.uDissolve.value = state.dissolve;
+    u.uOpacity.value = c.sheathOpacity * g.opacity;
+    u.uFresnel.value = c.sheathFresnel * g.fresnel;
+    u.uNoise.value = c.sheathNoise * g.noiseStrength;
+    u.uFade.value = state.fade;
+    u.uSoftFade.value = c.softFade;
+    u.uTint.value.copy(getColor(c.colorSheathTint));
+    u.uBodyColor.value.copy(getColor(c.colorSheathBody));
+    u.uDeep.value.copy(getColor(c.colorSheathDeep));
+  };
+
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The severed vortices — the linger                                    */
+/* -------------------------------------------------------------------- */
+
+/**
+ * When the blade tears, its two tip vortices are left standing on the floor
+ * at the end of the line: two funnels (`createGaleTubeGeometry` stood up)
+ * turning opposite ways, leaning out from each other as they drift apart,
+ * snaking, and finally unravelling from the foot up. Each is drawn twice —
+ * an additive **core** of helical streamlines wound by an integrated spin and
+ * a twist per metre, and a normal-blended, sun-lit **sheath** of dust a little
+ * wider, which is what carries the ramp's deep tone and makes the column read
+ * as a mass on the dark floor. The spine is analytic (`spine(s)`), so height,
+ * lean, flare and seat are all live.
+ */
+const VORTEX_VERTEX = /* glsl */ `
+  uniform vec3  uBase;        // foot on the floor
+  uniform vec3  uOut;         // horizontal unit vector it leans along
+  uniform float uHeight;
+  uniform float uR0;
+  uniform float uR1;
+  uniform float uFlare;
+  uniform float uLean;        // metres the top leans out, per metre of height
+  uniform float uGrow;        // 0..1 rising off the floor
+  uniform float uSway;        // integrated sway phase
+  uniform float uWobble;      // metres it snakes
+  uniform float uRadiusScale; // the sheath is a little wider than the core
+  uniform float uSeed;
+
+  varying vec2  vS;           // x: 0 foot .. 1 top, y: 0..1 round
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+
+  vec3 spine(float s) {
+    float h = s * uHeight * uGrow;
+    vec3 p = uBase + vec3(0.0, h, 0.0);
+    p += uOut * uLean * h * s;
+    p.x += snoise(vec3(s * 1.4, uSway, uSeed)) * uWobble * s;
+    p.z += snoise(vec3(s * 1.4, uSway, uSeed + 7.3)) * uWobble * s;
+    return p;
+  }
+
+  void main() {
+    float s = position.x;
+    float ang = position.y * 6.2831853;
+    vec3 c = spine(s);
+    vec3 T = spine(min(1.0, s + 0.02)) - spine(max(0.0, s - 0.02));
+    T = length(T) > 1e-4 ? normalize(T) : vec3(0.0, 1.0, 0.0);
+    vec3 ref = abs(T.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 B = normalize(cross(T, ref));
+    vec3 N1 = cross(B, T);
+    float r = mix(uR0, uR1, pow(s, max(uFlare, 0.1))) * mix(0.35, 1.0, uGrow) * uRadiusScale;
+    vec3 n = cos(ang) * B + sin(ang) * N1;
+    vec3 world = c + n * r;
+    vNormalW = n;
+    vViewDir = cameraPosition - world;
+    vS = vec2(s, position.y);
+    vec4 mv = viewMatrix * vec4(world, 1.0);
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const VORTEX_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uSpin;        // integrated, radians
+  uniform float uSpinDir;     // ±1 — the two tips turn opposite ways
+  uniform float uTwist;       // radians per unit height
+  uniform float uStreams;
+  uniform float uUnravel;     // 0..1 eaten from the foot up
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uFresnel;
+  uniform float uNoise;
+  uniform float uFade;
+  uniform float uHeight;
+  uniform vec3  uCore;
+  uniform vec3  uTint;
+  uniform vec3  uBodyColor;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
+
+  uniform vec2      uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float     uCameraNear;
+  uniform float     uCameraFar;
+  uniform float     uGlobalGlow;
+  uniform float     uShaderIntensity;
+
+  varying vec2  vS;
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    float s = vS.x;
+    float ang = vS.y * 6.2831853;
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    float wound = ang + uSpin * uSpinDir + uTwist * s * uHeight * uSpinDir;
+    vec2 ring = vec2(cos(wound), sin(wound));
+    float n = fbm3(vec3(ring * 1.6, s * 4.0 - uTime * 0.6 + uSeed)) * 0.5 + 0.5;
+    n = mix(0.6, n, clamp(uNoise, 0.0, 1.0));
+
+    // Unravel from the foot up along a noisy burning edge.
+    float front = uUnravel * 1.2 - 0.1;
+    float cut = s + (n - 0.5) * 0.25;
+    float keep = uUnravel <= 0.0 ? 1.0 : smoothstep(front, front + 0.05, cut);
+    float burn = uUnravel <= 0.0 ? 0.0 : (smoothstep(front - 0.02, front + 0.04, cut) - smoothstep(front + 0.04, front + 0.16, cut));
+    float ends = smoothstep(0.0, 0.06, s) * (1.0 - smoothstep(0.78, 1.0, s));
+
+    vec2 screenUV = gl_FragCoord.xy / uResolution;
+    float soft = softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.35);
+
+  #ifdef SHEATH
+    float ndl = dot(N, normalize(uLightDir)) * 0.5 + 0.5;
+    float rim = fresnelTerm(V, N, uFresnel, 1.0);
+    vec3 col = mix(uDeep, uBodyColor, ndl * (0.35 + 0.8 * n));
+    col = mix(col, uTint, clamp(rim * 0.4, 0.0, 1.0));
+    float a = uOpacity * smoothstep(0.28, 0.66, n) * (1.0 - 0.6 * clamp(rim, 0.0, 1.0)) * ends * keep * uFade * soft;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+  #else
+    float st = sin(wound * max(uStreams, 1.0) + (n - 0.5) * 3.0);
+    st = pow(0.5 + 0.5 * st, 5.0);
+    float vol = pow(abs(dot(N, V)), 1.3);
+    float rim = pow(1.0 - abs(dot(N, V)), 2.0);
+    vec3 col = mix(uTint, uCore, st) * (st * 0.95 + vol * 0.18 + rim * 0.25 * n);
+    col += uCore * burn * 2.5;
+    float a = (st * 0.85 + vol * 0.2 + rim * 0.2 + burn) * ends * keep * uFade * soft;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * a, clamp(a, 0.0, 1.0));
+  #endif
+  }
+`;
+
+/**
+ * One severed vortex layer.
+ * @param {boolean} sheath true for the normal-blended dust sheath
+ */
+export function createGaleVortexMaterial(sheath = false) {
+  const material = new ShaderMaterial({
+    defines: sheath ? { SHEATH: '' } : {},
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: sheath ? NormalBlending : AdditiveBlending,
+    side: sheath ? FrontSide : DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uBase: { value: new Vector3() },
+      uOut: { value: new Vector3(1, 0, 0) },
+      uHeight: { value: 3 },
+      uR0: { value: 0.3 },
+      uR1: { value: 1 },
+      uFlare: { value: 1.5 },
+      uLean: { value: 0.4 },
+      uGrow: { value: 0 },
+      uSway: { value: 0 },
+      uWobble: { value: 0.3 },
+      uRadiusScale: { value: 1 },
+      uSeed: { value: 0 },
+      uSpin: { value: 0 },
+      uSpinDir: { value: 1 },
+      uTwist: { value: 1.6 },
+      uStreams: { value: 5 },
+      uUnravel: { value: 0 },
+      uGlow: { value: 2 },
+      uOpacity: { value: 0.55 },
+      uFresnel: { value: 2 },
+      uNoise: { value: 1 },
+      uFade: { value: 1 },
+      uCore: { value: new Color() },
+      uTint: { value: new Color() },
+      uBodyColor: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: VORTEX_VERTEX,
+    fragmentShader: VORTEX_FRAGMENT
+  });
+
+  /**
+   * @param {object} state { base, out, grow, sway, spin, spinDir, unravel, fade, seed }
+   */
+  material.userData.sync = (state) => {
+    const c = settings.gale;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uBase.value.copy(state.base);
+    u.uOut.value.copy(state.out);
+    u.uHeight.value = Math.max(0.2, c.vortexHeight);
+    u.uR0.value = c.vortexBaseRadius;
+    u.uR1.value = c.vortexTopRadius;
+    u.uFlare.value = c.vortexFlare;
+    u.uLean.value = c.vortexLean;
+    u.uGrow.value = state.grow;
+    u.uSway.value = state.sway;
+    u.uWobble.value = c.vortexWobble * g.turbulence;
+    u.uRadiusScale.value = sheath ? c.vortexSheathScale : 1;
+    u.uSeed.value = state.seed;
+    u.uSpin.value = state.spin;
+    u.uSpinDir.value = state.spinDir;
+    u.uTwist.value = c.vortexTwist;
+    u.uStreams.value = Math.max(1, Math.round(c.vortexStreams));
+    u.uUnravel.value = state.unravel;
+    u.uGlow.value = c.vortexGlow * g.glow;
+    u.uOpacity.value = c.vortexOpacity * g.opacity;
+    u.uFresnel.value = c.sheathFresnel * g.fresnel;
+    u.uNoise.value = g.noiseStrength;
+    u.uFade.value = state.fade * (sheath ? 1 : g.opacity);
+    u.uCore.value.copy(getColor(c.colorVortexCore));
+    u.uTint.value.copy(getColor(c.colorVortexTint));
+    u.uBodyColor.value.copy(getColor(c.colorVortexBody));
+    u.uDeep.value.copy(getColor(c.colorVortexDeep));
+  };
+
+  return material;
 }
 
 /* -------------------------------------------------------------------- */

@@ -221,7 +221,8 @@ const SERPENT_SKIN = /* glsl */ `
     diffuseColor.rgb = base;
     roughnessFactor = clamp(rough, 0.04, 1.0);
     glow += uColorEyeRing * rim * uRimGlow;
-    glow += mix(uColorScale, uColorEye, 0.45) * vLife.z * uFlashGlow;
+    // The strike floods the skin with venom light, saturated, never white.
+    glow += mix(uColorScale, uColorEyeRing, 0.6) * vLife.z * uFlashGlow * (0.4 + 0.6 * rim + 0.4 * (1.0 - ndv));
     glow *= uGlow * vGain;
     glow /= 1.0 + glow * 0.18;
     totalEmissiveRadiance += glow;

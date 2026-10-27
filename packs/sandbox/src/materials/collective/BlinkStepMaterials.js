@@ -19,8 +19,18 @@ import { getColor } from '../../utils/color.js';
  *     slices and eaten by noise as it ages.
  *   - `createBlinkWarpMaterial`   — a screen-space pinch (departure) or bulge
  *     (arrival) on `LAYER.DISTORTION`.
+ *   - `createBlinkRiftMaterial`   — the hero: the tear in the air at either end
+ *     of the line, laid out from a parameter grid in the vertex stage (almond
+ *     lens, jagged lips, belly bulge, crack halo), drawn as a light-eating
+ *     void with a white-hot lip and cracks crawling out through the air.
+ *   - `createBlinkScarMaterial`   — the floor: a burnt slipstream scar down the
+ *     whole line with skid lanes and a hot seam that follows the front, a
+ *     scorch at the departure and a skid-spoked crater at the landing; it
+ *     cools, pulses toward the arrival and dissolves.
  *
- * All four read `settings.blink` through `userData.sync`, every frame.
+ * Every layer reads `settings.blink` through `userData.sync`, every frame.
+ * The palette is one four-stop ramp — core #ffffff → tint #b4fff0 → body
+ * #2fd8c8 → deep #06202e — so the void, the scar and the light are one spell.
  */
 
 /* ==================================================================== */

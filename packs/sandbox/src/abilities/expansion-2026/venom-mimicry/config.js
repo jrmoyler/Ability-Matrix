@@ -103,7 +103,7 @@ export default {
     eyeSize: 0.2, // false eye radius (× hood half-span)
     eyeGlow: 3.2,
     rimGlow: 1.1, // wet fresnel rim
-    flashGlow: 3.5, // the whole skin floods on a strike
+    flashGlow: 1.6, // the whole skin floods on a strike
 
     /* --- 4 · mimics --- */
     mimicScale: 0.72, // a mimic is this big (× the serpent)

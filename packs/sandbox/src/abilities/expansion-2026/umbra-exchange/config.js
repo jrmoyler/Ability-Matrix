@@ -65,7 +65,7 @@ export default {
     voidColor: '#030107', // the darkness the pool and the umbrae are made of
 
     /* --- 1 · the anchor (lit obsidian) --- */
-    anchorHeight: 0.78, // anchor height (× zoneRadius)
+    anchorHeight: 0.85, // anchor height (× zoneRadius)
     anchorBury: 0.16, // how deep the crown bites into the floor (× anchor height)
     handScale: 0.32, // its size while held at the hand (× full size)
     handHeight: 1.45, // where it forms, above the caster's feet (m)
@@ -96,7 +96,7 @@ export default {
     poolScale: 1.12, // pool radius (× zoneRadius)
     poolSpread: 0.35, // the pool runs out over (s)
     poolDarkness: 0.86, // how much light it eats (0..1)
-    crackGlow: 1.8, // violet fissures radiating from the anchor
+    crackGlow: 1.4, // violet fissures radiating from the anchor
     crackCount: 9, // fissure spokes
     puddleSize: 0.9, // shadow puddle under a hooked body (m)
     umbraSize: 0.75, // the crawling umbra (m)
@@ -107,7 +107,7 @@ export default {
     gateHeight: 2.4, // (m)
     gateRadius: 0.62, // (m)
     gateTwist: 2.2, // tendril twist
-    gateGlow: 1.5,
+    gateGlow: 0.9,
     gateLife: 0.5, // a gate dies away after its body has passed (s)
 
     /* --- 5 · particles --- */
@@ -152,7 +152,7 @@ export default {
     arrivalShake: 0.12, // knock at each surfacing
 
     /* --- 7 · the lens --- */
-    lensStrength: 0.7, // the world bends round the anchor during the exchange (× global distortion)
+    lensStrength: 0.45, // the world bends round the anchor during the exchange (× global distortion)
     lensShock: 1.1, // pressure ring at the plunge
   },
 };

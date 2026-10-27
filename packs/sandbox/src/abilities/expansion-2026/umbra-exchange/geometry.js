@@ -153,7 +153,7 @@ export function createAnchorGeometry() {
   parts.push(loft(
     (t, o) => o.set(0, 0.05 + t * 0.92, 0),
     (t) => {
-      const r = 0.05 - 0.016 * t + 0.022 * Math.exp(-Math.pow((t - 0.84) / 0.035, 2)) +
+      const r = 0.072 - 0.022 * t + 0.026 * Math.exp(-Math.pow((t - 0.84) / 0.035, 2)) +
         0.05 * Math.pow(1 - smooth(0, 0.16, t), 2);
       return [r, r * 0.86];
     },
@@ -201,7 +201,7 @@ export function createAnchorGeometry() {
   parts.push(loft(
     (t, o) => o.set(0, 0.83, (t - 0.5) * 0.52),
     (t) => {
-      const r = 0.026 + 0.022 * Math.pow(Math.abs(t - 0.5) * 2, 6);
+      const r = 0.034 + 0.026 * Math.pow(Math.abs(t - 0.5) * 2, 6);
       return [r, r];
     },
     20, 8, 4, { capStart: true, capEnd: true, roll: Math.PI / 8 },
@@ -213,7 +213,7 @@ export function createAnchorGeometry() {
       return o.set(Math.cos(a) * 0.075, ANCHOR_RING_Y + Math.sin(a) * 0.075, 0);
     },
     (t) => {
-      const r = 0.021 + 0.004 * Math.cos(t * TAU * 2);
+      const r = 0.03 + 0.005 * Math.cos(t * TAU * 2);
       return [r, r];
     },
     28, 7, 5, {},

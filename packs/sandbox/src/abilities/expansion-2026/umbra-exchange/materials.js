@@ -400,7 +400,7 @@ const POOL_FRAGMENT = /* glsl */ `
     float bend = snoise(vec3(q * 0.45 * uScale, 2.7)) * 0.9;
     float spoke = abs(sin((a + bend * 0.35) * uCracks * 0.5));
     float fiss = exp(-spoke * (18.0 + 30.0 * r)) * smoothstep(0.06, 0.22, r) * (1.0 - smoothstep(0.55, 1.0, r / max(uSpread, 0.01)));
-    float branch = pow(ridged(vec3(q * 1.1 * uScale, 4.2), 4), 7.0) * 0.6 * smoothstep(0.1, 0.35, r);
+    float branch = pow(ridged(vec3(q * 1.1 * uScale, 4.2), 4), 9.0) * 0.25 * smoothstep(0.1, 0.35, r);
     float throb = 0.7 + 0.3 * sin(uClock * 5.0 - r * 9.0) * uHum;
     float crack = clamp((fiss + branch * (1.0 - r)) * throb * uShaderIntensity, 0.0, 1.0) * pool;
 
@@ -445,7 +445,7 @@ const POOL_FRAGMENT = /* glsl */ `
     float alpha = max(base, dark * 0.95);
     // The pool lip glows faintly where the darkness meets the floor.
     float lip = exp(-abs(r + edgeN * 0.16 - uSpread * 0.9) * 22.0) * pool;
-    float e = clamp(crack * uCrackGlow + ring * 1.6 + glow * 0.9 + lip * 0.5, 0.0, 2.0);
+    float e = clamp(crack * uCrackGlow + ring * 1.6 + glow * 0.7 + lip * 0.35, 0.0, 2.0);
     vec3 col = mix(uVoid, uDeep, churn * 0.6);
     col += gradient4(uCore, uTint, uBody, uDeep, 1.0 - clamp(e, 0.0, 1.0)) * e * uGlobalGlow;
 
@@ -584,7 +584,7 @@ const GATE_FRAGMENT = /* glsl */ `
     float tear = smoothstep(h * 0.95 + 0.05, h * 0.95 + 0.3, n + 0.25 * (1.0 - h));
     float body = tear * smoothstep(0.0, 0.05, h) * mix(0.55, 1.0, vTendril);
     float rim = fresnelTerm(vViewDir, vNormalW, 2.0, 1.0);
-    float edge = clamp(rim * 0.8 + pow(vTendril, 6.0) * 0.6, 0.0, 1.0);
+    float edge = clamp(rim * 0.45 + pow(vTendril, 6.0) * 0.35, 0.0, 1.0);
     float alpha = body * vGate.w;
     if (alpha < 0.004) discard;
     vec3 col = mix(uVoid, uDeep, 0.5 + 0.5 * n);
