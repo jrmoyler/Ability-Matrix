@@ -23,7 +23,12 @@ A shard of cold light runs to the circle, a teal ground glow opens and an angula
 5. **Particles** — motes (#ffffff → #0a3038), streak sparks for trails and wounds (#ffffff → #1a2a6b), crystal chips (#cffff6 → #101a2e), mist (#bfe8e6 → #141d24); light (r 12, half-way up to the crown).
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__cascade-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__cascade-sheet.jpg`; dense pass f4–f90.
+- **f4 (0.13 s)** — a soft cyan glow at the site, a trail of dark stain marks from the caster.
+- **f10–f16 (0.33–0.53 s)** — the ground glow and concentric rings open to the boundary (~8 m); the angular mark cuts in on top.
+- **f24 (0.8 s)** — wisps rise out of the ring and bend inward; a bright heart appears ≈ 3 m up.
+- **f34–f64 (1.1–2.1 s)** — the crown: a starburst of long faceted teal and violet blades round a white heart with a thin halo ring, the wisps curving up into it like a cage; the mark below is a bright cyan disc with the line-work inside.
+- **f90 (3.0 s)** — it has worked: a dummy lies on the floor ≈ 7 m off tagged `inscribed`; the crown has visible gaps where blades left. At 8 m the crown reads as a ~3 m starburst — a clear hero, though the blades in flight are small and fast (best seen frame by frame).
 
 ## Signature
 **The crown is a magazine**: the thing that is thrown is visibly the thing that was standing there — a blade leaves a gap in the crown and grows back.

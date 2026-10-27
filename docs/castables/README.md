@@ -55,6 +55,11 @@ references). Numbers are the shipped defaults; every one is a live slider.
 - **Gameplay** — how hits are resolved (`DummyField` from the published line or
   circle, or `handlesOwnHits` for casts that aim / grip / consume themselves).
 
+The three self buffs (`linear-ext/boost`, `magic`, `fire`) cannot be captured:
+the capture tool reports `Unknown ability linear-ext/<id>` because the sandbox
+does not register buffs as castable abilities. Their storyboards come from code
+only.
+
 Frame ↔ time: the capture runs a fixed 30 Hz clock, so frame *n* ≈ *n*/30 s
 after spawn (f8 ≈ 0.27 s, f20 ≈ 0.67 s, f40 ≈ 1.33 s, f70 ≈ 2.33 s,
 f90 = 3.0 s).

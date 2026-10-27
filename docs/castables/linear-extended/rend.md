@@ -23,7 +23,12 @@ A mote of divine light with a star riding it flies to the circle, a gold celesti
 5. **Particles** — motes (#fffdf4 → #4a2a12), spark streaks (#ffffff → #6b3a12), chips (#7a6d55 → #100d09), dust (#9a8f7c → #1a1815).
 
 ## What the capture shows
-_(filled from the dense pass, `docs/castables/sheets/linear-extended__rend-sheet.jpg`)_
+Standard sheet: `sheets/linear-extended__rend-sheet.jpg` (f8–f70: the build only — the column fires at ≈ 2.5 s); dense pass f4–f90 shows the detonation.
+- **f4–f10 (0.13–0.33 s)** — the seed star (a white four-pointed cross) hangs over the site; a small gold mark lands and starts spreading; a line of faint gold dots marks the path.
+- **f16–f24 (0.53–0.8 s)** — the mark has written itself out: concentric gold rings ~10 m across with ticks and a hot centre.
+- **f34–f64 (1.1–2.1 s)** — the braid: thin gold-and-white tendril lines spiral up from the mark in a tightening helix toward the star; dark crystal slivers streak in from far off-frame (one passes close to the camera), each strike a spark — the hail thickening.
+- **f90 (3.0 s)** — the rend: a thick column of warm white-gold light stands on the mark and leaves the top of the frame, wrapped in the helix of tendrils, shards hanging round it lit gold on their facing sides, a wide pale-gold ring on the floor ≈ 12 m across. Dummies inside the circle are still standing at this frame (the zero-impulse felling and the burn-away follow).
+- The build (2.5 s before the payoff) is long by the standard's numbers, and it holds attention only because the hail visibly accelerates.
 
 ## Signature
 **A pillar that cuts the sky and the floor at once**: one clock (`_markTime`) runs mark → braid → accelerating hail → detonation, and the hail lands on the frame the column goes up.
