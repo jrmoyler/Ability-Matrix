@@ -160,7 +160,7 @@ export default {
     colorFlash: '#d0c4ff',
     burstRadius: 3.2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.5, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 6, // fragments thrown up and out on the beat
     impactDust: 12, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#f6f2ff',

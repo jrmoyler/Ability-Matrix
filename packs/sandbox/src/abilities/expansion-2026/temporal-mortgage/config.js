@@ -87,7 +87,7 @@ export default {
     ratchetTeeth: 24, // teeth on the ratchet (rebuilt on change)
     ratchetSize: 0.2, // ratchet radius (× radius)
     keySize: 0.28, // winding key bow (× radius)
-    keyTurns: 3, // key turns while the loan is repaid
+    keyLift: 0.08, // the key bobs on each click (m)
     repayTicks: 9, // ratchet clicks during the repayment (instalments)
     tickSnap: 0.3, // share of each instalment spent snapping (0 = smooth)
     pawlKick: 0.35, // pawl lift on a click (rad)

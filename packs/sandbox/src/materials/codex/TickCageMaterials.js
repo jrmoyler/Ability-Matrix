@@ -438,10 +438,13 @@ const PART_COLOR = /* glsl */ `
     vec3 albedo = mix(uColorC, uColorB, mix(1.0, form, uDeep)) * tint;
     albedo = mix(albedo, uColorC, pat * 0.32 * uDeep);
     albedo *= mix(1.0, 0.5 + 0.5 * smoothstep(0.0, 0.28, vSpan), uDeep);
+    // Matter under a real sun: the ramp's body is a pigment, not a light, so it
+    // is taken down in value and chroma (Monolith stone is a grey #9a948a).
+    albedo = mix(albedo, vec3(dot(albedo, vec3(0.3, 0.59, 0.11))), 0.3) * 0.78;
     float edge = min(min(vPartEdge.x, vPartEdge.y), vPartEdge.z);
     float slope = fwidth(edge) + 1e-4;
     float line = (1.0 - smoothstep(slope * 0.8, slope * 2.2, edge)) * (1.0 - smoothstep(0.14, 0.3, slope)) * vPartStyle.x;
-    albedo = mix(albedo, uColorA, line * clamp(uEdge, 0.0, 1.5) * 0.45);
+    albedo *= 1.0 + line * clamp(uEdge, 0.0, 1.5) * 0.35;
     diffuseColor.rgb = albedo;
     float breathe = 0.65 + 0.35 * sin(uTime * 3.0 + vPartInfo.x * 1.7);
     gPartGlow = mix(uColorB, uColorA, 0.5) * vPartStyle.y * breathe * uGlow * 1.6;
@@ -452,7 +455,7 @@ const PART_COLOR = /* glsl */ `
       if (cut < uDissolve) discard;
       gPartGlow += uColorA * (1.0 - smoothstep(uDissolve, uDissolve + 0.06, cut)) * 2.0;
     }
-    if (uOpacity < 0.999 && hash13(vec3(gl_FragCoord.xy, vPartSeed)) > uOpacity) discard;
+    if (uOpacity < 0.999 && snoise01(vPartWorld * 2.3 + vec3(vPartSeed * 5.0, 3.1, 0.0)) * 0.9 + 0.05 > uOpacity) discard;
   }
 `;
 
@@ -466,7 +469,7 @@ const PART_DEPTH_PARS = /* glsl */ `
 
 const PART_DEPTH_CUT = /* glsl */ `
   if (uDissolve > 0.0 && snoise01(vPartWorld * 1.7 + vec3(vPartSeed * 9.0, 0.0, 0.0)) < uDissolve) discard;
-  if (uOpacity < 0.999 && hash13(vec3(gl_FragCoord.xy, vPartSeed)) > uOpacity) discard;
+  if (uOpacity < 0.999 && snoise01(vPartWorld * 2.3 + vec3(vPartSeed * 5.0, 3.1, 0.0)) * 0.9 + 0.05 > uOpacity) discard;
 `;
 
 

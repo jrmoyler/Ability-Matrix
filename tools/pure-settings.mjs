@@ -382,7 +382,7 @@ export function settingsFor(spell) {
     colorFlash: light,
     burstRadius: (zone ? 3.2 : 2) + v * 0.3,
     burstLife: 0.7,
-    burstOpacity: p.solid ? 0.16 : 0.5,
+    burstOpacity: p.solid ? 0.12 : 0.3,
     impactChips: Math.round((p.solid ? 34 : 10) * p.chip),
     impactDust: Math.round((p.solid ? 26 : 8) * p.dust),
     colorBurstA: hot,
