@@ -832,7 +832,7 @@ export class Ability extends BaseAbility {
     let size = 0;
     if (travel) {
       fl.power = this.age < hold ? 0.8 * smooth(this.age / Math.max(0.02, hold)) : 0.45;
-      size = c.flareSize * (this.age < hold ? 0.45 : 0.3);
+      size = c.flareSize * (this.age < hold ? 0.55 : 0.45);
       this.flare.position.copy(this.packet.position);
     } else {
       const formFlare = this._formed ? (1 - clamp(this.impactTime / flareT)) * 0.8 : 0;

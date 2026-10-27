@@ -177,11 +177,11 @@ const FIGURE_FRAGMENT = /* glsl */ `
     // where d = (c − ωt)/k, which shrinks.
     float bands = pow(0.5 + 0.5 * sin((d * uBands * 6.0 + n * 2.5) + uClock * uFlow * 6.2831), 5.0);
     // Body tone off the ramp: pale at the skin, saturated deeper in.
-    vec3 col = gradient4(uCore, uTint, uBody, uDeep, 0.18 + 0.42 * ndv + 0.25 * uAbsorb);
-    col += mix(uTint, uBody, 0.5) * bands * (0.35 + 0.9 * uAbsorb) * uShaderIntensity;
+    vec3 col = gradient4(uCore, uTint, uBody, uDeep, 0.3 + 0.38 * ndv + 0.22 * uAbsorb);
+    col += mix(uTint, uBody, 0.5) * bands * (0.3 + 0.8 * uAbsorb) * uShaderIntensity;
     // The umbra: the heart going dark as it drinks, spreading with charge.
-    float reach = 0.12 + 0.42 * uAbsorb;
-    float umbra = uAbsorb * uUmbra * (1.0 - smoothstep(reach * 0.35, reach, d + (n - 0.5) * 0.12)) * (1.0 - edge * edge);
+    float reach = 0.16 + 0.5 * uAbsorb;
+    float umbra = smoothstep(0.05, 0.55, uAbsorb) * uUmbra * (1.0 - smoothstep(reach * 0.3, reach, d + (n - 0.5) * 0.14)) * (1.0 - edge * edge);
     col = mix(col, uDeep * 0.35, clamp(umbra, 0.0, 1.0));
     col *= uGlow;
     // White-hot prismatic rim: each channel's fresnel at a slightly

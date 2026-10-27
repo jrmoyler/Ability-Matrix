@@ -78,7 +78,7 @@ export default {
     /* --- 1 · the figure (hero) --- */
     figureHeight: 0.95, // figure height (× zoneRadius)
     figureWidth: 1, // shoulder width (× height)
-    bodyGlow: 1, // body brightness
+    bodyGlow: 0.85, // body brightness
     bodyOpacity: 0.72, // body opacity away from the rim
     rimGlow: 3.2, // white-hot rim (HDR)
     rimPower: 2.2, // rim sharpness
@@ -133,7 +133,7 @@ export default {
     dissolveTime: 0.85, // fraction of the fade spent dissolving
 
     /* --- 6 · the photon packet (travel) --- */
-    packetSize: 0.55, // (m)
+    packetSize: 0.8, // (m)
     packetHeight: 1.15, // flies at this height (m)
     packetGlow: 2.6,
     trailRate: 110, // trail sparks per second
