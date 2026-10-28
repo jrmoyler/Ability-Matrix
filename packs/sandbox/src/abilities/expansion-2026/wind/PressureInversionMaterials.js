@@ -1,4 +1,5 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial } from 'three';
+import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
 import { settings } from '../../../config/settings.js';
@@ -29,6 +30,17 @@ import { getColor } from '../../../utils/color.js';
  *  - **the lens** (`createPressureLensMaterial`, `LAYER.DISTORTION`) — the
  *    air itself bending: a tangential swirl while the well pulls, a radial
  *    pressure ring with the gust.
+ *  - **the pressure column** (`createColumnMaterial`) — the hero: a waisted
+ *    funnel 4 m tall lathed in the vertex stage, drawn as an additive
+ *    streamline core and a normal-blended, sun-lit dust sheath (the mass and
+ *    the deep tone). It rises out of the eye with an overshoot, pinches at
+ *    the waist as the well tightens, and at the inversion blows out into a
+ *    squat bell that tears apart from the rim inward.
+ *  - **the pressure bowl** (`createWellBowlMaterial`) — the floor's dark
+ *    body under the additive isobars: a normal-blended depression in the
+ *    ramp's deep tone with dust dragged into spiral arms; behind the gust
+ *    front it is combed radially outward and heaped with pale dust at the
+ *    front. It stays through the settle.
  *
  * Every material reads `settings['pressure-inversion']` in
  * `userData.sync(state)`.
@@ -487,6 +499,324 @@ export function createPressureLensMaterial() {
     u.uGust.value = state.gust;
     u.uGustStrength.value = c.lensGust * g.distortion;
     u.uPhase.value = state.phase;
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The pressure column — the hero                                        */
+/* -------------------------------------------------------------------- */
+
+const COLUMN_VERTEX = /* glsl */ `
+  uniform float uHeight;      // metres
+  uniform float uR0;          // foot radius, metres
+  uniform float uR1;          // top radius, metres
+  uniform float uFlare;
+  uniform float uWaist;       // 0..1 up the column where it pinches
+  uniform float uPinch;       // 0..1 how hard (the squeeze)
+  uniform float uGrow;        // 0..1+ (overshoots) rising out of the eye
+  uniform float uBloom;       // 0..1+ blown out by the gust
+  uniform float uBurst;       // radius gain at full bloom
+  uniform float uSquash;      // height lost at full bloom, fraction
+  uniform float uRadiusScale; // the sheath is a little wider than the core
+  uniform float uWobble;
+  uniform float uPhase;       // integrated spin
+  uniform float uSeed;
+
+  varying vec2  vC;           // x: 0 foot .. 1 top, y: 0..1 round
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+
+  void main() {
+    float v = position.x;
+    float ang = position.y * 6.2831853;
+    float h = v * uHeight * max(uGrow, 0.0) * (1.0 - uSquash * clamp(uBloom, 0.0, 1.0));
+    float r = mix(uR0, uR1, pow(v, max(uFlare, 0.1)));
+    float w = (v - uWaist) / 0.2;
+    r *= 1.0 - uPinch * exp(-w * w);
+    // The gust blows the column out into a bell, fattest at mid height.
+    r *= 1.0 + uBloom * uBurst * (0.35 + sin(v * 3.14159));
+    r *= mix(0.3, 1.0, clamp(uGrow, 0.0, 1.0)) * uRadiusScale;
+    vec2 sway = vec2(snoise(vec3(v * 1.5, uPhase * 0.05, uSeed)), snoise(vec3(v * 1.5, uPhase * 0.05, uSeed + 5.1))) * uWobble * v;
+    vec3 n = vec3(cos(ang), 0.0, sin(ang));
+    vec3 p = vec3(sway.x, h, sway.y) + n * r;
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vWorld = world.xyz;
+    vC = vec2(v, position.y);
+    vec4 mv = viewMatrix * world;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const COLUMN_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uPhase;
+  uniform float uFlow;        // integrated streamline drift (reverses with the gust)
+  uniform float uPolarity;
+  uniform float uTwist;
+  uniform float uStreams;
+  uniform float uHeight;
+  uniform float uTear;        // 0..1 torn away by the gust, rim inward
+  uniform float uSqueezeGlow; // the eye brightening as the well tightens
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uFresnel;
+  uniform float uNoise;
+  uniform float uFade;
+  uniform vec3  uCore;
+  uniform vec3  uTint;
+  uniform vec3  uBodyColor;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
+
+  uniform vec2      uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float     uCameraNear;
+  uniform float     uCameraFar;
+  uniform float     uGlobalGlow;
+  uniform float     uShaderIntensity;
+
+  varying vec2  vC;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    float v = vC.x;
+    float ang = vC.y * 6.2831853;
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    float wound = ang + uPhase + uTwist * v * uHeight * uPolarity;
+    vec2 ring = vec2(cos(wound), sin(wound));
+    float n = fbm3(vec3(ring * 1.7, v * 3.5 - uFlow * 0.6 + uSeed)) * 0.5 + 0.5;
+    n = mix(0.6, n, clamp(uNoise, 0.0, 1.0));
+
+    // The gust tears it from the rim of the bell inward.
+    float thr = uTear * 1.2 - 0.1;
+    float tearN = n * 0.6 + (1.0 - abs(v - 0.45) * 1.4) * 0.4;
+    float keep = uTear <= 0.0 ? 1.0 : smoothstep(thr, thr + 0.07, tearN);
+    float fray = uTear <= 0.0 ? 0.0 : smoothstep(thr - 0.02, thr + 0.05, tearN) - smoothstep(thr + 0.05, thr + 0.18, tearN);
+    float ends = smoothstep(0.0, 0.05, v) * (1.0 - smoothstep(0.8, 1.0, v));
+
+    vec2 screenUV = gl_FragCoord.xy / uResolution;
+    float soft = softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.4);
+
+  #ifdef SHEATH
+    float ndl = dot(N, normalize(uLightDir)) * 0.5 + 0.5;
+    float fr = fresnelTerm(V, N, uFresnel, 1.0);
+    vec3 col = mix(uDeep, uBodyColor, ndl * (0.35 + 0.8 * n));
+    col = mix(col, uTint, clamp(fr * 0.4, 0.0, 1.0));
+    float a = uOpacity * smoothstep(0.26, 0.64, n) * (1.0 - 0.55 * clamp(fr, 0.0, 1.0)) * ends * keep * uFade * soft;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+  #else
+    float st = sin(wound * max(uStreams, 1.0) + (n - 0.5) * 3.0);
+    st = pow(0.5 + 0.5 * st, 5.0);
+    float vol = pow(abs(dot(N, V)), 1.2);
+    float rim = pow(1.0 - abs(dot(N, V)), 2.0);
+    // The waist burns brighter as the well is squeezed.
+    float waist = exp(-pow((v - 0.4) / 0.25, 2.0)) * uSqueezeGlow;
+    vec3 col = mix(uTint, uCore, clamp(st + waist, 0.0, 1.0)) * (st * 0.9 + vol * 0.15 + rim * 0.25 * n + waist);
+    col += uCore * fray * 2.5;
+    float a = (st * 0.8 + vol * 0.15 + rim * 0.2 + fray + waist * 0.5) * ends * keep * uFade * soft;
+    if (a < 0.004) discard;
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * a, clamp(a, 0.0, 1.0));
+  #endif
+  }
+`;
+
+/**
+ * The pressure column.
+ * @param {boolean} sheath true for the normal-blended, sun-lit dust sheath
+ */
+export function createColumnMaterial(sheath = false) {
+  const material = new ShaderMaterial({
+    defines: sheath ? { SHEATH: '' } : {},
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: sheath ? NormalBlending : AdditiveBlending,
+    // Front faces only: the far wall winds the other way and would cross-hatch.
+    side: FrontSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uHeight: { value: 4 },
+      uR0: { value: 0.8 },
+      uR1: { value: 2 },
+      uFlare: { value: 1.5 },
+      uWaist: { value: 0.4 },
+      uPinch: { value: 0.2 },
+      uGrow: { value: 0 },
+      uBloom: { value: 0 },
+      uBurst: { value: 1.4 },
+      uSquash: { value: 0.45 },
+      uRadiusScale: { value: 1 },
+      uWobble: { value: 0.3 },
+      uPhase: { value: 0 },
+      uSeed: { value: 0 },
+      uFlow: { value: 0 },
+      uPolarity: { value: 1 },
+      uTwist: { value: 1.6 },
+      uStreams: { value: 6 },
+      uTear: { value: 0 },
+      uSqueezeGlow: { value: 0 },
+      uGlow: { value: 2 },
+      uOpacity: { value: 0.6 },
+      uFresnel: { value: 2.2 },
+      uNoise: { value: 1 },
+      uFade: { value: 1 },
+      uCore: { value: new Color() },
+      uTint: { value: new Color() },
+      uBodyColor: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: COLUMN_VERTEX,
+    fragmentShader: COLUMN_FRAGMENT
+  });
+
+  /**
+   * @param {object} state { radius, grow, squeeze, bloom, tear, phase, flow,
+   *   polarity, fade, seed }
+   */
+  material.userData.sync = (state) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    const R = Math.max(0.05, state.radius);
+    u.uHeight.value = Math.max(0.2, c.columnHeight);
+    u.uR0.value = c.columnBaseRadius * R;
+    u.uR1.value = c.columnTopRadius * R;
+    u.uFlare.value = c.columnFlare;
+    u.uWaist.value = c.columnWaist;
+    u.uPinch.value = Math.min(0.95, c.columnRestPinch + c.columnPinch * state.squeeze);
+    u.uGrow.value = state.grow;
+    u.uBloom.value = state.bloom;
+    u.uBurst.value = c.columnBurst;
+    u.uSquash.value = c.columnSquash;
+    u.uRadiusScale.value = sheath ? c.columnSheathScale : 1;
+    u.uWobble.value = c.columnWobble * g.turbulence;
+    u.uPhase.value = state.phase;
+    u.uSeed.value = state.seed;
+    u.uFlow.value = state.flow;
+    u.uPolarity.value = state.polarity;
+    u.uTwist.value = c.columnTwist;
+    u.uStreams.value = Math.max(1, Math.round(c.columnStreams));
+    u.uTear.value = state.tear;
+    u.uSqueezeGlow.value = state.squeeze * c.columnSqueezeGlow;
+    u.uGlow.value = c.columnGlow * g.glow;
+    u.uOpacity.value = c.columnOpacity * g.opacity;
+    u.uFresnel.value = c.columnFresnel * g.fresnel;
+    u.uNoise.value = g.noiseStrength;
+    u.uFade.value = state.fade * (sheath ? 1 : g.opacity);
+    u.uCore.value.copy(getColor(c.colorColumnCore));
+    u.uTint.value.copy(getColor(c.colorColumnTint));
+    u.uBodyColor.value.copy(getColor(c.colorColumnBody));
+    u.uDeep.value.copy(getColor(c.colorColumnDeep));
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The pressure bowl — the floor's dark body                            */
+/* -------------------------------------------------------------------- */
+
+const BOWL_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uFade;
+  uniform float uPhase;
+  uniform float uArms;
+  uniform float uTwist;
+  uniform float uGust;        // 0..1 radius of the gust front
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uDeep;
+  uniform vec3  uDust;
+  uniform vec3  uRim;
+
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+
+  void main() {
+    float a = vUv.x * 6.2831853;
+    float r = vUv.y;
+    vec2 q = vec2(cos(a), sin(a)) * r;
+    float edgeN = fbm3(vec3(q * 2.5, uSeed)) * 0.12;
+    float disc = 1.0 - smoothstep(0.82, 1.0, r + edgeN);
+
+    // The pull: dust dragged into spiral arms, darkest toward the eye.
+    float arms = 0.5 + 0.5 * sin(a * max(uArms, 1.0) + log(r + 0.05) * uTwist * 2.0 - uPhase);
+    arms = pow(arms, 2.0);
+    float drag = fbm3(vec3(vec2(cos(a + r * uTwist + uPhase * 0.5), sin(a + r * uTwist + uPhase * 0.5)) * r * 3.0, uSeed + 2.0)) * 0.5 + 0.5;
+    float pull = (0.45 + 0.55 * (1.0 - r)) * (0.55 + 0.45 * arms * drag);
+    vec3 col = mix(uDust, uDeep, clamp(0.55 + 0.45 * (1.0 - r) - arms * 0.35 * drag, 0.0, 1.0));
+
+    // The gust: combed straight out behind the front, heaped at it.
+    float behind = uGust > 0.0 ? 1.0 - smoothstep(uGust - 0.04, uGust, r) : 0.0;
+    float comb = smoothstep(0.35, 0.85, snoise(vec3(a * 11.0, r * 1.5, uSeed * 1.7)) * 0.5 + 0.5);
+    vec3 blown = mix(uDeep, uDust, comb * 0.6 + r * 0.2);
+    col = mix(col, blown, behind);
+    float heap = uGust > 0.0 ? exp(-pow((r + edgeN - uGust) / 0.06, 2.0)) * (0.5 + 0.5 * comb) : 0.0;
+    col = mix(col, uRim, heap);
+
+    float alpha = (mix(pull, 0.55 + 0.35 * comb, behind) * disc + heap * 0.9) * uFade * uOpacity;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The well's dark floor, under the additive isobars. Normal blended. */
+export function createWellBowlMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    uniforms: sharedUniforms({
+      uFade: { value: 1 },
+      uPhase: { value: 0 },
+      uArms: { value: 3 },
+      uTwist: { value: 3 },
+      uGust: { value: 0 },
+      uOpacity: { value: 0.7 },
+      uSeed: { value: 0 },
+      uDeep: { value: new Color() },
+      uDust: { value: new Color() },
+      uRim: { value: new Color() }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: BOWL_FRAGMENT
+  });
+
+  /** @param {object} state { fade, phase, gust, seed } */
+  material.userData.sync = (state) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uFade.value = state.fade;
+    u.uPhase.value = state.phase;
+    u.uArms.value = Math.max(1, Math.round(c.bowlArms));
+    u.uTwist.value = c.floorTwist;
+    u.uGust.value = state.gust;
+    u.uOpacity.value = c.bowlOpacity * g.opacity;
+    u.uSeed.value = state.seed;
+    u.uDeep.value.copy(getColor(c.colorBowlDeep));
+    u.uDust.value.copy(getColor(c.colorBowlDust));
+    u.uRim.value.copy(getColor(c.colorBowlRim));
   };
   return material;
 }

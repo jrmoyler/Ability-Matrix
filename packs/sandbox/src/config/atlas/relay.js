@@ -19,7 +19,7 @@ export default {
     range: 18.0, // maximum cast distance, metres
     minRange: 3.0, // closer than this and the cast is refused
     speed: 30.0, // how fast the seeking leader runs down the line, metres/second
-    lifetime: 0.55, // seconds the snapped lattice lingers after the discharge
+    lifetime: 1.1, // seconds the snapped lattice lingers after the discharge
     fadeTime: 0.6, // seconds the last of it takes to go out
     cooldown: 0.6, // seconds before the ability can be armed again
     castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
@@ -77,7 +77,7 @@ export default {
     /* ================================================================ */
     /* 2 · RELAY CORES — the overload node over each claimed body        */
     /* ================================================================ */
-    coreSize: 0.62, // billboard half-size, metres
+    coreSize: 0.8, // billboard half-size, metres
     coreBall: 0.32, // the plasma ball's radius, × half-size
     coreBoil: 0.55, // turbulence on the ball's surface
     coreBoilScale: 3.2,
@@ -111,6 +111,14 @@ export default {
     sigilOpacity: 0.85,
     colorSigil: '#6fdcff',
     colorSigilHot: '#ffffff',
+
+    /* --- 3b · conduction scars: the floor remembers the lattice --- */
+    scarSpacing: 0.9, // one burn mark every this many metres along a new link's ground track
+    scarRadius: 0.75, // radius of each mark, metres
+    scarLife: 4.5, // seconds the marks stay (they outlive the cast)
+    scorchRadius: 1.7, // dark scorch left under every relay by the discharge, metres
+    scorchLife: 5.5,
+    colorScorch: '#070b1c', // the deep tone: burnt floor
 
     /* ================================================================ */
     /* 4 · SPARKS + MOTES                                                */
@@ -151,7 +159,7 @@ export default {
     shockRadius: 3.4, // shockwave ring under every relay, metres
     shockLife: 0.55,
     arcRadius: 1.4, // ARC burn under each relay as it is claimed, metres
-    arcLife: 2.2,
+    arcLife: 4,
     arcWidth: 0.07,
     arcIntensity: 1.5,
     groundArcRadius: 2.6, // ARC burn where it grounds, metres

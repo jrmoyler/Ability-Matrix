@@ -11,6 +11,7 @@ import {
   MeshStandardMaterial,
   Object3D,
   Points,
+  Quaternion,
   Vector3,
 } from 'three';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
@@ -32,6 +33,7 @@ import { Easing } from '../../../utils/math.js';
 import {
   createCoilGeometry,
   createFanGeometry,
+  createFlywheelGeometry,
   createLedgerWheelGeometry,
   createQuad,
   createRibbonGeometry,
@@ -42,7 +44,10 @@ import {
   createCompressionLensMaterial,
   createDialMaterial,
   createFanMaterial,
+  createFlywheelMaterial,
   createGlyphMaterial,
+  createLedgerPlateMaterial,
+  createSpinHaloMaterial,
   createLedgerGlowMaterial,
   createRibbonMaterial,
   createSpeedMoteMaterial,
@@ -58,7 +63,12 @@ const delta = new Vector3(),
   scratch = new Object3D(),
   _pos = new Vector3(),
   _a = new Vector3(),
-  _b = new Vector3();
+  _b = new Vector3(),
+  _c = new Vector3(),
+  _axle = new Vector3(),
+  _plane = new Vector3(),
+  _q = new Quaternion();
+const Z_AXIS = new Vector3(0, 0, 1);
 /** Orbiting velocity glyphs. */
 const MAX_VECTORS = 32;
 /** Bodies the release may affect. */
@@ -76,8 +86,15 @@ const MAX_MOTES = 160;
  * MOMENTUM LEDGER — Motion, zone cast.
  *
  * Movement is measured while the ledger is active, then converted into a
- * bounded strike. The ledger **lands** on the target — a dial of counter
- * wheels, four charge coils and an orbit of velocity glyphs — and **banks**
+ * bounded strike. A cast-iron **flywheel** is thrown from the hand, spinning,
+ * in a visible arc and **lands** standing on its rim over the ledger — an
+ * iron plate engraved with ledger columns, a dial of counter wheels, four
+ * charge coils tethering the wheel's axle to the floor and an orbit of
+ * velocity glyphs. The flywheel *is* the store of momentum: it winds up for
+ * the whole bank (an idle wind even when nobody walks, much faster with every
+ * metre banked), its 24 teeth light one by one with the banked fraction, a
+ * halo of rotational streaks pulls off its rim and sparks fly off its teeth.
+ * The ledger **banks**
  * the distance the caster actually walks for `chargeDuration` seconds. The
  * bank is legible from everywhere: tally cells light round the dial's rim one
  * by one, the gauge glyphs fill the same 24 positions, the coils compress,
@@ -86,7 +103,12 @@ const MAX_MOTES = 160;
  * is drawn back to the ledger as a ribbon of chevrons. Then the ledger
  * **releases**: a directional wave races out along the banked direction,
  * release rings run out to the strike radius, the coils spring open, the
- * camera knocks in proportion to the bank. Then it **winds down** and the dial
+ * camera knocks in proportion to the bank, and the flywheel **dumps** its
+ * momentum — it hops forward along the banked direction and its spin bleeds
+ * out. Then it **winds down**: it settles like a coin spun on a table
+ * (Euler's disk — tipping over while its wobble precesses faster and faster)
+ * on a plate scorched with a cooling, ember-lined wedge thrown along the
+ * banked direction, and on the exit it sinks into the plate as everything
  * dissolves.
  *
  * Teleports and velocity spikes above `maxSpeed` are rejected, not banked:
@@ -95,13 +117,20 @@ const MAX_MOTES = 160;
  *
  * ## Layers (each a folder in the editor)
  *
+ *   0. **the flywheel** (hero; `createFlywheelGeometry`, `createFlywheelMaterial`
+ *      lit iron on the world layer with teeth that light with the bank) and
+ *      its **spin halo** (`createSpinHaloMaterial`), standing 2.7 m tall at the
+ *      default radius (`flywheelSize × zoneRadius`), turned `flywheelYaw` off
+ *      the aim so its face and rim both read; and **the ledger plate**
+ *      (`createLedgerPlateMaterial`) — the floor that stays.
  *   1. **the dial** (`createDialMaterial`) — rim, travelling waves, flow
  *      lines along the banked direction, the 24-cell tally, release shock,
  *      noise dissolve.
  *   2. **the ledger wheels** — three notched counter wheels: two of lit metal
  *      (`MeshStandardMaterial`, world layer) and one of light
  *      (`createLedgerGlowMaterial`).
- *   3. **the coils** — four tapered helical springs compressed by the bank.
+ *   3. **the coils** — four tapered helical springs tethering the flywheel's
+ *      axle to the floor, compressed by the bank, sprung at the release.
  *   4. **glyphs** (`createGlyphMaterial`) — 32 instanced orbiting velocity
  *      arrows and the 24-cell gauge filled from the banked fraction.
  *   5. **the wake** — the recorded walk as a crisp line and a chevron ribbon
@@ -145,11 +174,11 @@ export class Ability extends BaseAbility {
   /* ------------------------------------------------------------------ */
 
   get impactDuration() {
-    return this.config.chargeDuration + 0.5;
+    return this.config.chargeDuration + Math.max(0.2, this.config.lingerTime * settings.global.lifetime);
   }
 
   get fadeDuration() {
-    return 0.75;
+    return Math.max(0.1, this.config.fadeTime * settings.global.lifetime);
   }
 
   /* ------------------------------------------------------------------ */
@@ -162,6 +191,36 @@ export class Ability extends BaseAbility {
     this.root = new Group();
     this.group.add(this.root);
     const quad = own(createQuad());
+
+    // 0 · the ledger plate (floor), under everything
+    this.plateMat = own(createLedgerPlateMaterial());
+    this.plate = new Mesh(quad, this.plateMat);
+    this.plate.rotation.x = -Math.PI / 2;
+    this.plate.position.y = 0.018;
+    this.plate.renderOrder = 1;
+    this.root.add(this.plate);
+
+    // 0 · the flywheel: pivot (contact point, heading + precession) → tilt
+    // (the settle) → mount (centre, one wheel radius up) → wheel + halo.
+    this.pivot = new Group();
+    this.tilt = new Group();
+    this.mount = new Group();
+    this.pivot.add(this.tilt);
+    this.tilt.add(this.mount);
+    this.root.add(this.pivot);
+    this.wheelMat = own(createFlywheelMaterial());
+    this.flywheel = new Mesh(own(createFlywheelGeometry()), this.wheelMat);
+    this.flywheel.castShadow = true;
+    this.flywheel.receiveShadow = true;
+    this.mount.add(this.flywheel);
+    this.haloMat = own(createSpinHaloMaterial());
+    this.halo = new Mesh(quad, this.haloMat);
+    this.halo.renderOrder = 7;
+    this.halo.frustumCulled = false;
+    this.mount.add(this.halo);
+    this._wheelState = { charge: 0, heat: 0, flash: 0 };
+    this._haloState = { angle: 0, blur: 0, heat: 0, fade: 1, span: 1.35 };
+    this._plateState = { charge: 0, wind: 0, spin: 0, scorch: -1, flowX: 0, flowY: 1, fade: 1, dissolve: 0 };
 
     // 1 · the dial
     this.fieldMat = own(createDialMaterial());
@@ -193,11 +252,16 @@ export class Ability extends BaseAbility {
     }));
     const coil = own(createCoilGeometry());
     this.coils = [];
+    this.tethers = [];
     for (let i = 0; i < 4; i++) {
+      // The tether is oriented from its floor anchor to the axle and stretched
+      // to reach it; the coil inside it keeps its own (compressed) scale.
+      const tether = new Group();
       const mesh = new Mesh(coil, this.coilMat);
-      mesh.position.y = 0.4;
       mesh.castShadow = true;
-      this.root.add(mesh);
+      tether.add(mesh);
+      this.root.add(tether);
+      this.tethers.push(tether);
       this.coils.push(mesh);
     }
 
@@ -289,6 +353,10 @@ export class Ability extends BaseAbility {
     this._fanState = { progress: 0, power: 0 };
     this._moteState = { clock: 0, radius: 1, charge: 0, throw: 0, fade: 1, capacity: MAX_MOTES };
     this._lensState = { pinch: 0, shock: 0, wave: 0, clock: 0 };
+    this._spin = 0;
+    this._precession = 0;
+    this._visAtRelease = 0;
+    this._sparkDebt = 0;
 
     routeExpansionTransparency(this.group);
     this.lens.layers.set(LAYER.DISTORTION);
@@ -322,6 +390,10 @@ export class Ability extends BaseAbility {
     this._wakeHead = 0;
     this._wakeCount = 0;
     this._recordWake(p);
+    this._spin = 0;
+    this._precession = 0;
+    this._visAtRelease = 0;
+    this._sparkDebt = 0;
     this.root.visible = true;
     this._sync(0);
   }
@@ -329,20 +401,57 @@ export class Ability extends BaseAbility {
   onTravel(dt) {
     this._capture(dt);
     this._sync(dt);
+    // The thrown flywheel sheds a thin stream of streaks along its arc.
+    if (this.fx && dt > 0) {
+      this._sparkDebt += 45 * dt;
+      const n = Math.floor(this._sparkDebt);
+      if (n > 0) {
+        this._sparkDebt -= n;
+        _pos.copy(this.pivot.position).add(this._target);
+        _pos.y += this.mount.position.y;
+        _burst.count = n;
+        _burst.size = this.config.trailSize;
+        _burst.life = this.config.trailLife * 0.7;
+        _burst.speed = this.config.trailSpeed;
+        _burst.spread = 0.6;
+        _burst.radius = 0.15;
+        _burst.direction = _c.copy(this.direction).negate();
+        expansionBurst(this.fx, _pos, _burst);
+      }
+    }
   }
 
+  /** The flywheel lands on its rim: a dust ring, a knock, sparks off the floor. */
   onImpact() {
+    const c = this.config;
+    const g = settings.global;
+    _pos.copy(this._target).setY(0.05);
+    this.ctx.decals?.spawn?.(DecalType.DUSTRING, _pos, {
+      radius: c.zoneRadius * c.flywheelSize * 1.6, life: c.decalLife, intensity: c.dustIntensity,
+      colorA: getColor(c.springColor), colorB: getColor(c.trailColor),
+    });
+    if (c.landKnock > 0) this.ctx.shake?.add?.(c.landKnock * g.cameraShake, 9, 22);
+    _burst.count = 18;
+    _burst.size = c.trailSize * 1.4;
+    _burst.life = c.trailLife;
+    _burst.speed = c.trailSpeed * 2.5;
+    _burst.spread = 1.2;
+    _burst.radius = 0.4;
+    _burst.direction = undefined;
+    expansionBurst(this.fx, _pos, _burst);
     this._sync(0);
   }
 
   onFade(dt) {
     this._capture(dt);
     if (!this._released && this.impactTime >= this.config.chargeDuration) {
+      this._visAtRelease = this._wind();
       this._released = true;
       this._strike();
       this._release();
     }
     this._sync(dt);
+    this._emitRimSparks(dt);
   }
 
   /* ------------------------------------------------------------------ */
@@ -476,6 +585,147 @@ export class Ability extends BaseAbility {
   /* Per-frame presentation                                              */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * The flywheel's wind-up, 0..1 — presentation only. The banked fraction
+   * when it leads, else an idle wind that builds late through the bank time,
+   * so a caster who stands still still sees the wheel load and let go. The
+   * tally, the gauge, the teeth and the coils stay honest (banked only).
+   */
+  _wind() {
+    const c = this.config;
+    const q = clamp(this._distance / Math.max(0.01, c.maxDistance));
+    if (this.phase === 'travel') return 0.25 * c.idleWind;
+    const t = clamp(this.impactTime / Math.max(0.05, c.chargeDuration));
+    return Math.max(q, c.idleWind * Math.pow(t, Math.max(0.1, c.windCurve)));
+  }
+
+  /** Sparks thrown tangentially off the top of the rim while it winds. */
+  _emitRimSparks(dt) {
+    const c = this.config;
+    if (this._released || !this.fx || dt <= 0) return;
+    this._sparkDebt += c.rimSparkRate * this._wind() * dt;
+    const n = Math.floor(this._sparkDebt);
+    if (n <= 0) return;
+    this._sparkDebt -= n;
+    const rw = c.zoneRadius * c.flywheelSize;
+    // Top of the rim, root-local → world; the tangent there is the wheel's
+    // horizontal in-plane axis, signed by the spin.
+    _pos.copy(this.pivot.position).add(this._target);
+    _pos.y += rw * 2;
+    _c.copy(_plane).multiplyScalar(-1);
+    _burst.count = n;
+    _burst.size = c.trailSize * 1.2;
+    _burst.life = c.trailLife * 0.8;
+    _burst.speed = c.trailSpeed * 3;
+    _burst.spread = 0.35;
+    _burst.radius = 0.08;
+    _burst.direction = _c.normalize();
+    expansionBurst(this.fx, _pos, _burst);
+  }
+
+  /**
+   * Lay out the flywheel: thrown in an arc during the travel, landing with
+   * an overshoot, winding up through the bank, hopping along the banked
+   * direction at the release, then settling like a spun coin and sinking.
+   */
+  _syncFlywheel(dt, c, q, vis, fx, fz, waveProgress, fadeT) {
+    const g = settings.global;
+    const rw = c.zoneRadius * c.flywheelSize;
+    const calm = this._calm ? 0.25 : 1;
+    const releaseAge = this._released ? this.impactTime - c.chargeDuration + (this.phase === 'fade' ? this.fadeTime : 0) : -1;
+    const linger = Math.max(0.2, c.lingerTime * g.lifetime);
+
+    // Spin: wound up by `vis`; after the release it bleeds out over the linger.
+    const top = c.flywheelSpin + c.flywheelChargeSpin * vis;
+    const rate = this._released
+      ? (c.flywheelSpin + c.flywheelChargeSpin * this._visAtRelease) * Math.exp(-3 * releaseAge / linger)
+      : top;
+    this._spin += rate * dt * g.animationSpeed * calm;
+
+    // Heading: the face turned `flywheelYaw` off the aim; the axle lies along it.
+    const heading = Math.atan2(this.direction.x, this.direction.z) + c.flywheelYaw;
+    _axle.set(Math.sin(heading), 0, Math.cos(heading));
+    _plane.set(_axle.z, 0, -_axle.x); // horizontal, in the wheel's plane
+
+    let scale = 1;
+    this.tilt.rotation.set(0, 0, 0);
+    if (this.phase === 'travel') {
+      // Thrown: from the hand, an arc, spinning hard, small in the hand.
+      const u = this.u;
+      this.pivot.position.copy(this.position).sub(this._target);
+      this.pivot.position.y = 1.1 * (1 - u) + c.throwHeight * 4 * u * (1 - u) - rw * c.throwScale * (1 - u);
+      scale = c.throwScale + (1 - c.throwScale) * u * u;
+      this.tilt.rotation.x = Math.sin(this.age * 9) * 0.25 * calm; // it wobbles in flight
+    } else {
+      const land = Easing.outBack(clamp(this.impactTime / Math.max(0.01, c.landTime)));
+      scale = Math.max(0.001, c.throwScale + (1 - c.throwScale) * land);
+      this.pivot.position.set(0, 0, 0);
+      if (this._released) {
+        // The dump: a hop along the banked direction.
+        const k = Easing.outCubic(clamp(releaseAge / Math.max(0.05, c.releaseWaveLife)));
+        const lunge = c.flywheelLunge * (0.5 + q) * k;
+        this.pivot.position.set(fx * lunge, c.flywheelHop * 4 * k * (1 - k), fz * lunge);
+        // The settle: it tips over (accelerating) while its wobble precesses
+        // faster as it flattens — the Euler's-disk finish.
+        const s = clamp((releaseAge - c.releaseWaveLife * 0.4) / linger);
+        const tiltK = Easing.inCubic(s);
+        this.tilt.rotation.x = c.settleTilt * tiltK;
+        this._precession += dt * c.settlePrecession * s * s * g.animationSpeed * calm;
+      }
+      // The exit: down into the plate.
+      this.pivot.position.y -= rw * c.sinkDepth * Easing.inCubic(fadeT);
+    }
+    this.pivot.rotation.set(0, heading + this._precession, 0);
+    this.mount.position.set(0, rw * scale, 0);
+    this.mount.scale.setScalar(rw * scale);
+    this.flywheel.rotation.set(0, 0, -this._spin);
+
+    const fade = 1 - fadeT;
+    const flash = this._released ? Math.max(0, 1 - releaseAge / 0.35) : 0;
+    const ws = this._wheelState;
+    ws.charge = q;
+    ws.heat = this._released ? this._visAtRelease * Math.exp(-2.5 * releaseAge / linger) : vis;
+    ws.flash = flash;
+    this.wheelMat.userData.sync(ws);
+
+    const hs = this._haloState;
+    hs.angle = -this._spin;
+    hs.blur = Math.pow(clamp(rate / Math.max(0.1, c.flywheelSpin + c.flywheelChargeSpin)), 0.7);
+    hs.heat = Math.max(ws.heat, 0.25) * (0.4 + 0.6 * hs.blur) + flash;
+    hs.fade = fade;
+    hs.span = c.haloSpan;
+    this.halo.scale.setScalar(c.haloSpan * 2);
+    this.haloMat.userData.sync(hs);
+
+    // The wind-up lights the scene: a slow swell through the bank.
+    if (!this._released) this.lightBoost = Math.max(this.lightBoost, vis * c.lightIntensity * 0.9);
+  }
+
+  /** Coils tether the axle ends to four floor anchors. */
+  _syncTethers(c, coilScale, axialScale) {
+    const rw = c.zoneRadius * c.flywheelSize;
+    const hub = rw * 0.3;
+    for (let i = 0; i < this.tethers.length; i++) {
+      const sa = i < 2 ? 1 : -1; // which side of the wheel (along the axle)
+      const sp = i % 2 ? 1 : -1; // fore or aft in its plane
+      // Axle end, root-local (the wheel's centre one radius up, unsettled).
+      _a.copy(this.pivot.position).addScaledVector(_axle, sa * hub);
+      _a.y += this.mount.position.y;
+      // Floor anchor out along the axle and the plane.
+      _b.copy(this.pivot.position).addScaledVector(_axle, sa * rw * 1.15).addScaledVector(_plane, sp * rw * 0.75);
+      _b.y = 0.02;
+      _c.copy(_a).sub(_b);
+      const len = Math.max(0.05, _c.length());
+      const tether = this.tethers[i];
+      tether.position.copy(_b);
+      tether.quaternion.copy(_q.setFromUnitVectors(Z_AXIS, _c.divideScalar(len)));
+      tether.scale.set(c.coilThickness, c.coilThickness, len / 1.5);
+      this.coils[i].position.set(0, 0, 0);
+      this.coils[i].rotation.set(0, 0, 0);
+      this.coils[i].scale.set(coilScale, coilScale, coilScale * axialScale);
+    }
+  }
+
   /** Mirror the particle look from settings every frame (no-op on stubs). */
   _syncParticles() {
     const c = this.config;
@@ -547,7 +797,9 @@ export class Ability extends BaseAbility {
     const clock = this._clock;
     const fadeT = this.phase === 'fade' ? clamp(this.fadeTime / this.fadeDuration) : 0;
     const fade = 1 - fadeT;
-    const landing = Easing.outCubic(clamp(this.age / Math.max(0.01, c.landTime)));
+    // The ledger opens under the flywheel when it lands, not before.
+    const landing = this.phase === 'travel' ? 0 : Easing.outCubic(clamp(this.impactTime / Math.max(0.01, c.landTime)));
+    const vis = this._released ? this._visAtRelease : this._wind();
     this.root.position.copy(this._target);
     this.position.copy(this._target);
 
@@ -561,6 +813,21 @@ export class Ability extends BaseAbility {
 
     const releaseAge = this.impactTime - c.chargeDuration + (this.phase === 'fade' ? this.fadeTime : 0);
     const waveProgress = clamp(releaseAge / Math.max(0.05, c.releaseWaveLife ?? 0.6));
+
+    // 0 · the flywheel and the plate
+    this._syncFlywheel(dt, c, q, vis, fx, fz, waveProgress, fadeT);
+    this.plate.scale.set(r * 2.05, r * 2.05, 1);
+    this.plate.visible = this.phase !== 'travel';
+    const ps = this._plateState;
+    ps.charge = q;
+    ps.wind = vis * (this._released ? 1 - waveProgress : 1);
+    ps.spin = this._spin;
+    ps.scorch = this._released ? clamp(releaseAge / Math.max(0.05, c.scorchCool * g.lifetime)) : -1;
+    ps.flowX = fx;
+    ps.flowY = -fz; // the floor quad's uv.y runs along world −Z
+    ps.fade = landing;
+    ps.dissolve = clamp(fadeT / Math.max(0.05, c.dissolveTime));
+    this.plateMat.userData.sync(ps);
 
     // 1 · the dial
     this.field.scale.set(r * 2, r * 2, 1);
@@ -597,10 +864,7 @@ export class Ability extends BaseAbility {
     const axialScale = this._released ? compressed + (1 - compressed) * waveProgress : compressed;
     this.coilMat.color.copy(getColor(c.springColor ?? '#d98966'));
     this.coilMat.emissiveIntensity = (c.coilGlow + q * c.coilCharge) * g.glow;
-    for (let i = 0; i < this.coils.length; i++) {
-      this.coils[i].rotation.y = (i * TAU) / 4 + Math.atan2(this.direction.x, this.direction.z);
-      this.coils[i].scale.set(coilScale, coilScale, coilScale * axialScale);
-    }
+    this._syncTethers(c, coilScale * (this.phase === 'travel' ? 0.001 : landing), axialScale);
 
     // 7 · the release: rings to the strike radius, and the directional fan
     this._releaseState.opacity = (0.35 + q * 0.45) * (1 - waveProgress) * fade;
@@ -628,11 +892,11 @@ export class Ability extends BaseAbility {
     gs.fade = fade * landing;
     this.glow.userData.sync(gs);
     for (let i = 0; i < MAX_VECTORS; i++) {
-      const a = (i * TAU) / MAX_VECTORS + clock * (c.glyphOrbit + q),
+      const a = (i * TAU) / MAX_VECTORS + clock * (c.glyphOrbit + vis * 1.5),
         radius = r * (0.42 + (i % 3) * 0.16);
       scratch.position.set(Math.sin(a) * radius, 0.14 + (i % 4) * 0.1, Math.cos(a) * radius);
       scratch.rotation.set(0, a + Math.PI / 2, 0);
-      scratch.scale.setScalar((0.5 + q * 0.5) * fade * c.glyphSize);
+      scratch.scale.setScalar((0.5 + vis * 0.5) * fade * landing * c.glyphSize);
       scratch.updateMatrix();
       this.vectors.setMatrixAt(i, scratch.matrix);
     }
@@ -652,7 +916,7 @@ export class Ability extends BaseAbility {
     const ms = this._moteState;
     ms.clock = clock;
     ms.radius = r;
-    ms.charge = q;
+    ms.charge = vis;
     ms.throw = this._released ? waveProgress : 0;
     ms.fade = fade * landing;
     this.moteMat.userData.sync(ms);
@@ -660,7 +924,7 @@ export class Ability extends BaseAbility {
 
     // 8 · the lens: pinch while banking, a pressure ring at the release
     const ls = this._lensState;
-    ls.pinch = this._released ? 0 : q * (this.phase === 'travel' ? 0 : 1);
+    ls.pinch = this._released ? 0 : vis * (this.phase === 'travel' ? 0 : 1);
     ls.shock = this._released && waveProgress < 1 ? 1 - waveProgress : 0;
     ls.wave = Easing.outCubic(waveProgress);
     ls.clock = clock;
@@ -681,6 +945,8 @@ export class Ability extends BaseAbility {
     this.fan.visible = false;
     this.lens.visible = false;
     for (const ring of this.releaseRings) ring.visible = false;
+    this._spin = 0;
+    this._precession = 0;
     this._distance = 0;
     this._released = false;
     this._wakeCount = 0;
@@ -729,6 +995,8 @@ export function buildEditor(gui, c, Editor) {
 
   const ledger = sub(folder, 'The ledger');
   R(ledger, c, 'chargeDuration', 0.4, 5, 0.05, 'bank time (s)');
+  R(ledger, c, 'lingerTime', 0.2, 4, 0.05, 'wind-down after the release (s)');
+  R(ledger, c, 'fadeTime', 0.1, 3, 0.05, 'exit (s)');
   R(ledger, c, 'maxDistance', 1, 30, 0.1, 'distance cap (m)');
   R(ledger, c, 'maxSpeed', 1, 30, 0.5, 'maximum valid speed (m/s)');
   R(ledger, c, 'zoneRadius', 1, 8, 0.1, 'release radius (m)');
@@ -742,6 +1010,37 @@ export function buildEditor(gui, c, Editor) {
   R(light, c, 'lightIntensity', 0, 30, 0.1, 'intensity');
   R(light, c, 'lightRadius', 1, 40, 0.1, 'radius');
   R(light, c, 'releaseLight', 0, 20, 0.1, 'punch at the release');
+
+  const hero = sub(folder, '0 · The flywheel (hero)');
+  R(hero, c, 'flywheelSize', 0.1, 0.6, 0.005, 'radius (× zone radius)');
+  R(hero, c, 'flywheelYaw', -1.6, 1.6, 0.01, 'face turned off the aim (rad)');
+  R(hero, c, 'flywheelSpin', 0, 10, 0.05, 'spin at rest (rad/s)');
+  R(hero, c, 'flywheelChargeSpin', 0, 40, 0.1, 'extra spin at full wind (rad/s)');
+  R(hero, c, 'idleWind', 0, 1, 0.01, 'idle wind with nothing banked');
+  R(hero, c, 'windCurve', 0.2, 4, 0.05, 'idle wind lateness');
+  R(hero, c, 'flywheelLunge', 0, 4, 0.01, 'release hop distance (m)');
+  R(hero, c, 'flywheelHop', 0, 2, 0.01, 'release hop height (m)');
+  R(hero, c, 'settleTilt', 0, 1.55, 0.01, 'settles through (rad)');
+  R(hero, c, 'settlePrecession', 0, 20, 0.1, 'settle wobble (rad/s)');
+  R(hero, c, 'sinkDepth', 0, 2.5, 0.01, 'sinks on exit (× radius)');
+  R(hero, c, 'throwHeight', 0, 4, 0.01, 'throw arc (m)');
+  R(hero, c, 'throwScale', 0.05, 1, 0.01, 'size in the hand');
+  R(hero, c, 'landKnock', 0, 1, 0.01, 'landing knock');
+  R(hero, c, 'flywheelMetalness', 0, 1, 0.01, 'metalness');
+  R(hero, c, 'flywheelRoughness', 0, 1, 0.01, 'roughness');
+  R(hero, c, 'flywheelGlow', 0, 4, 0.01, 'inner glow as it winds');
+  R(hero, c, 'haloGlow', 0, 6, 0.05, 'spin halo glow');
+  R(hero, c, 'haloStreaks', 0, 3, 0.01, 'rotational streaks');
+  R(hero, c, 'haloSpan', 1, 2, 0.01, 'halo radius (× wheel)');
+  R(hero, c, 'rimSparkRate', 0, 120, 1, 'rim sparks / s at full wind');
+  color(hero, c, 'ironColor', 'iron');
+  gradient(hero, c, 'colorWheel', 'ramp (core, tint, body, deep)');
+
+  const plate = sub(folder, '0 · The ledger plate (floor)');
+  R(plate, c, 'plateOpacity', 0, 1, 0.01, 'iron opacity');
+  R(plate, c, 'plateEngrave', 0, 3, 0.01, 'engraving');
+  R(plate, c, 'plateGlow', 0, 6, 0.05, 'glow');
+  R(plate, c, 'scorchCool', 0.1, 5, 0.01, 'release wedge cools over (s)');
 
   const dial = sub(folder, '1 · The dial');
   R(dial, c, 'landTime', 0.01, 1.5, 0.01, 'eases in over (s)');
@@ -762,6 +1061,7 @@ export function buildEditor(gui, c, Editor) {
 
   const coils = sub(folder, '3 · The coils');
   R(coils, c, 'springSize', 0.3, 2, 0.05, 'coil size');
+  R(coils, c, 'coilThickness', 0.5, 5, 0.05, 'coil girth');
   R(coils, c, 'coilGlow', 0, 3, 0.01, 'glow at rest');
   R(coils, c, 'coilCharge', 0, 3, 0.01, 'extra glow at a full bank');
   color(coils, c, 'springColor', 'charge coils');

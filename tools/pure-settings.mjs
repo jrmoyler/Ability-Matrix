@@ -38,10 +38,45 @@ export const PROFILE = {
   arcane: { speed: 1.05, impulse: 0.95, lift: 1.1, shake: 0.8, flash: 1.0, dust: 0.5, streak: 1.3, chip: 0.4, spin: 1.3, glow: 1.3, flicker: 0.45, lens: 0.9, kind: 'rune', size: 0.55, solid: false, mote: 'glint' },
   illusion: { speed: 1.2, impulse: 0.8, lift: 1.0, shake: 0.6, flash: 1.1, dust: 0.4, streak: 1.1, chip: 0.3, spin: 1.1, glow: 1.1, flicker: 0.6, lens: 1.4, kind: 'pane', size: 0.6, solid: false, mote: 'glint' },
   time: { speed: 0.95, impulse: 0.9, lift: 1.0, shake: 0.7, flash: 0.9, dust: 0.5, streak: 1.0, chip: 0.5, spin: 0.9, glow: 1.1, flicker: 0.2, lens: 1.1, kind: 'cog', size: 0.55, solid: true, mote: 'glint' },
-  motion: { speed: 1.5, impulse: 1.1, lift: 0.8, shake: 0.9, flash: 0.8, dust: 0.9, streak: 1.7, chip: 0.7, spin: 1.4, glow: 1.0, flicker: 0.3, lens: 1.1, kind: 'bar', size: 0.5, solid: false, mote: 'glint' },
+  motion: { speed: 1.5, impulse: 1.1, lift: 0.8, shake: 0.9, flash: 0.8, dust: 0.9, streak: 1.7, chip: 0.7, spin: 1.4, glow: 1.0, flicker: 0.3, lens: 1.1, kind: 'bar', size: 0.5, solid: true, mote: 'glint' },
   tech: { speed: 1.2, impulse: 1.0, lift: 0.9, shake: 0.8, flash: 1.0, dust: 0.5, streak: 1.3, chip: 1.0, spin: 1.0, glow: 1.1, flicker: 0.4, lens: 0.8, kind: 'block', size: 0.45, solid: true, mote: 'glint' },
   force: { speed: 1.1, impulse: 1.4, lift: 1.0, shake: 1.3, flash: 0.9, dust: 0.9, streak: 1.0, chip: 1.0, spin: 0.9, glow: 1.0, flicker: 0.2, lens: 1.2, kind: 'wedge', size: 0.6, solid: true, mote: 'dust' }
 };
+
+/**
+ * The two element classes. A **solid** element (earth, crystal, gravity, time,
+ * motion, tech, force) is matter: its hero rig and pieces are a patched
+ * `MeshStandardMaterial` lit by the scene sun, casting and receiving shadows,
+ * with the four-stop ramp as albedo and only its hot parts emissive. Every
+ * other element is **energy**: emissive, but with a dark body and a fresnel
+ * shell so it reads as a volume rather than a wireframe. `rough`/`metal` are
+ * the solid's PBR defaults (stone is rough, brass and alloy are metal).
+ */
+export const MATTER = {
+  earth: { rough: 0.92, metal: 0.0 },
+  crystal: { rough: 0.16, metal: 0.08 },
+  gravity: { rough: 0.55, metal: 0.45 },
+  time: { rough: 0.32, metal: 0.85 },
+  motion: { rough: 0.38, metal: 0.62 },
+  tech: { rough: 0.34, metal: 0.8 },
+  force: { rough: 0.5, metal: 0.3 }
+};
+
+/**
+ * How pale the ground field the element leaves lies, 0 (a dark stain or
+ * scorch) .. 1 (a pale coat: rime, glare, scoured sand). Solid elements burn
+ * or crack the floor dark; crystal and the radiant elements frost or bleach it.
+ */
+export const GROUND_COAT = {
+  earth: 0.12, crystal: 0.55, wind: 0.35, sound: 0.2, light: 0.42, holy: 0.4, cosmic: 0.1, gravity: 0.05,
+  shadow: 0.0, void: 0.0, arcane: 0.12, illusion: 0.25, time: 0.2, motion: 0.1, tech: 0.08, force: 0.08
+};
+
+/** The residue decal the impact leaves for after the cast is gone: filled, never a ring. */
+export const RESIDUE = {
+  crystal: 'FROST'
+};
+export const residueFor = (element) => RESIDUE[element] ?? 'SCORCH';
 
 /**
  * Hero rig defaults by archetype: [size m, ring fit, travel m, turn, fold].
@@ -204,6 +239,7 @@ export function settingsFor(spell) {
   const well = spell.archetype === 'well';
   const mark = MARK[spell.element];
   const { hot, light, body, deep } = paletteFor(spell);
+  const matter = MATTER[spell.element];
   return {
     // the cast
     range: 18,
@@ -257,10 +293,16 @@ export function settingsFor(spell) {
     // ground
     groundWidth: zone ? 9 : 2.4,
     groundGlow: 1.4,
-    groundLife: 2.2,
+    groundLife: 4.5,
     groundOpacity: 1,
+    groundHeat: p.solid ? 1.1 : 1.5,
+    groundCoat: GROUND_COAT[spell.element],
+    ...(zone ? { groundLand: 0.32, groundTelegraph: 0.32 } : {}),
+    groundStain: 0.9,
+    groundStainReach: zone ? 1.05 : 0.9,
     colorGroundA: body,
     colorGroundB: deep,
+    colorGroundStain: mark.body,
 
     // detail pieces
     detailCount,
@@ -270,9 +312,11 @@ export function settingsFor(spell) {
     detailLift: detailLift * p.lift,
     detailSpin: 1,
     detailGlow: 1.2 * p.glow,
-    detailOpacity: p.solid ? 0.95 : 0.8,
+    detailOpacity: p.solid ? 1 : 0.85,
     detailSwing: 1,
     detailEdge: 1,
+    detailDeep: 0.7,
+    ...(matter ? { detailRough: matter.rough, detailMetal: matter.metal, detailShadow: 1 } : {}),
     colorDetailA: light,
     colorDetailB: body,
     colorDetailC: deep,
@@ -285,7 +329,11 @@ export function settingsFor(spell) {
     heroSwing,
     heroGlow: 1.1 * p.glow,
     heroEdge: 1.2,
-    heroOpacity: p.solid ? 0.95 : 0.85,
+    heroOpacity: p.solid ? 1 : 0.9,
+    heroDeep: spell.element === 'light' || spell.element === 'holy' ? 0.5 : 0.75,
+    heroMaxHeight: 5,
+    ...(zone ? { heroFit: 0.72 } : { heroMinSpan: 1.5 }),
+    ...(matter ? { heroRough: matter.rough, heroMetal: matter.metal, heroShadow: 1 } : {}),
     colorHeroA: light,
     colorHeroB: body,
     colorHeroC: deep,
@@ -334,11 +382,15 @@ export function settingsFor(spell) {
     colorFlash: light,
     burstRadius: (zone ? 3.2 : 2) + v * 0.3,
     burstLife: 0.7,
+    burstOpacity: p.solid ? 0.12 : 0.3,
+    impactChips: Math.round((p.solid ? 34 : 10) * p.chip),
+    impactDust: Math.round((p.solid ? 26 : 8) * p.dust),
     colorBurstA: hot,
     colorBurstB: body,
     colorBurstC: deep,
     shockRadius: zone ? 6.5 : 3.2,
     shockLife: 0.85,
+    shockRing: 0.3,
     colorShockA: body,
     colorShockB: hot,
 
@@ -408,17 +460,20 @@ const GROUPS = [
   ['0 · the hand', ['handForward', 'handSide', 'handHeight', 'handFlare', 'handSparks', 'handMotes']],
   ['1 · the body', ['spinSpeed', 'thickness', 'count', 'height', 'sweep', 'lean', 'bodyOpacity', 'edgeGlow', 'softFade', 'bodyGlow', 'bodyPulse', 'bodyPulseRate', 'colorA', 'colorB', 'colorC', 'lensWarp']],
   ['2 · the voice', ['voiceOpacity', 'colorVoiceA', 'colorVoiceB']],
-  ['3 · the ground', ['groundWidth', 'groundGlow', 'groundLife', 'groundOpacity', 'colorGroundA', 'colorGroundB']],
-  ['4 · detail pieces', ['detailCount', 'detailSize', 'detailSizeJitter', 'detailSpread', 'detailLift', 'detailSpin', 'detailGlow', 'detailOpacity', 'detailSwing', 'detailEdge', 'colorDetailA', 'colorDetailB', 'colorDetailC']],
-  ['5 · hero rig', ['heroSize', 'heroReach', 'heroLift', 'heroSpin', 'heroSwing', 'heroGlow', 'heroEdge', 'heroOpacity', 'colorHeroA', 'colorHeroB', 'colorHeroC']],
+  ['3 · the ground', ['groundWidth', 'groundGlow', 'groundLife', 'groundOpacity', 'groundLand', 'groundHeat', 'groundCoat', 'groundTelegraph', 'groundStain', 'groundStainReach', 'colorGroundA', 'colorGroundB', 'colorGroundStain']],
+  ['4 · detail pieces', ['detailCount', 'detailSize', 'detailSizeJitter', 'detailSpread', 'detailLift', 'detailSpin', 'detailGlow', 'detailOpacity', 'detailSwing', 'detailEdge', 'detailDeep', 'detailRough', 'detailMetal', 'detailShadow', 'colorDetailA', 'colorDetailB', 'colorDetailC']],
+  ['5 · hero rig', ['heroSize', 'heroReach', 'heroLift', 'heroSpin', 'heroSwing', 'heroGlow', 'heroEdge', 'heroOpacity', 'heroDeep', 'heroMaxHeight', 'heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'colorHeroA', 'colorHeroB', 'colorHeroC']],
   ['6 · shed', ['dustRate', 'dustSize', 'dustSpeed', 'dustLife', 'dustOpacity', 'colorDustA', 'colorDustB', 'colorDustC', 'colorDustD', 'streakRate', 'streakSize', 'streakSpeed', 'streakLife', 'streakStretch', 'colorStreakA', 'colorStreakB', 'colorStreakC', 'colorStreakD', 'chipRate', 'chipSize', 'chipSpeed', 'chipLife', 'colorChipA', 'colorChipB', 'colorChipC', 'colorChipD']],
   ['7 · motes', ['moteRate', 'moteSize', 'moteSpeed', 'moteLife', 'colorMoteA', 'colorMoteB', 'colorMoteC', 'colorMoteD']],
-  ['8 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'colorShockA', 'colorShockB']],
+  ['8 · the beat', ['impactShake', 'impactFlash', 'colorFlash', 'burstRadius', 'burstLife', 'burstOpacity', 'impactChips', 'impactDust', 'colorBurstA', 'colorBurstB', 'colorBurstC', 'shockRadius', 'shockLife', 'shockRing', 'colorShockA', 'colorShockB']],
   ['9 · the aftershock', ['aftershockAt', 'aftershockRadius', 'aftershockShake', 'aftershockLight', 'aftershockLife']],
   ['10 · bodies', ['hitRadius', 'hitImpulse', 'hitLift', 'hitSpin']],
   ['11 · the mark', ['markAmount', 'markTime', 'markLife', 'markMotes', 'colorMarkBody', 'colorMarkRim', 'markRimGlow', 'colorMarkEdge', 'markEdgeGlow', 'markEdgeWidth']],
   ['12 · the trail', ['trailWidth', 'trailLife', 'trailOpacity', 'trailGlow', 'trailCore', 'trailBreakup', 'scarWidth', 'scarLife', 'scarOpacity', 'scarGlow', 'colorScarA', 'colorScarB', 'wakeSpacing', 'wakeRadius', 'wakeLife', 'wakeChips'], 'line']
 ];
+
+/** Keys only some casts have: zone/line framing, and the PBR of solid elements. */
+const OPTIONAL = new Set(['groundLand', 'groundTelegraph', 'heroFit', 'heroMinSpan', 'heroRough', 'heroMetal', 'heroShadow', 'detailRough', 'detailMetal', 'detailShadow']);
 
 const NOTE = {
   range: 'maximum cast distance, metres',
@@ -445,8 +500,15 @@ const NOTE = {
   lensWarp: 'strength of the distortion it writes',
   voiceOpacity: 'strength of the second placement',
   groundWidth: 'footprint width, metres',
-  groundLife: 'seconds the stamp lingers',
-  groundOpacity: 'strength of the stamp',
+  groundLife: 'seconds the residue decal stays on the floor after the beat, × global lifetime',
+  groundOpacity: 'strength of the field',
+  groundLand: 'seconds the field takes to land out to the rim after the beat',
+  groundHeat: 'how hot the fresh field and its landing lip glow, cooling through the fade',
+  groundCoat: '0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)',
+  groundTelegraph: 'how strongly the footprint shows before the beat',
+  groundStain: 'strength of the residue decal left at the beat',
+  groundStainReach: 'residue radius, × the circle (zone) or × the ground width (line)',
+  colorGroundStain: 'the dark tone the floor is stained toward',
   detailCount: 'pieces thrown (max 48)',
   detailSize: 'mean piece size, metres',
   detailSizeJitter: '± fraction of that',
@@ -457,6 +519,10 @@ const NOTE = {
   detailOpacity: 'how solid the pieces are',
   detailSwing: 'how far each piece folds its parts, × authored swing',
   detailEdge: 'light along the piece arrises',
+  detailDeep: '0..1 how far the pieces fall from body to deep tone across their form',
+  detailRough: 'roughness of the lit pieces',
+  detailMetal: 'metalness of the lit pieces',
+  detailShadow: '1 = the pieces cast shadows',
   heroSize: 'scale of the hero rig, metres per authored unit',
   heroReach: 'ring rigs: share of the circle radius they span',
   heroLift: 'how far the rig rises, drops or arcs, metres',
@@ -465,6 +531,13 @@ const NOTE = {
   heroGlow: 'rim light on the rig',
   heroEdge: 'light along the rig arrises',
   heroOpacity: 'how solid the rig is',
+  heroDeep: '0..1 how far the rig falls from body to deep tone across its form (colour depth)',
+  heroMaxHeight: 'the rig is scaled and lowered to keep its top under this, metres',
+  heroFit: 'mass rigs grow to at least this share of the circle radius (heroSize is the floor)',
+  heroMinSpan: 'line rigs grow to at least this cross-section, metres (heroSize is the floor)',
+  heroRough: 'roughness of the lit rig',
+  heroMetal: 'metalness of the lit rig',
+  heroShadow: '1 = the rig casts shadows',
   dustRate: 'puffs per second',
   streakRate: 'sparks per second',
   chipRate: 'fragments per second',
@@ -473,6 +546,10 @@ const NOTE = {
   impactShake: 'camera punch on the beat',
   impactFlash: 'screen flash on the beat',
   burstRadius: 'burst size, metres',
+  burstOpacity: 'strength of the burst shell; matter keeps it low and hits with debris instead',
+  impactChips: 'fragments thrown up and out on the beat',
+  impactDust: 'dust puffs rolled out along the floor on the beat',
+  shockRing: 'strength of the thin shock ring on the beat (0 = none)',
   trailWidth: 'ribbon width at the head, metres',
   trailLife: 'seconds a point of ribbon lasts after the head crosses it',
   trailOpacity: 'strength of the ribbon',
@@ -542,7 +619,10 @@ export function configSource(spell) {
     if (lines.length) lines.push('');
     lines.push(`    /* --- ${title} --- */`);
     for (const key of keys) {
-      if (!(key in s)) throw new Error(`${spell.id}: group names unknown key ${key}`);
+      if (!(key in s)) {
+        if (OPTIONAL.has(key)) continue;
+        throw new Error(`${spell.id}: group names unknown key ${key}`);
+      }
       const note = NOTE[key] ? ` // ${NOTE[key]}` : '';
       lines.push(`    ${key}: ${literal(s[key])}${key === last ? '' : ','}${note}`);
     }

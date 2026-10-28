@@ -1,4 +1,4 @@
-import { Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, Points, Vector3 } from 'three';
+import { DoubleSide, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, Points, Vector3 } from 'three';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { impactForce } from '../ImpactForce.js';
 import { prefersReducedMotion } from '../ExpansionAtmosphere.js';
@@ -18,6 +18,7 @@ import { Easing } from '../../../utils/math.js';
 import {
   createBezelGeometry,
   createBobGeometry,
+  createDialGeometry,
   createFragmentGeometry,
   createGearGeometry,
   createHandGeometry,
@@ -168,6 +169,14 @@ export class Ability extends BaseAbility {
       color: 0x8d6032, metalness: 0.86, roughness: 0.24, emissive: 0x472000, emissiveIntensity: 0.8,
     }));
     this.lit = own(createChronoGlowMaterial());
+    // The enamel dial and its case: the clock's body. Dark violet enamel
+    // (the ramp's deep stop) under the brass, lit by the sun, shadowing.
+    this.enamel = own(new MeshStandardMaterial({
+      color: 0x1b1430, metalness: 0.25, roughness: 0.32, emissive: 0x120a22, emissiveIntensity: 1, side: DoubleSide,
+    }));
+    this.dial = new Mesh(own(createDialGeometry()), this.enamel);
+    this.dial.castShadow = true;
+    this.clockwork.add(this.dial);
     const outer = own(createBezelGeometry('outer'));
     const inner = own(createBezelGeometry('inner'));
     this.rings = [];
@@ -235,7 +244,9 @@ export class Ability extends BaseAbility {
     this.bob = new Mesh(own(createBobGeometry()), this.lit);
     this.bob.position.y = -1.05;
     this.pendulum.add(this.bob);
-    this.clockwork.add(this.pendulum);
+    // Hung from the suspended clock's arbor in the root, not the tilted
+    // clockwork, so it always hangs plumb under the clock.
+    this.root.add(this.pendulum);
 
     // 4 · tomorrow's ring
     this.futureMat = own(createFutureRingMaterial());
@@ -308,6 +319,7 @@ export class Ability extends BaseAbility {
     this._scope = bindExpansionCombat(this.ctx, 'matrix-expansion/borrowed-tomorrow');
     this.failure = null;
     this._moteTimer = 0;
+    this._trailT = 0;
     this._releaseCount = 0;
     this._clock = 0;
     this._calm = prefersReducedMotion();
@@ -468,8 +480,56 @@ export class Ability extends BaseAbility {
     const debt = this.phase === 'travel' ? 0 : anticipation;
 
     this.root.position.copy(this.position);
-    this.root.scale.setScalar(Math.max(0.001, arrival * fade));
-    this.clockwork.scale.setScalar(c.clockSize);
+    this.root.scale.setScalar(Math.max(0.001, fade));
+    const travelling = this.phase === 'travel';
+
+    // 2a · the suspended clock: thrown small and spinning from the hand in an
+    // arc, it unfolds over the circle standing nearly upright, facing the
+    // caster, hovering at `clockLift`; in the last `slamTime` before the debt
+    // falls due it drops flat onto its own face — the strike is the clock
+    // hitting the floor on the hour.
+    const yaw = Math.atan2(this.direction.x, this.direction.z);
+    const unfold = travelling ? 0 : Easing.outBack(clamp(this.impactTime / Math.max(0.05, c.unfoldTime)));
+    const slamStart = Math.max(0, c.delay - Math.max(0.02, c.slamTime));
+    const slam = this._released ? 1 : travelling ? 0 : Easing.inCubic(clamp((this.impactTime - slamStart) / Math.max(0.02, c.slamTime)));
+    let hubY, tilt, size;
+    if (travelling) {
+      hubY = c.travelHeight + Math.sin(Math.PI * clamp(this.u)) * c.travelArc;
+      tilt = c.clockTilt;
+      size = c.clockSize * c.travelScale * smooth(this.u * 6);
+    } else {
+      hubY = (c.travelHeight + (c.clockLift - c.travelHeight) * clamp(unfold)) * (1 - slam) + 0.08 * slam;
+      tilt = c.clockTilt * (1 - slam);
+      size = c.clockSize * (c.travelScale + (1 - c.travelScale) * unfold);
+    }
+    this.clockwork.position.set(0, hubY, 0);
+    this.clockwork.rotation.set(-tilt, yaw, 0, 'YXZ');
+    if (travelling) this.clockwork.rotation.y += this.age * c.travelSpin;
+    this.clockwork.scale.setScalar(Math.max(0.001, size));
+    this.dial.scale.set(r * 0.9, r * 0.9 * c.dialDepth, r * 0.9);
+    this.dial.position.y = -0.02;
+    this.enamel.color.copy(getColor(c.dialColor));
+    this.enamel.emissive.copy(getColor(c.shadowColor));
+    this.enamel.emissiveIntensity = c.dialGlow * g.glow * (0.4 + debt * 0.8);
+    this.enamel.roughness = c.dialRoughness;
+    // The floor face, tomorrow's ring, the sand and the lens belong to the
+    // circle: they wait for the clock to arrive.
+    this.field.visible = !travelling;
+    this.sand.visible = !travelling;
+    if (travelling && dt > 0) {
+      this._trailT += dt;
+      if (this._trailT >= 0.03) {
+        this._trailT = 0;
+        _pos.copy(this.position).setY(hubY);
+        _burst.count = c.trailCount;
+        _burst.size = c.moteSize;
+        _burst.life = c.trailLife;
+        _burst.speed = 0.3;
+        _burst.spread = 1;
+        _burst.radius = 0.25;
+        expansionBurst(this.fx, _pos, _burst);
+      }
+    }
 
     // 1 · the face
     this.field.scale.set(r * 2, r * 2, 1);
@@ -520,16 +580,19 @@ export class Ability extends BaseAbility {
     this.indices.instanceMatrix.needsUpdate = true;
 
     // 3 · the pendulum: its swing dies away with the debt, exactly to zero.
-    this.pendulum.position.y = c.pendulumHeight;
-    this.rod.scale.set(1, c.pendulumLength, 1);
+    // Hung from the arbor, just behind the dial, swinging across the view.
+    this.pendulum.visible = !travelling && slam < 0.5;
+    this.pendulum.position.set(this.direction.x * c.pendulumBack, hubY + c.pendulumHeight, this.direction.z * c.pendulumBack);
+    this.pendulum.scale.setScalar(Math.max(0.001, unfold));
+    this.rod.scale.set(c.pendulumThick, c.pendulumLength, c.pendulumThick);
     this.bob.position.y = -c.pendulumLength;
-    this.pendulum.rotation.z = Math.sin(this.age * (c.pendulumRate ?? 3)) * (c.pendulumArc ?? 0.55) * (1 - anticipation);
-    this.pendulum.rotation.y = this.age * c.rotationSpeed * 0.2;
+    this.bob.scale.setScalar(c.bobScale);
+    this.pendulum.rotation.set(0, yaw, Math.sin(this.age * (c.pendulumRate ?? 3)) * (c.pendulumArc ?? 0.55) * (1 - anticipation));
 
     // 4 · tomorrow's ring descends with the debt and lands at the strike
     const land = Easing.inCubic(debt);
     const vanish = Math.max(0.01, c.futureVanish);
-    this.future.visible = !this._released || since < vanish;
+    this.future.visible = !travelling && (!this._released || since < vanish);
     this.future.position.y = 0.2 + (c.futureHeight - 0.2) * (1 - land);
     this.future.scale.set(r * 1.9, r * 1.9, 1);
     const fu = this._futureState;
@@ -668,7 +731,22 @@ export function buildEditor(gui, c, Editor) {
   color(face, c, 'shadowColor', 'future shadow');
 
   const work = sub(folder, '2 · The clockwork');
-  R(work, c, 'clockSize', 0.3, 2, 0.01, 'clock size');
+  R(work, c, 'clockSize', 0.1, 2, 0.01, 'clock size');
+  R(work, c, 'clockTilt', 0, 1.6, 0.01, 'stands up (rad)');
+  R(work, c, 'clockLift', 0.3, 6, 0.05, 'hovers at (m)');
+  R(work, c, 'unfoldTime', 0.05, 1.5, 0.01, 'unfolds over (s)');
+  R(work, c, 'slamTime', 0.02, 0.8, 0.01, 'drops flat over (s)');
+  R(work, c, 'dialDepth', 0.05, 1.5, 0.01, 'dial thickness');
+  color(work, c, 'dialColor', 'enamel');
+  R(work, c, 'dialGlow', 0, 4, 0.05, 'enamel glow');
+  R(work, c, 'dialRoughness', 0, 1, 0.01, 'enamel roughness');
+  const flight = sub(folder, '2b · The throw');
+  R(flight, c, 'travelHeight', 0.2, 4, 0.05, 'thrown at (m)');
+  R(flight, c, 'travelArc', 0, 6, 0.05, 'arc height (m)');
+  R(flight, c, 'travelScale', 0.05, 1, 0.01, 'size in flight');
+  R(flight, c, 'travelSpin', 0, 30, 0.5, 'spin in flight (rad/s)');
+  R(flight, c, 'trailCount', 0, 10, 1, 'trail chips');
+  R(flight, c, 'trailLife', 0.05, 2, 0.01, 'trail life (s)');
   R(work, c, 'rotationSpeed', 0, 4, 0.05, 'clock speed');
   R(work, c, 'gearSpeed', 0, 4, 0.05, 'gear train speed');
   R(work, c, 'gearScale', 0.2, 1.6, 0.01, 'gear train size');
@@ -682,8 +760,11 @@ export function buildEditor(gui, c, Editor) {
   const pend = sub(folder, '3 · The pendulum');
   R(pend, c, 'pendulumRate', 0, 8, 0.1, 'pendulum speed');
   R(pend, c, 'pendulumArc', 0, 1.2, 0.05, 'pendulum arc');
-  R(pend, c, 'pendulumHeight', 0.5, 4, 0.01, 'pivot height (m)');
-  R(pend, c, 'pendulumLength', 0.2, 2.5, 0.01, 'rod length (m)');
+  R(pend, c, 'pendulumHeight', -2, 2, 0.01, 'pivot above the arbor (m)');
+  R(pend, c, 'pendulumLength', 0.2, 4, 0.01, 'rod length (m)');
+  R(pend, c, 'pendulumBack', -1, 1.5, 0.01, 'behind the dial (m)');
+  R(pend, c, 'pendulumThick', 0.2, 4, 0.05, 'rod thickness');
+  R(pend, c, 'bobScale', 0.2, 5, 0.05, 'bob size');
 
   const future = sub(folder, "4 · Tomorrow's ring");
   R(future, c, 'futureHeight', 0.3, 8, 0.05, 'starts at (m)');

@@ -29,7 +29,7 @@ export default {
     /* --- the cast itself --- */
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
-    speed: 20, // metres/second the travelling lens skims to the circle
+    speed: 30, // metres/second the travelling lens skims to the circle
     cooldown: 6, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 4, // metres: the heliostat only judges enemies inside this circle
@@ -65,8 +65,8 @@ export default {
     /* ================================================================ */
     /* 2 · THE HELIOSTAT — twelve concave mirror panels on a hub         */
     /* ================================================================ */
-    mirrorHeight: 2.7, // metres above the target the dish hangs
-    mirrorScale: 1, // dish size
+    mirrorHeight: 3.6, // metres above the target the dish hangs
+    mirrorScale: 1.8, // dish size (1 = 2.6 m across)
     mirrorSpin: 1.2, // radians/second the dish turns about its axis
     mirrorWobble: 0.12, // radians the dish rocks while it tracks the sun
     mirrorGlow: 1.3, // emissive strength of the panels
@@ -75,24 +75,24 @@ export default {
     openTime: 0.35, // seconds the dish takes to unfold on arrival
 
     /* --- orbiting lens facets --- */
-    facetRadius: 1.2, // metres from the axis the facets orbit
+    facetRadius: 2.3, // metres from the axis the facets orbit
     facetOrbit: 0.4, // radians/second, alternate facets counter-rotate
-    facetScale: 0.6, // facet size before the charge swells them
+    facetScale: 1.1, // facet size before the charge swells them
     facetGlow: 1.2,
 
     /* --- the iris round the hub --- */
-    irisScale: 1, // blade size
-    irisRadius: 0.42, // metres the blades stand from the hub when open
+    irisScale: 1.6, // blade size
+    irisRadius: 0.7, // metres the blades stand from the hub when open
     irisClose: 0.35, // metres the blades sweep outward as the charge builds
     irisSpin: 0.35, // radians/second the iris turns
 
     /* ================================================================ */
     /* 3 · THE GATHER — the focus spot and the cone of light             */
     /* ================================================================ */
-    focusRadius: 1.5, // metres: the sun-dial disc under the target
+    focusRadius: 2.6, // metres: the sun-dial disc under the target
     focusTighten: 0.75, // how far the bright spot narrows by the end of the charge
     focusGlow: 0.9,
-    coneGlow: 0.55, // the fluted cone from the dish down to the spot
+    coneGlow: 0.8, // the fluted cone from the dish down to the spot
     coneBands: 12, // light flutes round the cone (one per mirror reads best)
     chargeRumble: 0.05, // camera rumble as the charge peaks
 
@@ -101,24 +101,24 @@ export default {
     /* ================================================================ */
     beamDuration: 0.6, // seconds the committed ray stays lit
     releaseDuration: 0.45, // seconds the heliostat takes to fold away after
-    beamWidth: 1, // ray ribbons and core column, × authored width
+    beamWidth: 2.6, // ray ribbons and core column, × authored width
     beamGlow: 2.2, // emissive strength of the ray (bloom picks up > 1)
 
     /* --- heat shimmer round the ray (distortion layer) --- */
     warpStrength: 0.7,
-    warpWidth: 1.4, // metres
+    warpWidth: 2.4, // metres
     warpScale: 2.2, // noise frequency
     warpSpeed: 2.4, // how fast the shimmer rises
 
     /* ================================================================ */
     /* 5 · THE CONTACT                                                   */
     /* ================================================================ */
-    impactScale: 1, // aperture halo and shard spread
+    impactScale: 1.8, // aperture halo and shard spread
     impactFxDuration: 0.8, // seconds the aperture and shards live
     impactGlow: 0.8, // brightness of the burst, shockwave and halo
     impactShake: 0.28, // camera knock (× global camera shake)
     impactFlash: 0.32, // screen flash (× global explosion intensity)
-    scorchRadius: 0.9, // metres: the glassed burn mark
+    scorchRadius: 1.6, // metres: the glassed burn mark
     scorchLife: 2.6, // seconds the burn takes to cool
 
     /* ================================================================ */
@@ -127,15 +127,59 @@ export default {
     particleRate: 25, // ambient motes round the locked target, per second
     particleSize: 0.1,
     glintRate: 42, // glints shed off the mirrors and the travelling lens, per second
-    glintSize: 0.06,
+    glintSize: 0.09,
     glintLife: 0.6, // seconds
     glintSpeed: 1.6, // metres/second
-    sparkCount: 30, // white-hot sparks thrown by the ray's contact
+    sparkCount: 48, // white-hot sparks thrown by the ray's contact
     sparkSpeed: 4.5,
     sparkSize: 0.05,
     colorGlintA: '#ffffff',
     colorGlintB: '#fff1bd',
     colorGlintC: '#ffcf72',
-    colorGlintD: '#a76d24'
+    colorGlintD: '#a76d24',
+
+    /* ================================================================ */
+    /* 7 · THE HELIOSTAT FIELD — mirror pylons round the circle          */
+    /* ================================================================ */
+    pylonCount: 8, // bronze pylons that rise round the circle (max 12)
+    pylonRing: 0.92, // × zoneRadius: where they stand
+    pylonPhase: 0.39, // radians: bearing of the first pylon
+    postHeight: 2.6, // metres from the floor to the panel's trunnion
+    postWidth: 1, // girth of the lathed post
+    panelScale: 1.1, // mirror panel size (1 = 1.8 × 1.2 m)
+    riseTime: 0.35, // seconds a pylon takes to shoulder out of the floor
+    riseStagger: 0.035, // seconds between one pylon and the next
+    sinkDepth: 1.4, // metres below the floor they rise from and sink back to
+    fieldFocusHeight: 3.2, // metres: where the panels gather light with no target
+    sweepRadius: 0.5, // × ring: the sun's circle after the ray, which the panels follow
+    sweepSpeed: 0.9, // radians/second that sun crosses the court
+    bronzeColor: '#3a2410', // cast bronze of posts, frames and yokes
+    bronzeMetal: 0.85,
+    bronzeRough: 0.42,
+    bronzeHeat: 0.08, // how warm the bronze glows as the charge builds
+    glassColor: '#dfe8ff', // mirror glass albedo
+    glassGlow: 0.6, // sunlight held in the glass, scaled by the gather
+    glassRough: 0.08,
+    glassPunch: 2.5, // flash in every panel on the ray
+    shaftWidth: 1, // reflected shafts, × panel width
+    shaftGlow: 1.3,
+    shaftFlow: 2.5, // how fast light runs up the shafts
+    shaftLinger: 0.3, // shaft strength while the panels follow the sun afterwards
+    shaftMiss: 0.35, // shaft strength when there is nobody to judge
+
+    /* ================================================================ */
+    /* 8 · THE SUN-COURT — the floor dial                                */
+    /* ================================================================ */
+    courtScale: 1.05, // × zoneRadius
+    courtOpacity: 0.85,
+    courtGlow: 1.3,
+    courtLines: 1, // hour lines and seams
+    courtDrawTime: 0.4, // seconds the dial takes to draw in from the centre
+    courtNoise: 1, // bronze flag scale
+    courtScorchRadius: 2.2, // metres of floor the ray glasses
+    handSpeed: 0.9, // radians/second the gnomon's hand sweeps
+    courtTintColor: '#fff1bd', // pale tint (ramp B)
+    courtBodyColor: '#e0a040', // gold body (ramp C)
+    courtDeepColor: '#1c0f05' // deep bronze (ramp D)
   }
 };

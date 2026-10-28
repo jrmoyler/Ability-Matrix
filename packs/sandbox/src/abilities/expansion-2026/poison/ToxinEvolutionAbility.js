@@ -24,7 +24,8 @@ import {
   createSporeMaterial,
   createCoilMaterial,
   createPoolMaterial,
-  createHazeMaterial
+  createHazeMaterial,
+  createBlightMaterial
 } from './ToxinMaterials.js';
 
 export { toxinMembraneGeometry, toxinVesselGeometry, toxinCoilGeometry };
@@ -52,6 +53,7 @@ const _solid = { time: 0, fade: 1, reduced: false };
 const _coil = { time: 0, fade: 1, pulse: 0, grow: 0 };
 const _pool = { time: 0, stage: 0, fade: 1, spread: 0 };
 const _haze = { time: 0, width: 1, height: 1, strength: 0 };
+const _blight = { time: 0, reach: 0, fade: 1, pulse: 0, stage: 0, hostX: 0, hostZ: 0 };
 
 /**
  * TOXIN EVOLUTION — an infection that grows through three generations.
@@ -77,8 +79,21 @@ const _haze = { time: 0, width: 1, height: 1, strength: 0 };
  *      membrane dissolves from the floor up, coils and vessels retract, the
  *      stain dries out.
  *
+ * ## Before a host is found
+ *
+ * The cast must read on its own, host or not. While the seed vessel flies,
+ * the **blight** — a floor field the size of the search circle — creeps in
+ * from the rim toward the landing point, so the player sees where the toxin
+ * will look before it looks. If nobody is in the circle the vessel still
+ * bursts there: a **dormant colony** (membrane husk, stain, spores) rises
+ * from the floor, gropes for `dormantTime` and withers — presentation only,
+ * no strike is ever committed without a host.
+ *
  * Layers, each a folder in the editor:
  *
+ *   - the blight (`createBlightMaterial`) — the search circle rotting: veins
+ *     creep in from the rim during travel, bend toward the chosen host, carry
+ *     each stage's pulse inward and stay through the linger
  *   - the membrane (`createMembraneMaterial`) — additive, so the host stays
  *     visible inside it, fresnel-dense at the silhouette, voronoi cysts
  *   - vessels and spores (`createVesselMaterial`, `createSporeMaterial`)
@@ -161,6 +176,15 @@ export class ToxinEvolutionAbility extends Ability {
     this.floor.position.y = 0.045;
     this.effect.add(this.floor);
 
+    /* ---- the blight: the search circle, fixed on the aim point ---- */
+    this.blightMat = m(createBlightMaterial());
+    this.blight = new Mesh(g(toxinPoolGeometry(96, 6)), this.blightMat);
+    this.blight.position.y = 0.035;
+    this.blight.renderOrder = 1;
+    this.blight.visible = false;
+    this.group.add(this.blight);
+    this.aim = new Vector3();
+
     this.coils = [];
     this.coilMaterials = [];
     for (let i = 0; i < MAX_STAGES; i++) {
@@ -206,6 +230,8 @@ export class ToxinEvolutionAbility extends Ability {
       this.travelPod.add(s);
       this.travelSpores.push(s);
     }
+    this.blight.layers.set(LAYER.VFX);
+    this.blight.frustumCulled = false;
     this.travelPod.traverse((n) => {
       if (n.isMesh) {
         n.layers.set(LAYER.VFX);
@@ -235,6 +261,7 @@ export class ToxinEvolutionAbility extends Ability {
     this.nextStage = 0;
     this.failure = null;
     this.releaseAt = -1;
+    this.dormant = false;
     this._time = 0;
   }
 
@@ -279,6 +306,7 @@ export class ToxinEvolutionAbility extends Ability {
     this.nextStage = 0;
     this.failure = null;
     this.releaseAt = -1;
+    this.dormant = false;
     this._time = 0;
     this.stageTimes.fill(-1);
     for (const coil of this.coils) coil.visible = false;
@@ -289,6 +317,28 @@ export class ToxinEvolutionAbility extends Ability {
     // Without a bridge there is nothing to infect, so nothing flies.
     this.travelPod.visible = !!this.scope;
     this.travelPod.position.copy(this.origin);
+    this.pointAt(1, this.aim).setY(0);
+    this.blight.position.set(this.aim.x, 0.035, this.aim.z);
+    this.blight.visible = !!this.scope;
+    this._syncBlight(this.config, 0, 1, 0);
+  }
+
+  /**
+   * The blight: sized from the search circle every frame, so the zone slider
+   * reshapes it mid-cast. `reach` is how far the veins have crept in.
+   */
+  _syncBlight(c, reach, fade, pulse) {
+    const radius = Math.max(0.1, c.zoneRadius * (c.blightScale ?? 1));
+    this.blight.scale.set(radius, 1, radius);
+    _blight.time = this._time;
+    _blight.reach = reach;
+    _blight.fade = fade;
+    _blight.pulse = pulse;
+    _blight.stage = this.stage;
+    const hosted = !!this.targetId && this.effect.visible;
+    _blight.hostX = hosted ? (this.effect.position.x - this.aim.x) / radius : 0;
+    _blight.hostZ = hosted ? (this.effect.position.z - this.aim.z) / radius : 0;
+    this.blightMat.userData.sync(c, _blight);
   }
 
   _advance(dt) {
@@ -368,12 +418,15 @@ export class ToxinEvolutionAbility extends Ability {
 
     // A shallow arc: it is thrown, not fired.
     this.travelPod.position.copy(this.position);
-    this.travelPod.position.y = c.travelHeight + Math.sin(Math.PI * this.u) * 0.6;
+    this.travelPod.position.y = c.travelHeight + Math.sin(Math.PI * this.u) * (c.travelArc ?? 0.6);
     this.travelPod.rotation.set(Math.sin(t * 3) * 0.25, t * c.travelSpin, 0);
     // Swells off the caster's hand rather than appearing at full size.
     this.travelPod.scale.setScalar((c.travelScale ?? 1) * Easing.outBack(clamp(this.age / 0.18)));
     if (!this.reduceMotion && this.travelPod.visible) this.atmosphere.update(dt, this.travelPod.position, c.travelDensity ?? 0.6);
-    if (this.travelPod.visible) this._drip(dt, this.travelPod.position, c.dripRate * 0.6, 0.12, c);
+    if (this.travelPod.visible) this._drip(dt, this.travelPod.position, c.dripRate * (c.travelDrips ?? 1.5), 0.2, c);
+    // The telegraph: veins creep in from the rim of the search circle as the
+    // vessel closes, reaching `blightTelegraph` of the way before it lands.
+    if (this.blight.visible) this._syncBlight(c, (c.blightTelegraph ?? 0.6) * Easing.outCubic(clamp(this.u)), 1, 0);
 
     _solid.time = t;
     _solid.fade = 1;
@@ -408,6 +461,7 @@ export class ToxinEvolutionAbility extends Ability {
     this.targetGeneration = target?.standGeneration ?? null;
     if (!target) {
       this.failure = 'no eligible target';
+      this._dormant();
       return;
     }
     this.effect.position.fromArray(target.position);
@@ -437,6 +491,25 @@ export class ToxinEvolutionAbility extends Ability {
     this.onFade(0, 0);
   }
 
+  /**
+   * Nobody in the circle: the vessel still bursts on the aim point and a
+   * dormant colony rises, gropes for `dormantTime`, then withers. Presentation
+   * only — no strike is committed (`targetId` stays null).
+   */
+  _dormant() {
+    const c = this.config;
+    this.dormant = true;
+    this.effect.position.copy(this.aim);
+    this.effect.visible = true;
+    this.releaseAt = Math.max(0.1, c.dormantTime ?? 1.4);
+    this.lightBoost += c.lightPunch * 0.5 * settings.global.lightIntensity;
+    if (!this.reduceMotion) {
+      this.stageEffects.fire(1, this.aim.toArray(), c);
+      if (c.impactShake > 0) this.ctx.shake?.add?.(c.impactShake * 0.6 * settings.global.cameraShake, 3, 18);
+    }
+    this.onFade(0, 0);
+  }
+
   onFade(dt, t) {
     const c = this.config;
     this._advance(dt);
@@ -448,6 +521,7 @@ export class ToxinEvolutionAbility extends Ability {
     this._strike(dt, c);
     if (this.releaseAt >= 0) {
       const release = clamp((this.stagedTime - this.releaseAt) / Math.max(0.1, c.releaseDuration ?? 0.55));
+      if (release >= 1 && this.dormant) this.blight.visible = false;
       fade = Math.min(fade, 1 - release);
       if (release >= 1) this.effect.visible = false;
     }
@@ -547,8 +621,18 @@ export class ToxinEvolutionAbility extends Ability {
     _membrane.dissolve = Math.max(clamp(1 - fade) * 0.85, this.reduceMotion ? 0 : 1 - rise);
     _membrane.reduced = this.reduceMotion;
     this.bodyMat.userData.sync(c, _membrane);
-    const grow = (0.7 + this.stage * 0.12) * (1 + stagePulse * bloom) * retract * form;
-    this.body.scale.set(grow, (1 + this.stage * 0.1) * retract * form, grow);
+    // The membrane is a mass grown *over* the host, bigger than it, and it
+    // swells with every generation (`membraneScale`, `membraneStageGrowth`).
+    const ms = c.membraneScale ?? 1;
+    const husk = this.dormant ? 0.75 : 1;
+    const grow = (0.8 + this.stage * (c.membraneStageGrowth ?? 0.12)) * ms * husk * (1 + stagePulse * bloom) * retract * form;
+    this.body.scale.set(grow, (1 + this.stage * 0.1) * Math.sqrt(ms) * husk * retract * form, grow);
+
+    /* ---- the blight: fully crept in after arrival, withering with the fade ---- */
+    if (this.blight.visible) {
+      const reach = this.reduceMotion ? 1 : (c.blightTelegraph ?? 0.6) + (1 - (c.blightTelegraph ?? 0.6)) * Easing.outCubic(clamp(this.stagedTime / Math.max(0.05, c.poolSpreadTime)));
+      this._syncBlight(c, reach, fade, stagePulse);
+    }
 
     /* ---- the pool ---- */
     const poolScale = (c.poolRadius + this.stage * c.poolGrowth) * 1.25 * retract;
@@ -570,7 +654,7 @@ export class ToxinEvolutionAbility extends Ability {
       const a = (i * TAU) / 3 + visualTime * (i % 2 ? -0.25 : 0.25);
       const age = this.stageTimes[i] < 0 ? -1 : this.stagedTime - this.stageTimes[i];
       v.visible = age >= 0;
-      v.position.set(Math.cos(a) * 0.72, 0.45 + i * 0.37, Math.sin(a) * 0.72);
+      v.position.set(Math.cos(a) * 0.72 * ms, 0.45 + i * 0.37, Math.sin(a) * 0.72 * ms);
       v.rotation.set(0.3 * Math.cos(a), -a, 0.3 * Math.sin(a));
       // Unfolds with a small overshoot, throbs on its own stage.
       const unfold = this.reduceMotion ? clamp(age / 0.25) : Easing.outBack(clamp(age / 0.25));
@@ -597,7 +681,7 @@ export class ToxinEvolutionAbility extends Ability {
     const sporeSize = c.sporeSize * (0.6 + 0.4 * retract) * form;
     for (let i = 0; i < this.spores.length; i++) {
       const a = i * GOLDEN + visualTime * c.sporeSpeed;
-      const r = (c.sporeOrbit + (i % 4) * 0.16) * (0.5 + 0.5 * retract) * form;
+      const r = (c.sporeOrbit * ms + (i % 4) * 0.16) * (0.5 + 0.5 * retract) * form;
       const s = this.spores[i];
       s.position.set(Math.cos(a) * r, 0.2 + ((i * 0.31 + visualTime * c.sporeRise) % 2.3), Math.sin(a) * r);
       s.scale.setScalar(sporeSize * (1 + stagePulse * 0.5));
@@ -615,7 +699,7 @@ export class ToxinEvolutionAbility extends Ability {
     }
 
     /* ---- drips and miasma while the host is held ---- */
-    if (hosted && this.phase === AbilityPhase.IMPACT && this.targetId) {
+    if (hosted && this.phase === AbilityPhase.IMPACT && (this.targetId || this.dormant)) {
       _at.copy(this.effect.position).setY(1.2 + this.stage * 0.1);
       this._drip(dt, _at, c.dripRate * (0.5 + this.stage * 0.25), 0.45, c);
       if (!this.reduceMotion && this.miasma && dt > 0) {
@@ -662,6 +746,8 @@ export class ToxinEvolutionAbility extends Ability {
   onDestroy() {
     this.effect.visible = false;
     this.travelPod.visible = false;
+    this.blight.visible = false;
+    this.dormant = false;
     this.haze.visible = false;
     for (const coil of this.coils) coil.visible = false;
     for (const vessel of this.vessels) vessel.visible = false;
@@ -745,11 +831,16 @@ export function buildEditor(gui, c, Editor) {
   R(vessel, 'travelHeight', 0, 3, 0.05, 'flight height (m)');
   R(vessel, 'travelSpin', -8, 8, 0.1, 'spin');
   R(vessel, 'travelDensity', 0, 2, 0.05, 'bubbles in flight');
+  R(vessel, 'travelArc', 0, 3, 0.05, 'arc height (m)');
+  R(vessel, 'travelDrips', 0, 4, 0.05, 'drips in flight (× drip rate)');
   R(vessel, 'vesselScale', 0.25, 2, 0.05, 'satellite vessel size');
   R(vessel, 'vesselGlow', 0, 6, 0.05, 'vessel glow');
 
   const membrane = sub(folder, '2 · The membrane');
   R(membrane, 'formTime', 0.05, 1.5, 0.01, 'forms on arrival over');
+  R(membrane, 'membraneScale', 0.5, 3, 0.05, 'size (× host)');
+  R(membrane, 'membraneStageGrowth', 0, 0.5, 0.01, 'swells per generation');
+  R(membrane, 'dormantTime', 0.2, 4, 0.05, 'no host: colony gropes for');
   R(membrane, 'membraneGlow', 0, 6, 0.05, 'glow');
   R(membrane, 'membraneFresnel', 0, 6, 0.05, 'silhouette density');
   R(membrane, 'veinScale', 0.2, 4, 0.05, 'vein scale');
@@ -779,6 +870,14 @@ export function buildEditor(gui, c, Editor) {
   R(pool, 'poolCells', 1, 12, 0.1, 'cell density');
   R(pool, 'poolGlow', 0, 6, 0.05, 'seam glow');
   R(pool, 'poolDarken', 0, 1, 0.01, 'floor darkening');
+
+  const blight = sub(folder, '5b · The blight (search circle)');
+  R(blight, 'blightScale', 0.25, 1.5, 0.01, 'size (× search radius)');
+  R(blight, 'blightTelegraph', 0, 1, 0.01, 'crept in before landing');
+  R(blight, 'blightVeins', 3, 24, 1, 'veins');
+  R(blight, 'blightSharp', 2, 30, 0.5, 'vein thinness');
+  R(blight, 'blightGlow', 0, 4, 0.05, 'vein glow');
+  R(blight, 'blightDarken', 0, 1, 0.01, 'rot darkness');
 
   const spores = sub(folder, '6 · The spores');
   R(spores, 'sporeOrbit', 0.2, 2, 0.05, 'orbit radius (m)');

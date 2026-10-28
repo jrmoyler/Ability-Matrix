@@ -49,7 +49,7 @@ export default {
     stampRing: 1.55, // × radius the small ring flash runs out to as it lands
     holdTime: 0.4, // seconds the full chain charges before the first detonation
     chainInterval: 0.15, // seconds between one detonation and the next
-    chainOrder: 0, // 0 = from the far end back toward the caster, 1 = outward from the caster
+    chainOrder: 1, // 0 = from the far end back toward the caster, 1 = outward from the caster (the blast travels away and ends on the target)
     jitter: 0.25, // metres each glyph strays off the line
 
     /* ================================================================ */
@@ -76,8 +76,38 @@ export default {
     glyphLift: 0.016, // metres off the floor
     colorLine: '#f4f2ff', // white-hot strokes
     colorGlyph: '#7c8cff', // blue-violet glow
-    colorDeep: '#5a2dff', // the deeper violet of the wash and the runes
+    colorDeep: '#2a1288', // the deeper violet of the wash and the runes
     colorRune: '#b49cff', // the rune band
+
+    /* ================================================================ */
+    /* 1b · THE SEAL STONES — the hero: the stamps that print the glyphs  */
+    /* ================================================================ */
+    /* Each glyph is printed by a heavy obsidian seal (striking face, rune
+       band, turned handle) thrown down the line ahead of the front: it
+       arcs in, slams face-down on the stamp frame, lifts to hover over its
+       print while the chain charges, and is flung up the pillar when its
+       glyph erupts. */
+    sealSize: 0.55, // striking-face radius (× glyph radius)
+    sealHeight: 1.15, // height stretch of the stone
+    sealLead: 2.6, // metres ahead of its glyph it is thrown from
+    sealDrop: 1.7, // metres above its glyph it arrives before the slam
+    sealArc: 0.9, // extra arc height in flight (m)
+    sealSlam: 0.28, // fraction of the flight spent slamming down
+    sealDwell: 0.08, // seconds it sits in its print before lifting
+    sealSquash: 0.22, // squash on the slam
+    sealHover: 2.2, // metres it hovers at over its print (above a body standing on it)
+    sealRiseTime: 0.35, // seconds to lift to the hover
+    sealBob: 0.08, // metres of hover bob
+    sealSpin: 0.7, // rad/s it turns while hovering
+    sealTilt: 0.35, // rad it tips toward its print as the chain charges
+    sealFling: 8, // m/s it is flung up the pillar
+    sealGone: 0.45, // seconds to be swallowed by the pillar
+    sealGlow: 1.6, // rune engraving glow
+    sealRunes: 12, // rune cells round the band
+    sealRoughness: 0.36,
+    sealMetalness: 0.15,
+    colorSeal: '#1c1530', // obsidian
+    colorSealRune: '#8f7bff', // engraving
 
     /* ================================================================ */
     /* 2 · RUNE FRAGMENTS — floating above each glyph                     */
@@ -94,13 +124,14 @@ export default {
     /* ================================================================ */
     /* 3 · THE PILLAR — arcane light erupting from each glyph            */
     /* ================================================================ */
-    pillarRadius: 0.75, // metres
-    pillarHeight: 9, // metres
+    pillarRadius: 0.55, // metres
+    pillarHeight: 7, // metres
     pillarFlare: 0.9, // how much wider the base flares
     pillarTime: 0.9, // seconds each pillar stands
     pillarRise: 0.1, // seconds it takes to shoot to full height
-    pillarGlow: 1.6, // brightness
-    pillarCore: 1.25, // white-hot core strength
+    pillarGlow: 0.85, // brightness
+    pillarCore: 0.6, // white-hot core strength (the thin axis only)
+    pillarCoreTight: 10, // how thin the white axis is (higher = thinner)
     pillarStreaks: 10, // light streaks round it
     pillarStreakSpeed: 6, // how fast they race up
     pillarFresnel: 2.2, // edge brightening
@@ -108,6 +139,7 @@ export default {
     colorPillarCore: '#ffffff',
     colorPillarA: '#9aa6ff',
     colorPillarB: '#6a3dff',
+    colorPillarDeep: '#1a0a4a', // the deep stop at the walls and the top
 
     /* ================================================================ */
     /* 4 · DISTORTION — the air bent round each pillar                   */
@@ -125,12 +157,20 @@ export default {
     shockWidth: 0.08, // metres
     shockGlow: 3,
     decalShock: 1, // strength of the engine shockwave decal
-    burstSize: 2.2, // metres — the ionised shell at each eruption
+    burstSize: 1.6, // metres — the ionised shell at each eruption
     burstIntensity: 1.1,
     colorShock: '#c4b6ff',
     colorBurstA: '#e6e0ff',
     colorBurstB: '#7c8cff',
     colorBurstC: '#3a1aa8',
+    /* the floor keeps the chain: each stamp leaves a dark imprint, each
+       eruption a wider burn, both outliving the glyphs */
+    imprintDark: 0.75, // strength of the imprint under a stamped glyph
+    imprintLife: 4.5, // seconds
+    scorchReach: 1.35, // × glyph radius of the eruption burn
+    scorchLife: 6, // seconds
+    colorScorch: '#0c0620',
+    colorScorchRim: '#4a2aa8',
 
     /* ================================================================ */
     /* 6 · PARTICLES                                                     */
@@ -194,7 +234,7 @@ export default {
     stampFlash: 0.05,
     stampLight: 0.8, // light punch per stamp, × intensity
     eruptShake: 0.32, // camera knock per detonation
-    eruptFlash: 0.14,
+    eruptFlash: 0.07,
     eruptLight: 2.2, // light punch per detonation, × intensity
     colorFlash: '#9aa6ff',
     catchRadius: 1.05, // × glyph radius a body must be inside to be taken

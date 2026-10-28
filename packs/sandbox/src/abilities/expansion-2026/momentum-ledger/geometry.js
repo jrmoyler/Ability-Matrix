@@ -24,6 +24,13 @@ import {
  *  - **the directional fan** — a sector in XZ round +Z; `uv.x` across the
  *    angle, `uv.y` out along the radius, for the travelling release front.
  *  - **speed motes** — a fixed seed cloud placed entirely in the shader.
+ *  - **the flywheel** — the hero: a heavy cast wheel of unit radius in XY
+ *    (axle along +Z) — a toothed rim of rectangular section with 24 teeth
+ *    (one per tally cell, `aTooth` = its index / 24, −1 elsewhere, so the
+ *    material can light the teeth one by one as the bank fills), six swept
+ *    S-curved spokes of box section, and a proud hub with an axle boss. Every
+ *    face is swept from a 4-corner section with its corners doubled, so the
+ *    edges stay hard under the sun.
  */
 
 const TAU = Math.PI * 2;
@@ -186,4 +193,107 @@ export function createSpeedMoteGeometry(count) {
 /** Unit quad. */
 export function createQuad() {
   return new PlaneGeometry(1, 1);
+}
+
+/* ---------------------------------------------------------------------- */
+/* The flywheel                                                            */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Sweep a 4-corner section along `n + 1` stations into `out`. `section(t, k)`
+ * returns corner `k` (0..3, in order round the section) at station `t` 0..1
+ * as [x, y, z]. Corners are doubled so each face keeps its own normal.
+ */
+function sweep(out, n, section, tooth) {
+  const base = out.position.length / 3;
+  const per = 8;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    for (let k = 0; k < 4; k++) {
+      const a = section(t, k);
+      const b = section(t, (k + 1) % 4);
+      out.position.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+      const tv = typeof tooth === 'function' ? tooth(t, k) : tooth;
+      out.tooth.push(tv, tv);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 4; k++) {
+      const a = base + i * per + k * 2;
+      const b = a + 1;
+      const c = a + per;
+      const d = b + per;
+      out.index.push(a, c, b, b, c, d);
+    }
+  }
+  return out;
+}
+
+/**
+ * Unit-radius flywheel in XY, axle along +Z.
+ * @param {object} [o]
+ * @param {number} [o.teeth=24]   tally teeth round the rim
+ * @param {number} [o.spokes=6]
+ * @param {number} [o.width=0.2]  rim width along the axle (unit radii)
+ */
+export function createFlywheelGeometry({ teeth = 24, spokes = 6, width = 0.2 } = {}) {
+  const out = { position: [], tooth: [], index: [] };
+  const segments = teeth * 8;
+  const hw = width * 0.5;
+
+  // Rim: inner face at 0.8, outer at 0.94, teeth rising to 1.0 on the outer
+  // face. A tooth is a flat-topped trapezoid occupying ~55 % of its pitch.
+  const toothAt = (t) => {
+    const f = (t * teeth) % 1;
+    const rise = Math.min(1, Math.max(0, (Math.min(f, 1 - f) - 0.18) / 0.06));
+    return rise;
+  };
+  const rim = (t, k) => {
+    const a = t * TAU;
+    const c = Math.cos(a), s = Math.sin(a);
+    const outer = 0.94 + 0.08 * toothAt(t);
+    const inner = 0.8;
+    const corners = [
+      [inner, -hw], [outer, -hw * 0.82], [outer, hw * 0.82], [inner, hw],
+    ];
+    const [r, z] = corners[k];
+    return [c * r, s * r, z];
+  };
+  sweep(out, segments, rim, (t) => {
+    const f = (t * teeth) % 1;
+    return Math.min(f, 1 - f) > 0.2 ? Math.floor(t * teeth + 1e-6) / teeth : -1;
+  });
+
+  // Hub: 0.12 → 0.24, deeper than the rim; an axle boss 0.05 → 0.11.
+  const ring = (r0, r1, z0, z1) => (t, k) => {
+    const a = t * TAU;
+    const c = Math.cos(a), s = Math.sin(a);
+    const corners = [[r0, z0], [r1, z0 * 0.9], [r1, z1 * 0.9], [r0, z1]];
+    const [r, z] = corners[k];
+    return [c * r, s * r, z];
+  };
+  sweep(out, 48, ring(0.12, 0.25, -hw * 1.6, hw * 1.6), -1);
+  sweep(out, 32, ring(0.04, 0.11, -hw * 2.6, hw * 2.6), -1);
+  // Spokes: S-curved, box section, from the hub to inside the rim.
+  for (let i = 0; i < spokes; i++) {
+    const a0 = (i / spokes) * TAU;
+    const spoke = (t, k) => {
+      const r = 0.22 + t * 0.6;
+      const a = a0 + 0.42 * Math.sin(t * Math.PI) * (t - 0.2);
+      const c = Math.cos(a), s = Math.sin(a);
+      const w = 0.045 * (1.25 - 0.5 * t); // tapers toward the rim
+      const d = hw * (1.05 - 0.35 * t);
+      const corners = [[-w, -d], [w, -d], [w, d], [-w, d]];
+      const [x, z] = corners[k];
+      return [c * r - s * x, s * r + c * x, z];
+    };
+    sweep(out, 14, spoke, -1);
+  }
+
+  const g = new BufferGeometry();
+  g.setIndex(out.index);
+  g.setAttribute('position', new Float32BufferAttribute(out.position, 3));
+  g.setAttribute('aTooth', new Float32BufferAttribute(out.tooth, 1));
+  g.computeVertexNormals();
+  return g;
 }

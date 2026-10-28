@@ -1,21 +1,27 @@
 // Source of truth for the 80 pure-element castables.
 // Writes each config, ability and materials file. Does not touch uids or the
 // element map (gen-pure.mjs did that once). Run: node tools/sculpt-pure.mjs
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { SPELLS } from './pure-spells.mjs';
 import { sculptVertex, geometryModuleSource, SCULPTS } from './pure-geometry.mjs';
-import { PROFILE, MARK, configSource } from './pure-settings.mjs';
+import { PROFILE, MARK, configSource, residueFor } from './pure-settings.mjs';
 import { RIGS, rigModuleSource, missingRigs } from './pure-rigs.mjs';
 import { trailMaterialsSource, WAKE } from './pure-trail.mjs';
+import { detailShaders, detailFactory, detailImports, isSolid } from './pure-matter.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** Decals that are only a thin ring: never the floor a cast leaves. */
+const RING_DECALS = new Set(['SHOCKWAVE', 'RIPPLE']);
+
+// SCULPT_OUT=<dir> writes the same tree under <dir> instead (review aid).
+const root = process.env.SCULPT_OUT ? path.resolve(process.env.SCULPT_OUT) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const abilityDir = path.join(root, 'packs/sandbox/src/abilities/codex');
 const assetDir = path.join(root, 'packs/sandbox/src/assets/codex');
 const configDir = path.join(root, 'packs/sandbox/src/config/codex');
 const materialDir = path.join(root, 'packs/sandbox/src/materials/codex');
+if (process.env.SCULPT_OUT) for (const dir of [abilityDir, assetDir, configDir, materialDir]) mkdirSync(dir, { recursive: true });
 
 const ARCH = {
   spire: { hit: ['out', 'in', 'tangent'], carry: ['none', 'in', 'orbit'] },
@@ -178,25 +184,6 @@ const HERO_STAND = {
   whip: 'riding the head, swept sideways as it travels',
   volley: 'riding a ballistic arc, pitched along it',
   pendulum: 'hinged at the hand, swung across the cast'
-};
-
-const DETAIL_PATTERN = {
-  earth: 'abs(sin(vWorld.y * 9.0 + vSeed * 20.0)) * 0.6 + snoise01(vWorld * 3.0) * 0.4',
-  crystal: 'pow(abs(sin(vSpan * 14.0 + vSeed * 12.0)), 3.0)',
-  wind: 'abs(sin(vSpan * 10.0 - uTime * 5.0 + vSeed * 9.0))',
-  sound: 'abs(sin(vWorld.y * 18.0 - uTime * 6.0))',
-  light: 'pow(vSpan, 1.5) + 0.3 * sin(uTime * 8.0 + vSeed * 20.0)',
-  holy: 'pow(1.0 - vSpan, 1.4) + 0.2',
-  cosmic: 'snoise01(vWorld * 4.0 + vec3(0.0, uTime * 0.6, vSeed * 8.0))',
-  gravity: 'smoothstep(0.2, 0.9, snoise01(vWorld * 2.4 + vSeed * 6.0))',
-  shadow: '1.0 - snoise01(vWorld * 3.2 + vec3(vSeed * 5.0, uTime * 0.4, 0.0))',
-  void: 'smoothstep(0.1, 0.9, 1.0 - rim)',
-  arcane: 'step(0.6, abs(sin(vWorld.x * 12.0 + vWorld.z * 12.0 + uTime * 2.0)))',
-  illusion: 'abs(sin(vWorld.x * 7.0 + uTime * 3.0) - sin(vWorld.z * 7.0 - uTime * 3.0))',
-  time: 'step(0.5, fract(vSpan * 6.0 + uTime * 0.7))',
-  motion: 'abs(fract(vSpan * 5.0 - uTime * 3.0) - 0.5) * 2.0',
-  tech: 'step(0.6, fract(vWorld.y * 6.0 + vSeed * 4.0)) * 0.7 + step(0.9, fract(vWorld.x * 5.0 + vWorld.z * 5.0)) * 0.3',
-  force: 'abs(fract(vWorld.x * 4.0 + vWorld.z * 4.0 + vSeed * 3.0) - 0.5) * 2.0'
 };
 
 const WHEN = {
@@ -740,13 +727,14 @@ function materialsSource(spell) {
   const cls = spell.cls;
   const id = spell.id;
   const { f1, f2, spd } = freqs(spell);
-  return `import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+  const solid = isSolid(spell);
+  return `import { AdditiveBlending, Color, DoubleSide, ${solid ? 'MeshDepthMaterial, MeshStandardMaterial, ' : ''}NormalBlending, ${solid ? 'RGBADepthPacking, ' : ''}ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
-import { sharedUniforms } from '../../core/FrameUniforms.js';
+import { ${solid ? 'frame, ' : ''}sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-
+${detailImports(spell)}
 const ID = '${id}';
 
 /**
@@ -856,6 +844,15 @@ const GROUND_VERTEX = /* glsl */ \`
   }
 \`;
 
+/*
+ * The ground is a filled field, not a sigil. Before the beat it is a faint
+ * footprint (zone casts) or the strip the head has already crossed (line
+ * casts); on the beat it lands from the centre out to the rim behind a hot lip,
+ * holds through the linger with the element's own pattern carved into it,
+ * cools, and finally breaks up from the rim inward. The colour is the ramp's
+ * dark end — the stain the element leaves, mixed toward a pale coat for the
+ * elements that frost or bleach — with the body tone in the carving.
+ */
 const GROUND_FRAGMENT = /* glsl */ \`
   precision highp float;
   uniform float uTime;
@@ -864,8 +861,14 @@ const GROUND_FRAGMENT = /* glsl */ \`
   uniform float uErode;
   uniform float uOpacity;
   uniform float uPhrase;
+  uniform float uLand;
+  uniform float uPre;
+  uniform float uHeat;
+  uniform float uCoat;
   uniform vec3 uColorA;
   uniform vec3 uColorB;
+  uniform vec3 uColorStain;
+  uniform vec3 uColorHot;
   uniform vec2 uResolution;
   uniform sampler2D uSceneDepth;
   uniform float uCameraNear;
@@ -882,14 +885,34 @@ const GROUND_FRAGMENT = /* glsl */ \`
     float ang = atan(q.y, q.x);
     float grain = snoise(vec3(vWorld.xz * 0.85, uSeed)) * 0.5 + 0.5;
     ${groundFrag(spell.element)}
-    float mask = pat * (1.0 - smoothstep(0.92, 1.08, rad)) * uOpacity * (1.0 - uErode);
-    mask *= 0.40 + 0.60 * grain;
-    mask *= 1.0 + uPhrase * 0.15;
-    if (mask < 0.02) discard;
-    vec3 col = mix(uColorA, uColorB, clamp(pat, 0.0, 1.0)) * (0.55 + uGlow);
+    pat = clamp(pat, 0.0, 1.0);
+    float rag = fbm3(vec3(vWorld.xz * 0.45, uSeed * 3.7)) * 0.5 + 0.5;
+    ${spell.cast === 'zone' ? `// A ragged disc that lands from the centre out.
+    float reach = rad * (0.84 + 0.3 * rag);
+    float lead = reach - uLand;` : `// A ragged strip from the hand to the head, landing behind the head.
+    float reach = abs(q.x) * 2.0 * (0.8 + 0.4 * rag);
+    reach = max(reach, 1.0 - smoothstep(0.0, 0.08, vUv.y));
+    float lead = vUv.y - uLand;`}
+    float foot = 1.0 - smoothstep(0.8, 1.0, reach);
+    float landed = 1.0 - smoothstep(-0.12, 0.0, lead);
+    float cover = foot * max(landed, uPre);
+    float lip = foot * (1.0 - smoothstep(0.0, 0.1, abs(lead)));
+    // Cooling out: the field breaks up from its edge inward.
+    cover *= smoothstep(uErode, uErode + 0.2, (1.0 - reach) * 0.55 + grain * 0.45);
+    float mask = cover * uOpacity * (0.86 + 0.14 * grain);
+    if (mask < 0.01) discard;
+    vec3 dark = mix(uColorStain, uColorB, 0.3 + 0.4 * grain);
+    vec3 pale = mix(uColorA, vec3(1.0), 0.4);
+    vec3 col = mix(dark, pale, uCoat) * (0.72 + 0.28 * rag);
+    col = mix(col, uColorA * (0.5 + 0.4 * uCoat), pat * 0.55);
+    float heat = uHeat * uGlow;
+    col += uColorA * pat * heat * 0.45;
+    col += uColorA * (1.0 - smoothstep(0.0, 0.55, reach)) * heat * 0.2;
+    col += uColorHot * lip * heat * 1.6;
+    col *= 1.0 + uPhrase * 0.08;
     vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.45);
-    gl_FragColor = vec4(col * mask * uGlobalGlow, mask);
+    gl_FragColor = vec4(col * uGlobalGlow, mask);
   }
 \`;
 
@@ -935,119 +958,7 @@ const VOICE_FRAGMENT = /* glsl */ \`
   }
 \`;
 
-const DETAIL_VERTEX = /* glsl */ \`
-  attribute float aSeed;
-  attribute vec3 aEdge;
-  attribute vec4 aInfo;
-  attribute vec3 aStyle;
-  attribute vec3 aPivot;
-  attribute vec4 aHinge;
-  uniform float uGrowArt;
-  uniform float uOpenArt;
-  uniform float uSwing;
-  varying vec3 vWorld;
-  varying vec3 vNormalW;
-  varying float vSeed;
-  varying float vSpan;
-  varying float vViewZ;
-  varying vec3 vEdge;
-  varying vec4 vInfo;
-  varying vec2 vStyle;
-  vec3 rotAxis(vec3 v, vec3 k, float a) {
-    float c = cos(a);
-    float s = sin(a);
-    return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
-  }
-  void main() {
-    // Each authored part folds about its own pivot: aInfo.w picks whether it
-    // follows the rise (0) or the beat (1), aInfo.z delays it within that.
-    float art = mix(uGrowArt, uOpenArt, aInfo.w);
-    float fold = smoothstep(aInfo.z, aInfo.z + 0.5, art) * aHinge.w * uSwing;
-    vec3 p = position;
-    vec3 n = normal;
-    if (abs(fold) > 1e-4 && dot(aHinge.xyz, aHinge.xyz) > 0.5) {
-      p = aPivot + rotAxis(position - aPivot, aHinge.xyz, fold);
-      n = rotAxis(normal, aHinge.xyz, fold);
-    }
-    mat4 model = modelMatrix;
-    #ifdef USE_INSTANCING
-      model = modelMatrix * instanceMatrix;
-    #endif
-    vec4 wp = model * vec4(p, 1.0);
-    vWorld = wp.xyz;
-    vNormalW = normalize(mat3(model) * n);
-    vSeed = aSeed;
-    vSpan = aStyle.z;
-    vEdge = aEdge;
-    vInfo = aInfo;
-    vStyle = aStyle.xy;
-    vec4 mv = viewMatrix * wp;
-    vViewZ = mv.z;
-    gl_Position = projectionMatrix * mv;
-  }
-\`;
-
-const DETAIL_FRAGMENT = /* glsl */ \`
-  precision highp float;
-  uniform float uTime;
-  uniform float uOpacity;
-  uniform float uGlow;
-  uniform float uEdge;
-  uniform float uDissolve;
-  uniform vec3 uColorA;
-  uniform vec3 uColorB;
-  uniform vec3 uColorC;
-  uniform vec3 uLightDir;
-  uniform vec2 uResolution;
-  uniform sampler2D uSceneDepth;
-  uniform float uCameraNear;
-  uniform float uCameraFar;
-  uniform float uGlobalGlow;
-  varying vec3 vWorld;
-  varying vec3 vNormalW;
-  varying float vSeed;
-  varying float vSpan;
-  varying float vViewZ;
-  varying vec3 vEdge;
-  varying vec4 vInfo;
-  varying vec2 vStyle;
-  \${noiseGLSL}
-  \${commonGLSL}
-  void main() {
-    vec3 n = normalize(vNormalW);
-    if (!gl_FrontFacing) n = -n;
-    vec3 view = normalize(cameraPosition - vWorld);
-    float rim = pow(1.0 - abs(dot(n, view)), 2.2);
-    float lit = clamp(dot(n, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
-    float pat = ${DETAIL_PATTERN[spell.element]};
-    // The body of the solid stays below white so its form reads; the bright
-    // terms (hot cores, arrises, rim) ride on top of it and feed the bloom.
-    vec3 col = mix(uColorC * 0.7, uColorA * 0.9, pow(lit, 1.6));
-    // Face and part tint: no two faces of an authored solid read the same.
-    col *= 0.84 + 0.3 * fract(vInfo.y * 0.61803 + vInfo.x * 0.37);
-    col = mix(col, uColorB * 0.85, clamp(pat, 0.0, 1.0) * 0.3);
-    // Hot core parts (glow weight) breathe.
-    col += uColorB * vStyle.y * (0.55 + 0.35 * sin(uTime * 3.0 + vInfo.x * 1.7));
-    // Arrises: distance to the nearest real edge, a hairline whatever the size
-    // on screen, dropped once a triangle is too small to carry one.
-    float edge = min(min(vEdge.x, vEdge.y), vEdge.z);
-    float slope = fwidth(edge) + 1e-4;
-    float line = (1.0 - smoothstep(slope * 0.6, slope * 1.7, edge)) * (1.0 - smoothstep(0.14, 0.3, slope)) * vStyle.x;
-    col += uColorA * line * uEdge * 0.55 * (0.5 + 0.5 * lit);
-    col += uColorB * rim * uGlow * 0.35;
-    col *= 0.86 + 0.14 * sin(uTime * (3.0 + vSeed * 5.0) + vSeed * 31.0);
-    float mask = uOpacity;
-    if (uDissolve > 0.0) {
-      float cut = snoise01(vWorld * 1.7 + vec3(vSeed * 9.0, uTime * 0.2, 0.0));
-      mask *= smoothstep(uDissolve, uDissolve + 0.12, cut);
-    }
-    if (mask < 0.02) discard;
-    vec2 screenUV = gl_FragCoord.xy / max(uResolution, vec2(1.0));
-    mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.3);
-    if (mask < 0.02) discard;
-    ${PROFILE[spell.element].solid ? 'gl_FragColor = vec4(col * uGlobalGlow, mask);' : 'gl_FragColor = vec4(col * mask * uGlobalGlow, mask);'}
-  }
-\`;
+${detailShaders(spell)}
 
 function shapeUniforms() {
   return {
@@ -1177,8 +1088,14 @@ export function create${cls}GroundMaterial() {
       uErode: { value: 0 },
       uOpacity: { value: 1 },
       uPhrase: { value: 0 },
+      uLand: { value: 0 },
+      uPre: { value: 0 },
+      uHeat: { value: 0 },
+      uCoat: { value: 0 },
       uColorA: { value: new Color() },
-      uColorB: { value: new Color() }
+      uColorB: { value: new Color() },
+      uColorStain: { value: new Color() },
+      uColorHot: { value: new Color() }
     }),
     vertexShader: GROUND_VERTEX,
     fragmentShader: GROUND_FRAGMENT
@@ -1187,18 +1104,24 @@ export function create${cls}GroundMaterial() {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    u.uCenter.value.copy(st.center);
+    u.uCenter.value.copy(st.groundCenter);
     u.uDir.value.copy(st.dir);
     u.uSide.value.copy(st.side);
     u.uLength.value = Math.max(0.2, st.foot);
     u.uWidth.value = Math.max(0.2, st.footWidth);
     u.uSeed.value = st.seed;
     u.uGlow.value = c.groundGlow * g.glow;
-    u.uErode.value = st.dissolve;
-    u.uOpacity.value = c.groundOpacity * g.opacity * st.fade;
+    u.uErode.value = st.erode;
+    u.uOpacity.value = c.groundOpacity * g.opacity;
     u.uPhrase.value = st.phrase;
+    u.uLand.value = st.land;
+    u.uPre.value = st.pre;
+    u.uHeat.value = c.groundHeat * st.heat;
+    u.uCoat.value = c.groundCoat;
     u.uColorA.value.copy(getColor(c.colorGroundA));
     u.uColorB.value.copy(getColor(c.colorGroundB));
+    u.uColorStain.value.copy(getColor(c.colorGroundStain));
+    u.uColorHot.value.copy(getColor(c.colorB));
   };
   return material;
 }
@@ -1238,49 +1161,7 @@ export function create${cls}VoiceMaterial() {
   return material;
 }
 
-/** \`rig\` true builds the hero rig's material: the same shader, its own look. */
-export function create${cls}DetailMaterial(rig = false) {
-  const material = new ShaderMaterial({
-    transparent: true,
-    depthWrite: ${PROFILE[spell.element].solid},
-    depthTest: true,
-    blending: ${PROFILE[spell.element].solid ? 'NormalBlending' : 'AdditiveBlending'},
-    side: DoubleSide,
-    toneMapped: false,
-    uniforms: sharedUniforms({
-      uOpacity: { value: 1 },
-      uGlow: { value: 1 },
-      uEdge: { value: 1 },
-      uDissolve: { value: 0 },
-      uGrowArt: { value: 0 },
-      uOpenArt: { value: 0 },
-      uSwing: { value: 1 },
-      uColorA: { value: new Color() },
-      uColorB: { value: new Color() },
-      uColorC: { value: new Color() }
-    }),
-    vertexShader: DETAIL_VERTEX,
-    fragmentShader: DETAIL_FRAGMENT
-  });
-  material.userData.sync = (st) => {
-    const c = settings[ID];
-    const g = settings.global;
-    const u = material.uniforms;
-    const k = rig ? 'hero' : 'detail';
-    const K = rig ? 'Hero' : 'Detail';
-    u.uOpacity.value = c[k + 'Opacity'] * g.opacity * st.fade;
-    u.uGlow.value = c[k + 'Glow'] * g.glow * st.pulse;
-    u.uEdge.value = c[k + 'Edge'];
-    u.uSwing.value = c[k + 'Swing'];
-    u.uGrowArt.value = Math.min(1, Math.max(0, st.grow));
-    u.uOpenArt.value = Math.min(1, Math.max(0, st.beat));
-    u.uDissolve.value = st.dissolve * 0.6;
-    u.uColorA.value.copy(getColor(c['color' + K + 'A']));
-    u.uColorB.value.copy(getColor(c['color' + K + 'B']));
-    u.uColorC.value.copy(getColor(c['color' + K + 'C']));
-  };
-  return material;
-}
+${detailFactory(spell)}
 ${spell.cast === 'line' ? trailMaterialsSource(spell, SCORE[id].twist, FIELD[spell.element](f1, f2, spd), COLOR[spell.element]) : ''}`;
 }
 
@@ -1362,10 +1243,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the ${score.twist} placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a ${spell.element} pattern under the footprint.
+ *   3. **ground** — a filled ${spell.element} field under the ${zone ? 'circle' : 'strip the head has crossed'}: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a ${VOICE[score.twist]} riding alongside the body, spun ${score.counter ? 'the other way' : 'with the cast'}.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (\`create${cls}PieceGeometry\`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (\`create${cls}HeroGeometry\`), stood by its archetype (${spell.archetype}): ${HERO_STAND[spell.archetype]}.
+ *      ${isSolid(spell) ? `Hero and pieces are matter: sun-lit, opaque, shadow-casting (LAYER.SHAPED), the ramp as albedo, only hot parts glowing.` : `Hero and pieces are energy: emissive over a dark body with a fresnel shell (LAYER.VFX).`} The rig is framed to the ${zone ? 'circle (`heroFit`)' : 'body height (`heroMinSpan`)'} and kept under \`heroMaxHeight\`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — \`handlesOwnHits\`: ${score.note.charAt(0).toLowerCase()}${score.note.slice(1)}
@@ -1430,6 +1312,11 @@ export class ${cls}Ability extends Ability {
       phrase: 0,
       foot: 1,
       footWidth: 1,
+      groundCenter: new Vector3(),
+      land: 0,
+      pre: 0,
+      heat: 0,
+      erode: 0,
       pulse: 1
     };
     this._seed = 0;
@@ -1594,7 +1481,38 @@ export class ${cls}Ability extends Ability {
     else if (DISSOLVE_TRAVEL && !committed) dissolve = saturate(u * 0.55);
     const fade = committed && fadeT >= 1 ? 1 - (fadeT - 1) : 1;
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
+    this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+  /**
+   * The floor's own clock. Before the beat a zone shows its footprint faintly
+   * and a line lays its strip behind the head; on the beat the field lands out
+   * to the rim over \`groundLand\` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
+   */
+  _groundPose(committed, fadeT) {
+    const c = settings[ID];
+    const st = this._state;
+    if (!committed) {${zone ? `
+      st.land = 0;
+      st.pre = c.groundTelegraph * saturate(this.u * 1.4);
+      st.heat = 0;` : `
+      st.land = 1;
+      st.pre = 0;
+      st.heat = 0.85;`}
+      st.erode = 0;
+      return;
+    }${zone ? `
+    const since = fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+    const landed = saturate(since / Math.max(0.05, c.groundLand));
+    st.land = 1.25 * Easing.outCubic(landed);
+    st.pre = c.groundTelegraph * (1 - landed);` : `
+    st.land = 1;
+    st.pre = 0;`}
+    st.heat = fadeT < 1 ? 1 - 0.3 * fadeT : 0.7 * (1 - saturate((fadeT - 1) * 1.5));
+    st.erode = fadeT < 1 ? 0 : saturate((fadeT - 1.4) / 0.6);
   }
 
   _write(open, grow, along, dissolve, fade, phrase) {
@@ -1623,6 +1541,9 @@ export class ${cls}Ability extends Ability {
     st.phrase = phrase;
     st.foot = ZONE ? c.zoneRadius * 2 : Math.max(0.4, this.front);
     st.footWidth = ZONE ? c.zoneRadius * 2 : c.groundWidth;
+    // A zone's field sits on the circle; a line's covers the strip already crossed.
+    if (ZONE) st.groundCenter.copy(_focus);
+    else st.groundCenter.copy(this.origin).addScaledVector(this.direction, st.foot * 0.5);
     st.pulse = 1 + c.bodyPulse * Math.sin(this.age * c.bodyPulseRate);
     this.bodyMaterial.userData.sync(st);
     this.lensMaterial.userData.sync(st);
@@ -1639,7 +1560,7 @@ export class ${cls}Ability extends Ability {
     this.body.visible = show;
     this.voice.visible = show;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = fade > 0.02;
+    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -1898,7 +1819,7 @@ ${partMethods(score.twist)}
   _telegraph() {
     const c = settings[ID];
     this.pointAt(1, _end);
-    this.ctx.decals.spawn(DecalType.${spell.decal}, _end, {
+    this.ctx.decals.spawn(DecalType.${RING_DECALS.has(spell.decal) ? 'DUSTRING' : spell.decal}, _end, {
       radius: Math.max(0.4, c.zoneRadius) * 0.85,
       life: Math.max(0.4, c.shockLife),
       width: 0.05,
@@ -1909,6 +1830,12 @@ ${partMethods(score.twist)}
     });
   }
 
+  /**
+   * The beat lands as a hit, not a pop: shake, flash and a light punch, a
+   * ${isSolid(spell) ? 'low dust shell' : 'burst'}, real fragments thrown up and out with dust rolled along
+   * the floor, and a filled residue decal sized to the ${zone ? 'circle' : 'strip'} that stays on the
+   * floor after the cast is gone. The thin shock ring is only a trace now (\`shockRing\`).
+   */
   _beat() {
     const c = settings[ID];
     const g = settings.global;
@@ -1917,17 +1844,29 @@ ${partMethods(score.twist)}
     this.ctx.shake.add(c.impactShake * power * g.cameraShake, 4, 18);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.impactFlash * power);
     this.lightBoost = c.impactLight * power;
-    this.ctx.bursts.spawn(BurstMode.${spell.burst}, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.35)), {
-      radius: 0.35,
-      endRadius: c.burstRadius * power,
-      life: c.burstLife,
-      intensity: 0.85,
-      opacity: 0.4 * g.opacity,
-      squash: 0.38,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
-    });
+    if (c.burstOpacity > 0.01) {
+      this.ctx.bursts.spawn(BurstMode.${spell.burst}, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.35)), {
+        radius: 0.35,
+        endRadius: c.burstRadius * power,
+        life: c.burstLife,
+        intensity: 0.85,
+        opacity: c.burstOpacity * g.opacity,
+        squash: 0.38,
+        colorA: getColor(c.colorBurstA),
+        colorB: getColor(c.colorBurstB),
+        colorC: getColor(c.colorBurstC)
+      });
+    }
+    this._debris(_end);
+    this.ctx.decals.spawn(DecalType.${residueFor(spell.element)}, _end, {
+      radius: Math.max(0.5, ${zone ? 'c.zoneRadius' : 'c.groundWidth'} * c.groundStainReach) * power,
+      life: c.groundLife * g.lifetime,
+      width: 0.8,
+      intensity: c.groundStain,
+      colorA: getColor(${residueFor(spell.element) === 'FROST' ? 'c.colorGroundA' : 'c.colorGroundStain'}),
+      colorB: getColor(c.colorGroundA),
+      height: 0.025
+    });${RING_DECALS.has(spell.decal) ? '' : `
     this.ctx.decals.spawn(DecalType.${spell.decal}, _end, {
       radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
       life: c.shockLife,
@@ -1936,19 +1875,41 @@ ${partMethods(score.twist)}
       colorA: getColor(c.colorShockA),
       colorB: getColor(c.colorShockB),
       height: 0.03
-    });
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
-      radius: c.shockRadius * 0.8,
-      life: c.shockLife * 0.75,
-      width: 0.05,
-      intensity: 0.85,
-      colorA: getColor(c.colorShockB),
-      colorB: getColor(c.colorShockA),
-      height: 0.03
-    });
+    });`}
+    if (c.shockRing > 0.01) {
+      this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+        radius: c.shockRadius * 0.8,
+        life: c.shockLife * 0.75,
+        width: 0.08,
+        intensity: 0.85 * c.shockRing,
+        colorA: getColor(c.colorShockB),
+        colorB: getColor(c.colorShockA),
+        height: 0.03
+      });
+    }
   }
 
-  /** The smaller second beat: a settling ring, a low thud and a last flare of light. */
+  /** Fragments thrown up and out of the strike, and dust rolled out along the floor. */
+  _debris(at) {
+    const c = settings[ID];
+    const g = settings.global;
+    const spread = ZONE ? c.zoneRadius * 0.4 : 0.5;
+    _pos.copy(at).setY(0.15);
+    const chips = Math.round(c.impactChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      this._fillEmit(_pos, spread, _up, c.chipSpeed * 1.5, 0.8, c.chipSize * 1.4, c.chipLife * 1.3, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.impactDust * g.particleCount);
+    for (let i = 0; i < dust; i++) {
+      const ang = (i / Math.max(1, dust)) * Math.PI * 2 + this._spin;
+      _dir.set(Math.cos(ang), 0.12, Math.sin(ang));
+      this._fillEmit(_pos, spread * 0.6, _dir, c.dustSpeed * 1.8, 0.25, 0.6, c.dustLife * 1.4, 0.4);
+      this.dust.emit(1, _emit);
+    }
+  }
+
+  /** The smaller second beat: a low dust roll settling over the field, a thud and a last flare of light. */
   _aftershock() {
     const c = settings[ID];
     const g = settings.global;
@@ -1956,13 +1917,13 @@ ${partMethods(score.twist)}
     this._aim(_end);
     this.ctx.shake.add(c.aftershockShake * power * g.cameraShake, 3, 12);
     this.lightBoost += c.aftershockLight * power;
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+    this.ctx.decals.spawn(DecalType.DUSTRING, _end, {
       radius: c.aftershockRadius * power,
       life: c.aftershockLife,
       width: 0.06,
       intensity: 0.55,
-      colorA: getColor(c.colorShockB),
-      colorB: getColor(c.colorShockA),
+      colorA: getColor(c.colorGroundB),
+      colorB: getColor(c.colorGroundA),
       height: 0.03
     });
   }
@@ -1982,8 +1943,8 @@ ${zone ? '' : `  /** Seconds the head takes over the whole line — the trail's 
       life: c.wakeLife * g.lifetime,
       width: 0.08,
       intensity: 0.75,
-      colorA: getColor(c.colorScarA),
-      colorB: getColor(c.colorB),
+      colorA: getColor(${WAKE[spell.element] === 'SCORCH' ? 'c.colorScarB' : 'c.colorScarA'}),
+      colorB: getColor(${WAKE[spell.element] === 'SCORCH' ? 'c.colorScarA' : 'c.colorB'}),
       height: 0.03
     });
     const chips = Math.round(c.wakeChips * g.particleCount);
@@ -2118,10 +2079,16 @@ export function buildEditor(gui, c, Editor) {
   const floor = folder.addFolder('5 · Ground');
   R(floor, c, 'groundWidth', 0.2, 16, 0.05, 'width (m)');
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
-  R(floor, c, 'groundLife', 0.1, 4, 0.05, 'life');
+  R(floor, c, 'groundLife', 0.1, 12, 0.05, 'residue life (s)');
   R(floor, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
+  R(floor, c, 'groundHeat', 0, 4, 0.05, 'heat');
+  R(floor, c, 'groundCoat', 0, 1, 0.01, 'stain .. coat');
+  ${zone ? "R(floor, c, 'groundLand', 0.05, 2, 0.01, 'lands in (s)');\n  R(floor, c, 'groundTelegraph', 0, 1, 0.01, 'footprint before the beat');" : ''}
+  R(floor, c, 'groundStain', 0, 1.5, 0.01, 'residue');
+  R(floor, c, 'groundStainReach', 0.1, 2, 0.01, 'residue reach');
   floor.addColor(c, 'colorGroundA').name('ground');
   floor.addColor(c, 'colorGroundB').name('ground, deep');
+  floor.addColor(c, 'colorGroundStain').name('stain');
 
   const pieces = folder.addFolder('6 · Detail pieces');
   R(pieces, c, 'detailCount', 0, 48, 1, 'count');
@@ -2134,6 +2101,10 @@ export function buildEditor(gui, c, Editor) {
   R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
   R(pieces, c, 'detailSwing', 0, 2.5, 0.01, 'fold');
   R(pieces, c, 'detailEdge', 0, 4, 0.05, 'arris light');
+  R(pieces, c, 'detailDeep', 0, 1, 0.01, 'colour depth');${isSolid(spell) ? `
+  R(pieces, c, 'detailRough', 0, 1, 0.01, 'roughness');
+  R(pieces, c, 'detailMetal', 0, 1, 0.01, 'metalness');
+  R(pieces, c, 'detailShadow', 0, 1, 1, 'cast shadow');` : ''}
   pieces.addColor(c, 'colorDetailA').name('rim');
   pieces.addColor(c, 'colorDetailB').name('lit');
   pieces.addColor(c, 'colorDetailC').name('shade');
@@ -2147,6 +2118,12 @@ export function buildEditor(gui, c, Editor) {
   R(hero, c, 'heroGlow', 0, 6, 0.05, 'rim glow');
   R(hero, c, 'heroEdge', 0, 4, 0.05, 'arris light');
   R(hero, c, 'heroOpacity', 0, 1.5, 0.01, 'opacity');
+  R(hero, c, 'heroDeep', 0, 1, 0.01, 'colour depth');
+  R(hero, c, 'heroMaxHeight', 1, 12, 0.05, 'max height (m)');
+  ${zone ? "R(hero, c, 'heroFit', 0, 1.5, 0.01, 'fit to circle');" : "R(hero, c, 'heroMinSpan', 0, 6, 0.05, 'min span (m)');"}${isSolid(spell) ? `
+  R(hero, c, 'heroRough', 0, 1, 0.01, 'roughness');
+  R(hero, c, 'heroMetal', 0, 1, 0.01, 'metalness');
+  R(hero, c, 'heroShadow', 0, 1, 1, 'cast shadow');` : ''}
   hero.addColor(c, 'colorHeroA').name('rim');
   hero.addColor(c, 'colorHeroB').name('lit');
   hero.addColor(c, 'colorHeroC').name('shade');
@@ -2183,20 +2160,24 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorFlash').name('flash');
   R(beat, c, 'burstRadius', 0, 12, 0.05, 'burst (m)');
   R(beat, c, 'burstLife', 0.05, 3, 0.01, 'burst life');
+  R(beat, c, 'burstOpacity', 0, 1.5, 0.01, 'burst opacity');
+  R(beat, c, 'impactChips', 0, 200, 1, 'fragments');
+  R(beat, c, 'impactDust', 0, 120, 1, 'dust roll');
   beat.addColor(c, 'colorBurstA').name('burst, hot');
   beat.addColor(c, 'colorBurstB').name('burst, body');
   beat.addColor(c, 'colorBurstC').name('burst, deep');
   R(beat, c, 'shockRadius', 0, 16, 0.05, 'decal (m)');
   R(beat, c, 'shockLife', 0.05, 3, 0.01, 'decal life');
+  R(beat, c, 'shockRing', 0, 1.5, 0.01, 'shock ring');
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
   const after = folder.addFolder('11 · Aftershock');
   R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
-  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
+  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'dust roll (m)');
   R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
   R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
-  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
+  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'dust life');
 
   const bodies = folder.addFolder('12 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');

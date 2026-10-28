@@ -60,10 +60,11 @@ const MAX_MARKS = 12;
  *
  *   1. **body** — the tangent placement, in its own shader.
  *   2. **lens** — the same placement into the distortion buffer.
- *   3. **ground** — a motion pattern under the footprint.
+ *   3. **ground** — a filled motion field under the circle: it lands behind a hot lip on the beat, holds through the linger with the element's pattern carved in, cools and breaks up; a filled residue decal outlives the cast.
  *   4. **voice** — a chord riding alongside the body, spun with the cast.
  *   5. **detail** — an InstancedMesh of the cast's own authored piece (`createKineticHaloPieceGeometry`); each piece folds part by part as the cast rises and beats.
  *   6. **hero** — one larger authored rig (`createKineticHaloHeroGeometry`), stood by its archetype (halo): held flat on the ground, turning, pulsing on the beat.
+ *      Hero and pieces are matter: sun-lit, opaque, shadow-casting (LAYER.SHAPED), the ramp as albedo, only hot parts glowing. The rig is framed to the circle (`heroFit`) and kept under `heroMaxHeight`.
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: the ring stores speed along itself, then dumps it tangent. Nothing is thrown radially.
@@ -128,6 +129,11 @@ export class KineticHaloAbility extends Ability {
       phrase: 0,
       foot: 1,
       footWidth: 1,
+      groundCenter: new Vector3(),
+      land: 0,
+      pre: 0,
+      heat: 0,
+      erode: 0,
       pulse: 1
     };
     this._seed = 0;
@@ -286,7 +292,33 @@ export class KineticHaloAbility extends Ability {
     else if (DISSOLVE_TRAVEL && !committed) dissolve = saturate(u * 0.55);
     const fade = committed && fadeT >= 1 ? 1 - (fadeT - 1) : 1;
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
+    this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+  /**
+   * The floor's own clock. Before the beat a zone shows its footprint faintly
+   * and a line lays its strip behind the head; on the beat the field lands out
+   * to the rim over `groundLand` seconds (a line's strip is already down),
+   * hot; it cools through the fade and breaks up over its last stretch. The
+   * residue decal outlives it.
+   */
+  _groundPose(committed, fadeT) {
+    const c = settings[ID];
+    const st = this._state;
+    if (!committed) {
+      st.land = 0;
+      st.pre = c.groundTelegraph * saturate(this.u * 1.4);
+      st.heat = 0;
+      st.erode = 0;
+      return;
+    }
+    const since = fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+    const landed = saturate(since / Math.max(0.05, c.groundLand));
+    st.land = 1.25 * Easing.outCubic(landed);
+    st.pre = c.groundTelegraph * (1 - landed);
+    st.heat = fadeT < 1 ? 1 - 0.3 * fadeT : 0.7 * (1 - saturate((fadeT - 1) * 1.5));
+    st.erode = fadeT < 1 ? 0 : saturate((fadeT - 1.4) / 0.6);
   }
 
   _write(open, grow, along, dissolve, fade, phrase) {
@@ -315,6 +347,9 @@ export class KineticHaloAbility extends Ability {
     st.phrase = phrase;
     st.foot = ZONE ? c.zoneRadius * 2 : Math.max(0.4, this.front);
     st.footWidth = ZONE ? c.zoneRadius * 2 : c.groundWidth;
+    // A zone's field sits on the circle; a line's covers the strip already crossed.
+    if (ZONE) st.groundCenter.copy(_focus);
+    else st.groundCenter.copy(this.origin).addScaledVector(this.direction, st.foot * 0.5);
     st.pulse = 1 + c.bodyPulse * Math.sin(this.age * c.bodyPulseRate);
     this.bodyMaterial.userData.sync(st);
     this.lensMaterial.userData.sync(st);
@@ -328,7 +363,7 @@ export class KineticHaloAbility extends Ability {
     this.body.visible = show;
     this.voice.visible = show;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = fade > 0.02;
+    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -605,7 +640,7 @@ export class KineticHaloAbility extends Ability {
   _telegraph() {
     const c = settings[ID];
     this.pointAt(1, _end);
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+    this.ctx.decals.spawn(DecalType.DUSTRING, _end, {
       radius: Math.max(0.4, c.zoneRadius) * 0.85,
       life: Math.max(0.4, c.shockLife),
       width: 0.05,
@@ -616,6 +651,12 @@ export class KineticHaloAbility extends Ability {
     });
   }
 
+  /**
+   * The beat lands as a hit, not a pop: shake, flash and a light punch, a
+   * low dust shell, real fragments thrown up and out with dust rolled along
+   * the floor, and a filled residue decal sized to the circle that stays on the
+   * floor after the cast is gone. The thin shock ring is only a trace now (`shockRing`).
+   */
   _beat() {
     const c = settings[ID];
     const g = settings.global;
@@ -624,38 +665,63 @@ export class KineticHaloAbility extends Ability {
     this.ctx.shake.add(c.impactShake * power * g.cameraShake, 4, 18);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.impactFlash * power);
     this.lightBoost = c.impactLight * power;
-    this.ctx.bursts.spawn(BurstMode.AIR, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.35)), {
-      radius: 0.35,
-      endRadius: c.burstRadius * power,
-      life: c.burstLife,
-      intensity: 0.85,
-      opacity: 0.4 * g.opacity,
-      squash: 0.38,
-      colorA: getColor(c.colorBurstA),
-      colorB: getColor(c.colorBurstB),
-      colorC: getColor(c.colorBurstC)
+    if (c.burstOpacity > 0.01) {
+      this.ctx.bursts.spawn(BurstMode.AIR, _pos.copy(_end).setY(Math.max(0.4, c.height * 0.35)), {
+        radius: 0.35,
+        endRadius: c.burstRadius * power,
+        life: c.burstLife,
+        intensity: 0.85,
+        opacity: c.burstOpacity * g.opacity,
+        squash: 0.38,
+        colorA: getColor(c.colorBurstA),
+        colorB: getColor(c.colorBurstB),
+        colorC: getColor(c.colorBurstC)
+      });
+    }
+    this._debris(_end);
+    this.ctx.decals.spawn(DecalType.SCORCH, _end, {
+      radius: Math.max(0.5, c.zoneRadius * c.groundStainReach) * power,
+      life: c.groundLife * g.lifetime,
+      width: 0.8,
+      intensity: c.groundStain,
+      colorA: getColor(c.colorGroundStain),
+      colorB: getColor(c.colorGroundA),
+      height: 0.025
     });
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
-      radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
-      life: c.shockLife,
-      width: 0.08,
-      intensity: 1,
-      colorA: getColor(c.colorShockA),
-      colorB: getColor(c.colorShockB),
-      height: 0.03
-    });
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
-      radius: c.shockRadius * 0.8,
-      life: c.shockLife * 0.75,
-      width: 0.05,
-      intensity: 0.85,
-      colorA: getColor(c.colorShockB),
-      colorB: getColor(c.colorShockA),
-      height: 0.03
-    });
+    if (c.shockRing > 0.01) {
+      this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+        radius: c.shockRadius * 0.8,
+        life: c.shockLife * 0.75,
+        width: 0.08,
+        intensity: 0.85 * c.shockRing,
+        colorA: getColor(c.colorShockB),
+        colorB: getColor(c.colorShockA),
+        height: 0.03
+      });
+    }
   }
 
-  /** The smaller second beat: a settling ring, a low thud and a last flare of light. */
+  /** Fragments thrown up and out of the strike, and dust rolled out along the floor. */
+  _debris(at) {
+    const c = settings[ID];
+    const g = settings.global;
+    const spread = ZONE ? c.zoneRadius * 0.4 : 0.5;
+    _pos.copy(at).setY(0.15);
+    const chips = Math.round(c.impactChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      this._fillEmit(_pos, spread, _up, c.chipSpeed * 1.5, 0.8, c.chipSize * 1.4, c.chipLife * 1.3, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.impactDust * g.particleCount);
+    for (let i = 0; i < dust; i++) {
+      const ang = (i / Math.max(1, dust)) * Math.PI * 2 + this._spin;
+      _dir.set(Math.cos(ang), 0.12, Math.sin(ang));
+      this._fillEmit(_pos, spread * 0.6, _dir, c.dustSpeed * 1.8, 0.25, 0.6, c.dustLife * 1.4, 0.4);
+      this.dust.emit(1, _emit);
+    }
+  }
+
+  /** The smaller second beat: a low dust roll settling over the field, a thud and a last flare of light. */
   _aftershock() {
     const c = settings[ID];
     const g = settings.global;
@@ -663,13 +729,13 @@ export class KineticHaloAbility extends Ability {
     this._aim(_end);
     this.ctx.shake.add(c.aftershockShake * power * g.cameraShake, 3, 12);
     this.lightBoost += c.aftershockLight * power;
-    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
+    this.ctx.decals.spawn(DecalType.DUSTRING, _end, {
       radius: c.aftershockRadius * power,
       life: c.aftershockLife,
       width: 0.06,
       intensity: 0.55,
-      colorA: getColor(c.colorShockB),
-      colorB: getColor(c.colorShockA),
+      colorA: getColor(c.colorGroundB),
+      colorB: getColor(c.colorGroundA),
       height: 0.03
     });
   }
@@ -793,10 +859,17 @@ export function buildEditor(gui, c, Editor) {
   const floor = folder.addFolder('5 · Ground');
   R(floor, c, 'groundWidth', 0.2, 16, 0.05, 'width (m)');
   R(floor, c, 'groundGlow', 0, 6, 0.05, 'glow');
-  R(floor, c, 'groundLife', 0.1, 4, 0.05, 'life');
+  R(floor, c, 'groundLife', 0.1, 12, 0.05, 'residue life (s)');
   R(floor, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
+  R(floor, c, 'groundHeat', 0, 4, 0.05, 'heat');
+  R(floor, c, 'groundCoat', 0, 1, 0.01, 'stain .. coat');
+  R(floor, c, 'groundLand', 0.05, 2, 0.01, 'lands in (s)');
+  R(floor, c, 'groundTelegraph', 0, 1, 0.01, 'footprint before the beat');
+  R(floor, c, 'groundStain', 0, 1.5, 0.01, 'residue');
+  R(floor, c, 'groundStainReach', 0.1, 2, 0.01, 'residue reach');
   floor.addColor(c, 'colorGroundA').name('ground');
   floor.addColor(c, 'colorGroundB').name('ground, deep');
+  floor.addColor(c, 'colorGroundStain').name('stain');
 
   const pieces = folder.addFolder('6 · Detail pieces');
   R(pieces, c, 'detailCount', 0, 48, 1, 'count');
@@ -809,6 +882,10 @@ export function buildEditor(gui, c, Editor) {
   R(pieces, c, 'detailOpacity', 0, 1.5, 0.01, 'opacity');
   R(pieces, c, 'detailSwing', 0, 2.5, 0.01, 'fold');
   R(pieces, c, 'detailEdge', 0, 4, 0.05, 'arris light');
+  R(pieces, c, 'detailDeep', 0, 1, 0.01, 'colour depth');
+  R(pieces, c, 'detailRough', 0, 1, 0.01, 'roughness');
+  R(pieces, c, 'detailMetal', 0, 1, 0.01, 'metalness');
+  R(pieces, c, 'detailShadow', 0, 1, 1, 'cast shadow');
   pieces.addColor(c, 'colorDetailA').name('rim');
   pieces.addColor(c, 'colorDetailB').name('lit');
   pieces.addColor(c, 'colorDetailC').name('shade');
@@ -822,6 +899,12 @@ export function buildEditor(gui, c, Editor) {
   R(hero, c, 'heroGlow', 0, 6, 0.05, 'rim glow');
   R(hero, c, 'heroEdge', 0, 4, 0.05, 'arris light');
   R(hero, c, 'heroOpacity', 0, 1.5, 0.01, 'opacity');
+  R(hero, c, 'heroDeep', 0, 1, 0.01, 'colour depth');
+  R(hero, c, 'heroMaxHeight', 1, 12, 0.05, 'max height (m)');
+  R(hero, c, 'heroFit', 0, 1.5, 0.01, 'fit to circle');
+  R(hero, c, 'heroRough', 0, 1, 0.01, 'roughness');
+  R(hero, c, 'heroMetal', 0, 1, 0.01, 'metalness');
+  R(hero, c, 'heroShadow', 0, 1, 1, 'cast shadow');
   hero.addColor(c, 'colorHeroA').name('rim');
   hero.addColor(c, 'colorHeroB').name('lit');
   hero.addColor(c, 'colorHeroC').name('shade');
@@ -858,20 +941,24 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorFlash').name('flash');
   R(beat, c, 'burstRadius', 0, 12, 0.05, 'burst (m)');
   R(beat, c, 'burstLife', 0.05, 3, 0.01, 'burst life');
+  R(beat, c, 'burstOpacity', 0, 1.5, 0.01, 'burst opacity');
+  R(beat, c, 'impactChips', 0, 200, 1, 'fragments');
+  R(beat, c, 'impactDust', 0, 120, 1, 'dust roll');
   beat.addColor(c, 'colorBurstA').name('burst, hot');
   beat.addColor(c, 'colorBurstB').name('burst, body');
   beat.addColor(c, 'colorBurstC').name('burst, deep');
   R(beat, c, 'shockRadius', 0, 16, 0.05, 'decal (m)');
   R(beat, c, 'shockLife', 0.05, 3, 0.01, 'decal life');
+  R(beat, c, 'shockRing', 0, 1.5, 0.01, 'shock ring');
   beat.addColor(c, 'colorShockA').name('decal');
   beat.addColor(c, 'colorShockB').name('decal, hot');
 
   const after = folder.addFolder('11 · Aftershock');
   R(after, c, 'aftershockAt', 1, 1.9, 0.01, 'lands at');
-  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'ring (m)');
+  R(after, c, 'aftershockRadius', 0, 12, 0.05, 'dust roll (m)');
   R(after, c, 'aftershockShake', 0, 2, 0.01, 'camera punch');
   R(after, c, 'aftershockLight', 0, 40, 0.5, 'light punch');
-  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'ring life');
+  R(after, c, 'aftershockLife', 0.05, 3, 0.01, 'dust life');
 
   const bodies = folder.addFolder('12 · Bodies');
   R(bodies, c, 'hitRadius', 0.1, 12, 0.05, 'reach (m)');

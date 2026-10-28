@@ -31,7 +31,7 @@ export default {
     /* --- the cast itself --- */
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
-    speed: 20, // metres/second the orrery rolls to the circle
+    speed: 16, // metres/second the orrery rolls to the circle
     cooldown: 9, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 4.2, // metres: the chart, and the circle a mark may be made in
@@ -63,61 +63,82 @@ export default {
     /* ================================================================ */
     /* 1 · THE ORRERY — rolls from the hand to the circle                */
     /* ================================================================ */
-    starScale: 1, // orrery size
-    travelHeight: 1.1, // metres off the floor
+    starScale: 2, // orrery size
+    travelHeight: 1.4, // metres off the floor
     travelSpin: 1.5, // radians/second
 
     /* ================================================================ */
     /* 2 · THE CHART                                                     */
     /* ================================================================ */
-    chartHeight: 4.2, // metres overhead
+    chartHeight: 2.6, // metres overhead
     drawTime: 0.45, // seconds to draw every link, one after another
     collapseStrength: 0.8, // how far the chart shrinks and sinks on its exit (0..1)
-    nodeScale: 0.22, // chart star size
+    nodeScale: 0.32, // chart star size
     twinkle: 3, // twinkle speed
     chartGlow: 1, // stars, links and band
-    nebulaGlow: 0.5,
+    nebulaGlow: 0.7,
     nebulaScale: 1.15, // nebula radius, × chart radius
-    meridianScale: 0.55, // the two turning meridian rings, × chart radius
+    meridianScale: 0.6, // the two turning meridian rings, × chart radius
     meridianSpin: 0.3, // radians/second
     meridianGlow: 0.6,
-    floorGlow: 1, // the chart projected on the floor
+    floorGlow: 1.6, // the chart projected on the floor
     dustDrift: 0.08, // metres the star dust bobs
+    chartTilt: 0.45, // radians the chart leans its far edge up toward the caster
+    openOvershoot: 0.12, // how far the chart overshoots as it opens (fraction)
+
+    /* --- the hero: the astrolabe rete (solid, lit, casts the chart's shadow) --- */
+    reteScale: 1, // plate radius, × chart radius (1 = pointer tips on the stars)
+    reteThickness: 0.16, // metres
+    reteSpin: 0.25, // radians/second the plate (and the whole sky) turns
+    reteStrikeSpin: 3, // extra radians/second the strike kicks into it, winding down
+    reteGlow: 1.4, // engraved light on the plate
+    reteSweep: 0.12, // turns/second of the pen sweep round the plate
+    reteColor: '#3a2c63', // the bronze (deep stop of the ramp)
+    reteMetalness: 0.75,
+    reteRoughness: 0.32,
+
+    /* --- the filled star-map on the floor --- */
+    groundOpacity: 0.72, // how much the deep night darkens the floor
+    groundDeep: '#140b2c', // its darkest tone
+    groundBurn: 1, // the scorch spreading from the struck point
+    strikeScorch: 1.6, // scorch radius, × strike radius
 
     /* ================================================================ */
     /* 3 · THE MARK — compass, convergence and meteor                    */
     /* ================================================================ */
-    markGlow: 1, // the warning compass
-    convergenceWidth: 0.45, // ray width
+    markGlow: 1.5, // the warning compass
+    convergenceWidth: 0.8, // ray width
     convergenceGlow: 0.65,
-    meteorHeadScale: 0.5,
+    meteorHeadScale: 1.1,
     meteorTailLength: 2.5, // metres (never longer than the gap to the chart)
-    meteorWidth: 1,
+    meteorWidth: 2.2,
     meteorGlow: 1,
-    meteorTrailRate: 28, // streaks shed by the meteor, per second
+    meteorTrailRate: 60, // streaks shed by the meteor, per second
     beamGlow: 0.8, // the column the meteor falls down
     warpStrength: 0.6, // the lens bending the world round the falling star
 
     /* ================================================================ */
     /* 4 · THE STRIKE                                                    */
     /* ================================================================ */
-    impactScale: 1, // burst, shockwave and shard spread
-    impactGlow: 0.8,
-    flareScale: 1, // the corona
-    shardScale: 1,
+    impactScale: 1.8, // burst, shockwave and shard spread
+    impactGlow: 1.3,
+    flareScale: 1.8, // the corona
+    shardScale: 1.8,
     shardDuration: 0.8, // seconds the shards live
-    strikeShake: 0.3, // camera knock (× global camera shake)
-    strikeFlash: 0.28, // screen flash (× global explosion intensity)
+    strikeShake: 0.45, // camera knock (× global camera shake)
+    strikeFlash: 0.35, // screen flash (× global explosion intensity)
 
     /* ================================================================ */
     /* 5 · PARTICLES                                                     */
     /* ================================================================ */
-    particleRate: 26, // ambient motes under the chart, per second
+    particleRate: 40, // ambient motes under the chart, per second
     particleSize: 0.1,
+    travelStreaks: 50, // streaks in the orrery's wake, per second
+    travelGlitter: 90, // glitter the orrery sheds on its way, per second
     stardustRate: 22, // glitter drizzling off the chart, per second
-    stardustSize: 0.05,
+    stardustSize: 0.08,
     stardustLife: 1.4, // seconds
-    strikeStardust: 36, // glitter thrown up by the strike
+    strikeStardust: 80, // glitter thrown up by the strike
     colorStardustA: '#ffffff',
     colorStardustB: '#e4d4ff',
     colorStardustC: '#9d7cf0',

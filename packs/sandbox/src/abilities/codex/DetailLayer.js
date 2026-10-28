@@ -29,6 +29,11 @@ import { saturate, lerp, Easing } from '../../utils/math.js';
  * geometry, or one of the stock `kind`s), how they move (`verb`, picked by the
  * cast's twist), and a block of live settings (`detail*`). Nothing here is
  * cached from settings.
+ *
+ * The material says whether the pieces are matter (`userData.solid`, from the
+ * cast's `create<Cast>DetailMaterial`): solid elements' pieces are lit,
+ * opaque and shadow-casting on `LAYER.SHAPED` with the material's folded
+ * depth material; energy pieces stay on `LAYER.VFX`.
  */
 
 /** Longest axis of every piece is +Y, so a single orientation rule fits all. */
@@ -113,7 +118,17 @@ export class DetailLayer {
     this.geometry.setAttribute('aSeed', this.seedAttr);
     this.mesh = new InstancedMesh(this.geometry, material, this.max);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.mesh.layers.set(LAYER.VFX);
+    this.solid = !!material.userData?.solid;
+    if (this.solid) {
+      // Lit matter. SHAPED, not WORLD: the depth prepass would draw the pieces
+      // unfolded; the shadow map uses the folded depth material instead.
+      this.mesh.layers.set(LAYER.SHAPED);
+      this.mesh.castShadow = true;
+      this.mesh.receiveShadow = true;
+      if (material.userData.depth) this.mesh.customDepthMaterial = material.userData.depth;
+    } else {
+      this.mesh.layers.set(LAYER.VFX);
+    }
     this.mesh.renderOrder = 14;
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
@@ -168,6 +183,7 @@ export class DetailLayer {
       this.alive.fill(0);
       return;
     }
+    if (this.solid) this.mesh.castShadow = this.mesh.material.userData.castShadow !== false;
     const reach = (zone ? st.radius : st.radius + st.thickness * 2) * c.detailSpread;
     const lift = c.detailLift;
     const open = saturate(st.open);

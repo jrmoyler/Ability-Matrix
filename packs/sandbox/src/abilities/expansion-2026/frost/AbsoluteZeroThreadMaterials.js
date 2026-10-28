@@ -11,6 +11,7 @@ import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
 import { settings } from '../../../config/settings.js';
 import { getColor } from '../../../utils/color.js';
+import { patchOnBeforeCompile } from '../../../utils/shaderPatch.js';
 import { ID } from './AbsoluteZeroThreadConfig.js';
 
 /**
@@ -38,6 +39,11 @@ import { ID } from './AbsoluteZeroThreadConfig.js';
  *    from the feet over `statueCreep`.
  *  - **the shards** (`createShardMaterial`) — instanced crystals; fresnel ice
  *    with a bright core line.
+ *  - **the frost spine** (`createSpineMaterial`) — the hero: opaque, sun-lit
+ *    ice (MeshStandardMaterial on `LAYER.WORLD`, casting shadows) with a
+ *    patched emissive — a four-stop ramp from the deep blue in the facets
+ *    facing away to a white grazing rim, cloudy frost inside, and a per-
+ *    instance `aPulse` that flares a crystal white as a pulse runs the thread.
  *  - **the chips** (`createChipMaterial`) — baked shatter points thrown out on
  *    a ballistic arc, one material per pooled burst.
  *
@@ -791,5 +797,105 @@ export function createChipMaterial() {
     material.uniforms.uColor.value.copy(getColor(c.colorChip));
   };
 
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The frost spine (hero)                                               */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Lit, opaque ice for the instanced spine and terminal cluster. Lighting,
+ * shadows and the env reflection come from MeshStandardMaterial; the patch
+ * adds the ramp: deep stop in the facets turned from the eye, body, a white
+ * fresnel rim, voronoi-ish frost clouding and the travelling pulse.
+ */
+export function createSpineMaterial() {
+  const material = new MeshStandardMaterial({
+    color: 0xbfe9ff,
+    roughness: 0.14,
+    metalness: 0,
+    flatShading: true,
+    envMapIntensity: 1.2
+  });
+  const uniforms = {
+    uTime: { value: 0 },
+    uSpineDeep: { value: new Color('#0b2f5c') },
+    uSpineRim: { value: new Color('#e8fbff') },
+    uSpineCore: { value: new Color('#ffffff') },
+    uSpineGlow: { value: 0.35 },
+    uSpineRimGlow: { value: 1.2 },
+    uSpineFresnel: { value: 3 },
+    uSpinePulse: { value: 1.5 }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+  attribute float aPulse;
+  varying float vPulse;
+  varying vec3 vSpineLocal;`
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+  vPulse = aPulse;
+  vSpineLocal = position;`
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+  uniform float uTime;
+  uniform vec3 uSpineDeep;
+  uniform vec3 uSpineRim;
+  uniform vec3 uSpineCore;
+  uniform float uSpineGlow;
+  uniform float uSpineRimGlow;
+  uniform float uSpineFresnel;
+  uniform float uSpinePulse;
+  varying float vPulse;
+  varying vec3 vSpineLocal;
+  float spineHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  {
+    vec3 nV = normalize(normal);
+    vec3 vV = normalize(vViewPosition);
+    float facing = clamp(abs(dot(nV, vV)), 0.0, 1.0);
+    float rim = pow(1.0 - facing, uSpineFresnel);
+    // Frost clouding up the crystal: banded, hashed per facet height.
+    float cloud = spineHash(floor(vSpineLocal * vec3(9.0, 14.0, 9.0)));
+    float core = exp(-pow(length(vSpineLocal.xz) * 12.0, 2.0)) * smoothstep(0.05, 0.7, vSpineLocal.y);
+    diffuseColor.rgb = mix(uSpineDeep, diffuseColor.rgb, 0.35 + 0.65 * facing);
+    totalEmissiveRadiance += uSpineDeep * uSpineGlow * (0.6 + 0.8 * cloud);
+    totalEmissiveRadiance += uSpineRim * rim * uSpineRimGlow;
+    totalEmissiveRadiance += uSpineCore * (core * 0.6 + vPulse * (0.35 + rim)) * uSpinePulse * vPulse;
+  }`
+        );
+    },
+    'azt-spine'
+  );
+  material.userData.sync = (clock) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = uniforms;
+    u.uTime.value = clock;
+    material.color.copy(getColor(c.colorSpine));
+    material.roughness = c.spineRough;
+    u.uSpineDeep.value.copy(getColor(c.colorSpineDeep));
+    u.uSpineRim.value.copy(getColor(c.colorSpineRim));
+    u.uSpineCore.value.copy(getColor(c.colorSpineCore));
+    u.uSpineGlow.value = c.spineGlow * g.glow * g.shaderIntensity;
+    u.uSpineRimGlow.value = c.spineRimGlow * g.glow;
+    u.uSpineFresnel.value = Math.max(0.3, c.spineFresnel / Math.max(0.05, g.fresnel));
+    u.uSpinePulse.value = c.pulseGlow * g.glow;
+  };
   return material;
 }

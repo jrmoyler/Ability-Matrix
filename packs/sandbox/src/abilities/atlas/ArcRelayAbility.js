@@ -35,6 +35,8 @@ const MAX_NODES = 8;
 const MAX_TETHERS = MAX_NODES;
 /** New relays a single relay may claim per wave. */
 const MAX_BRANCH = 3;
+/** Burn marks laid along one link when it is claimed. */
+const MAX_SCARS_PER_LINK = 10;
 
 /** What the lattice is doing right now. */
 const Mode = Object.freeze({
@@ -57,6 +59,7 @@ const _to = new Vector3();
 const _dir = new Vector3();
 const _toCam = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _scar = new Vector3();
 
 /**
  * RELAY — Arc Relay.
@@ -91,6 +94,11 @@ const _up = new Vector3(0, 1, 0);
  *   3. **GROUND SIGILS** (`createRelaySigilMaterial`) — a relay seal drawn
  *      in under each body as it charges, throbbing under overload, wiped
  *      outward by the discharge; plus an ARC burn when it is claimed.
+ *   3b. **CONDUCTION SCARS** — the floor remembers the lattice: when a link
+ *      races to a new relay it burns a dotted line of ARC + SCORCH marks along
+ *      its ground track (one per `scarSpacing` metres, at most ten a link),
+ *      and every relay leaves a dark scorch on the discharge. They outlive
+ *      the cast, so the shape of the network stays written on the floor.
  *   4. **SPARKS + MOTES** — STREAK sparks on every claim, spat off live relays
  *      and thrown in a ring by the discharge; SOFT ionised motes off the
  *      leader and drifting up out of every relay.
@@ -447,6 +455,7 @@ export class ArcRelayAbility extends Ability {
       height: 0.018
     });
     this._feedSource(tether, _from);
+    this._scarLine(_from, node.point);
     _dir.subVectors(node.point, _from).setY(0).normalize().setY(0.7).normalize();
     this._sparkBurst(node.point, 0.25, Math.round(c.sparkCount * g.particleCount), _dir, c.sparkSpeed);
 
@@ -454,6 +463,39 @@ export class ArcRelayAbility extends Ability {
     this.lightBoost = Math.max(this.lightBoost, c.relayLight * g.explosionIntensity);
     this.ctx.shake.add(c.relayShake * g.explosionIntensity, 5, 28);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.relayFlash * g.explosionIntensity);
+  }
+
+  /** Burn the ground track of a new link: a dotted line of ARC and SCORCH. */
+  _scarLine(from, to) {
+    const c = settings.relay;
+    const g = settings.global;
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const length = Math.hypot(dx, dz);
+    const n = Math.min(MAX_SCARS_PER_LINK, Math.floor(length / Math.max(0.2, c.scarSpacing)));
+    if (n <= 0 || c.scarRadius <= 0) return;
+    for (let i = 1; i <= n; i++) {
+      const t = i / (n + 1);
+      _scar.set(from.x + dx * t, 0, from.z + dz * t);
+      this.ctx.decals.spawn(DecalType.ARC, _scar, {
+        radius: c.scarRadius * (0.7 + 0.6 * Math.random()) * g.explosionIntensity,
+        life: c.scarLife,
+        width: c.arcWidth,
+        intensity: c.arcIntensity * 0.8,
+        colorA: getColor(c.colorArcA),
+        colorB: getColor(c.colorArcB),
+        height: 0.016
+      });
+      if (i % 2) {
+        this.ctx.decals.spawn(DecalType.SCORCH, _scar, {
+          radius: c.scarRadius * 0.6,
+          life: c.scarLife * 1.3,
+          intensity: 0.8,
+          colorA: getColor(c.colorScorch),
+          colorB: getColor(c.colorArcB)
+        });
+      }
+    }
   }
 
   /** One wave: every relay of the newest wave reaches for the next bodies. */
@@ -517,6 +559,13 @@ export class ArcRelayAbility extends Ability {
         colorC: getColor(c.colorBurstC)
       });
       _pos.y = 0;
+      this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+        radius: c.scorchRadius,
+        life: c.scorchLife,
+        intensity: 1,
+        colorA: getColor(c.colorScorch),
+        colorB: getColor(c.colorArcB)
+      });
       this.ctx.decals.spawn(DecalType.SHOCKWAVE, _pos, {
         radius: c.shockRadius * g.explosionIntensity,
         life: c.shockLife,
@@ -1051,6 +1100,13 @@ export function buildEditor(gui, c, Editor) {
   R(sigil, c, 'arcIntensity', 0, 4, 0.05, 'burn intensity');
   sigil.addColor(c, 'colorArcA').name('burn hot');
   sigil.addColor(c, 'colorArcB').name('burn cool');
+  const scars = folder.addFolder('3b · Conduction scars');
+  R(scars, c, 'scarSpacing', 0.2, 4, 0.05, 'one mark every (m)');
+  R(scars, c, 'scarRadius', 0, 2, 0.01, 'mark radius (m)');
+  R(scars, c, 'scarLife', 0.2, 10, 0.1, 'marks last (s)');
+  R(scars, c, 'scorchRadius', 0, 4, 0.05, 'scorch per relay on discharge (m)');
+  R(scars, c, 'scorchLife', 0.2, 12, 0.1, 'scorch lasts (s)');
+  scars.addColor(c, 'colorScorch').name('scorch');
 
   /* ---- layer 4 ---- */
   const sparks = folder.addFolder('4 · Sparks + motes');

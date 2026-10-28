@@ -242,7 +242,7 @@ export class PackAdapter {
   _hit(dummy, scope, outcome) {
     const id = this._dummyId(dummy);
     const p = dummy.position;
-    this.manager.upsertEntity({ id, teamId: TARGETS, position: [p.x, 0, p.z] });
+    this.manager.upsertEntity({ id, teamId: dummy.ucsmTeam ?? TARGETS, position: [p.x, 0, p.z] });
     this.manager.submit({
       type: 'hit',
       element: scope.element,
@@ -292,7 +292,9 @@ export class PackAdapter {
         m.setAlive(id, false);
         if (d.alive) m.setAlive(id, true);
       }
-      m.upsertEntity({ id, teamId: TARGETS, position: [d.position.x, 0, d.position.z], alive: d.alive });
+      // A body may carry its own team (the Arch-Wizard is 'cpu', so its mechanics
+      // find the player and the dummies, and the player's find it).
+      m.upsertEntity({ id, teamId: d.ucsmTeam ?? TARGETS, position: [d.position.x, 0, d.position.z], alive: d.alive });
     }
 
     // Landings and endings.

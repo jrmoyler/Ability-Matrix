@@ -22,7 +22,25 @@ import { saturate, lerp, Easing } from '../../utils/math.js';
  *
  * Zone rigs are authored on +Y; line rigs along +Z with +X to the side. A rig
  * whose geometry says `fit: 'ring'` is scaled in the ground plane to the
- * circle; a `'mass'` rig is scaled by `heroSize` alone.
+ * circle; a `'mass'` rig is scaled uniformly.
+ *
+ * ## Matter or energy
+ *
+ * The material decides (`material.userData.solid`, set by the cast's
+ * `create<Cast>DetailMaterial`). A solid element's rig is lit matter: it goes
+ * on `LAYER.SHAPED` — opaque, sun-lit, casting and receiving shadows, but kept
+ * out of the depth prepass, which would draw the unfolded rest pose — and its
+ * shadow comes from the material's own folded depth material. An energy rig
+ * stays on `LAYER.VFX`.
+ *
+ * ## Framing
+ *
+ * `heroSize` is the floor of the scale, not the whole of it. A mass rig in a
+ * circle grows until it spans `heroFit` of the radius each side; a line rig
+ * grows until its cross-section is `heroMinSpan` metres (a body height) and
+ * rides clear of the floor. Then everything is held under `heroMaxHeight`:
+ * the scale is capped so the rig's top fits, and any rise, drop or arc is
+ * lowered so it stays in frame.
  */
 
 const UP = new Vector3(0, 1, 0);
@@ -47,8 +65,24 @@ export class RigHero {
     this.arch = arch;
     this.zone = zone;
     this.ring = geometry.userData.fit === 'ring';
+    // Authored extents, measured once: what the framing rules scale against.
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const b = geometry.boundingBox;
+    this.top = Math.max(0.05, b.max.y);
+    this.bottom = b.min.y;
+    this.halfWidth = Math.max(0.05, -b.min.x, b.max.x, -b.min.z, b.max.z);
+    this.cross = Math.max(0.05, b.max.x - b.min.x, b.max.y - b.min.y);
+    this.radial = Math.max(0.05, -b.min.x, b.max.x, -b.min.y, b.max.y);
     this.mesh = new Mesh(geometry, material);
-    this.mesh.layers.set(LAYER.VFX);
+    this.solid = !!material.userData?.solid;
+    if (this.solid) {
+      this.mesh.layers.set(LAYER.SHAPED);
+      this.mesh.castShadow = true;
+      this.mesh.receiveShadow = true;
+      if (material.userData.depth) this.mesh.customDepthMaterial = material.userData.depth;
+    } else {
+      this.mesh.layers.set(LAYER.VFX);
+    }
     // Above the body and voice sheets, so the solid reads through their glow.
     this.mesh.renderOrder = 14;
     this.mesh.frustumCulled = false;
@@ -78,49 +112,57 @@ export class RigHero {
     this.mesh.visible = gate;
     this.live = gate;
     if (!gate) return;
+    if (this.solid) this.mesh.castShadow = this.mesh.material.userData.castShadow !== false;
 
     const mesh = this.mesh;
     const shrink = 0.25 + 0.75 * life;
-    if (this.zone) this._zone(mesh, st, c, time, size, E, O, shrink);
-    else this._line(mesh, st, c, time, size, E, O, A, shrink);
+    const maxH = Math.max(0.5, c.heroMaxHeight ?? 1e3);
+    if (this.zone) this._zone(mesh, st, c, time, size, E, O, shrink, maxH);
+    else this._line(mesh, st, c, time, size, E, O, A, shrink, maxH);
   }
 
-  _zone(mesh, st, c, time, size, E, O, shrink) {
+  _zone(mesh, st, c, time, size, E, O, shrink, maxH) {
     const yaw = st.spin * c.heroSpin;
-    const R = this.ring ? Math.max(0.2, st.radius * c.heroReach) : size;
-    let sxz = R;
-    let sy = size;
+    const R = Math.max(0.2, st.radius * c.heroReach);
+    // A mass rig grows to span heroFit of the circle; nothing grows past the height cap.
+    let s = this.ring ? size : Math.max(size, ((c.heroFit ?? 0) * st.radius) / this.halfWidth);
+    s = Math.min(s, maxH / this.top);
+    const across = this.ring ? R : s;
+    let sxz = across;
+    let sy = s;
     let py = 0;
     let turn = yaw;
     switch (this.arch) {
       case 'spire':
-        sy = size * (0.3 + 0.7 * E);
+        sy = s * (0.3 + 0.7 * E);
         py = -(1 - E) * c.heroLift * 0.5;
         break;
       case 'halo':
-        sxz = R * (1 - 0.1 * O);
+        sxz = across * (1 - 0.1 * O);
         py = 0.04 + c.heroLift * 0.05 * (1 + Math.sin(time * 2.4));
         turn = yaw * 1.6;
         break;
       case 'well':
-        sxz = R * lerp(1, 0.55, O);
-        sy = size * (0.35 + 0.15 * E) * (1 + 2 * O);
+        sxz = across * lerp(1, 0.55, O);
+        sy = Math.min(s * (0.35 + 0.15 * E) * (1 + 2 * O), maxH / this.top);
         py = -c.heroLift * 0.3 * (1 - E) + c.heroLift * 0.4 * O;
         break;
       case 'cage':
         py = (1 - E) * c.heroLift;
-        sxz = R * (1 - 0.3 * O);
+        sxz = across * (1 - 0.3 * O);
         turn = yaw * 0.5;
         break;
       default:
         break;
     }
+    // Keep the top in frame: a drop starts lower, a rise stops sooner.
+    py = Math.min(py, Math.max(0, maxH - sy * this.top));
     mesh.position.set(st.center.x, py + 0.02, st.center.z);
     mesh.quaternion.setFromAxisAngle(UP, turn);
     mesh.scale.set(sxz * shrink, sy * shrink, sxz * shrink);
   }
 
-  _line(mesh, st, c, time, size, E, O, A, shrink) {
+  _line(mesh, st, c, time, size, E, O, A, shrink, maxH) {
     let yaw = 0;
     let roll = 0;
     let pitch = 0;
@@ -169,9 +211,18 @@ export class RigHero {
       _qr.setFromAxisAngle(_dir.set(0, 0, 1), roll);
       _q.multiply(_qr);
     }
+    // At least a body height across; never taller than the cap allows.
+    const rolls = this.arch === 'lance' || this.arch === 'volley';
+    const below = rolls ? this.radial : Math.max(0, -this.bottom);
+    const above = rolls ? this.radial : this.top;
+    let base = Math.max(size, (c.heroMinSpan ?? 0) / this.cross);
+    base = Math.min(base, maxH / Math.max(0.05, below + above));
+    const s = base * (0.6 + 0.4 * E) * shrink;
+    // Ride clear of the floor, and keep the top under the cap.
+    const floor = s * below * 0.9;
+    lift = Math.min(Math.max(lift, floor), Math.max(floor, maxH - s * above));
     mesh.position.set(at.x, lift + 0.02, at.z);
     mesh.quaternion.copy(_q);
-    const s = size * (0.6 + 0.4 * E) * shrink;
     mesh.scale.set(s, s, s * stretch);
   }
 

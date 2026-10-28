@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -597,6 +597,321 @@ export function createLensMaterial() {
     u.uStrength.value = state.strength * c.lensStrength * g.distortion;
     u.uRing.value = state.ring;
     u.uRingStrength.value = c.splitRingStrength * g.distortion;
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The choir — crystal pipes where the shards land                       */
+/* -------------------------------------------------------------------- */
+
+/** The JS twin of `spectrum` (0..1 → red … violet … red), into `out`. */
+export function spectrumColor(x, out) {
+  const t = Math.PI * 2;
+  return out.setRGB(
+    Math.min(1, Math.max(0, 0.5 + 0.5 * Math.cos(t * x))),
+    Math.min(1, Math.max(0, 0.5 + 0.5 * Math.cos(t * (x + 0.33)))),
+    Math.min(1, Math.max(0, 0.5 + 0.5 * Math.cos(t * (x + 0.67))))
+  );
+}
+
+const _spec = new Color();
+const _deep = new Color();
+
+/**
+ * The solid of a choir cluster: quartz lit by the scene sun, flat-shaded so
+ * every facet takes its own light, on `LAYER.WORLD` (the ability flags it to
+ * cast shadows). Its albedo is the dark end of its shard's hue mixed into the
+ * crystal deep tone, its emissive the hue itself — the song drives it.
+ */
+export function createChoirSolidMaterial() {
+  const material = new MeshStandardMaterial({
+    color: 0x262a8c,
+    emissive: 0x8f7cff,
+    emissiveIntensity: 0.4,
+    metalness: 0.25,
+    roughness: 0.12,
+    flatShading: true
+  });
+  /** @param {object} state { hue (radians), sing (0..~1.5), fade } */
+  material.userData.sync = (state) => {
+    const c = settings[ID];
+    const g = settings.global;
+    spectrumColor(state.hue / (Math.PI * 2), _spec);
+    _deep.copy(getColor(c.colorCrystalDeep));
+    material.color.copy(_deep).lerp(_spec, c.spireTint).multiplyScalar(c.spireDeep * 3);
+    material.emissive.copy(_spec);
+    material.emissiveIntensity = (c.spireGlow * (0.35 + state.sing)) * g.glow * state.fade;
+    material.roughness = c.spireRoughness;
+    material.metalness = c.spireMetalness;
+  };
+  return material;
+}
+
+const CHOIR_VERTEX = /* glsl */ `
+  attribute vec3 aBary;
+  attribute float aFacet;
+  attribute float aRise;
+  attribute float aPipe;
+  uniform float uInflate;
+  varying vec3 vN;
+  varying vec3 vViewDir;
+  varying vec3 vBary;
+  varying float vFacet;
+  varying float vRise;
+  varying float vPipe;
+  void main() {
+    vBary = aBary;
+    vFacet = aFacet;
+    vRise = aRise;
+    vPipe = aPipe;
+    vec3 p = position + normal * uInflate;
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vN = normalize(mat3(modelMatrix) * normal);
+    vViewDir = cameraPosition - world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+/**
+ * The song of a choir cluster, an additive shell over the solid. Each pipe
+ * sings in turn — a ring of light climbs it from the floor to the tip, one
+ * pipe after the next across the cluster, and its tip flares as the ring
+ * leaves it — over a spectral fresnel rim and glowing facet edges. The
+ * cluster burns out from the tips down through noise as it sinks.
+ */
+const CHOIR_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uHue;
+  uniform float uSpread;
+  uniform float uGlow;
+  uniform float uSing;        // 0..~1.5 how loud the choir is
+  uniform float uSingRate;    // rings per second up each pipe
+  uniform float uBands;
+  uniform float uEdgeGlow;
+  uniform float uFresnelPow;
+  uniform float uFade;
+  uniform vec3 uColorRim;
+  varying vec3 vN;
+  varying vec3 vViewDir;
+  varying vec3 vBary;
+  varying float vFacet;
+  varying float vRise;
+  varying float vPipe;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+  ${SPECTRUM_GLSL}
+
+  void main() {
+    vec3 V = normalize(vViewDir);
+    vec3 N = normalize(vN);
+    if (!gl_FrontFacing) N = -N;
+    float n = snoise01(vec3(vPipe * 7.0, vRise * 3.0, vFacet * 5.0));
+    // Burns out from the tips down.
+    float cut = 1.0 - uFade;
+    vec2 dm = dissolveMask(n * 0.5 + vRise * 0.5, cut, 0.1);
+    if (dm.x < 0.5) discard;
+
+    float fres = fresnelTerm(V, N, uFresnelPow, 1.0);
+    float edge = 1.0 - smoothstep(0.0, 0.05, min(vBary.x, min(vBary.y, vBary.z)));
+    // One ring per pipe, staggered across the cluster.
+    float phase = fract(uTime * uSingRate - vPipe * 0.85);
+    float ring = exp(-pow((vRise - phase * 1.15) * 7.0 * uBands, 2.0));
+    float tip = smoothstep(0.82, 1.0, vRise) * smoothstep(0.75, 1.0, phase);
+    vec3 spec = spectrum(uHue / 6.2831853 + vRise * 0.18 * uSpread + fres * 0.2 * uSpread);
+    vec3 col = spec * (ring * 1.6 + tip * 2.0) * uSing;
+    col += mix(uColorRim, spec, 0.6) * fres * 1.1;
+    col += spec * edge * uEdgeGlow * (0.4 + 0.6 * uSing);
+    col += spec * dm.y * 3.0;
+    col *= uGlow;
+    float a = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(col, a);
+  }
+`;
+
+export function createChoirGlowMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uInflate: { value: 0.012 },
+      uHue: { value: 0 },
+      uSpread: { value: 1 },
+      uGlow: { value: 1 },
+      uSing: { value: 1 },
+      uSingRate: { value: 2.2 },
+      uBands: { value: 1 },
+      uEdgeGlow: { value: 1 },
+      uFresnelPow: { value: 2.2 },
+      uFade: { value: 1 },
+      uColorRim: { value: new Color() }
+    }),
+    vertexShader: CHOIR_VERTEX,
+    fragmentShader: CHOIR_FRAGMENT
+  });
+  material.uniforms.uTime = { value: 0 };
+  /** @param {object} state { time, hue, sing, fade } */
+  material.userData.sync = (state) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time * g.animationSpeed;
+    u.uHue.value = state.hue;
+    u.uSpread.value = c.spectralSpread;
+    u.uGlow.value = c.crystalGlow * g.glow * g.shaderIntensity;
+    u.uSing.value = state.sing;
+    u.uSingRate.value = c.spireSingRate;
+    u.uBands.value = c.spireBands;
+    u.uEdgeGlow.value = c.edgeGlow * 0.6;
+    u.uFresnelPow.value = Math.max(0.2, c.fresnelPower / Math.max(0.1, g.fresnel));
+    u.uFade.value = state.fade * g.opacity;
+    u.uColorRim.value.copy(getColor(c.colorCrystalRim));
+  };
+  return material;
+}
+
+/**
+ * The floor the choir grows from: a rime of faceted crystal spreading under
+ * each cluster, normal-blended so its deep tone darkens the ground. Voronoi
+ * flagstones of crystal, dark hue-tinted deep in the cells, the hue on the
+ * seams and a pale tint where the light pools at the cluster's foot; spectral
+ * cracks radiate from each cluster and pulse with the song. It grows with the
+ * clusters, stays for the hang and burns out through noise at the exit.
+ * Drawn on the lightfall's quad (world-space XZ), so it covers the whole fan.
+ */
+const RIME_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3 uCentre0;
+  uniform vec3 uCentre1;
+  uniform vec3 uCentre2;
+  uniform vec3 uFace0;
+  uniform vec3 uFace1;
+  uniform vec3 uFace2;
+  uniform float uHue0;
+  uniform float uHue1;
+  uniform float uHue2;
+  uniform float uGrow;
+  uniform float uDissolve;
+  uniform float uSing;
+  uniform float uRadius;
+  uniform float uFacets;
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSpread;
+  uniform vec3 uColorDeep;
+  uniform vec3 uColorRim;
+  varying vec3 vWorld;
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+  ${SPECTRUM_GLSL}
+
+  vec4 rimePatch(vec2 p, vec3 centre, vec3 face, float hue) {
+    vec2 d = p - centre.xz;
+    float r = length(d);
+    float n = snoise01(vec3(p * 0.9, hue));
+    float R = uRadius * uGrow * (0.8 + 0.4 * n);
+    float cover = 1.0 - smoothstep(R * 0.7, R, r);
+    if (cover <= 0.0) return vec4(0.0);
+    vec2 v = voronoi2(p * uFacets + hue * 3.0);
+    float seam = 1.0 - smoothstep(0.02, 0.1, v.x);
+    vec3 spec = spectrum(hue / 6.2831853 + v.y * 0.15 * uSpread);
+    // Spectral cracks radiating from the cluster, pulsing outward with the song.
+    float ang = atan(d.y, d.x);
+    float spoke = pow(abs(sin(ang * 4.5 + hue * 2.0 + n * 2.0)), 18.0) * (1.0 - smoothstep(R * 0.3, R, r));
+    float pulse = 0.5 + 0.5 * sin(r * 4.0 - uTime * 6.0 + hue);
+    float pool = exp(-r * r / max(uRadius * uRadius * 0.12, 0.05));
+    vec3 col = mix(uColorDeep * 0.35, spec * 0.25, 0.3 * v.y);
+    col += spec * seam * 0.9;
+    col += spec * spoke * pulse * uSing * 1.6;
+    col += mix(spec, uColorRim, 0.5) * pool * (0.6 + uSing);
+    float a = cover * (0.7 + 0.3 * seam);
+    return vec4(col, a);
+  }
+
+  void main() {
+    vec2 p = vWorld.xz;
+    vec4 a = rimePatch(p, uCentre0, uFace0, uHue0);
+    vec4 b = rimePatch(p, uCentre1, uFace1, uHue1);
+    vec4 c = rimePatch(p, uCentre2, uFace2, uHue2);
+    float alpha = max(a.a, max(b.a, c.a));
+    if (alpha <= 0.001) discard;
+    vec3 col = (a.rgb * a.a + b.rgb * b.a + c.rgb * c.a) / max(a.a + b.a + c.a, 1e-3);
+    float n = snoise01(vec3(p * 1.7, 9.0));
+    float alive = 1.0 - smoothstep(uDissolve - 0.05, uDissolve + 0.02, n);
+    float burn = (1.0 - smoothstep(0.0, 0.05, abs(n - uDissolve))) * step(0.001, uDissolve);
+    col += uColorRim * burn * 2.0;
+    alpha *= mix(alive, 1.0, 0.0) * uOpacity;
+    alpha *= 1.0 - step(0.999, uDissolve);
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col * uGlow, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createChoirRimeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    uniforms: sharedUniforms({
+      uCentre0: { value: new Vector3() },
+      uCentre1: { value: new Vector3() },
+      uCentre2: { value: new Vector3() },
+      uFace0: { value: new Vector3(0, 0, 1) },
+      uFace1: { value: new Vector3(0, 0, 1) },
+      uFace2: { value: new Vector3(0, 0, 1) },
+      uHue0: { value: 0 },
+      uHue1: { value: 2.1 },
+      uHue2: { value: 4.2 },
+      uGrow: { value: 0 },
+      uDissolve: { value: 0 },
+      uSing: { value: 0 },
+      uRadius: { value: 1.9 },
+      uFacets: { value: 2.2 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 0.8 },
+      uSpread: { value: 1 },
+      uColorDeep: { value: new Color() },
+      uColorRim: { value: new Color() }
+    }),
+    vertexShader: LIGHTFALL_VERTEX,
+    fragmentShader: RIME_FRAGMENT
+  });
+  material.uniforms.uTime = { value: 0 };
+  /** @param {object} state { time, centres [V3×3], arms [V3×3], hues [n×3], grow, dissolve, sing } */
+  material.userData.sync = (state) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time * g.noiseSpeed;
+    u.uCentre0.value.copy(state.centres[0]);
+    u.uCentre1.value.copy(state.centres[1]);
+    u.uCentre2.value.copy(state.centres[2]);
+    u.uFace0.value.copy(state.arms[0]);
+    u.uFace1.value.copy(state.arms[1]);
+    u.uFace2.value.copy(state.arms[2]);
+    u.uHue0.value = state.hues[0];
+    u.uHue1.value = state.hues[1];
+    u.uHue2.value = state.hues[2];
+    u.uGrow.value = state.grow;
+    u.uDissolve.value = state.dissolve;
+    u.uSing.value = state.sing;
+    u.uRadius.value = c.rimeRadius;
+    u.uFacets.value = c.rimeFacets * g.noiseFrequency;
+    u.uGlow.value = c.rimeGlow * g.glow;
+    u.uOpacity.value = c.rimeOpacity * g.opacity;
+    u.uSpread.value = c.spectralSpread;
+    u.uColorDeep.value.copy(getColor(c.colorCrystalDeep));
+    u.uColorRim.value.copy(getColor(c.colorCrystalRim));
   };
   return material;
 }

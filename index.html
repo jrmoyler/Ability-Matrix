@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Ability Matrix</title>
-<meta name="description" content="230 castable Three.js abilities in one sandbox. Cast them, tune them, copy their presets. Installs as an app and works offline.">
+<meta name="description" content="279 castable Three.js abilities in one sandbox. Cast them, tune them, copy their presets. Installs as an app and works offline.">
 <meta name="theme-color" content="#0b0d14">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -458,7 +458,12 @@ function boot(query = '') {
   if (livePack) return;
   livePack = 'sandbox'; ready = false;
   $('loading').hidden = false;
-  const q = query || '';
+  // The Arch-Wizard duel and the Targets field take their URL straight
+  // through: index.html?duel=1&cpu=linear/meteor&difficulty=adept works here too.
+  const own = new URLSearchParams(location.search);
+  const pass = ['duel', 'watch', 'cpu', 'difficulty', 'mechanics', 'loadout', 'element', 'targets', 'formation', 'mix']
+    .filter((k) => own.has(k)).map((k) => `&${k}=${encodeURIComponent(own.get(k))}`).join('');
+  const q = (query || '') + pass;
   wasmBinSuffix().then((suffix) => {
     if (frame.getAttribute('src')) return;
     frame.src = `packs/sandbox/index.html?hud=0${suffix}${q}`;

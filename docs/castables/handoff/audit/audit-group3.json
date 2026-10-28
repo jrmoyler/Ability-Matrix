@@ -1,0 +1,819 @@
+[
+ {
+  "uid": "collective/chain",
+  "score": 5,
+  "failing": [
+   1,
+   2,
+   6,
+   12,
+   13
+  ],
+  "antipatterns": [
+   "No ground",
+   "Static bloom"
+  ],
+  "gaps": [
+   "Nothing is left on screen by 2.3 s: no linger beat, the bolts just vanish",
+   "No visible floor mark under struck bodies or at the grounding point",
+   "The impact 'dome' is a pale unshaded hemisphere with no ramp or deep tone",
+   "No hero mass: the jagged ribbons are the whole cast; they read well but are thin at 8 m"
+  ],
+  "onScreen": "A jagged white-violet bolt from the hand forks to a point about 4 m ahead; a pale hemisphere flashes; one arc leaps sideways; at 2.3 s the screen is empty.",
+  "error": null
+ },
+ {
+  "uid": "matrix-new/ionstorm",
+  "score": 7,
+  "failing": [
+   5,
+   6
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "Anticipation/travel almost invisible: f8\u2013f20 show only a faint cyan floor glow, so the pillar seems to appear from nowhere",
+   "The pillar body is a uniform white cylinder of light; add internal structure or a dark ramp stop",
+   "The linger looks the same at 1.3 s and 2.3 s; the column and ring need more change (crawl, pulse, narrowing)"
+  ],
+  "onScreen": "After a near-empty first half-second, a towering white-blue plasma column slams down into a cyan ripple ring about 4 m wide, with bolts crawling up its sides.",
+  "error": null
+ },
+ {
+  "uid": "atlas/relay",
+  "score": 3,
+  "failing": [
+   1,
+   2,
+   4,
+   5,
+   6,
+   10,
+   12,
+   13
+  ],
+  "antipatterns": [
+   "Specks at distance",
+   "Static bloom",
+   "No ground",
+   "Washed out"
+  ],
+  "gaps": [
+   "After the first bolt it is only faint blue specks on the floor by 1.3 s; no hero, no relay lattice reads",
+   "Pale hemisphere flash at the target is the only impact: no deep tone, no shockwave, no decal",
+   "No travel to further relays and no chain is visible across the dummies",
+   "No floor treatment that stays"
+  ],
+  "onScreen": "A short white bolt from the hand reaches about 2 m forward, a pale dome flashes, then a scatter of faint blue specks lingers on the floor.",
+  "error": null
+ },
+ {
+  "uid": "codex/balllightning",
+  "score": 7,
+  "failing": [
+   1,
+   10
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The orb is a blown-out white sphere; it needs inner filaments or a shell with a violet or deep-blue ramp",
+   "Scorch decals along the path are small and dark, so they read only up close",
+   "The arcs to dummies are thin; thicken them, or punch light on each zap"
+  ],
+  "onScreen": "A blazing white plasma orb rolls from the caster down the line, scorching a dark violet trail and lashing jagged arcs to nearby dummies, and is still crackling at 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "codex/fulgur",
+  "score": 7,
+  "failing": [
+   5,
+   10,
+   13
+  ],
+  "antipatterns": [
+   "Washed out"
+  ],
+  "gaps": [
+   "Travel is only a faint trickle of sparks at f20; nothing visibly drops from the sky before the cage",
+   "The cage wall is almost all white with no deep-blue stop, so it reads as a bright smear",
+   "No floor answers besides a thin bright ring at the base"
+  ],
+  "onScreen": "Sparks at the hand, then a ring of tall jagged lightning bars drops around the zone into a crackling white-blue cage about 4 m across that holds through 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/fulminant-relay",
+  "score": 6,
+  "failing": [
+   2,
+   12,
+   13
+  ],
+  "antipatterns": [
+   "No ground"
+  ],
+  "gaps": [
+   "The hero seed is about 1 m inside a pale bubble; scale it up, or add a corona, to read at 8 m",
+   "The jumps between targets are thin, short arcs; the chain does not read across the group",
+   "There is no ground layer except a small dark smudge at the launch point",
+   "The travel trail is a thin violet streak"
+  ],
+  "onScreen": "A faceted ice-blue crystal seed in a glassy bubble launches from the hand on a violet streak, sits among the dummies and spits thin arcs that knock them down.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/thunderhead-parasite",
+  "score": 2,
+  "failing": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14
+  ],
+  "antipatterns": [
+   "Flat blob",
+   "Specks at distance",
+   "No ground",
+   "Static bloom",
+   "Missing travel"
+  ],
+  "gaps": [
+   "The hero is a small, flat, single-tone purple cloud blob about 1 m wide hovering in the air, with no shading, lightning or inner light",
+   "No visible attachment, travel or strikes on the target; nothing hits",
+   "No floor treatment except a faint ring, no impact beat and no linger motion"
+  ],
+  "onScreen": "A small flat purple cloud blob appears in the air about 5 m away, a faint ring flickers below it, and it hangs there unchanged.",
+  "error": null
+ },
+ {
+  "uid": "collective/graviton",
+  "score": 6,
+  "failing": [
+   1,
+   6,
+   10
+  ],
+  "antipatterns": [
+   "Outline-only"
+  ],
+  "gaps": [
+   "The floor funnel is a violet wireframe grid; it needs a filled lensing field with a dark core",
+   "The vortex hero is a flat ring and eye shape and barely changes after impact",
+   "No deep tone: it reads magenta-on-blue and lacks the black gravity well at the centre"
+  ],
+  "onScreen": "A small violet vortex eye opens over the target, then a magenta wireframe funnel sinks the floor about 3.5 m across while dummies are dragged in, and both hold unchanged to 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "codex/horizon",
+  "score": 7,
+  "failing": [
+   1,
+   10
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The wall is a plain cylinder band with soft lavender stripes; give it thickness, lensing and a dark interior ramp",
+   "The spiral floor at the exit is an outline of rings rather than a field",
+   "The final light column is small and its link to the wall's collapse is unclear"
+  ],
+  "onScreen": "A black pinpoint opens, a lavender light ring rises into a tall wavering wall around the zone, then the wall collapses into a spiral floor scar and a thin light column, flinging a dummy.",
+  "error": null
+ },
+ {
+  "uid": "codex/darkwell",
+  "score": 6,
+  "failing": [
+   1,
+   6,
+   10
+  ],
+  "antipatterns": [
+   "Outline-only"
+  ],
+  "gaps": [
+   "The hero is a flat violet disc with a jagged white rim; there is no visible sag or depth to the well",
+   "The linger collapses to a thin outline ring and a small spout, so it loses mass after 1.3 s",
+   "No dark-matter deep tone: the colours are violet and white, not a well that eats light"
+  ],
+  "onScreen": "A black dot, then a flat violet disc with a crackling white rim spreads about 4 m wide on the floor, then shrinks to a thin ring with a small violet spout in the centre.",
+  "error": null
+ },
+ {
+  "uid": "codex/orbitlock",
+  "score": 5,
+  "failing": [
+   2,
+   3,
+   10,
+   11,
+   12
+  ],
+  "antipatterns": [
+   "Outline-only",
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The hero is a set of thin white orbit rings with small white spheres; it has no mass, and gravity does not read (no dark well, no warp)",
+   "The exit floor is a thin ring with little domes, an outline with no filled field",
+   "The colour is white/lavender with no deep tone; it reads as a diagram",
+   "It is the shared codex rig template (TWIST/ARCH constants, DetailLayer+RigHero) seen in sibling casts"
+  ],
+  "onScreen": "A star twinkles high up, splits into a cluster of white moons on criss-crossed orbit rings over the zone, then they settle into a thin violet-edged floor ring of small domes.",
+  "error": null
+ },
+ {
+  "uid": "codex/slingwell",
+  "score": 4,
+  "failing": [
+   2,
+   3,
+   6,
+   10,
+   11,
+   12
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out",
+   "Outline-only"
+  ],
+  "gaps": [
+   "The hero is cream coil and ring pieces lying on the floor, the same bone-cream colour as the other codex gravity rigs; gravity does not read",
+   "The impact is a faint pale cone and orange radial streaks; no well, no pull",
+   "The linger reduces to a flat ring and a tiny cluster"
+  ],
+  "onScreen": "Cream spiral coils and concentric floor rings appear around a dummy, a faint pale cone lifts with orange radial streaks as a dummy is flung, then a thin floor ring remains.",
+  "error": null
+ },
+ {
+  "uid": "codex/tidebar",
+  "score": 5,
+  "failing": [
+   3,
+   10,
+   11,
+   6
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The bars are authored and read in silhouette, but they are flat cream/bone with no gravity-element ramp or deep tone",
+   "After the tilt the cast becomes a flat radial-ray floor decal that only fades",
+   "No anticipation at the hand; the bars are already standing at f8"
+  ],
+  "onScreen": "A ring of tall cream bars on a dark disc tilts inward and collapses flat into a sunburst floor print with a thin ring, which then fades.",
+  "error": null
+ },
+ {
+  "uid": "codex/perigee",
+  "score": 3,
+  "failing": [
+   1,
+   2,
+   5,
+   6,
+   10,
+   11,
+   12
+  ],
+  "antipatterns": [
+   "Outline-only",
+   "Specks at distance",
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The entire cast is thin white rings and tiny bodies about 3 m across on the floor; nothing has height or mass at 8 m",
+   "The impact is only a pale ring shockwave",
+   "No travel, no element read, and the linger is a shrinking outline"
+  ],
+  "onScreen": "Thin white orbit rings with tiny bead bodies circle a dummy on the floor, a pale shock ring expands, then a small grey ring remains.",
+  "error": null
+ },
+ {
+  "uid": "codex/masslance",
+  "score": 3,
+  "failing": [
+   2,
+   3,
+   5,
+   7,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Flat blob",
+   "Template sameness",
+   "Missing travel",
+   "Washed out"
+  ],
+  "gaps": [
+   "Huge cream faceted dome pieces spawn around and on top of the caster, hiding him, instead of a lance that travels down the line",
+   "A gravity lance is not readable: no dense dark core and no pinning line",
+   "The pieces are single-tone cream faceted shells",
+   "At 2.3 s the only things left are a small dome and a ring near the line end"
+  ],
+  "onScreen": "Large cream faceted shell pieces bloom on and around the caster, stack forward into a short column, then shrink away, leaving a small dome and ring a few metres ahead.",
+  "error": null
+ },
+ {
+  "uid": "codex/shearorbit",
+  "score": 4,
+  "failing": [
+   1,
+   2,
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out",
+   "Specks at distance"
+  ],
+  "gaps": [
+   "White arc ribbons and small cream cubes along the line; the masses are small and pale, with no gravity colour",
+   "The cubes scatter and fade; there is no crater or shear scar to read",
+   "The end state is a tiny ring and lump far down the line"
+  ],
+  "onScreen": "White arcs loop over the line while small cream blocks orbit and drop along it, sliding forward in pale streaks, then a small ring and lump remain at the end.",
+  "error": null
+ },
+ {
+  "uid": "codex/plumbswing",
+  "score": 4,
+  "failing": [
+   2,
+   3,
+   6,
+   10,
+   11,
+   12,
+   13
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The hero is a thin cream rod from the hand plus a very long hairline arc across the scene; neither has mass at 8 m",
+   "The plumb weight is a faint smudge; the swing does not read as heavy",
+   "The floor gets only a small ring at the end; no impact flash or pull"
+  ],
+  "onScreen": "A long cream rod juts from the caster while a thin white-orange arc sweeps across the whole scene behind the dummies and a faint weight hangs mid-air, then it all fades to a small ring.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/mass-weft",
+  "score": 5,
+  "failing": [
+   1,
+   6,
+   9,
+   13
+  ],
+  "antipatterns": [
+   "Outline-only"
+  ],
+  "gaps": [
+   "The corridor is a violet wireframe floor grid; it needs a filled warp field with a dark deep tone",
+   "The twisting white ribbons along the centre are thin and the same from 0.7 s to 2.3 s",
+   "No visible strikes or impact beat on enemies within the capture"
+  ],
+  "onScreen": "A violet wireframe grid corridor unrolls from the caster down the line, with twisting white ribbons spiralling along its centre, and it holds unchanged to 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "collective/swarm",
+  "score": 7,
+  "failing": [
+   5,
+   3
+  ],
+  "antipatterns": [
+   "Flat blob"
+  ],
+  "gaps": [
+   "The explosions are flat orange domes with little shading and no smoke or debris",
+   "Only one meteor is visible by 1.3 s; the rain should read as many",
+   "No anticipation at the hand; the target circle simply appears"
+  ],
+  "onScreen": "A red rune circle marks the zone and fills with glowing glyphs, then a flaming meteor streaks in and bursts into bright orange domes that scorch the circle and fling a dummy.",
+  "error": null
+ },
+ {
+  "uid": "matrix-new/emberveil",
+  "score": 6,
+  "failing": [
+   5,
+   6,
+   10
+  ],
+  "antipatterns": [
+   "Washed out",
+   "Static bloom"
+  ],
+  "gaps": [
+   "Nothing visible at f8\u2013f20: no anticipation or travel before the cage pops in",
+   "The cage of crossed fire strands is blown out to white-orange with no dark ember deep tone",
+   "The cage is identical at 1.3 s and 2.3 s; the inward collapse is not seen in the linger"
+  ],
+  "onScreen": "After a blank half-second, a large dome lattice of crossed burning strands, about 5 m wide, blazes around the target and holds, bright white-orange.",
+  "error": null
+ },
+ {
+  "uid": "codex/solarlash",
+  "score": 7,
+  "failing": [
+   6,
+   1
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The lash itself is a thin bright ribbon visible for only a few frames; give the whip body thickness and a gold-to-deep-red ramp",
+   "The molten scar along the line is the same at 1.3 s and 2.3 s; let it cool, crack or creep",
+   "The sun flare at impact washes the whole frame brown; contain it to the strike point"
+  ],
+  "onScreen": "A white-gold whip lashes from the hand down the line, a sun flare punches at the far end setting dummies burning, and a molten cracked lava scar stays along the whole line.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/ashen-doppelganger",
+  "score": 4,
+  "failing": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   10,
+   12
+  ],
+  "antipatterns": [
+   "Flat blob",
+   "Missing travel"
+  ],
+  "gaps": [
+   "The 'ash echo' is a flat, saturated red-orange silhouette overlapping the caster, with no ash texture, ember edge or deep tone",
+   "The only floor read is a thin red ring and a soft orange smoke pool around the caster",
+   "There are no visible scorches on foes, no travel and no impact beat within 2.3 s"
+  ],
+  "onScreen": "A flat orange-red copy of the caster flickers on top of him inside a thin red ring while an orange smoke pool spreads at his feet.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/cinder-crown",
+  "score": 7,
+  "failing": [
+   10,
+   6
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The flame spikes are pale peach and smaller than Pyre's; push the ramp toward a dark ember base and hotter tips",
+   "The second flare is not distinct in the frames; the crown looks the same at 1.3 s and 2.3 s",
+   "The travel is a thin dart"
+  ],
+  "onScreen": "A red ring marks the zone, a thin bright dart flies in, and a crown of jagged flame spikes erupts across the ring, flinging and burning the dummies, then burns on over a red-tiled floor.",
+  "error": null
+ },
+ {
+  "uid": "matrix-new/umbra",
+  "score": 6,
+  "failing": [
+   2,
+   10
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The rising hand is about 1 m tall and hard to read at 8 m; scale it to the pool",
+   "The pool is violet and lacks a near-black deep tone, so shadow does not eat light",
+   "Little visible drag-under motion in the frames"
+  ],
+  "onScreen": "A violet puff at the hand, then a jagged violet shadow pool spreads under the dummies, a small purple hand rises from it, and the pool stays bubbling.",
+  "error": null
+ },
+ {
+  "uid": "codex/nightfall",
+  "score": 7,
+  "failing": [
+   1,
+   6
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The scythe blade is a flat crescent card; give it thickness and an edge highlight",
+   "The violet wake trench along the line holds static from 1.3 s to 2.3 s",
+   "The impact at the dummies is a thin ring; punch it harder"
+  ],
+  "onScreen": "A huge violet scythe crescent sweeps out from the caster and races down the line, leaving a glowing violet trench of night behind it that fells the group at the far end.",
+  "error": null
+ },
+ {
+  "uid": "codex/wraiths",
+  "score": 7,
+  "failing": [
+   10,
+   2
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The wraiths are small pale white-blue figures; they need size and a dark smoky body to read as shadow",
+   "The pool is a flat black disc with a white rim; add depth and tendrils",
+   "The dive through the targets is not visible within 2.3 s"
+  ],
+  "onScreen": "A light at the hand, then a black pool with a white rim opens under the group and pale ghostly wraiths claw up out of it and circle overhead.",
+  "error": null
+ },
+ {
+  "uid": "codex/umbral",
+  "score": 6,
+  "failing": [
+   13,
+   6
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The blade is off-screen or at the frame edge in two of four frames; its arc should land within the camera",
+   "The impact leaves only small rings and dark specks; there is no floor cut",
+   "The linger is thin rings and fallen dummies"
+  ],
+  "onScreen": "A giant violet crescent guillotine blade on a long chain swings down from the sky through the group, leaving dark specks, then small violet rings flash among the fallen dummies.",
+  "error": null
+ },
+ {
+  "uid": "codex/shadepuppet",
+  "score": 7,
+  "failing": [
+   5,
+   10
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The anticipation is a single hairline string; nothing gathers at the hand",
+   "The puppeteer crown is small and mostly off the top of the frame",
+   "The puppets are just tinted dummies; add shadow bodies or a darker strings ramp"
+  ],
+  "onScreen": "A thin string shoots to the sky, a dark crown appears overhead, violet strings drop onto every dummy in the circle and lift them as glowing purple marionettes over a violet rune ring.",
+  "error": null
+ },
+ {
+  "uid": "codex/eclipseneedle",
+  "score": 7,
+  "failing": [
+   6
+  ],
+  "antipatterns": [],
+  "gaps": [
+   "The needle body is a violet tube; the tip eclipse is small at the target",
+   "The wake breaks up into scattered dark fragments by 2.3 s rather than a hanging wake",
+   "There is little floor mark at the target"
+  ],
+  "onScreen": "A black eclipse disc with a violet corona forms at the hand, a violet needle drills down the line to a burning eclipse at the target, and a dark wake hangs along the path, then breaks up.",
+  "error": null
+ },
+ {
+  "uid": "codex/penumbra",
+  "score": 5,
+  "failing": [
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Washed out",
+   "Template sameness"
+  ],
+  "gaps": [
+   "The sheet is a set of flat pale lavender panels; it reads as cloth or paper, not shadow",
+   "The floor wake is a row of soft pale smudges",
+   "Everything fades by 2.3 s to a small ring; no linger motion",
+   "It uses the shared RigHero/template constants"
+  ],
+  "onScreen": "A tall pale lavender sheet of hanging panels sweeps across the line, leaving a row of faint smudges, while dummies drop, then fades to a small ring.",
+  "error": null
+ },
+ {
+  "uid": "codex/duskspire",
+  "score": 5,
+  "failing": [
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Flat blob"
+  ],
+  "gaps": [
+   "The spire is a violet mesh with visible grid/facet lines, so it reads as wireframe rather than solid shadow; it needs lit or ramp shading with a near-black deep tone",
+   "It shares the pool+rig template with mournhalo, nullwell and eventcage: same speckled floor pool and grid-faceted hero, recoloured",
+   "No anticipation at the hand; the spire is already standing at f8"
+  ],
+  "onScreen": "A violet grid-faceted tent spire with outward spikes stands over the group on a speckled violet pool, then sinks into a dark floor stain.",
+  "error": null
+ },
+ {
+  "uid": "codex/mournhalo",
+  "score": 4,
+  "failing": [
+   1,
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Flat blob",
+   "Washed out"
+  ],
+  "gaps": [
+   "The halo is a violet grid-faceted ring wall that reads as a debug mesh, not shadow",
+   "The speckled pool is the same as duskspire's, nullwell's and eventcage's",
+   "The tightening goes from a ring to a shallow bowl that fades; there is no snuff/collapse beat"
+  ],
+  "onScreen": "A violet grid-faceted ring wall surrounds the group on a speckled violet pool, tightens into a shallow bowl and shrinks into a dark floor stain.",
+  "error": null
+ },
+ {
+  "uid": "matrix-expansion/nightshade-inheritance",
+  "score": 4,
+  "failing": [
+   2,
+   5,
+   12,
+   13,
+   14
+  ],
+  "antipatterns": [
+   "Specks at distance",
+   "No ground"
+  ],
+  "gaps": [
+   "The mark is a small violet crystal tuft about 0.5 m on one enemy; it vanishes at 8 m",
+   "Nothing reads at f20 between the mark and the strike",
+   "The strike is a small cluster of violet crystals on one dummy, with no floor answer or spread to a second enemy visible"
+  ],
+  "onScreen": "A small violet crystal tuft appears near the front dummy, then a cluster of violet crystal shards and a blue swirl sits on one dummy in the group.",
+  "error": null
+ },
+ {
+  "uid": "matrix-new/voidstep",
+  "score": 7,
+  "failing": [
+   10,
+   5
+  ],
+  "antipatterns": [
+   "Washed out"
+  ],
+  "gaps": [
+   "The exit pops: the huge shell is gone by 2.3 s, leaving only a faint blue floor smudge",
+   "The shell is a pale glassy faceted dome with a cyan rim, pastel against the void theme and with no dark deep tone",
+   "The second rift (exit) is not distinct from the step-through flash"
+  ],
+  "onScreen": "A tall violet rift tears open in front of the caster, violet lightning forks across the floor, then a huge glassy violet-cyan shell bursts around the caster, flinging the dummies, and is gone by 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "codex/voidbloom",
+  "score": 6,
+  "failing": [
+   1,
+   2,
+   6
+  ],
+  "antipatterns": [
+   "Outline-only"
+  ],
+  "gaps": [
+   "The flower is small (under 1 m) through f20 and then flattens into a floor pattern; it never stands up as a bloom",
+   "The bloom is a flat violet/white floor decal with petal shapes; it needs height and petals closing",
+   "The snap-shut-and-sink beat is not visible"
+  ],
+  "onScreen": "A small white star flower appears among the dummies, opens into a few small petals, then spreads as a flat violet-and-white petal pattern on the floor under the group.",
+  "error": null
+ },
+ {
+  "uid": "codex/nullwell",
+  "score": 4,
+  "failing": [
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Flat blob"
+  ],
+  "gaps": [
+   "The hero is a blue grid-faceted pyramid/hourglass that reads as a wireframe placeholder",
+   "The speckled blue pool is the shared template pool",
+   "Void does not read as a null point: there is no dark centre that drinks light"
+  ],
+  "onScreen": "A blue speckled pool spreads under the group with a crown of blue faceted shards, rises into a grid-faceted hourglass shape, then shrinks into a dark stain.",
+  "error": null
+ },
+ {
+  "uid": "codex/eventcage",
+  "score": 4,
+  "failing": [
+   1,
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The cage is a faint blue wire dome, nearly invisible at f8",
+   "The speckled blue pool repeats the nullwell/mournhalo template",
+   "There is no 'missing centre' read; the erase is just a fade into a dark stain"
+  ],
+  "onScreen": "A faint blue wire dome sits over the group, a speckled blue pool spreads, a small blue ring structure forms and then fades to a dark floor stain.",
+  "error": null
+ },
+ {
+  "uid": "codex/absence",
+  "score": 5,
+  "failing": [
+   2,
+   3,
+   6,
+   10
+  ],
+  "antipatterns": [
+   "Template sameness",
+   "Washed out"
+  ],
+  "gaps": [
+   "The lance is a short violet grid-faceted shape; it does not read as a lance at 8 m",
+   "The floor shards are thin violet glyph slivers scattered randomly",
+   "The impact at the group is a pale dome flash; the unmaking is not visible"
+  ],
+  "onScreen": "A short violet faceted lance shoots from the caster down a blue streak line with thin violet glyph slivers on the floor, a pale dome flashes at the group, and a blue trail fades.",
+  "error": null
+ },
+ {
+  "uid": "codex/hollowvolley",
+  "score": 4,
+  "failing": [
+   3,
+   6,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Flat blob",
+   "Template sameness"
+  ],
+  "gaps": [
+   "The seeds are big blue grid-faceted gem pods that read as wireframe placeholders, not void",
+   "They pile around the caster instead of arcing out to land",
+   "The implosions are not visible; the pods simply fade into a blue smear"
+  ],
+  "onScreen": "Large blue grid-faceted gem pods and a wire dome burst up around the caster along the line, then sink into a blue smear by 2.3 s.",
+  "error": null
+ },
+ {
+  "uid": "codex/riftpendulum",
+  "score": 4,
+  "failing": [
+   3,
+   7,
+   10,
+   11
+  ],
+  "antipatterns": [
+   "Flat blob",
+   "Template sameness"
+  ],
+  "gaps": [
+   "The hero is a huge violet grid-faceted blade or seed-pod shape swinging around the caster; the faceted grid shading looks like debug geometry",
+   "It occupies the caster's position instead of the cast line, hiding the caster",
+   "The rift opened on the beat is only a blue haze pillar"
+  ],
+  "onScreen": "A huge violet grid-faceted pod-like blade with spines swings around the caster and lies down on the floor while a blue haze pillar stands at the group.",
+  "error": null
+ }
+]

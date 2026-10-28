@@ -1,4 +1,4 @@
-import { InstancedMesh, Mesh, Object3D, Points, Vector3 } from 'three';
+import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Mesh, Object3D, Points, Quaternion, Vector3 } from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { Ability } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
@@ -30,6 +30,7 @@ import {
   createRimeMaterial,
   createRosetteMaterial,
   createShardMaterial,
+  createSpineMaterial,
   createStatueMaterial,
   createThreadMaterial
 } from './AbsoluteZeroThreadMaterials.js';
@@ -43,6 +44,11 @@ const MAX_FROZEN = 8;
 const SHARDS_PER_STATUE = 6;
 /** Pooled shatter bursts. */
 const MAX_SHATTERS = 8;
+/** Crystals down the frost spine (both sides of the thread). */
+const MAX_SPINE = 64;
+/** Crystals in the terminal cluster where the needle lands (the first is the spire). */
+const MAX_CLUSTER = 10;
+const MAX_CRYSTALS = MAX_SPINE + MAX_CLUSTER;
 
 // A pooled dummy may be placed and frozen again before an older cast expires.
 // A cast may only vanish the specific frozen life it owns.
@@ -52,6 +58,10 @@ const _emit = {};
 const _pos = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _axis = new Vector3();
+const _q = new Quaternion();
+const _q2 = new Quaternion();
+const _node = new Object3D();
 
 /**
  * ABSOLUTE ZERO THREAD — Frost, line cast (matrix-expansion candidate).
@@ -92,6 +102,26 @@ const _up = new Vector3(0, 1, 0);
  *      rosette and an instanced ring of authored shards, chips on shatter.
  *   7. **particles** — `.rime` frost dust, `.chips` lit ice, `.vapour`.
  *   8. **beats** — bursts, decals, flash, shake, light.
+ *
+ * ## The frost spine (2026 upgrade — the hero at play distance)
+ *
+ * At 8 m a filament is a line, so the thread now *grows a body*: behind the
+ * needle a herringbone of opaque, sun-lit ice crystals (`spine*`, on
+ * `LAYER.WORLD`, casting shadows) tears out of the rime either side of the
+ * line, raked downrange and leaning out, ankle-high at the hand and
+ * `spineHeight` at the end, each grown over `spineGrowDist` metres of the
+ * needle's run. Where the needle lands a **terminal cluster** — a central
+ * spire of `spireHeight` ringed by `clusterCount` crystals leaning out at
+ * `clusterRadius` — heaves up round the frozen bodies (the impact form).
+ *
+ * The linger is not still: **pulses** of cold run down the thread from the
+ * caster (`pulse*`), and each crystal they pass flares white and ratchets a
+ * little taller (`pulseGrow`), while the whole spine creeps (`spineCreep`).
+ * The exit is a **shatter sweep**: crystal by crystal from the cluster back
+ * to the hand (`shatterSweep`), each bursting into lit ice chips.
+ *
+ * Records store dice (along, side, jitter, seed) and one `gone` flag; every
+ * size, lean and time is resolved from settings each frame.
  *
  * ## Hits (`handlesOwnHits`)
  *
@@ -195,6 +225,22 @@ export class AbsoluteZeroThreadAbility extends Ability {
       this.shatters.push({ points, born: 0 });
     }
 
+    // 9 · the frost spine + terminal cluster: one instanced mesh, lit ice.
+    this.spineGeometry = createIceShardGeometry();
+    this.spinePulse = new InstancedBufferAttribute(new Float32Array(MAX_CRYSTALS), 1).setUsage(DynamicDrawUsage);
+    this.spineGeometry.setAttribute('aPulse', this.spinePulse);
+    this.spineMaterial = createSpineMaterial();
+    this.spine = new InstancedMesh(this.spineGeometry, this.spineMaterial, MAX_CRYSTALS);
+    this.spine.layers.set(LAYER.WORLD);
+    this.spine.castShadow = true;
+    this.spine.receiveShadow = true;
+    this.spine.frustumCulled = false;
+    this.spine.count = 0;
+    this.group.add(this.spine);
+    this.crystals = [];
+    for (let i = 0; i < MAX_CRYSTALS; i++) this.crystals.push({ jitter: 0, lean: 0, seed: 0, gone: false });
+    this._landAge = -1;
+
     this.shatterCursor = 0;
     this.hit = new Set();
     this.pending = [];
@@ -282,6 +328,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this._clock = 0;
     this._fade = 1;
     this._landed = false;
+    this._exit = -1;
     this.rimeEmitter.reset();
     for (const burst of this.shatters) burst.points.visible = false;
     for (const slot of this.slots) {
@@ -289,6 +336,14 @@ export class AbsoluteZeroThreadAbility extends Ability {
       slot.ring.visible = false;
     }
     this.iceShards.count = 0;
+    this.spine.count = 0;
+    this._landAge = -1;
+    for (const k of this.crystals) {
+      k.jitter = Math.random() * 2 - 1;
+      k.lean = Math.random() * 2 - 1;
+      k.seed = Math.random();
+      k.gone = false;
+    }
     this.thread.visible = true;
     this.needle.visible = true;
     this.rime.visible = true;
@@ -538,6 +593,134 @@ export class AbsoluteZeroThreadAbility extends Ability {
     }
   }
 
+  _spineCount() {
+    return Math.max(0, Math.min(MAX_SPINE, Math.round(this.config.spineCount)));
+  }
+
+  _clusterCount() {
+    return Math.max(0, Math.min(MAX_CLUSTER, Math.round(this.config.clusterCount) + 1));
+  }
+
+  /**
+   * Pose every crystal of the spine and the cluster from the live settings.
+   * `front` is metres the needle has run.
+   */
+  _drawSpine(front) {
+    const c = this.config;
+    const g = settings.global;
+    const L = this.length;
+    const n = this._spineCount();
+    const m = this._clusterCount();
+    const sinceLand = this._landAge >= 0 ? this.age - this._landAge : -1;
+    const sweep = this._exit ?? -1;
+    const pulseSpan = L + c.pulseWidth * 2;
+    const yaw = Math.atan2(this.direction.x, this.direction.z);
+    let count = 0;
+    const arr = this.spinePulse.array;
+
+    for (let i = 0; i < n + m; i++) {
+      const k = this.crystals[i];
+      const cluster = i >= n;
+      let along;
+      let height;
+      let grow;
+      if (!cluster) {
+        // Herringbone: alternate sides, evenly down the line.
+        along = ((i + 0.5 + k.jitter * 0.3) / Math.max(1, n)) * L * c.spineEnd;
+        const f = saturate(along / Math.max(0.1, L));
+        height = (c.spineHeightNear + (c.spineHeight - c.spineHeightNear) * Math.pow(f, c.spineCurve)) * (1 + k.jitter * 0.25 * g.randomness);
+        grow = Easing.outBack(saturate((front - along) / Math.max(0.05, c.spineGrowDist)));
+      } else {
+        along = L;
+        const j = i - n;
+        height = (j === 0 ? c.spireHeight : c.clusterHeight * (0.75 + 0.25 * k.seed)) * (1 + k.jitter * 0.15 * g.randomness);
+        grow = sinceLand < 0 ? 0 : Easing.outBack(saturate((sinceLand - (j === 0 ? 0 : 0.04 * j)) / Math.max(0.02, c.clusterGrow)));
+      }
+      if (grow <= 0.001 || k.gone) continue;
+
+      // The pulse running down the thread, and the slow creep.
+      let pulse = 0;
+      if (sinceLand > 0 && c.pulseSpeed > 0) {
+        const at = ((sinceLand * c.pulseSpeed) % pulseSpan) - c.pulseWidth;
+        const d = (along - at) / Math.max(0.05, c.pulseWidth);
+        pulse = Math.exp(-d * d);
+      }
+      const creep = sinceLand > 0 ? 1 + c.spineCreep * saturate(sinceLand / Math.max(0.1, c.lifetime)) : 1;
+
+      // The exit: shatter from the cluster back to the hand.
+      let shrink = 1;
+      if (sweep >= 0) {
+        const order = 1 - saturate(along / Math.max(0.1, L)) + (cluster ? -0.05 : 0);
+        const local = (sweep - order * c.shatterSweep) / 0.12;
+        if (local >= 1) {
+          k.gone = true;
+          this._crystalChips(i, along, height);
+          continue;
+        }
+        if (local > 0) shrink = 1 - local * 0.4;
+      }
+
+      _node.position.copy(this.origin).addScaledVector(this.direction, along);
+      if (!cluster) {
+        const sideSign = i % 2 === 0 ? -1 : 1;
+        const f = saturate(along / Math.max(0.1, L));
+        _node.position.addScaledVector(this.side, sideSign * c.spineSpread * (0.35 + 0.65 * f));
+        // Lean out off the thread (about the line) and rake downrange (about the side).
+        _q.setFromAxisAngle(this.direction, sideSign * (c.spineLean + k.lean * 0.12 * g.randomness));
+        // About the side axis +θ tips the top back toward the caster, so negate.
+        _q2.setFromAxisAngle(this.side, -c.spineRake);
+        _q.multiply(_q2);
+        _q2.setFromAxisAngle(_up, yaw + k.seed * 6.283);
+        _node.quaternion.copy(_q).multiply(_q2);
+      } else {
+        const j = i - n;
+        if (j === 0) {
+          _q.setFromAxisAngle(_up, k.seed * 6.283);
+          _node.quaternion.copy(_q);
+        } else {
+          const a = ((j - 1) / Math.max(1, m - 1)) * Math.PI * 2 + k.jitter * 0.2;
+          _axis.copy(this.direction).multiplyScalar(Math.cos(a)).addScaledVector(this.side, Math.sin(a));
+          _node.position.addScaledVector(_axis, c.clusterRadius);
+          // Tip outward: rotate about the tangent (up × radial).
+          _axis.set(_axis.z, 0, -_axis.x);
+          _q.setFromAxisAngle(_axis, c.clusterLean + k.lean * 0.1);
+          _q2.setFromAxisAngle(_up, k.seed * 6.283);
+          _node.quaternion.copy(_q).multiply(_q2);
+        }
+      }
+      _node.position.y = -0.04;
+      const h = Math.max(0.001, height * grow * creep * (1 + c.pulseGrow * pulse) * shrink);
+      const w = c.spineThick * (cluster ? (i === n ? 1.9 : 1.35) : 1) * (0.5 + 0.5 * Math.min(1, grow)) * Math.min(1.6, 0.45 + height * 0.45) * shrink;
+      _node.scale.set(w, h, w);
+      _node.updateMatrix();
+      this.spine.setMatrixAt(count, _node.matrix);
+      arr[count] = pulse + (cluster && sinceLand >= 0 ? Math.max(0, 1 - sinceLand * 3) : 0);
+      count++;
+    }
+    this.spine.count = count;
+    this.spine.instanceMatrix.needsUpdate = true;
+    this.spinePulse.needsUpdate = true;
+  }
+
+  /** A crystal bursting in the exit sweep: lit ice chips and a puff of vapour. */
+  _crystalChips(i, along, height) {
+    if (!this.chips) return;
+    const c = this.config;
+    const g = settings.global;
+    this._resetEmit();
+    this.pointAt(Math.min(1, along / Math.max(0.1, this.length)), _pos);
+    _pos.y = height * 0.45;
+    _emit.radius = 0.25;
+    _emit.speed = c.shatterSpeed * 1.2;
+    _emit.speedVariance = 0.6;
+    _emit.spread = 1;
+    _emit.size = c.chipParticleSize;
+    _emit.life = c.chipLife;
+    _emit.spin = 6;
+    this.chips.emit(Math.round(c.spineChips * (i >= this._spineCount() ? 2.5 : 1) * g.particleCount), _emit);
+    if (i % 3 === 0) this._vapour(_pos, 2, c.vapourSize * 0.8);
+  }
+
   onTravel(dt) {
     const before = this.prevFront ?? 0;
     const front = Math.min(this.length, this.front);
@@ -550,6 +733,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
   }
 
   onImpact() {
+    this._landAge = this.age;
     this._flush();
     this._landFx();
   }
@@ -558,6 +742,9 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this._flush();
     this._redraw(this.length);
     const f = t > 1 ? Math.max(0, 2 - t) : 1;
+    // The exit sweep runs over the first part of the fade.
+    const cc = this.config;
+    this._exit = t > 1 && t - 1 >= cc.shatterSweepDelay ? saturate((t - 1 - cc.shatterSweepDelay) / Math.max(0.05, cc.shatterSweepStart)) : -1;
     this.material.uniforms.uFade.value = f;
     this.motesMat.uniforms.uFade.value = f;
     this.frostRingMaterial.uniforms.uFade.value = f;
@@ -621,6 +808,8 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this._ringState.fade = fade;
     this.frostRingMaterial.userData.sync(this._ringState);
     this.iceShardMaterial.userData.sync();
+    this.spineMaterial.userData.sync(clock);
+    this._drawSpine(front);
     this._syncParticles(c, g);
   }
 
@@ -854,6 +1043,7 @@ export class AbsoluteZeroThreadAbility extends Ability {
       slot.ring.visible = false;
     }
     this.iceShards.count = 0;
+    this.spine.count = 0;
     for (const burst of this.shatters) burst.points.visible = false;
     this.hit.clear();
     this.pending.length = 0;
@@ -883,6 +1073,9 @@ export class AbsoluteZeroThreadAbility extends Ability {
     this.iceShards.dispose();
     this.iceShardGeometry.dispose();
     this.iceShardMaterial.dispose();
+    this.spine.dispose();
+    this.spineGeometry.dispose();
+    this.spineMaterial.dispose();
     this.chipGeometry.dispose();
     for (const burst of this.shatters) burst.points.material.dispose();
     super.dispose();
@@ -989,6 +1182,41 @@ export function buildEditor(gui, c, Editor) {
   statue.addColor(c, 'colorShardRim').name('shard rim');
   R(statue, c, 'chipSize', 1, 60, 0.5, 'chip size');
   statue.addColor(c, 'colorChip').name('chip');
+
+  const spine = sub(folder, '9 · The frost spine (hero)');
+  R(spine, c, 'spineCount', 0, MAX_SPINE, 1, 'crystals down the line');
+  R(spine, c, 'spineEnd', 0.3, 1, 0.01, 'runs to (× line)');
+  R(spine, c, 'spineHeightNear', 0.05, 2, 0.01, 'height at the hand (m)');
+  R(spine, c, 'spineHeight', 0.2, 4, 0.01, 'height at the end (m)');
+  R(spine, c, 'spineCurve', 0.3, 4, 0.05, 'height curve');
+  R(spine, c, 'spineSpread', 0, 2, 0.01, 'off the thread (m)');
+  R(spine, c, 'spineLean', 0, 1, 0.01, 'lean out (rad)');
+  R(spine, c, 'spineRake', -1, 1, 0.01, 'rake downrange (rad)');
+  R(spine, c, 'spineThick', 0.3, 4, 0.01, 'girth (×)');
+  R(spine, c, 'spineGrowDist', 0.05, 6, 0.05, 'grows over (m of run)');
+  R(spine, c, 'spineCreep', 0, 0.6, 0.005, 'creeps taller (×)');
+  R(spine, c, 'clusterCount', 0, MAX_CLUSTER - 1, 1, 'cluster crystals');
+  R(spine, c, 'clusterRadius', 0, 3, 0.01, 'cluster radius (m)');
+  R(spine, c, 'clusterHeight', 0.2, 5, 0.01, 'cluster height (m)');
+  R(spine, c, 'spireHeight', 0.2, 6, 0.01, 'spire height (m)');
+  R(spine, c, 'clusterLean', 0, 1.2, 0.01, 'cluster leans out (rad)');
+  R(spine, c, 'clusterGrow', 0.02, 1.5, 0.01, 'cluster grows over (s)');
+  R(spine, c, 'pulseSpeed', 0, 40, 0.1, 'pulse runs at (m/s)');
+  R(spine, c, 'pulseWidth', 0.1, 6, 0.05, 'pulse width (m)');
+  R(spine, c, 'pulseGrow', 0, 0.6, 0.005, 'pulse ratchet (×)');
+  R(spine, c, 'pulseGlow', 0, 6, 0.05, 'pulse flare');
+  R(spine, c, 'shatterSweepDelay', 0, 0.9, 0.01, 'exit sweep starts at (× fade)');
+  R(spine, c, 'shatterSweepStart', 0.05, 1, 0.01, 'exit sweep over (× fade)');
+  R(spine, c, 'shatterSweep', 0, 1, 0.01, 'sweep stagger');
+  R(spine, c, 'spineChips', 0, 40, 1, 'chips per crystal');
+  R(spine, c, 'spineRough', 0, 1, 0.01, 'roughness');
+  R(spine, c, 'spineGlow', 0, 3, 0.01, 'inner glow');
+  R(spine, c, 'spineRimGlow', 0, 4, 0.01, 'rim glow');
+  R(spine, c, 'spineFresnel', 0.3, 8, 0.05, 'rim power');
+  spine.addColor(c, 'colorSpine').name('ice body');
+  spine.addColor(c, 'colorSpineDeep').name('ice deep');
+  spine.addColor(c, 'colorSpineRim').name('ice rim (tint)');
+  spine.addColor(c, 'colorSpineCore').name('pulse core');
 
   const fx = sub(folder, '7 · Particles');
   R(fx, c, 'rimeRate', 0, 400, 1, 'dust/second');

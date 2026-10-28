@@ -1,6 +1,6 @@
 # Collective Ability Matrix
 
-**256 castable abilities** (251 abilities, 3 buffs, 2 summons) from 10 groups: the original 230, **sorted into 23 elements, ten each**, and 26 Matrix Expansion casts, plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
+**279 castable abilities** (274 abilities, 3 buffs, 2 summons) from 10 groups: the original 230, **sorted into 23 elements, ten each**, and 49 Matrix Expansion casts (every element has at least two), plus 11 character moves (walk, run and dash among them) and 7 archived effects, all in **one sandbox**: one scene, one character and one set of target dummies.
 
 Open the matrix, pick any ability, cast it, tune it, and copy its settings as a preset for your own Three.js games. Walk the caster around the arena while you do it.
 
@@ -38,7 +38,7 @@ An unstamped `sw.js` (a source checkout, `vite` dev) is a pass-through, so local
 | Linear Extended | vendored `linear-extended` engine | 10 | Includes the Cyber Serpent model |
 | Hand Cast | vendored `handcast` engine | 9 | Includes the drone, monowheel and phoenix rigs; the two summons are drivable |
 | Ability Casting | vendored `casting` engine | 9 | The shark, wolf, dragon, gyroscope, amethyst, tome and reliquary rigs, with ragdolls |
-| Matrix Expansion | sandbox engine (native) | 26 | Live: casts with their own combat rules (echoes, inherited marks, recorded paths, deployed sentries) through the expansion combat adapter. See [Matrix Expansion](#matrix-expansion--26) |
+| Matrix Expansion | sandbox engine (native) | 49 | Live: casts with their own combat rules (echoes, inherited marks, recorded paths, deployed sentries) through the expansion combat adapter, including one next-wave cast per element. See [Matrix Expansion](#matrix-expansion--49) |
 
 ### How the source packs run inside it
 
@@ -78,6 +78,14 @@ presets/library.json       every preset in one file
 tools/                     build-all.sh · stage-site.sh · extract-presets.mjs · sculpt-pure.mjs · pure-rigs.mjs · rigs/ · rig-sheet.mjs
 tests/                     npm test
 ```
+
+## The quality bar
+
+Every castable is held to one bar: the three original Linear packs. [`docs/castable-quality-standard.md`](docs/castable-quality-standard.md) writes that bar down as checks (form, motion, material, layers, engineering) and names the anti-patterns found when casts were compared side by side with the originals, so an agent that cannot see the screen can still build to it.
+
+- **Reference storyboards.** [`docs/castables/`](docs/castables/) has a beat-by-beat storyboard (metres, seconds, hex colours, the file behind each layer) for every original Linear cast, contact sheets of the twelve references, and a catalogue of 26 named craft techniques with where each one lives in the code. New and upgraded casts add their own storyboard in the same format.
+- **See a cast without a screen.** `node tools/capture-cast.mjs <out> <uid> [uid ...] --sheet` renders any cast in the real sandbox under a fixed 30 Hz clock and writes frames plus a contact sheet. By default seven dummies stand where the cast lands, so hits show. `--module=<path>` loads one unregistered expansion cast on its own; captures queue for a machine-wide slot (`CAPTURE_SLOTS`, default 2).
+- **Guards.** `tests/expansion-2026/editor-keys.test.mjs` builds every registered expansion cast's editor against a strict GUI, so a control without a settings key fails in CI rather than taking the sandbox down at boot.
 
 ## Run it
 
@@ -151,7 +159,7 @@ Every cast in the sandbox, from every pack, reports into one combat state, `comb
 - **Bounds.** Chain depth (default 3), reactions per tick and per body, one reaction of a name per cast, diminishing returns on repeats and an intensity cap. A reaction's own product never sets the same reaction off again. Only the manager deals secondary damage, through an outbox the adapter applies once; VFX never do.
 - **In the sandbox.** A feed lists reactions as they land, chips above each body show its statuses, and a reaction rings the floor in both elements' colours. Toggles and the budget are in the editor under **Combat — unified state**. From the console: `matrix.combat.preview('water', 'storm')`, `matrix.combat.pairs()`, `matrix.combat.log()`.
 - **31 playable mechanic moves.** The five family representatives (Infernal Circuit, Aegis Exemplar, Shatterpoint Reversal, Continental Uprising and Storm Catalyst) and 26 more run through UCSM in the sandbox. Open **Combat mechanics**, select a move (buttons or Alt+Z/X/C/V/B) and click the arena. The opt-in incoming attack drill supports real counter/block/dodge practice. Each family's look is live in the editor (**Convergence**, **Counter**, **Stance**, **Weave** and **Worldshape** folders). See [mechanic contracts and controls](docs/foundational-mechanics.md) and [validation evidence](evidence/mechanics/VALIDATION.md).
-- **Unimplemented content stays locked.** `EXPANSION_REGISTRY` holds the full 161-entry design roster: 46 standard castables and 115 mechanic moves. A standard entry is selectable once its Matrix Expansion cast is live (14 are), a mechanic move once it is implemented (31 are); the other 116 stay `status: 'proposed', selectable: false`. New portable presets are in `presets/mechanics/`.
+- **Unimplemented content stays locked.** `EXPANSION_REGISTRY` holds the full 161-entry design roster: 46 standard castables and 115 mechanic moves. A standard entry is selectable once its Matrix Expansion cast is live (37 are), a mechanic move once it is implemented (31 are); the other 93 stay `status: 'proposed', selectable: false`. New portable presets are in `presets/mechanics/`.
 
 `tests/ucsm.test.mjs` pins the pair coverage, determinism, order sensitivity, exactly-once commits, the budgets, expiry, team policy and the registry; `tests/line-trail.test.mjs` pins the trail.
 
@@ -175,6 +183,41 @@ The sandbox exposes the same API by URL, JavaScript and postMessage.
 - **URL:** `?ability=<uid>` selects it, `&cast=1` casts it on load, `&auto=<s>` recasts on a loop, and `&hud=0` runs it embedded.
 - **JS:** `window.matrix.list()`, `select(uid)`, `arm(uid)`, `cast(uid)`, `auto(uid, s)`, `clear()`, `runAction(pack, action)`, `move(name)`, `preset(uid)`, `applyPreset(uid, json)`, `resetPreset(uid)`.
 - **postMessage:** `{ matrix: 'cast', uid: 'casting/dragon' }`.
+- **Duel and targets:** `window.matrix.duel` and `window.matrix.targets`, below.
+
+## Duel the Arch-Wizard
+
+The original caster, the Mixamo wizard every source pack shipped, is back as a CPU opponent. Open **Arch-Wizard duel** (under Combat mechanics), choose a difficulty and what it may cast, and press **Start duel**, or **Watch (demo)** to have it work through its loadout on the dummies with no input from you.
+
+- **The wizard.** It uses the same files the old caster did: `models/Idle.fbx` (rig and idle), `models/diffuse.png` (skin) and the three gestures `cast1–3.fbx`, which bind by bone name with no retargeting. It is a `Dummy` built from that rig (`combat/duel/WizardBody.js`), so every cast in every pack reaches it through the usual `DummyField` contract. A health bar floats over its head, and both HP bars sit at the top of the screen.
+- **Its loadout.** Any castable from any pack, Matrix Expansion included, and any of the 31 implemented mechanic moves. The presets are *Random element*, *One element*, *Mirror my loadout* (your slot and recent picks) and *Custom* (a filterable list). A few casts cannot work from a second caster and are listed disabled, each with the reason: summons (they take over WASD and Space), self buffs, casts that move their caster (Blink Step, Voidstep Rift, Parallax Blink, Chrono Recall), casts that copy the caster's body (Hall of Echoes, Mirage Construct, Ashen Doppelgänger), the Ability Casting lance (it reads the player's hands every frame) and the drawn Fire Portal.
+- **How it fights** (`combat/duel/DuelAI.js`). It keeps about 9 m away and strafes, flipping sides every few seconds. When a cast is off cooldown and its reach covers the distance, it plants, raises the gesture and puts an aim marker on the floor (the footprint of a zone cast, or the lane of a line cast, filling in until release). It then casts at where you are, or where you will be. It picks the least recently used cast in range, and may sidestep a cast that is coming down its line.
+
+  | Difficulty | Cast every | Telegraph | Aim error | Dodge | HP |
+  |---|---|---|---|---|---|
+  | Apprentice | 3.4–4.6 s | 0.8 s | ±0.30 rad, no lead | 10% | 90 |
+  | Adept | 2.3–3.2 s | 0.55 s | ±0.13 rad, half lead | 35% | 120 |
+  | Archmage | 1.5–2.2 s | 0.38 s | ±0.05 rad, full lead | 60% | 150 |
+
+- **Casting from a second caster.** Native and Matrix Expansion casts go through a second `AbilityManager` that uses the player's own context with the wizard as `character`. Hosted packs' casts go through that pack's manager, below the aim. Mechanics go through `MechanicSystems.command` with the wizard's own owner id (team `cpu`). None of this touches your slot, aim or cooldowns, and the gestures play on the wizard's rig.
+- **Hits, both ways.** Your casts hit the wizard through `applyHits`, `findTargets` and `kill`. `kill` spends 10 HP (once per 0.45 s, so a cast overlapping it for many frames is one blow) until the blow that empties the bar: that one ragdolls it and it burns away. Its casts hit you through a referee that reads each CPU cast's `origin`, `position`, `u` and `direction` every frame and applies the field's own rule (a line is a capsule swept to the front, a zone is a disc armed when it lands). Each cast hits once, and you flinch. Its mechanics hurt you through the unified combat state's damage effects. Its stance cuts the damage it takes, and its counter parries a blow and sends half of it back. The dummies can stay (toggle) and either side can hit them. The wizard's own casts never hit the wizard.
+- **Round over.** A banner names the winner, with **Rematch** (same loadout, full HP) and **End duel**.
+- **API.** `matrix.duel.start({ loadout, castables, mechanics, difficulty, keepDummies })`, `watch({…})`, `rematch()`, `stop()`, `state()`. `loadout` is a preset id (`'random'`, `'element'` with `element`, `'mirror'`) or an array of uids. URL: `?duel=1&cpu=linear/meteor,codex/solarlash&difficulty=adept` (also `&mechanics=<uid,…>`, `&loadout=element&element=frost`, or `?watch=1`). postMessage: `{ matrix: 'duel', action: 'start', options: {…} }`. The page posts back `{ matrix: 'duel', event, state }` on start, stop, hits and round over.
+- **Limits.** The soldier does not ragdoll when it loses; it staggers and the round ends. A hosted-pack cast by the CPU shares that pack's limit of four live casts with yours. Casts that pick their own targets are refereed by their line or footprint, not by their own targeting.
+
+## Targets
+
+The dummy field holds up to 24 bodies of five archetypes. Each is the same rig with its own tint, rim and a small procedural piece on the head, so no new model files are needed:
+
+| Archetype | Look | Rule |
+|---|---|---|
+| Standard | cold black, cyan rim | one hit and it falls |
+| Armored | steel, gold rim, helm | shrugs off `armorHits` (3) blows with sparks; the next fells it |
+| Runner | green rim, headband | strafes back and forth across its spot (`runnerSpeed`, `runnerRange`) |
+| Giant | 1.35× scale, ember rim, horns | heavy: a blow throws it `giantImpulse` (45%) as hard |
+| Caster | violet rim, pointed hat | raises a shield bubble on a timer; a blow on the bubble pops it instead |
+
+Formations: **Ring** (the original scatter round the caster), **Line** (one rank across the view), **Cluster** (a tight knot for zone casts), **Gauntlet** (three staggered lanes running away from you) and **Scatter** (anywhere inside the outer radius). The **Targets** panel sets the count, the formation and the mix (a weight per archetype, shared out over the slots and interleaved). Everything is in `settings.dummies` (`count`, `formation`, `mix`, `archetypes`) and in the editor's **Target dummies** folder, and ships in each group's `_shared.json` with the other shared blocks. From code: `matrix.targets.set({ count: 12, formation: 'gauntlet', mix: { armored: 1, runner: 1 } })` (or `mix: 'armored,runner'`) and `matrix.targets.state()`. URL: `&targets=12&formation=gauntlet&mix=armored,runner`. The rules are in `combat/DummyArchetypes.js`.
 
 ## Abilities, by element
 
@@ -524,7 +567,7 @@ Every castable has one element, set in `packs/sandbox/src/config/elements.js` an
 | Shear Force **new** | `codex/shearforce` | Elemental Codex | line | 2–18 |  |
 | Moment Swing **new** | `codex/moment` | Elemental Codex | line | 2–18 |  |
 | Press Lance **new** | `codex/presslance` | Elemental Codex | line | 2–18 |  |
-## Matrix Expansion · 26
+## Matrix Expansion · 49
 
 Native sandbox casts whose rules go past a single hit: an ash echo that follows your recent path, a thread that locks struck bodies in ice, a storm that attaches to one target, poison that evolves on its host, a sentry that reads enemy exposure and fires the counter-element. Each cast lives in `packs/sandbox/src/abilities/expansion-2026/<cast>/`, is built to the same contract as the originals (`packs/sandbox/SANDBOX_NATIVE_CONTRACT.md`) and binds the expansion combat adapter ([docs/expansion-combat-adapter.md](docs/expansion-combat-adapter.md)) for its hits, statuses and terrain. Promotion is per UID in `expansion-2026/status.js`: a `live` cast is installed in the sandbox and listed in the matrix, while a `candidate` stays hidden. Presets are in `presets/expansion/` (`node tools/extract-expansion.mjs` regenerates them).
 
@@ -556,6 +599,36 @@ Native sandbox casts whose rules go past a single hit: an ash echo that follows 
 | Vector Breakwater | `matrix-expansion/vector-breakwater` | Force | line | 1–20 |  |
 | Cinder Crown | `matrix-expansion/cinder-crown` | Fire | zone | 0–18 | 4 |
 | Glacier Bell | `matrix-expansion/glacier-bell` | Frost | zone | 0–18 | 4 |
+
+### The next wave · 23
+
+One new cast per element, the registry's next standard entry for that element (`batch-d.js`). Each was built to [the castable quality standard](docs/castable-quality-standard.md): an authored hero form at zone scale, solid lit materials for solid things, bespoke shaders on a four-stop ramp, a floor that answers and stays, and a linger that keeps moving. Each has a storyboard in [`docs/castables/matrix-expansion/`](docs/castables/matrix-expansion/) and a unit test in `tests/expansion-2026/`.
+
+| Ability | uid | Element | Kind / aim | Range (m) | Circle (m) |
+|---------|-----|---------|------------|-----------|------------|
+| Combustion Debt | `matrix-expansion/combustion-debt` | Fire | zone | 2–18 | 3.2 |
+| Winter's Borrowed Breath | `matrix-expansion/winters-borrowed-breath` | Frost | zone | 2–18 | 3.4 |
+| Synaptic Override | `matrix-expansion/synaptic-override` | Storm | zone | 2–18 | 3.6 |
+| Hydraulic Marionette | `matrix-expansion/hydraulic-marionette` | Water | zone | 2–16 | 3.4 |
+| Strata Exchange | `matrix-expansion/strata-exchange` | Earth | zone | 3–18 | 1.9 |
+| Refraction Tribunal | `matrix-expansion/refraction-tribunal` | Crystal | zone | 5–20 | 3.8 |
+| Skyhook Draft | `matrix-expansion/skyhook-draft` | Wind | line | 3–16 |  |
+| Resonance Theft | `matrix-expansion/resonance-theft` | Sound | zone | 1.5–18 | 3.8 |
+| Symbiotic Exchange | `matrix-expansion/symbiotic-exchange` | Nature | zone | 2–18 | 4 |
+| Venom Mimicry | `matrix-expansion/venom-mimicry` | Poison | zone | 2–18 | 3.2 |
+| Photon Doppel | `matrix-expansion/photon-doppel` | Light | zone | 2–18 | 3.2 |
+| Martyr's Accord | `matrix-expansion/martyrs-accord` | Holy | zone | 2–18 | 4 |
+| Vacuum Genesis | `matrix-expansion/vacuum-genesis` | Cosmic | zone | 2–17 | 3.4 |
+| Equivalence Engine | `matrix-expansion/equivalence-engine` | Gravity | zone | 2–17 | 3.8 |
+| Umbra Exchange | `matrix-expansion/umbra-exchange` | Shadow | zone | 3–16 | 4.4 |
+| Existence Tax | `matrix-expansion/existence-tax` | Void | zone | 2–16 | 3.4 |
+| Hematite Arsenal | `matrix-expansion/hematite-arsenal` | Blood | zone | 2–14 | 3.2 |
+| Countermand Sigil | `matrix-expansion/countermand-sigil` | Arcane | zone | 2–16 | 3.6 |
+| False Victory | `matrix-expansion/false-victory` | Illusion | zone | 2–15 | 3.4 |
+| Temporal Mortgage | `matrix-expansion/temporal-mortgage` | Time | zone | 2–16 | 3.4 |
+| Trajectory Hijack | `matrix-expansion/trajectory-hijack` | Motion | zone | 2–16 | 4.2 |
+| Signal Jack | `matrix-expansion/signal-jack` | Tech | zone | 2–16 | 4.5 |
+| Impact Dividend | `matrix-expansion/impact-dividend` | Force | zone | 2–16 | 3.2 |
 
 ## Moves
 

@@ -58,10 +58,12 @@ export default {
     /* ================================================================ */
     /* 1 · THE SEED VESSEL — travel                                      */
     /* ================================================================ */
-    travelScale: 1, // size of the flying pod
+    travelScale: 1.8, // size of the flying pod (≈ 0.9 m tall at 1.8, so it reads at 8 m)
     travelHeight: 0.7, // metres it flies off the floor
     travelSpin: 2, // radians/second it turns as it flies
-    travelDensity: 0.6, // spore bubbles shed while it flies, × particleRate
+    travelDensity: 1.2, // spore bubbles shed while it flies, × particleRate
+    travelArc: 1, // metres the lob rises at mid-flight
+    travelDrips: 1.5, // venom drips shed in flight, × dripRate
     vesselScale: 1, // size of the per-stage satellite vessels
     vesselGlow: 1.4, // emissive gain of every vessel
 
@@ -69,6 +71,9 @@ export default {
     /* 2 · THE MEMBRANE — grown over the host                            */
     /* ================================================================ */
     formTime: 0.35, // seconds the membrane takes to rise out of the floor on arrival
+    membraneScale: 1.35, // girth of the membrane, × the host (the mass grown over it)
+    membraneStageGrowth: 0.16, // extra girth per accepted generation
+    dormantTime: 1.4, // no host in the circle: seconds the dormant colony gropes before it withers
     membraneGlow: 1.3, // emissive gain
     membraneFresnel: 1.6, // density at the silhouette
     veinScale: 1, // vein noise scale
@@ -104,6 +109,16 @@ export default {
     poolCells: 4, // cell density of the wet toxin
     poolGlow: 1.5, // emissive gain of the cell seams
     poolDarken: 0.55, // how much it darkens the floor between seams
+
+    /* ================================================================ */
+    /* 5b · THE BLIGHT — the search circle rotting (telegraph + floor)   */
+    /* ================================================================ */
+    blightScale: 1, // radius, × zoneRadius (the circle a host is searched in)
+    blightTelegraph: 0.6, // how far the veins have crept in from the rim when the vessel lands, 0..1
+    blightVeins: 9, // veins round the rim
+    blightSharp: 7, // vein thinness (higher = finer threads)
+    blightGlow: 1.6, // emissive gain of the veins and their pulses
+    blightDarken: 0.8, // how dark the rot stains the floor between veins
 
     /* ================================================================ */
     /* 6 · THE SPORES — orbiting the host                                */

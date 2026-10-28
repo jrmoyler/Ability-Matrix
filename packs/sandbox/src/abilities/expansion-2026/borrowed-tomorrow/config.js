@@ -63,7 +63,21 @@ export default {
     dissolveTime: 0.8, // fraction of the fade spent dissolving
 
     /* --- 2 · the clockwork (solid brass) --- */
-    clockSize: 1, // whole clock scale
+    clockSize: 0.55, // whole clock scale (× the circle): ~3.6 m across standing
+    clockTilt: 1.22, // rad the suspended clock stands up from the floor (π/2 = upright), facing the caster
+    clockLift: 2.5, // m: the arbor hovers this high while the debt accrues
+    unfoldTime: 0.35, // s: the thrown clock opens out to full size over the circle
+    slamTime: 0.16, // s: it drops flat onto its face this long before the strike
+    dialDepth: 0.33, // the enamel dial and case, × its radius (thickness)
+    dialColor: '#1b1430', // enamel: the ramp's deep stop
+    dialGlow: 0.6, // violet glow in the enamel, rising with the debt
+    dialRoughness: 0.32,
+    travelHeight: 1.4, // m: the arbor height it is thrown from / lands at
+    travelArc: 1.6, // m: extra height at the top of the throw
+    travelScale: 0.3, // × size while in flight
+    travelSpin: 9, // rad/s it spins in flight
+    trailCount: 2, // chips shed every 30 ms of the flight
+    trailLife: 0.5, // s
     brassMetalness: 0.86,
     brassRoughness: 0.24,
     brassEmissive: '#472000',
@@ -73,8 +87,11 @@ export default {
     chronoGlow: 1.6, // the lit bezel, minute hand and bob
 
     /* --- 3 · the pendulum --- */
-    pendulumHeight: 1.7, // pivot height (m)
-    pendulumLength: 1.05, // rod length (m)
+    pendulumHeight: -0.05, // pivot height above the clock's arbor (m)
+    pendulumLength: 1.9, // rod length (m): the bob swings below the dial
+    pendulumBack: 0.35, // m behind the dial
+    pendulumThick: 1.6, // rod thickness scale
+    bobScale: 2.2, // the bob's size
 
     /* --- 4 · tomorrow's ring --- */
     futureHeight: 2.6, // starts this high (m) and descends with the debt

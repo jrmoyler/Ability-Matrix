@@ -187,6 +187,23 @@ export function createIndexGeometry() {
   return extrudeFlat(s, 0.06);
 }
 
+/**
+ * The dial and its case, one turned solid (revolved round Y, unit radius):
+ * a shallow enamel dome on the front with a raised arbor boss, a rolled rim,
+ * and a deep stepped case behind — so the suspended clock has *mass* seen
+ * edge-on, not just rings. Face up (+Y) is the dial.
+ */
+export function createDialGeometry(segments = 96) {
+  const profile = [
+    [0, -0.34], [0.32, -0.33], [0.58, -0.29], [0.78, -0.21], [0.88, -0.13], [0.9, -0.1],
+    [0.94, -0.08], [0.95, -0.02], [0.935, 0.0], [0.9, 0.012], [0.6, 0.03], [0.25, 0.045],
+    [0.09, 0.05], [0.085, 0.075], [0.05, 0.09], [0, 0.092],
+  ];
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), segments);
+  g.computeVertexNormals();
+  return g;
+}
+
 /** A lens-shaped turned bob facing ±Z (it swings in the XY plane). */
 export function createBobGeometry() {
   const profile = [[0, -0.055], [0.1, -0.045], [0.16, -0.02], [0.18, 0], [0.16, 0.02], [0.1, 0.045], [0, 0.055]];

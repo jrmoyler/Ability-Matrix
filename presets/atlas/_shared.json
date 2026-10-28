@@ -153,6 +153,24 @@
   "dummies": {
     "enabled": true,
     "count": 6,
+    "formation": "ring",
+    "mix": {
+      "standard": 1,
+      "armored": 0,
+      "runner": 0,
+      "giant": 0,
+      "caster": 0
+    },
+    "archetypes": {
+      "armorHits": 3,
+      "runnerSpeed": 1.1,
+      "runnerRange": 2.6,
+      "giantScale": 1.35,
+      "giantImpulse": 0.45,
+      "shieldUp": 2.5,
+      "shieldDown": 4,
+      "shieldDelay": 1.5
+    },
     "radius": 13,
     "minRadius": 5,
     "separation": 2.4,

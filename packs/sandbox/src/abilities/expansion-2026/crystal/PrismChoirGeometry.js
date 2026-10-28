@@ -153,3 +153,73 @@ export function createLightfallGeometry() {
 export function createLensGeometry() {
   return new PlaneGeometry(1, 1, 1, 1);
 }
+
+/**
+ * The choir: one cluster of seven crystal pipes that erupts where a shard
+ * lands. Organ-pipe grading — the middle pipe tallest (2.4 m at scale 1),
+ * the outer ones knee-high — set on a shallow arc that curves away from the
+ * split, each pipe a five- or six-sided quartz habit with its own tip, leaning
+ * outward a little so the cluster fans like a pipe-organ front. Base at y = 0
+ * (each pipe's butt is buried 0.15 m), front faces local +Z.
+ *
+ * Non-indexed (flat facets) with `aBary`, `aFacet` like the lance, plus
+ * `aRise` (0 at the floor … 1 at that pipe's tip) and `aPipe` (0..1 across
+ * the cluster) for the climbing light of the glow shell.
+ */
+export function createChoirSpireGeometry() {
+  const PIPES = 7;
+  const parts = [];
+  for (let k = 0; k < PIPES; k++) {
+    const m = (k - (PIPES - 1) / 2) / ((PIPES - 1) / 2); // -1 … 1
+    const height = 0.85 + 1.55 * Math.pow(1 - Math.abs(m), 0.85);
+    const radius = 0.15 + 0.1 * (1 - Math.abs(m)) + 0.03 * hash(k * 5.7);
+    const g = crystal({
+      sides: k % 2 ? 5 : 6,
+      radii: [radius * 1.08, radius, radius * 0.92],
+      rings: [0, height * 0.45, height * 0.8],
+      apex: [0.04 * (hash(k * 2.3) - 0.5), height, 0.04 * (hash(k * 3.9) - 0.5)],
+      base: [0, -0.15, 0],
+      seed: 7.1 + k * 3.3
+    });
+    parts.push({ g, m, height });
+  }
+  const positions = [];
+  const bary = [];
+  const facet = [];
+  const rise = [];
+  const pipe = [];
+  for (const { g, m, height } of parts) {
+    const p = g.attributes.position.array;
+    const b = g.attributes.aBary.array;
+    const f = g.attributes.aFacet.array;
+    // Lean outward along the arc and a little back, then set on the arc.
+    const lean = -m * 0.2;
+    const back = -0.08;
+    const cx = m * 1.05;
+    const cz = -0.32 * m * m;
+    for (let i = 0; i < p.length; i += 3) {
+      const x = p[i];
+      const y = p[i + 1];
+      const z = p[i + 2];
+      // Rotate about Z (lean), then about X (tilt back).
+      const x1 = x * Math.cos(lean) - y * Math.sin(lean);
+      const y1 = x * Math.sin(lean) + y * Math.cos(lean);
+      const y2 = y1 * Math.cos(back) - z * Math.sin(back);
+      const z2 = y1 * Math.sin(back) + z * Math.cos(back);
+      positions.push(x1 + cx, y2, z2 + cz);
+      rise.push(Math.max(0, y) / height);
+      pipe.push((m + 1) / 2);
+    }
+    for (let i = 0; i < b.length; i++) bary.push(b[i]);
+    for (let i = 0; i < f.length; i++) facet.push(f[i]);
+    g.dispose();
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute('aBary', new BufferAttribute(new Float32Array(bary), 3));
+  geometry.setAttribute('aFacet', new BufferAttribute(new Float32Array(facet), 1));
+  geometry.setAttribute('aRise', new BufferAttribute(new Float32Array(rise), 1));
+  geometry.setAttribute('aPipe', new BufferAttribute(new Float32Array(pipe), 1));
+  geometry.computeVertexNormals();
+  return geometry;
+}
