@@ -26,7 +26,7 @@ export default {
   },
   settings: {
     /* --- the cast --- */
-    range: 11, // max cast distance (m)
+    range: 16, // max cast distance (m)
     minRange: 2, // closer than this and the cast is refused (m)
     speed: 16, // the spool flies to the circle at (m/s)
     cooldown: 5, // seconds before the cast can be armed again

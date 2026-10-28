@@ -527,7 +527,7 @@
       "cast": "zone",
       "castAnim": "cast2",
       "cooldown": 5,
-      "range": 11,
+      "range": 16,
       "minRange": 2,
       "zoneRadius": 3.4,
       "status": "live",
