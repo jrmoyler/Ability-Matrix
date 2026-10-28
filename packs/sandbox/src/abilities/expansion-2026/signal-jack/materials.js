@@ -118,7 +118,7 @@ export function createMetalMaterial({ dark = false, seams = true } = {}) {
         `#include <emissivemap_fragment>
         {
           float band = fract(vSjLocal.y * uSeamFreq);
-          float seam = 1.0 - smoothstep(uSeamWidth * 0.5, uSeamWidth, abs(band - 0.5) * 2.0 * 0.5);
+          float seam = 1.0 - smoothstep(uSeamWidth * 0.5, uSeamWidth, abs(band - 0.5));
           seam *= step(0.02, vSjLocal.y);
           totalEmissiveRadiance += uSeamColor * seam * uSeamGlow * (0.45 + 0.55 * uPulse);
         }`,
@@ -487,8 +487,8 @@ const BOLT_FRAGMENT = /* glsl */ `
   varying vec3 vWorld;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
-  ${RAMP_GLSL}
   ${commonGLSL}
+  ${RAMP_GLSL}
   void main() {
     float t = vUv.y;                      // 0 at the jacked body, 1 at the victim
     if (t > uTravel) discard;
