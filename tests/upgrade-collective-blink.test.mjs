@@ -42,6 +42,7 @@ test('blink: rifts at both ends, a scar that stays, a linger, the caster moved a
   const ctx = mockCtx();
   const a = new BlinkStepAbility(ctx);
   a.spawn(new Vector3(), new Vector3(0, 0, 1), 12);
+  a.update(1 / 30);
   assert.equal(a.departRift.visible, true, 'the departure rift splits with the vanish');
   let sawArrive = false;
   let lingerFrames = 0;

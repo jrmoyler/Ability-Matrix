@@ -79,10 +79,12 @@ test('new candidates bind actual pooled GPU particle systems without per-cast al
         });
       a.update(1 / 60);
     }
-    assert.equal(particles.systems.size, 1, module.ID);
-    const system = [...particles.systems.values()][0];
-    assert.ok(system.cursor > 0, `${module.ID} did not emit during the cast`);
-    assert.ok(system.cursor < system.capacity, module.ID);
+    // The quality standard asks for several particle layers, so a cast may
+    // own more than one pooled system; each stays inside its capacity.
+    const systems = [...particles.systems.values()];
+    assert.ok(systems.length >= 1, module.ID);
+    assert.ok(systems.some((system) => system.cursor > 0), `${module.ID} did not emit during the cast`);
+    for (const system of systems) assert.ok(system.cursor < system.capacity, module.ID);
     a.destroy();
     a.dispose();
     particles.dispose();

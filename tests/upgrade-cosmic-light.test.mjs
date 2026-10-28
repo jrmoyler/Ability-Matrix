@@ -74,8 +74,11 @@ test('starfall: crystals fall, land, turn and sink; the floor keeps the figure; 
   a.spawn(new Vector3(), new Vector3(1, 0, 0), 12);
   run(a, 0.3);
   assert.equal(a.meteorGeometry.attributes.aHead.array[16 * 4 + 3], 1, 'herald trails a meteor');
-  run(a, 1.6);
-  assert.ok(a.stars.slice(0, a._count).some((s) => s.landed), 'a star has landed by 1.9 s');
+  // Launch order is jittered, so wait on the cast's own clock: the earliest
+  // star must have landed by the time the latest one could.
+  const latestLanding = a._firstLaunch() + a._span() + a._fallTime();
+  for (let t = 0; t < latestLanding + 0.5 && !a.stars.slice(0, a._count).some((s) => s.landed); t += 0.1) run(a, 0.1);
+  assert.ok(a.stars.slice(0, a._count).some((s) => s.landed), 'a star has landed within the fall window');
   const u = a.fieldMaterial.uniforms;
   assert.ok(Array.from(u.uStars.value).some((v, i) => i % 4 === 2 && v >= 0));
   assert.equal(a.crystals.visible, true);

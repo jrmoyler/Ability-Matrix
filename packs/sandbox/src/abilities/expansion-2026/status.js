@@ -27,6 +27,26 @@ export const EXPANSION_STATUS = Object.freeze({
   'matrix-expansion/adaptive-fabricator': 'live',
   'matrix-expansion/vector-breakwater': 'live',
   'matrix-expansion/cinder-crown': 'live',
-  'matrix-expansion/glacier-bell': 'live'
+  'matrix-expansion/glacier-bell': 'live',
+  'matrix-expansion/combustion-debt': 'live',
+  'matrix-expansion/winters-borrowed-breath': 'live',
+  'matrix-expansion/synaptic-override': 'live',
+  'matrix-expansion/hydraulic-marionette': 'live',
+  'matrix-expansion/strata-exchange': 'live',
+  'matrix-expansion/refraction-tribunal': 'live',
+  'matrix-expansion/skyhook-draft': 'live',
+  'matrix-expansion/resonance-theft': 'live',
+  'matrix-expansion/symbiotic-exchange': 'live',
+  'matrix-expansion/venom-mimicry': 'live',
+  'matrix-expansion/photon-doppel': 'live',
+  'matrix-expansion/martyrs-accord': 'live',
+  'matrix-expansion/vacuum-genesis': 'live',
+  'matrix-expansion/equivalence-engine': 'live',
+  'matrix-expansion/umbra-exchange': 'live',
+  'matrix-expansion/existence-tax': 'live',
+  'matrix-expansion/hematite-arsenal': 'live',
+  'matrix-expansion/countermand-sigil': 'live',
+  'matrix-expansion/false-victory': 'live',
+  'matrix-expansion/temporal-mortgage': 'live'
 });
 export const hasLiveExpansion = () => Object.values(EXPANSION_STATUS).includes('live');

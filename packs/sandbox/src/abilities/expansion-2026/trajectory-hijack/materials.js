@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -125,10 +125,11 @@ const FIELD_FRAGMENT = /* glsl */ `
 
     // Rim: a bezel line and compass ticks, every ninth one long.
     float rim = exp(-abs(r - 0.965) * 140.0);
-    float tf = fract(atan(q.y, q.x) / 6.2831853 * uTicks);
-    float major = step(0.5, fract(floor(atan(q.y, q.x) / 6.2831853 * uTicks + 0.5) / 9.0 + 0.01) < 0.12 ? 1.0 : 0.0);
-    float tick = (1.0 - smoothstep(0.0, 0.12, abs(tf - 0.5) * 2.0 - 0.88)) ;
-    tick = step(0.9, 1.0 - abs(tf - 0.5) * 2.0) * smoothstep(0.88 - major * 0.06, 0.9 - major * 0.06, r) * (1.0 - smoothstep(0.94, 0.95, r));
+    float ta = atan(q.y, q.x) / 6.2831853 * uTicks;
+    float tf = fract(ta);
+    float major = 1.0 - step(0.05, fract(floor(ta + 0.5) / 9.0 + 0.01));
+    float tick = step(0.9, 1.0 - abs(tf - 0.5) * 2.0)
+      * smoothstep(0.88 - major * 0.06, 0.9 - major * 0.06, r) * (1.0 - smoothstep(0.94, 0.95, r));
 
     // A lit socket under every vane, with a groove toward the orbit.
     float sockets = 0.0;
@@ -169,7 +170,7 @@ export function createFieldMaterial() {
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
-      uCenter: { value: new Color() }, // a vec3 slot; written from a Vector3
+      uCenter: { value: new Vector3() },
       uRadius: { value: 4 },
       uFrame: { value: 0 },
       uSpin: { value: 1 },
@@ -198,13 +199,12 @@ export function createFieldMaterial() {
     vertexShader: QUAD_VERTEX,
     fragmentShader: FIELD_FRAGMENT,
   });
-  material.uniforms.uCenter.value = { x: 0, y: 0, z: 0, isVector3: true };
   /** @param {object} s see `Ability#_syncField` */
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
-    u.uCenter.value = s.center;
+    u.uCenter.value.copy(s.center);
     u.uRadius.value = s.radius;
     u.uFrame.value = s.frame;
     u.uSpin.value = s.spin;
