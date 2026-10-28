@@ -55,7 +55,7 @@ export default {
 
     /* --- light --- */
     lightColor: '#ff4fb4',
-    lightIntensity: 6,
+    lightIntensity: 9,
     lightRadius: 11,
     plantLight: 6, // punch on the plant (× explosion intensity)
     turnLight: 3, // punch per turncoat bolt
@@ -66,17 +66,17 @@ export default {
     colorTint: '#ff8ad8', // pale magenta
     colorBody: '#e0177f', // saturated hijack magenta
     colorDeep: '#1c0614', // burnt-in deep
-    metalColor: '#5a616c', // machined gunmetal
+    metalColor: '#8a929e', // machined gunmetal
     metalDark: '#1b1d22', // anodised dark parts
     metalness: 0.88,
-    roughness: 0.34,
+    roughness: 0.3,
     seamGlow: 2.2, // emissive seam strength on the metal (× glow)
     seamWidth: 0.06, // seam band width (fraction of its spacing)
     seamSpacing: 3.2, // seams per metre up the spike
 
     /* --- 1 · the spike (travel + plant) --- */
-    spikeHeight: 2.3, // m from the floor to the mast socket
-    spikeGirth: 1, // radius scale
+    spikeHeight: 2.7, // m from the floor to the mast socket
+    spikeGirth: 1.9, // radius scale
     threadPitch: 0.16, // drill thread pitch (m)
     throwHeight: 1.5, // m: thrown from this height at the hand
     throwArc: 2.2, // m: extra height at the top of the throw
@@ -88,21 +88,21 @@ export default {
 
     /* --- 2 · the claws --- */
     legCount: 4,
-    legShare: 0.3, // claw reach as a share of zoneRadius
-    legThick: 1.2, // claw plate thickness scale
+    legShare: 0.36, // claw reach as a share of zoneRadius
+    legThick: 2.4, // claw plate thickness scale
     legDeploy: 0.22, // s the claws take to spring out
     legFlex: 0.05, // rad the claws flex with each bolt (piston kick)
 
     /* --- 3 · the mast and dish --- */
-    mastLift: 1.25, // m the mast telescopes up
+    mastLift: 1.0, // m the mast telescopes up
     mastTime: 0.3, // s it takes
-    dishSize: 0.75, // dish radius (m)
-    dishPitch: 0.75, // rad it tips toward its target
+    dishSize: 1.0, // dish radius (m)
+    dishPitch: 0.95, // rad it tips toward its target
     scanSpin: 9, // rad/s it sweeps before the jack
     slewRate: 9, // how fast it slews between targets (1/s)
 
     /* --- 4 · the cables --- */
-    cableRadius: 0.055, // m
+    cableRadius: 0.085, // m
     cableSag: 0.55, // m of hang at mid-span
     cableWhip: 0.9, // m lateral lash while it flies
     cableSway: 0.12, // m idle sway during the linger
@@ -115,7 +115,7 @@ export default {
     /* --- 5 · possession (on the jacked) --- */
     sheathRadius: 0.55, // m: scan sheath round the jacked body
     sheathHeight: 2.1, // m
-    sheathGlow: 1.6,
+    sheathGlow: 0.7,
     scanRate: 1.6, // sweeps per second down the body
     haloHeight: 2.25, // m: the takeover halo over the head
     haloSize: 0.55, // m radius

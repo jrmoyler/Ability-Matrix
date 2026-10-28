@@ -401,7 +401,7 @@ const SHEATH_FRAGMENT = /* glsl */ `
     float rim = fresnelTerm(vViewDir, vNormalW, 2.2, 1.0);
     float caps = smoothstep(0.0, 0.08, y) * (1.0 - smoothstep(0.86, 1.0, y));
     float glitch = step(0.82, fract(sin(floor(y * 24.0) * 91.7 + floor(uScan * 9.0)) * 4375.85));
-    float v = (lines * 0.35 + sweep * 1.4 + rim * 0.5 + glitch * 0.3) * caps * uPower + uHot * caps * (0.6 + rim);
+    float v = (lines * 0.18 * rim + sweep * 1.2 * (0.3 + rim) + rim * 0.35 + glitch * 0.15 * rim) * caps * uPower + uHot * caps * (0.4 + rim);
     vec3 col = sigRamp(0.35 + 0.5 * clamp(sweep + uHot, 0.0, 1.0)) * v * uGlow * uGlobalGlow;
     gl_FragColor = vec4(col, clamp(v, 0.0, 1.0));
   }
