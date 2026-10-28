@@ -949,7 +949,8 @@ export function buildEditor(gui, c, Editor) {
   R(beat, c, 'burstOpacity', 0, 1, 0.01, 'shell opacity');
   R(beat, c, 'burstFresnel', 0, 6, 0.05, 'shell rim');
   R(beat, c, 'burstSquash', 0.05, 1.5, 0.01, 'shell squash');
-  gradient(beat, c, 'colorBurst', 'shell');
+  // The burst shell takes three stops (BurstSystem colorA–C), not a four-stop gradient.
+  for (const k of ['A', 'B', 'C']) color(beat, c, `colorBurst${k}`, `shell ${k}`);
   R(beat, c, 'decalLife', 0.1, 8, 0.05, 'decals last (s)');
   R(beat, c, 'crackIntensity', 0, 3, 0.01, 'crack brightness');
   R(beat, c, 'shockwaveWidth', 0.01, 0.4, 0.005, 'shockwave width');

@@ -115,7 +115,6 @@ export default {
     craterDark: 0.78, // how strongly the crater darkens the floor
     craterTerraces: 5, // pressure terraces from rim to centre
     craterCracks: 1, // weight of the hot radial cracks
-    craterLife: 1.2, // seconds the crater stays after the cast, × fade
     dissolveTime: 0.7, // fraction of the fade spent dissolving
 
     /* ================================================================ */

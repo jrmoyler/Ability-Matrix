@@ -1209,7 +1209,10 @@ export function buildEditor(gui, c, Editor) {
   R(rift, c, 'riftSealTime', 0.05, 3, 0.01, 'seals over (s)');
   R(rift, c, 'riftCrackTime', 0.05, 4, 0.01, 'cracks crawl out over (s)');
   R(rift, c, 'riftOffset', -2, 2, 0.01, 'arrival rift behind landing (m)');
-  Editor.gradient(rift, c, 'colorRift', 'rift ramp (core, tint, body, deep)');
+  rift.addColor(c, 'colorRiftCore').name('ramp: core');
+  rift.addColor(c, 'colorRiftTint').name('ramp: tint');
+  rift.addColor(c, 'colorRiftBody').name('ramp: body');
+  rift.addColor(c, 'colorRiftDeep').name('ramp: deep');
 
   const scar = folder.addFolder('7 · The scar (floor)');
   R(scar, c, 'scarWidth', 0.1, 4, 0.01, 'lane width (m)');

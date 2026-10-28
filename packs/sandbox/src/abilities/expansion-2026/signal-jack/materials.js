@@ -216,7 +216,7 @@ const FIELD_FRAGMENT = /* glsl */ `
   uniform vec2  uCentre;
   uniform float uRadius;     // field radius (m)
   uniform float uSpread;     // 0..1: how far the traces have raced out
-  uniform float uDeep;       // opacity of the burnt footprint
+  uniform float uDeepAlpha;  // opacity of the burnt footprint
   uniform float uReticle;    // 0..1: the landing reticle during the throw
   uniform float uRing;       // EMP ring radius 0..1, < 0 off
   uniform float uCell;
@@ -310,7 +310,7 @@ const FIELD_FRAGMENT = /* glsl */ `
     vec3 col = sigRamp(0.25 + 0.6 * clamp(sig, 0.0, 1.0)) * sig * uGlow * uGlobalGlow;
     col += uCore * (dm.y * 2.0 + ring * 1.2) * uGlow;
     // Normal-blended: dark footprint (the deep stop) under emissive signal.
-    float body = uDeep * rim * grown * (1.0 - 0.35 * r);
+    float body = uDeepAlpha * rim * grown * (1.0 - 0.35 * r);
     float alpha = clamp(body + heat, 0.0, 1.0) * dm.x * uFade;
     vec3 base = uDeep * (0.6 + 0.4 * snoise01(vec3(p * 2.2, 0.5)));
     gl_FragColor = vec4(base * (1.0 - min(heat, 1.0)) + col, alpha);
@@ -333,7 +333,7 @@ export function createFieldMaterial() {
       uCentre: { value: new Vector2() },
       uRadius: { value: 4.5 },
       uSpread: { value: 0 },
-      uDeep: { value: 0.75 },
+      uDeepAlpha: { value: 0.75 },
       uReticle: { value: 0 },
       uRing: { value: -1 },
       uCell: { value: 0.42 },
@@ -358,7 +358,7 @@ export function createFieldMaterial() {
     u.uCentre.value.set(s.x, s.z);
     u.uRadius.value = s.radius;
     u.uSpread.value = s.spread;
-    u.uDeep.value = c.deepOpacity * g.opacity;
+    u.uDeepAlpha.value = c.deepOpacity * g.opacity;
     u.uReticle.value = s.reticle;
     u.uRing.value = s.ring;
     u.uCell.value = Math.max(0.08, c.traceCell / Math.max(0.2, g.noiseFrequency));
