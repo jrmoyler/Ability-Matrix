@@ -96,18 +96,20 @@ export default {
     plantScreenFlash: 0.12, // in the truth's hue — restrained
     plantLight: 22, // light punch
     plantShards: 16, // glass chips out of the crater
+    plantBurstIntensity: 0.5, // the low dust shell at the plant
+    plantBurstOpacity: 0.22,
 
     // ---- 5c · the monolith (the planted truth, solid lit crystal) ----
     monoHeight: 3.1, // body (m)
-    monoRadius: 0.62, // foot circumradius (m)
+    monoRadius: 0.8, // foot circumradius (m)
     monoCap: 0.42, // apex (× body)
     monoTaper: 0.38, // 0 straight .. 1 to a point
     monoTwist: 0.32, // radians foot to top
     monoChamfer: 0.2, // arrises cut away
     monoRise: 0.24, // punches up over (s)
     monoOvershoot: 0.14, // past full height, then springs back
-    monoGlow: 0.55, // emissive body in the truth's hue
-    monoDeep: 0.16, // albedo = hue × this (the deep tone)
+    monoGlow: 0.45, // emissive body in the truth's hue
+    monoDeep: 0.12, // albedo = hue × this (the deep tone)
     monoRoughness: 0.12,
     monoMetalness: 0.25,
     monoIrid: 1.1, // spectral sheen
@@ -174,8 +176,8 @@ export default {
     lensStrength: 1.1,
     burstRadius: 2.8,
     burstLife: 0.45,
-    burstIntensity: 0.9, // the shell — kept under a whiteout
-    burstOpacity: 0.5,
+    burstIntensity: 0.6, // the shell — kept under a whiteout
+    burstOpacity: 0.2,
     colorBurstA: '#ffffff',
     colorBurstB: '#d5dbff',
     colorBurstC: '#ff9ad5',

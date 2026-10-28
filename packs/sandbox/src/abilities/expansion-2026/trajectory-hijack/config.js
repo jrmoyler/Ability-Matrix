@@ -79,16 +79,16 @@ export default {
     fanSpin: 14, // darts spin round their own axis while charging (rad/s)
 
     /* --- 2 · the darts (solid, lit steel) --- */
-    dartSize: 1.05, // dart length (m)
+    dartSize: 1.25, // dart length (m)
     dartGirth: 1.25, // thickness scale
     dartRoll: 18, // spin round the flight axis (rad/s)
     dartColor: '#5a5450', // the steel
     dartMetalness: 0.9,
     dartRoughness: 0.28,
-    dartGlow: 2.2, // emissive heat of the steel (× global glow)
+    dartGlow: 0.9, // emissive heat of the steel (× global glow)
 
     /* --- 3 · the ribbons --- */
-    trailWidth: 0.2, // half-width at the head (m)
+    trailWidth: 0.3, // half-width at the head (m)
     trailTaper: 1.3, // how fast it thins toward the tail (power)
     trailGlow: 2.4, // brightness (× global glow)
     trailOpacity: 0.95,
@@ -113,10 +113,10 @@ export default {
     vaneSweep: 0.3, // the leading edge sweeps back with height (× chord)
     vaneTaper: 0.4, // tip chord shrinks by
     vaneLean: 0.14, // vanes lean out over the floor (rad)
-    vaneColor: '#3b3330', // gunmetal
-    vaneMetalness: 0.82,
-    vaneRoughness: 0.34,
-    vaneEmissive: 0.35, // a low ember in the metal (× global glow)
+    vaneColor: '#5c524c', // gunmetal
+    vaneMetalness: 0.6,
+    vaneRoughness: 0.42,
+    vaneEmissive: 0.08, // a low ember in the metal (× global glow)
     riseDelay: 0.05, // vanes start to heave up after (s)
     riseTime: 0.42, // each vane rises over (s)
     riseOvershoot: 1.6, // spring past full height (outBack strength)

@@ -125,9 +125,9 @@ export default {
     paneShards: 8, // cosmetic shards per pane (max 8)
     paneRoughness: 0.05,
     paneMetalness: 1.0,
-    paneRimGlow: 2.4,
+    paneRimGlow: 1.3,
     paneRimWidth: 0.07,
-    paneScan: 0.25,
+    paneScan: 0.12,
     paneScanDensity: 14,
     paneCrackCells: 2.6,
     paneCrackGlow: 4,

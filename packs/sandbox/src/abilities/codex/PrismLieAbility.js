@@ -935,8 +935,8 @@ export class PrismLieAbility extends Ability {
       radius: 0.3,
       endRadius: c.craterRadius * 1.1,
       life: 0.4,
-      intensity: 0.8,
-      opacity: 0.6 * g.opacity,
+      intensity: c.plantBurstIntensity,
+      opacity: c.plantBurstOpacity * g.opacity,
       colorA: getColor(c.colorCore),
       colorB: hue,
       colorC: getColor(c.colorScorch),
@@ -1178,6 +1178,8 @@ export function buildEditor(gui, c, Editor) {
   R(reveal, c, 'plantScreenFlash', 0, 1, 0.01, 'plant flash');
   R(reveal, c, 'plantLight', 0, 80, 0.5, 'plant light punch');
   R(reveal, c, 'plantShards', 0, 40, 1, 'chips out of the crater');
+  R(reveal, c, 'plantBurstIntensity', 0, 4, 0.05, 'dust shell intensity');
+  R(reveal, c, 'plantBurstOpacity', 0, 1, 0.01, 'dust shell opacity');
 
   const mono = folder.addFolder('4b · The monolith');
   R(mono, c, 'monoHeight', 0.3, 8, 0.05, 'height (m)');

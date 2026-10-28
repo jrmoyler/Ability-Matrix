@@ -224,7 +224,7 @@ const CORE_FRAGMENT = /* glsl */ `
     vec3 q = vObj * uCrack + vec3(0.0, uClock * uChurn, 0.0);
     float n1 = abs(snoise(q));
     float n2 = abs(snoise(q * 2.3 + 4.1));
-    float crack = (1.0 - smoothstep(0.0, 0.09, n1)) + (1.0 - smoothstep(0.0, 0.06, n2)) * 0.55;
+    float crack = (1.0 - smoothstep(0.0, 0.045, n1)) + (1.0 - smoothstep(0.0, 0.03, n2)) * 0.5;
     vec2 dm = dissolveMask(snoise01(vObj * 3.0 + 1.7), uDissolve, 0.08);
     if (dm.x < 0.5 && uDissolve > 0.0) discard;
     vec3 N = normalize(vNormalW);
@@ -232,9 +232,9 @@ const CORE_FRAGMENT = /* glsl */ `
     float rim = fresnelTerm(vViewDir, N, 2.5, uFresnel);
     vec3 col = uDeep * (0.25 + 0.9 * lambert) + uBody * 0.08;
     float heat = clamp(crack * uHeat * uShaderIntensity, 0.0, 1.0);
-    col += gradient4(uDeep, uBody, uTint, uCore, heat) * heat * uGlow * uGlobalGlow * 1.6;
-    col += mix(uBody, uTint, uHeat) * rim * (0.4 + uHeat) * uGlobalGlow;
-    col += uCore * pow(uHeat, 3.0) * 0.6 * uGlobalGlow;
+    col += gradient4(uDeep, uBody, uTint, uCore, heat) * heat * uGlow * uGlobalGlow;
+    col += mix(uBody, uTint, uHeat) * rim * (0.25 + 0.6 * uHeat) * uGlobalGlow;
+    col += uCore * pow(uHeat, 4.0) * 0.2 * uGlobalGlow;
     col += uCore * dm.y * 2.0;
     gl_FragColor = vec4(col, 1.0);
   }

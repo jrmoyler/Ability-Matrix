@@ -47,7 +47,7 @@ export default {
     /* --- 0 · the road: false water laid down the line --- */
     roadWidthNear: 0.5, // metres at the caster's feet
     roadWidthFar: 2.6, // metres where it meets the circle
-    roadOpacity: 0.62,
+    roadOpacity: 0.82,
     roadSeam: 2.2, // the hot shimmer at its leading edge
     roadDryTime: 1.6, // seconds after landing it takes to dry back to the lake
 
@@ -114,10 +114,10 @@ export default {
     poolIridescence: 0.7, // how much the rings shift hue
     poolShimmer: 0.35, // heat shimmer bending the rings
     poolShimmerScale: 2.2,
-    poolEdgeGlow: 2.0, // the bright rim at the edge of the pool
-    poolGlow: 1.2,
+    poolEdgeGlow: 1.4, // the bright rim at the edge of the pool
+    poolGlow: 0.7,
     poolOpacity: 0.82, // how much the lake darkens the floor
-    poolSky: 0.7, // how much sky the lake mirrors
+    poolSky: 1.0, // how much sky the lake mirrors
     poolFlare: 2.0, // how much it flares on the burst
     colorPoolA: '#bfe4ff',
     colorPoolB: '#7f9cff',
@@ -125,7 +125,7 @@ export default {
     colorPoolDeep: '#0a0c26', // the deep tone: the water that is not there
 
     /* --- 3b · the reflection: the copy upside down in the lake --- */
-    reflectStrength: 0.55,
+    reflectStrength: 0.8,
     reflectFade: 2.2, // metres of depth over which it fades
     reflectRipple: 0.07, // metres it wavers sideways
     reflectRippleFreq: 1.4, // ripples per metre

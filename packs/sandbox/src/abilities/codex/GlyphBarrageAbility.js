@@ -63,6 +63,13 @@ const _seal = new Object3D();
  * racing up the column, and its fragments are flung up the pillar. **The fade**:
  * the spent glyphs come off the floor ring by ring, outermost first.
  *
+ * **The seals** (the hero, `assets/codex/GlyphBarrageGeometry.js`): each glyph is
+ * printed by a lit obsidian seal-stamp thrown ahead of the front, slammed
+ * face-down on the stamp frame (dark imprint decal), lifted to hover over its
+ * print while the chain charges, and flung up its pillar when it erupts. The
+ * chain now runs outward by default so it ends on the target, the pillars
+ * use a four-stop ramp with a thin white axis, and each eruption leaves a burn.
+ *
  * Eight layers, each a folder in the editor:
  *
  *   1. **the sigils** — one SDF ground shader per glyph

@@ -114,6 +114,16 @@ const _forceIn = { hitImpulse: 0, hitLift: 0, hitSpin: 0 };
  * sequence repeats. After the second release the armillary **lifts away**
  * and shrinks, and the sigil is eaten by a noise dissolve from the rim in.
  *
+ * ## Upgrade (Linear bar)
+ *
+ * The armillary is thrown from the hand (visible travel) and sized from the
+ * reach (`armillaryReach`): solid lit bronze bands that shadow. Its crown of
+ * eight swords *is* the release — `_bladeFrame` dives them into the floor in
+ * the struck shape on the beat frame (ring / line / star), pulls them back,
+ * and plants the second shape for the linger. A rune wall rises in each
+ * shape, the shape is burnt into a deep ink pool (`createInkPoolMaterial`)
+ * with cooling seams, and crack decals + dark chips mark every bite.
+ *
  * ## Layers (each a folder in the editor)
  *
  *   1. **the sigil** (`createSigilFieldMaterial` + `createRuneLineMaterial`)

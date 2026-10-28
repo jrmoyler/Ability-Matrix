@@ -67,8 +67,8 @@ export default {
     /* 0 · ANTICIPATION + THE SLUG                                      */
     /* ================================================================ */
     handHeight: 1.35, // where the slug leaves the hand, metres
-    travelArc: 2.6, // apex of the lob above the line, metres
-    slugSize: 0.42, // slug radius in flight, metres
+    travelArc: 1.8, // apex of the lob above the line, metres
+    slugSize: 0.36, // slug radius in flight, metres
     slugSpin: 9, // tumble in flight, rad/s
     trailRate: 70, // streaks per second off the slug in flight
     chargeTime: 0.18, // seconds the slug swells at the hand before it flies at full size
@@ -78,12 +78,12 @@ export default {
     /* ================================================================ */
     petalCount: 6, // petals round the bank (≤ 8)
     petalSeat: 0.86, // hinge radius, × zoneRadius
-    petalHeight: 1.05, // petal height, × zoneRadius
+    petalHeight: 1.2, // petal height, × zoneRadius
     petalWidth: 0.95, // base width, × the arc a petal owns
     petalThick: 0.16, // shell thickness, metres
     riseTime: 0.26, // seconds to heave out of the floor
     riseOvershoot: 0.18, // inward overshoot on closing (rad)
-    closedLean: 0.42, // inward lean when closed (rad)
+    closedLean: 0.36, // inward lean when closed (rad)
     ratchetStep: 0.07, // extra inward lean per compound beat (rad)
     ratchetDrop: 0.06, // petals are pressed into the floor per beat (× height)
     ratchetSpring: 14, // ring-out frequency of a ratchet click (Hz)
@@ -165,8 +165,8 @@ export default {
     payoutFlash: 0.16,
     burstReach: 1.5, // payout shell reaches, × zoneRadius
     burstLife: 0.55,
-    burstIntensity: 1.1,
-    burstOpacity: 0.7,
+    burstIntensity: 0.6,
+    burstOpacity: 0.35,
     decalLife: 3.5, // crack / scorch decals last, seconds
 
     /* ================================================================ */

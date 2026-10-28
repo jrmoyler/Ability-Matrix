@@ -577,7 +577,7 @@ export class Ability extends BaseAbility {
       const swell = Easing.outBack(clamp01(this.age / Math.max(0.02, c.chargeTime * L)));
       this.core.scale.setScalar(Math.max(0.001, c.slugSize * swell));
       this.core.rotation.set(this.age * c.slugSpin * 0.7, this.age * c.slugSpin, 0);
-      cs.heat = 0.55 + 0.3 * swell;
+      cs.heat = 0.3 + 0.25 * swell;
       cs.squash = 1;
       // Trail off the slug.
       if (dt > 0) {

@@ -297,7 +297,7 @@ const EDGE_FRAGMENT = /* glsl */ `
     float tip = smoothstep(0.86, 1.0, vUv.y) * 0.6;
     float rim = fresnelTerm(vViewDir, vNormalW, 3.0, uFresnel) * 0.25;
     float drive = 0.45 + uGrip * 0.6 + vKick * 2.5;
-    float L = (lead * 1.3 + trail + chev * 0.9 * drive + tip + rim) * drive * uShaderIntensity;
+    float L = (lead * 1.3 + trail * 0.5 + chev * 0.9 * drive + tip * 0.5 + rim * 0.3) * drive * uShaderIntensity;
     // Fade the foot into the floor so the cut reads as emergence.
     L *= smoothstep(0.0, 0.25, vWorldY);
     vec3 col = gradient4(uCore, uTint, uBody, uDeep, 1.0 - clamp(lead + vKick * 0.5, 0.0, 1.0) * 0.9 + 0.1);
