@@ -102,13 +102,13 @@ export default {
     slewRate: 9, // how fast it slews between targets (1/s)
 
     /* --- 4 · the cables --- */
-    cableRadius: 0.085, // m
-    cableSag: 0.55, // m of hang at mid-span
+    cableRadius: 0.1, // m
+    cableSag: 0.3, // m of hang at mid-span
     cableWhip: 0.9, // m lateral lash while it flies
     cableSway: 0.12, // m idle sway during the linger
     swayRate: 2.4, // rad/s
     pulseRate: 3.2, // data pulses per second down each cable
-    pulseGlow: 3, // emissive strength of the pulses
+    pulseGlow: 5, // emissive strength of the pulses
     reelTime: 0.35, // s the cables take to reel home in the exit
     jackHeight: 1.3, // m up the body the plug bites
 

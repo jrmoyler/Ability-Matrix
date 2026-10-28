@@ -71,14 +71,14 @@ export default {
     steelMetalness: 0.9,
     steelRoughness: 0.28,
     steelEmissive: '#0d3a70',
-    steelGlow: 0.35, // emissive under stress (× debt)
+    steelGlow: 0.2, // emissive under stress (× debt)
 
     /* --- 2 · the stress glow (shader over the band) --- */
-    stressGlow: 1.6, // brightness of the stress light running along the band
+    stressGlow: 0.55, // brightness of the stress light running along the band
     stressFresnel: 2.4, // rim sharpness
     stressPulses: 7, // pulses along the band
     stressSpeed: 3, // pulses run at (× the cast's clock)
-    edgeGlow: 2.2, // the hot top edge of the band
+    edgeGlow: 0.9, // the hot top edge of the band
 
     /* --- 3 · the arbor, ratchet, pawl and key (solid) --- */
     arborHeight: 0.55, // arbor post height (× radius)
@@ -94,7 +94,7 @@ export default {
     ironRoughness: 0.42,
 
     /* --- 4 · the ledger (floor) --- */
-    floorGlow: 1.4,
+    floorGlow: 1.0,
     floorOpacity: 0.85,
     groovePitch: 1, // spiral grooves on the floor (× the spring's own pitch)
     sweptGlow: 1.2, // the sector the lash has already swept stays lit
@@ -104,8 +104,8 @@ export default {
     dissolveTime: 0.8, // fraction of the exit spent dissolving
 
     /* --- 5 · the speed smear --- */
-    smearGlow: 1.8,
-    smearOpacity: 0.75,
+    smearGlow: 0.8,
+    smearOpacity: 0.45,
     smearLength: 2.2, // rad behind the tip at full borrowed speed
     smearHeight: 1.1, // × band height
     smearStreaks: 18, // vertical streaks in the smear

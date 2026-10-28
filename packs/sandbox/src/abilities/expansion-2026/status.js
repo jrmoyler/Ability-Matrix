@@ -48,6 +48,7 @@ export const EXPANSION_STATUS = Object.freeze({
   'matrix-expansion/countermand-sigil': 'live',
   'matrix-expansion/false-victory': 'live',
   'matrix-expansion/temporal-mortgage': 'live',
-  'matrix-expansion/impact-dividend': 'live'
+  'matrix-expansion/impact-dividend': 'live',
+  'matrix-expansion/trajectory-hijack': 'live'
 });
 export const hasLiveExpansion = () => Object.values(EXPANSION_STATUS).includes('live');

@@ -185,7 +185,7 @@ export function createCableMaterial() {
           float k = fract(t * uReach * 1.6 - uPhase);
           float packet = smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.12, 0.2, k));
           float stripe = 1.0 - smoothstep(0.1, 0.22, abs(vSjUv.y - 0.5));
-          vec3 e = uPulseColor * packet * (0.35 + stripe) * uPulseGlow;
+          vec3 e = uPulseColor * (packet * (0.35 + stripe) + 0.06 * stripe) * uPulseGlow;
           float front = uFront >= 0.0 ? exp(-abs(t - uFront) * 18.0) * 6.0 + step(t, uFront) * 1.2 : 0.0;
           e += mix(uPulseColor, uHotColor, 0.6) * front * uPulseGlow * 0.5;
           totalEmissiveRadiance += e;
@@ -197,7 +197,8 @@ export function createCableMaterial() {
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
-    material.color.copy(getColor(c.metalDark));
+    // Armoured sheath: the gunmetal, darkened — readable against a night floor.
+    material.color.copy(getColor(c.metalColor)).multiplyScalar(0.55);
     uniforms.uPulseColor.value.copy(getColor(c.colorBody));
     uniforms.uHotColor.value.copy(getColor(c.colorCore));
     uniforms.uPulseGlow.value = c.pulseGlow * g.glow * s.fade;

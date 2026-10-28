@@ -21,6 +21,7 @@ import * as CountermandSigil from './countermand-sigil/index.js';
 import * as FalseVictory from './false-victory/index.js';
 import * as TemporalMortgage from './temporal-mortgage/index.js';
 import * as ImpactDividend from './impact-dividend/index.js';
+import * as TrajectoryHijack from './trajectory-hijack/index.js';
 export const BATCH_D = Object.freeze([
   { uid: 'matrix-expansion/combustion-debt', module: CombustionDebt },
   { uid: 'matrix-expansion/winters-borrowed-breath', module: WintersBorrowedBreath },
@@ -43,4 +44,5 @@ export const BATCH_D = Object.freeze([
   { uid: 'matrix-expansion/false-victory', module: FalseVictory },
   { uid: 'matrix-expansion/temporal-mortgage', module: TemporalMortgage },
   { uid: 'matrix-expansion/impact-dividend', module: ImpactDividend },
+  { uid: 'matrix-expansion/trajectory-hijack', module: TrajectoryHijack },
 ]);
