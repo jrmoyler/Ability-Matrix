@@ -838,6 +838,25 @@
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 50m0-5a5 5 0 1 1-5 5a10 10 0 0 1 10-10a15 15 0 0 1 15 15a20 20 0 0 1-20 20a25 25 0 0 1-25-25a30 30 0 0 1 30-30a35 35 0 0 1 35 35\"/><path d=\"M85 50l8 6M50 50l-6-18\"/></svg>"
     },
     {
+      "uid": "matrix-expansion/impact-dividend",
+      "pack": "matrix-expansion",
+      "id": "impactDividend",
+      "kind": "ability",
+      "element": "force",
+      "label": "Impact Dividend",
+      "hint": "Force — bulwark petals close over the landing and bank its blocked impulse; it compounds, then pays out to everyone caught inside",
+      "accent": "#ffd1a3",
+      "key": "",
+      "cast": "zone",
+      "castAnim": "cast2",
+      "cooldown": 6,
+      "range": 16,
+      "minRange": 2,
+      "zoneRadius": 3.2,
+      "status": "live",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 88L22 70Q14 40 30 16Q40 36 50 40Q60 36 70 16Q86 40 78 70Z\"/><path d=\"M50 40V88M36 58H64\"/><circle cx=\"50\" cy=\"56\" r=\"7\"/></svg>"
+    },
+    {
       "uid": "matrix-expansion/cinder-crown",
       "pack": "matrix-expansion",
       "id": "cinder-crown",

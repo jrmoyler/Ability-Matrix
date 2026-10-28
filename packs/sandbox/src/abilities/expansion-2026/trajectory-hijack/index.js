@@ -445,7 +445,8 @@ export class Ability extends BaseAbility {
     const c = this.config;
     if (t <= d.tLaunch) {
       out.copy(d.hand);
-      tan.copy(this.direction);
+      // Poised: nocked nose-up on the fan, so the volley reads side-on.
+      tan.copy(this.direction).addScaledVector(_UP, 1.4);
       return out;
     }
     if (t < d.tCap) {
@@ -604,7 +605,7 @@ export class Ability extends BaseAbility {
     const n = this._n;
     for (let i = 0; i < n; i++) {
       const d = this._darts[i];
-      if (d.hasTarget && d.dummy && !d.hit && d.dummy.alive !== false) d.aim.set(d.dummy.position.x, 0, d.dummy.position.z);
+      if (d.hasTarget && d.dummy && !d.released && d.dummy.alive !== false) d.aim.set(d.dummy.position.x, 0, d.dummy.position.z);
       if (this._tImp < 0) continue; // nothing is seized before the seize
       if (!d.captured && this.age >= d.tCap) {
         d.captured = true;
