@@ -159,7 +159,7 @@ export default {
     plantShake: 0.45, // (× explosion intensity × camera shake)
     plantFlash: 0.1,
     overloadShake: 0.6,
-    overloadFlash: 0.2,
+    overloadFlash: 0.08,
     shakeDecay: 6,
     shakeFrequency: 22,
     crackRadius: 1.5, // m CRACK decal round the spike

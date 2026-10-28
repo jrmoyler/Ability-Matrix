@@ -876,6 +876,25 @@
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"56\" cy=\"46\" r=\"20\"/><path d=\"M8 90L36 62M36 62A20 20 0 1 1 72 32L90 14M78 14H90V26\"/></svg>"
     },
     {
+      "uid": "matrix-expansion/signal-jack",
+      "pack": "matrix-expansion",
+      "id": "signalJack",
+      "kind": "ability",
+      "element": "tech",
+      "label": "Signal Jack",
+      "hint": "Tech — drive a jack spike into the circle, cable the nearest enemies and turn them on their own side before the signal overloads",
+      "accent": "#ff4fb4",
+      "key": "",
+      "cast": "zone",
+      "castAnim": "cast2",
+      "cooldown": 7,
+      "range": 16,
+      "minRange": 2,
+      "zoneRadius": 4.5,
+      "status": "live",
+      "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 92L42 58H58Z\"/><path d=\"M50 58V22\"/><path d=\"M32 14Q50 30 68 14\"/><path d=\"M42 66L20 80M58 66L80 80\"/><path d=\"M50 26Q30 40 16 54M50 26Q70 40 84 54\"/><circle cx=\"16\" cy=\"56\" r=\"5\"/><circle cx=\"84\" cy=\"56\" r=\"5\"/></svg>"
+    },
+    {
       "uid": "matrix-expansion/cinder-crown",
       "pack": "matrix-expansion",
       "id": "cinder-crown",
