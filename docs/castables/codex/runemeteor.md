@@ -8,7 +8,7 @@ A rune-wrapped crystal star drops out of the sky into a darkening rune circle, p
 | t (s) | Beat | On screen |
 |-------|------|-----------|
 | 0.00–0.6 | Anticipation | Sigil rings draw round the 4.2 m circle; the circle floor darkens to a deep indigo pool tightening on the strike point (the star's shadow). |
-| 0.0–1.15 | Travel (the fall) | The 0.75 m faceted star kindles 7 m up in a 4.5 m light column, rune bands precessing round it, rune-stone petals wrapped round it, and plummets (fall curve 2.2). |
+| 0.0–1.15 | Travel (the fall) | The 0.75 m faceted star kindles 5.5 m up in a 4.5 m light column, rune bands precessing round it, rune-stone petals wrapped round it, and plummets (fall curve 2.2). |
 | 1.15 | Impact (landing) | 2.2 m crater bowl with a lip and 9 fissures glowing `#9aa8ff`, CRACK + DUSTRING decals, indigo dust, sparks, chips, shake, flash, warp ring; bodies within 1.6 m thrown. |
 | 1.15–1.9 | Unfold | Seven 2.2 m slate stones tumble out on arcs and plant on the ring at 0.82 R; star rises to hover 2.3 m. |
 | 1.9–2.65 | Linger (charge) | Tethers from the star to each stone; a chase of lit runes runs round the henge, the fissures re-heat. |
