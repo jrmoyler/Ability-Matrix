@@ -59,19 +59,33 @@ export const CONFIG = Object.freeze({
     /* 1 · THE COLUMNS                                                   */
     /* ================================================================ */
 
-    columns: 10, // basalt columns along the line (capped at 16)
-    columnWidth: 0.65, // radius of a column, metres
-    height: 2.2, // full height of the tallest column, metres
-    heightVariance: 0.3, // 0 all equal … 1 some columns half height
+    columns: 9, // basalt slabs along the line (capped at 16)
+    columnWidth: 0.7, // radius of a column, metres
+    height: 2.7, // full height of the farthest (tallest) slab, metres
+    heightVariance: 0.18, // 0 all equal … 1 some columns half height
     widthVariance: 0.2, // radius jitter, fraction
-    columnJitter: 0.24, // lateral wander off the aimed line, metres
-    columnLean: 0.14, // radians each column leans away from the line
+    columnJitter: 0.16, // extra random lateral wander off the aimed line, metres
+    columnLean: 0.3, // radians each slab leans away from the fault (the splayed wake)
     columnTwist: 1, // random yaw, 0..1 of a hexagon's sixth
+    startClear: 2.6, // metres of open fissure before the first slab, so the caster stays in view
+    zigzag: 0.95, // slabs step alternately this far left/right of the fault, metres
+    heightRamp: 0.45, // nearest slab's height as a fraction of the farthest: the chain climbs away
+    slabVariety: 1, // 0 all plain columns … 1 spire / fin / block archetypes in turn
+    finYaw: 0.6, // radians a fin slab turns off the line, so it shows its face to the caster
     emergeLead: 1, // metres before the front reaches it that a column starts to rise
     settleOvershoot: 0.15, // how far past full height the heave carries, fraction
     settleDuration: 0.35, // seconds from arrival to settled on its seat
     sinkDepth: 1.1, // how far it retreats under the floor, × its height
     retreatStagger: 0.45, // 0 all sink together … 1 the far end folds first, one by one
+
+    /* --- the linger: aftershocks roll down the standing chain --- */
+    aftershockPeriod: 0.62, // seconds between aftershock waves
+    aftershockSpeed: 11, // metres/second each wave rolls from the caster's end to the far end
+    aftershockLift: 0.09, // how far each slab jolts up, fraction of its height
+    aftershockTilt: 0.06, // radians each slab rocks as the wave passes
+    aftershockHeat: 0.75, // vein flare on each jolt, 0..1
+    aftershockDust: 3, // dust puffs per slab per jolt
+    lingerCreep: 0.12, // fraction the settled slabs keep grinding upward through the linger
 
     /* --- the rock itself --- */
     rockNoiseScale: 1.2, // scale of grit and strata in the column's own space
@@ -81,7 +95,7 @@ export const CONFIG = Object.freeze({
     veinGlow: 2.6, // magma vein brightness (bloom picks up > 1)
     veinWidth: 0.12, // how open the veins are while hot
     veinRest: 0.08, // heat a settled column keeps, 0..1
-    heatDecay: 1.1, // seconds for a fresh column's veins to seal
+    heatDecay: 0.75, // seconds for a fresh column's veins to seal
     burnEdge: 0.08, // width of the glowing rim on the exit dissolve
     dissolveStart: 0.55, // fraction of the fade before the sinking columns start to crumble
     colorRockDark: '#22150d',
@@ -102,13 +116,16 @@ export const CONFIG = Object.freeze({
     /* 2 · THE FISSURE                                                   */
     /* ================================================================ */
 
-    crackWidth: 1.2, // half-width of the scorched strip, metres
+    crackWidth: 1.5, // half-width of the scorched strip, metres
+    crackCoreWidth: 0.17, // width of the molten slit itself, metres
+    crackLip: 0.45, // ember glow on the slit's lips, 0..1
+    slabScar: 1.5, // radius of the scorch burnt round each slab's foot, metres (0 = off)
     crackFresh: 2.5, // metres behind the front that stay white-hot
     crackWander: 0.12, // how far the slit wanders off the line, metres
     crackBranching: 1, // density of the branch cracks
     crackGlow: 3, // brightness of the slit
     crackCool: 1.6, // >1 the slit holds its heat into the fade
-    scarOpacity: 0.6, // scorched ground darkening, 0..1
+    scarOpacity: 0.8, // scorched ground darkening, 0..1
     telegraphLength: 2.5, // metres ahead of the front the seam pulses
     telegraphGlow: 0.6, // brightness of that warning seam
     colorCrackHot: '#ffc27a',
@@ -179,10 +196,11 @@ export const CONFIG = Object.freeze({
     impactRingGlow: 2,
     impactCracks: 3, // radial crack density on the disc
     impactChips: 40, // chips at the terminal eruption
-    impactDust: 24, // dust puffs at the terminal eruption
-    burstSize: 2.4, // EARTH dust shell, metres
+    impactDust: 34, // dust puffs at the terminal eruption
+    burstSize: 0, // EARTH dust shell, metres (0 = off: the terminal slab and dust carry the beat)
     burstIntensity: 1,
-    crackDecalRadius: 3.2, // radial CRACK decal, metres
+    burstOpacity: 0.45, // dust shell opacity
+    crackDecalRadius: 2.4, // radial CRACK decal, metres
     dustRingRadius: 3.6, // DUSTRING decal, metres
     columnKnock: 0.035, // small camera knock as each column breaks the floor
     columnLight: 0.6, // light punch per column, × lightIntensity
@@ -222,6 +240,13 @@ const _m = new Matrix4();
 const _qLean = new Quaternion();
 const _qYaw = new Quaternion();
 const _qSpin = new Quaternion();
+const _qRock = new Quaternion();
+/** Silhouette archetypes, cycled down the chain: [width, height, lean, fin]. */
+const SLAB_ARCHETYPES = [
+  [0.82, 1.18, 0.7, 0], // spire: narrow, tall, nearly upright
+  [1.0, 0.92, 1.0, 1], // fin: a broad blade turned to show its face
+  [1.28, 0.66, 1.3, 0] // block: squat, heavy, tipped hard off the fault
+];
 const _axis = new Vector3();
 const _up = new Vector3(0, 1, 0);
 
@@ -236,6 +261,20 @@ const _up = new Vector3(0, 1, 0);
  * At the far end the last column breaks the floor with a terminal eruption.
  * Then the bastion folds back into the fissure, far end first, and the scar
  * cools and erodes away.
+ *
+ * ## Reading it from behind the caster
+ *
+ * A line cast is seen end-on, so the chain is composed for that view: the
+ * first `startClear` metres are open, glowing fissure (the caster is never
+ * buried); the slabs then step alternately left and right of the fault
+ * (`zigzag`), each one splayed away from it, and climb in height toward the
+ * far end (`heightRamp`) so every slab shows over the shoulder of the one in
+ * front. Spire, fin and block silhouettes cycle down the chain
+ * (`slabVariety`). While it stands, aftershock waves roll down the chain
+ * every `aftershockPeriod` seconds — each slab jolts, rocks, flares its veins
+ * and sheds grit as the wave passes — and the slabs keep grinding upward
+ * (`lingerCreep`). Each slab burns a SCORCH decal round its foot that stays
+ * for the whole linger.
  *
  * ## Layers (each a folder in the editor)
  *
@@ -367,6 +406,8 @@ export class FaultwakeBastionAbility extends Ability {
     this._rubbleDice = new Float32Array(MAX_RUBBLE * RUBBLE_DICE);
     /** Age at which each column broke the floor, or −1. */
     this.columnArrival = new Float64Array(MAX_COLUMNS);
+    /** Last aftershock wave each slab answered (dust once per wave), or −1. */
+    this._wave = new Int32Array(MAX_COLUMNS);
     this._seed = 0;
     this._heat = 1;
 
@@ -451,6 +492,7 @@ export class FaultwakeBastionAbility extends Ability {
     this.prev = 0;
     this.hit.clear();
     this.columnArrival.fill(-1);
+    this._wave.fill(-1);
     this._seed = Math.random() * 100;
     this._heat = 1;
     // Dice: each a signed or unsigned unit value, scaled by settings later.
@@ -504,6 +546,10 @@ export class FaultwakeBastionAbility extends Ability {
     const lead = Math.max(0.05, c.emergeLead);
     const stagger = saturate(c.retreatStagger) * 0.95;
     const exit = 1 - fade;
+    const variety = saturate(c.slabVariety);
+    const ramp = saturate(c.heightRamp);
+    const period = Math.max(0.1, c.aftershockPeriod);
+    const settleTime = Math.max(0.01, c.settleDuration);
     const heats = this.geo.attributes.aHeat.array;
     const rubbleHeats = this.rubbleGeometry.attributes.aHeat.array;
     this.columns.count = n;
@@ -511,7 +557,9 @@ export class FaultwakeBastionAbility extends Ability {
 
     for (let i = 0; i < n; i++) {
       const dice = i * COLUMN_DICE;
-      const d = (this.length * (i + 1)) / n;
+      const d = this._slabDistance(i, n);
+      // 0 at the caster's end … 1 at the terminal slab.
+      const rank = n > 1 ? i / (n - 1) : 1;
       // The column starts rising `lead` metres before the front reaches it.
       const emerge = Easing.outCubic(saturate((front - d + lead) / lead));
       if (front >= d && this.columnArrival[i] < 0) {
@@ -520,40 +568,79 @@ export class FaultwakeBastionAbility extends Ability {
       }
       const since = this.columnArrival[i] < 0 ? 0 : this.age - this.columnArrival[i];
       // The heave: past its seat and back, one swing, exactly 1 when settled.
-      const settle = 1 + c.settleOvershoot * Math.sin(Math.PI * Math.min(1, since / Math.max(0.01, c.settleDuration)));
+      const settle = 1 + c.settleOvershoot * Math.sin(Math.PI * Math.min(1, since / settleTime));
+
+      // The linger: once seated, the slab keeps grinding up, and aftershock
+      // waves roll down the chain from the caster's end, jolting each slab
+      // in turn (and flaring its veins) as the wave passes under it.
+      const seated = this.columnArrival[i] >= 0 ? saturate((since - settleTime) / 0.25) : 0;
+      const creep = c.lingerCreep * (1 - Math.exp(-Math.max(0, since - settleTime) / 1.2)) * seated;
+      const wave = (this.age - d / Math.max(0.5, c.aftershockSpeed)) / period;
+      const waveIndex = Math.floor(wave);
+      const wt = (wave - waveIndex) * period;
+      const jolt = seated * fade * (wt < 0.22 ? Math.sin(Math.PI * (wt / 0.22)) : 0);
+      if (seated >= 1 && fade > 0.35 && waveIndex !== this._wave[i]) {
+        if (this._wave[i] >= 0) this._aftershock(i, d);
+        this._wave[i] = waveIndex;
+      }
 
       // The retreat rolls home from the far end.
-      const delay = n > 1 ? stagger * (1 - i / (n - 1)) : 0;
+      const delay = n > 1 ? stagger * (1 - rank) : 0;
       const local = saturate((exit - delay) / Math.max(0.05, 1 - stagger));
-      const sink = c.height * c.sinkDepth * local * local;
 
-      // Placement: wander off the line, lean away from it, turn a little.
-      const lateral = (this._columnDice[dice] * 2 - 1) * c.columnJitter * g.randomness;
+      // Silhouette: spire, fin and block in turn, blended in by `slabVariety`.
+      const arch = SLAB_ARCHETYPES[i % SLAB_ARCHETYPES.length];
+      const aw = 1 + (arch[0] - 1) * variety;
+      const ah = 1 + (arch[1] - 1) * variety;
+      const al = 1 + (arch[2] - 1) * variety;
+      const fin = arch[3] * variety;
+
+      // Placement: the slabs step left and right of the fault in turn (so
+      // from behind the caster each one shows beside the last), wander a
+      // little, lean away from the fault and turn.
+      const lateral = this._slabLateral(i);
       const side = lateral >= 0 ? 1 : -1;
       _base.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(this.side, lateral);
       // A positive turn about the heading tips the crown toward +side, so the
       // columns splay away from the fault as if it had pushed them apart.
       _axis.copy(this.direction);
-      _qLean.setFromAxisAngle(_axis, side * c.columnLean * (0.5 + this._columnDice[dice + 4]));
-      _qYaw.setFromAxisAngle(_up, this._columnDice[dice + 3] * c.columnTwist * (TAU / 6));
+      const rock = c.aftershockTilt * jolt * (this._columnDice[dice + 4] > 0.5 ? 1 : -1);
+      _qLean.setFromAxisAngle(_axis, side * (c.columnLean * al * (0.6 + 0.6 * this._columnDice[dice + 4]) + rock));
+      // Heading of the line in the column's yaw frame, so a fin turns off it.
+      const heading = Math.atan2(-this.direction.z, this.direction.x);
+      const yaw = this._columnDice[dice + 3] * c.columnTwist * (TAU / 6) * (1 - fin) + fin * (heading + side * c.finYaw);
+      _qYaw.setFromAxisAngle(_up, yaw);
       _qLean.multiply(_qYaw);
+      _qRock.setFromAxisAngle(this.side, rock * 0.5);
+      _qLean.premultiply(_qRock);
 
-      const sx = c.columnWidth * (1 - c.widthVariance * this._columnDice[dice + 2]);
-      const tall = 1 - c.heightVariance * this._columnDice[dice + 1];
-      const sy = c.height * 0.5 * tall * emerge * settle;
-      _scale.set(sx, Math.max(1e-4, sy), sx);
-      _pos.set(_base.x, -sink, _base.z);
+      const sx = c.columnWidth * aw * (1 - c.widthVariance * this._columnDice[dice + 2]);
+      // A fin is a blade: long in local X, thin in local Z.
+      const fx = sx * (1 + 0.6 * fin);
+      const fz = sx * (1 - 0.45 * fin);
+      const climb = ramp + (1 - ramp) * rank;
+      const tall = (1 - c.heightVariance * this._columnDice[dice + 1]) * climb * ah;
+      // Each slab is cast a little deeper than it shows (`embed`), so the
+      // linger can push it further out of the floor — the creep and the
+      // aftershock jolts — without ever lifting its foot off the ground.
+      const embedFrac = Math.max(0, c.lingerCreep) + Math.max(0, c.aftershockLift);
+      const full = c.height * tall * emerge * settle;
+      const sy = full * 0.5 * (1 + embedFrac);
+      const rise = full * (creep + c.aftershockLift * jolt - embedFrac);
+      const sink = c.height * tall * c.sinkDepth * local * local;
+      _scale.set(fx, Math.max(1e-4, sy), fz);
+      _pos.set(_base.x, rise - sink, _base.z);
       _m.compose(_pos, _qLean, _scale);
       this.columns.setMatrixAt(i, _m);
 
-      // Heat: glowing while it pushes up, sealing as it cools.
+      // Heat: glowing while it pushes up, sealing as it cools, flaring on each jolt.
       const cool = this.columnArrival[i] < 0 ? 1 : Math.exp(-since / Math.max(0.05, c.heatDecay));
-      heats[i] = Math.max(c.veinRest, cool) * (1 - local);
+      heats[i] = Math.max(c.veinRest, cool, jolt * c.aftershockHeat) * (1 - local);
 
       // Boulders thrown off the base when it broke the floor.
       for (let k = 0; k < rubblePer; k++) {
         const j = i * rubblePer + k;
-        this._poseRubble(j, i, since, sink, emerge);
+        this._poseRubble(j, i, since, sink, emerge, d, lateral);
         rubbleHeats[j] = heats[i] * 0.6;
       }
     }
@@ -573,8 +660,31 @@ export class FaultwakeBastionAbility extends Ability {
     this._drawGround(front, fade);
   }
 
+  /**
+   * Where slab `i` of `n` stands down the line: the first `startClear` metres
+   * are open fissure (the caster stays in view), the last slab is the
+   * terminal eruption at the full length.
+   */
+  _slabLateral(i) {
+    const c = this.config;
+    const zig = (i % 2 === 0 ? 1 : -1) * c.zigzag;
+    return zig + (this._columnDice[i * COLUMN_DICE] * 2 - 1) * c.columnJitter * settings.global.randomness;
+  }
+
+  /** The foot of slab `i` (`d` metres down the line) on the floor. */
+  _slabFoot(i, d, out) {
+    return out.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(this.side, this._slabLateral(i)).setY(0);
+  }
+
+  /** Where slab `i` of `n` stands down the line (see `_slabDistance`). */
+  _slabDistance(i, n) {
+    const start = Math.min(Math.max(0, this.config.startClear), this.length * 0.5);
+    if (n <= 1) return this.length;
+    return start + ((this.length - start) * i) / (n - 1);
+  }
+
   /** One boulder: ballistic from the column's base, then at rest, then sunk. */
-  _poseRubble(j, i, since, sink, emerge) {
+  _poseRubble(j, i, since, sink, emerge, d, lateral) {
     const c = this.config;
     const g = settings.global;
     const dice = j * RUBBLE_DICE;
@@ -585,7 +695,6 @@ export class FaultwakeBastionAbility extends Ability {
       this.rubble.setMatrixAt(j, _m);
       return;
     }
-    const d = (this.length * (i + 1)) / this._columnCount();
     const heading = this._rubbleDice[dice] * TAU;
     const out = c.rubbleSpeed * (0.5 + this._rubbleDice[dice + 1]) * g.randomness;
     const up = c.rubbleUp * (0.6 + 0.6 * this._rubbleDice[dice + 2]);
@@ -595,7 +704,7 @@ export class FaultwakeBastionAbility extends Ability {
     const t = Math.min(since, flight);
     const rest = size * 0.3;
     _dir.set(Math.cos(heading), 0, Math.sin(heading));
-    _pos.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(_dir, c.columnWidth * 0.8 + out * t);
+    _pos.copy(this.origin).addScaledVector(this.direction, d).addScaledVector(this.side, lateral).addScaledVector(_dir, c.columnWidth * 0.8 + out * t);
     _pos.y = Math.max(rest, up * t - 0.5 * grav * t * t + rest) - sink;
     _qSpin.setFromAxisAngle(_dir.set(_dir.z, 0.4, -_dir.x).normalize(), c.rubbleSpin * t + heading);
     const s = size * Math.min(1, emerge * 1.5);
@@ -677,12 +786,12 @@ export class FaultwakeBastionAbility extends Ability {
 
     this.pointAt(1, _pos);
     _pos.y = 0;
-    this.ctx.bursts?.spawn?.(BurstMode.EARTH, _pos, {
+    if (c.burstSize > 0) this.ctx.bursts?.spawn?.(BurstMode.EARTH, _pos, {
       radius: c.burstSize * 0.2,
       endRadius: c.burstSize * power,
       life: 0.7,
       intensity: c.burstIntensity,
-      opacity: 0.7,
+      opacity: c.burstOpacity,
       displace: 0.4,
       turbulence: 1,
       squash: 0.6,
@@ -766,9 +875,20 @@ export class FaultwakeBastionAbility extends Ability {
   _erupt(i, d) {
     const c = this.config;
     const g = settings.global;
-    this.pointAt(Math.min(1, d / this.length), _pos);
-    _pos.y = 0;
+    this._slabFoot(i, d, _pos);
     this._syncParticles();
+    // The floor is burnt dark round the slab's foot, embers glinting in the
+    // char, and stays burnt for the linger.
+    if (c.slabScar > 0) {
+      this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
+        radius: c.slabScar * (0.8 + 0.4 * this._columnDice[i * COLUMN_DICE + 2]),
+        life: Math.max(0.5, this.impactDuration + this.fadeDuration + 0.4),
+        intensity: 0.9,
+        colorA: getColor(c.colorCrackScar),
+        colorB: getColor(c.colorCrackEmber)
+      });
+    }
+    this._slabFoot(i, d, _pos);
     this._puff(_pos, Math.round(c.dustPerColumn * g.particleCount), c.columnWidth);
     this._chipBurst(_pos, Math.round(c.chipsPerColumn * g.particleCount), 1);
     this.ctx.decals?.spawn?.(DecalType.DUSTRING, _pos, {
@@ -780,6 +900,17 @@ export class FaultwakeBastionAbility extends Ability {
     });
     this.ctx.shake?.add?.(c.columnKnock * g.cameraShake, 7, 26);
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.columnLight * (0.6 + 0.4 * (i % 2)));
+  }
+
+  /** An aftershock wave has just reached slab `i`: grit shaken off its foot. */
+  _aftershock(i, d) {
+    const c = this.config;
+    const n = Math.round(c.aftershockDust * settings.global.particleCount);
+    if (n <= 0) return;
+    this._slabFoot(i, d, _pos);
+    this._syncParticles();
+    this._puff(_pos, n, c.columnWidth * 0.8);
+    this._chipBurst(_pos.setY(0.2), Math.max(1, Math.round(n * 0.7)), 0.55);
   }
 
   _resetEmit(time) {
@@ -890,7 +1021,7 @@ export class FaultwakeBastionAbility extends Ability {
     const count = this._columnCount();
     for (let k = 0; k < n; k++) {
       const i = Math.floor(Math.random() * count);
-      this.pointAt((i + 1) / count, _pos);
+      this._slabFoot(i, this._slabDistance(i, count), _pos);
       _pos.y = 0.1;
       _emit.position = _pos;
       this.dust.emit(1, _emit);
@@ -1015,11 +1146,25 @@ export function buildEditor(gui, c, Editor) {
   R(columns, c, 'columnJitter', 0, 1.5, 0.01, 'wander off the line (m)');
   R(columns, c, 'columnLean', 0, 0.8, 0.01, 'lean (rad)');
   R(columns, c, 'columnTwist', 0, 1, 0.01, 'twist');
+  R(columns, c, 'startClear', 0, 8, 0.05, 'open fissure before first slab (m)');
+  R(columns, c, 'zigzag', 0, 3, 0.01, 'zigzag step (m)');
+  R(columns, c, 'heightRamp', 0.1, 1, 0.01, 'nearest slab height (× farthest)');
+  R(columns, c, 'slabVariety', 0, 1, 0.01, 'spire / fin / block variety');
+  R(columns, c, 'finYaw', 0, 1.5, 0.01, 'fin turn (rad)');
   R(columns, c, 'emergeLead', 0.05, 4, 0.05, 'rises ahead of the front (m)');
   R(columns, c, 'settleOvershoot', 0, 0.6, 0.01, 'rise overshoot');
   R(columns, c, 'settleDuration', 0.05, 1.5, 0.05, 'settle time');
   R(columns, c, 'sinkDepth', 0, 2, 0.05, 'retreat depth');
   R(columns, c, 'retreatStagger', 0, 1, 0.01, 'retreat stagger');
+
+  const shocks = sub(folder, '1 · Aftershocks (linger)');
+  R(shocks, c, 'aftershockPeriod', 0.1, 3, 0.01, 'wave every (s)');
+  R(shocks, c, 'aftershockSpeed', 0.5, 40, 0.1, 'wave speed (m/s)');
+  R(shocks, c, 'aftershockLift', 0, 0.5, 0.005, 'jolt (× height)');
+  R(shocks, c, 'aftershockTilt', 0, 0.4, 0.005, 'rock (rad)');
+  R(shocks, c, 'aftershockHeat', 0, 1, 0.01, 'vein flare');
+  R(shocks, c, 'aftershockDust', 0, 20, 1, 'dust per jolt');
+  R(shocks, c, 'lingerCreep', 0, 0.6, 0.005, 'keeps grinding up (× height)');
 
   const rock = sub(folder, '1 · Rock');
   R(rock, c, 'rockNoiseScale', 0.2, 5, 0.01, 'grain scale');
@@ -1048,6 +1193,9 @@ export function buildEditor(gui, c, Editor) {
 
   const fissure = sub(folder, '2 · The fissure');
   R(fissure, c, 'crackWidth', 0.1, 3, 0.05, 'fissure width');
+  R(fissure, c, 'crackCoreWidth', 0.01, 0.6, 0.005, 'molten slit width (m)');
+  R(fissure, c, 'crackLip', 0, 2, 0.01, 'lip glow');
+  R(fissure, c, 'slabScar', 0, 5, 0.05, 'scorch round each slab (m)');
   R(fissure, c, 'crackFresh', 0.05, 10, 0.05, 'white-hot behind front (m)');
   R(fissure, c, 'crackWander', 0, 0.5, 0.005, 'wander (m)');
   R(fissure, c, 'crackBranching', 0, 3, 0.01, 'branching');
@@ -1105,6 +1253,7 @@ export function buildEditor(gui, c, Editor) {
   R(beats, c, 'impactDust', 0, 120, 1, 'dust puffs');
   R(beats, c, 'burstSize', 0, 8, 0.05, 'dust shell (m)');
   R(beats, c, 'burstIntensity', 0, 4, 0.01, 'shell brightness');
+  R(beats, c, 'burstOpacity', 0, 1, 0.01, 'shell opacity');
   R(beats, c, 'crackDecalRadius', 0, 10, 0.05, 'crack decal (m)');
   R(beats, c, 'dustRingRadius', 0, 10, 0.05, 'dust ring (m)');
   R(beats, c, 'columnKnock', 0, 0.3, 0.005, 'per-column knock');

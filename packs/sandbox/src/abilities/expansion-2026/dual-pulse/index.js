@@ -22,6 +22,7 @@ import { createResonance, updateResonance } from './ResonanceChoreography.js';
 import { createPulseWarp, createSculpture, createTelegraphRing } from './PulseAtmosphere.js';
 import { castAnimation, gradient, rangeOf, subFolder } from './EditorKit.js';
 import { syncPulseGlobals } from './PulseUniforms.js';
+import { createGlacierBody, updateGlacierBody } from './GlacierBellBody.js';
 
 export { CINDER_CONFIG, GLACIER_CONFIG };
 
@@ -179,6 +180,9 @@ class PulseAbility extends BaseAbility {
     this.resonance = createResonance(this.root, this.resources, fire);
     /* 8 · distortion */
     this.warp = createPulseWarp(this.root, this.resources, fire);
+    /* 3b · Glacier Bell only: the zone-scale ice bell, its spikes, the deep floor */
+    this.body = fire ? null : createGlacierBody(this.root, this.resources);
+    this._bodyState = fire ? null : { active: false, since: 0, q: 0, fade: 1, clock: 0, c: null, direction: this.direction, energy: 0, reduced: false };
 
     this.found = [];
     this.hit = new Set();
@@ -514,6 +518,21 @@ class PulseAbility extends BaseAbility {
     /* ---- 6 ---- */
     updateResonance(this.resonance, { phase: this.phase, q, pulse, fade, scale: c.resonanceScale, amplitude: c.resonanceMotion, tint: c.coreColor, reducedMotion: reduced, clock });
 
+    /* ---- 3b · Glacier Bell's body ---- */
+    if (this.body) {
+      const bs = this._bodyState;
+      bs.active = active;
+      bs.since = active ? this.impactTime + (this.phase === AbilityPhase.FADE || this.phase === AbilityPhase.DONE ? this.fadeTime : 0) : 0;
+      bs.q = q;
+      bs.fade = fade;
+      bs.clock = clock;
+      bs.c = c;
+      bs.energy = active ? 1 - 0.5 * q : 0;
+      bs.direction = this.direction;
+      bs.reduced = reduced;
+      updateGlacierBody(this.body, bs);
+    }
+
     /* ---- 8 · distortion ---- */
     const strength = active ? (c.warpStrength + this._warpKick * c.warpPulse) * fade * g.distortion : 0;
     const wu = this.warp.material.uniforms;
@@ -537,6 +556,7 @@ class PulseAbility extends BaseAbility {
     endTravelDelivery(this.delivery);
     this.root.visible = false;
     this.warp.visible = false;
+    if (this.body) this.body.group.visible = false;
     this.hit.clear();
     this.second = false;
     this.released = false;
@@ -626,6 +646,8 @@ function editor(title, gui, c, Editor) {
   R(monument, c, 'shellGlow', 0, 4, 0.05, fire ? 'crack glow' : 'rime glow');
   R(monument, c, 'shellPower', 0.3, 8, 0.05, 'fresnel falloff');
 
+  if (!fire) glacierBodyEditor(folder, c, R);
+
   const strike = subFolder(folder, '4 · Strike beat');
   R(strike, c, 'impactShake', 0, 1, 0.01, 'impact shake');
   R(strike, c, 'impactFlash', 0, 1, 0.01, 'impact flash');
@@ -670,6 +692,46 @@ function editor(title, gui, c, Editor) {
   R(warp, c, 'warpScale', 0.1, 8, 0.05, 'noise scale');
   R(warp, c, 'warpSpeed', 0, 8, 0.05, 'noise speed');
   return folder;
+}
+
+/** Glacier Bell only: the bell body, its spikes and the deep ice floor. */
+function glacierBodyEditor(folder, c, R) {
+  const bell = subFolder(folder, '3b · The bell (body)');
+  R(bell, c, 'bellRadius', 0.1, 1, 0.01, 'lip radius (× radius)');
+  R(bell, c, 'bellHeight', 0.5, 3, 0.01, 'height (× lip)');
+  R(bell, c, 'bellHang', 0, 3, 0.01, 'hangs above floor (m)');
+  R(bell, c, 'bellDrop', 0, 10, 0.05, 'drops from (m)');
+  R(bell, c, 'bellDropTime', 0.02, 1, 0.01, 'fall time (s)');
+  R(bell, c, 'bellSwing', 0, 0.8, 0.005, 'swing (rad)');
+  R(bell, c, 'bellSwingRate', 0.1, 4, 0.01, 'swings per second');
+  R(bell, c, 'bellSwingDecay', 0, 5, 0.01, 'swing decay');
+  R(bell, c, 'bellQuiver', 0, 0.2, 0.001, 'lip quiver');
+  R(bell, c, 'bellRingBand', 0, 5, 0.01, 'ring band glow');
+  R(bell, c, 'bellRimeCrawl', 0, 1, 0.01, 'rime crawl');
+  R(bell, c, 'bellDissolveStart', 0.05, 1, 0.01, 'dissolves below fade');
+  R(bell, c, 'bellFacet', 0, 2, 0.01, 'facet contrast');
+  R(bell, c, 'bellCrackGlow', 0, 3, 0.01, 'inner veins');
+  R(bell, c, 'bellSpecular', 0, 8, 0.05, 'glints');
+  bell.addColor(c, 'iceCore').name('ice core');
+  bell.addColor(c, 'iceTint').name('ice tint');
+  bell.addColor(c, 'iceBody').name('ice body');
+  bell.addColor(c, 'iceDeep').name('ice deep');
+  bell.addColor(c, 'rimeColor').name('rime');
+
+  const spikes = subFolder(folder, '3c · Glacier spikes');
+  R(spikes, c, 'spikeCount', 0, 32, 1, 'spikes');
+  R(spikes, c, 'spikeHeight', 0.1, 4, 0.01, 'height (m)');
+  R(spikes, c, 'spikeWidth', 0.02, 1, 0.005, 'width (m)');
+  R(spikes, c, 'spikeLean', 0, 1.2, 0.01, 'lean out (rad)');
+  R(spikes, c, 'spikeInner', 0, 0.95, 0.01, 'innermost (× radius)');
+  R(spikes, c, 'spikeGrowTime', 0.02, 1, 0.01, 'break the floor in (s)');
+  R(spikes, c, 'spikeCreep', 0, 1, 0.01, 'creep through linger');
+  R(spikes, c, 'spikeSink', 0, 2, 0.01, 'sink on exit');
+
+  const floor = subFolder(folder, '3d · Deep ice floor');
+  R(floor, c, 'floorOpacity', 0, 1, 0.01, 'opacity');
+  R(floor, c, 'floorCracks', 0, 2, 0.01, 'fracture plates');
+  R(floor, c, 'floorRime', 0, 2, 0.01, 'drifted rime');
 }
 
 export const cinderEditor = (gui, c, Editor) => editor('♛  Cinder Crown', gui, c, Editor);

@@ -176,3 +176,58 @@ export const GLACIER_CONFIG = pulseConfig(
   'An expanding frost ring catches each enemy once as it passes.',
   '<path d="M12 65Q50 5 88 65M17 65H83M50 20V80M33 47L67 67M67 47L33 67"/>',
 );
+
+/*
+ * Glacier Bell only: the bell body, its glacier of spikes and the deep ice
+ * floor (`GlacierBellBody.js`), plus the shared defaults it re-tunes. None of
+ * these touch the strike: `zoneRadius` and `lifetime` still set where and
+ * when the frost ring hits; `fadeTime` is the linger after the last hit.
+ */
+Object.assign(GLACIER_CONFIG.settings, {
+  fadeTime: 1.2, // seconds the bell hangs, rimes over and dissolves after the ring has run
+  sculptureOpacity: 0.22, // the pale teeth sit under the solid glacier now
+  groundOpacity: 0.32, // the rime seal rides on the deep ice floor
+  monumentScale: 0.95, // the small bell hangs under the big one as its clapper
+  burstShell: 0.35, // a small frost shell: the bell is the impact form, not a white dome
+  bellRadius: 0.45, // lip radius, × zoneRadius
+
+  /* ================================================================ */
+  /* 3b · THE BELL (zone-scale ice body)                               */
+  /* ================================================================ */
+  bellHeight: 1.75, // lip-to-crown height, × lip radius
+  bellHang: 0.55, // metres between the floor and the lip while it hangs
+  bellDrop: 3.5, // metres above its hang it falls from on the landing frame
+  bellDropTime: 0.14, // seconds the fall takes
+  bellSwing: 0.2, // radians of the first swing
+  bellSwingRate: 1.3, // swings per second
+  bellSwingDecay: 0.85, // how fast the swing dies away, 1/seconds
+  bellQuiver: 0.045, // lip vibration, fraction of its radius
+  bellRingBand: 1.3, // brightness of the band of light that runs up it each swing
+  bellRimeCrawl: 0.55, // how far rime climbs it over the linger (1 = to the crown)
+  bellDissolveStart: 0.6, // the bell starts dissolving once the exit fade drops below this
+  bellFacet: 1, // how much each cut face differs in depth
+  bellCrackGlow: 0.8, // inner fracture veins
+  bellSpecular: 2.4, // sun glints on the facets (HDR)
+
+  /* --- the four-stop ice ramp (bell, spikes, deep floor) --- */
+  iceCore: '#f4feff', // white-hot glints and the dissolve edge
+  iceTint: '#8fdcff', // pale rim, facet edges, ring band
+  iceBody: '#1d63a6', // sun-lit faces
+  iceDeep: '#04122b', // faces looking into the ice
+  rimeColor: '#8fbcdc', // matte frost crawling up it
+
+  /* --- the glacier: spikes breaking the floor as the front reaches them --- */
+  spikeCount: 26, // ice spikes in the zone (capped at 32)
+  spikeHeight: 1.5, // metres, before variation
+  spikeWidth: 0.22, // base radius, metres
+  spikeLean: 0.42, // radians leaning out from the centre
+  spikeInner: 0.5, // innermost spike radius, × zoneRadius (just outside the bell)
+  spikeGrowTime: 0.16, // seconds a spike takes to break the floor
+  spikeCreep: 0.18, // fraction they keep growing through the linger
+  spikeSink: 1, // how far they sink on the exit, × spikeHeight
+
+  /* --- the deep ice floor under the rime --- */
+  floorOpacity: 0.9,
+  floorCracks: 1, // fracture plate borders
+  floorRime: 0.35, // drifted rime over the dark ice
+});
