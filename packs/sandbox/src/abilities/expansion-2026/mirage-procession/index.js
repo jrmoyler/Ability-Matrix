@@ -27,6 +27,7 @@ import {
   createEngravingMaterial,
   createGlitterMaterial,
   createMaskMaterial,
+  createPoolMaterial,
   createShardMaterial,
   createShimmerMaterial,
   createVeilMaterial,
@@ -56,6 +57,13 @@ const MAX_TARGETS = 16;
 const MAX_STRUCK = 64;
 /** GPU glitter allocated per pool member (a multiple of three lanes). */
 const MAX_GLITTER = 180;
+/** Pooled true-strike masks (honest feedback on committed hits). */
+const MAX_STRIKES = 4;
+const _strikeState = { clock: 0, fade: 1, dissolve: 0, calm: false, heat: 0 };
+const smooth = (a, b, x) => {
+  const t = clamp((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
 
 /**
  * MIRAGE PROCESSION — Illusion, line cast.
@@ -65,10 +73,13 @@ const MAX_GLITTER = 180;
  * behind them, mirror shards orbiting each one, glitter and puffs shed in
  * their wake, the air shimmering at their front. Only one lane (`trueLane`)
  * is real: its sweep strikes whatever it passes. At the end of the line the
- * procession **breaks**: every mask shrinks as its shards peel outward, the
- * lacquer frays through a burning noise dissolve, and three identical
- * ripples and shells mark the three endpoints — then the whole thing
- * **dissolves** away.
+ * procession **breaks**: three identical shells mark the endpoints, every
+ * mask rears up as its shards peel outward and then **falls**, crashing
+ * face-up onto the floor of its lane (identical ripples), its shards raining
+ * down round it, and a deep lacquer **pool** spreads under it. Through the
+ * linger the masks turn slowly in their pools and sink while the veins
+ * swirl and ripple fronts roll out; the masks burn away through the
+ * dissolve and the pools dry from the lip inward.
  *
  * ## The rule of the feint
  *
@@ -98,6 +109,21 @@ const MAX_GLITTER = 180;
  *      flash, camera knock, light punch; SHOCKWAVE + burst at a committed hit.
  *   7. **the shimmer** (`createShimmerMaterial` on `LAYER.DISTORTION`) — the
  *      bent air across all three lanes at the mask front.
+ *   8. **the pools** (`createPoolMaterial`) — the linger: deep lacquer under
+ *      each fallen mask, swirling veins, rolling ripple fronts, a pale lip.
+ *   9. **the true strike** — at a committed hit the real mask lunges out of
+ *      the struck body: a larger copy of the mask in hot saturated lacquer
+ *      that drives down the line and burns away (pooled, four slots), with a
+ *      shockwave, a body-coloured flash and a knock. It only ever answers a
+ *      hit that landed, so it never betrays the lane before the strike.
+ *
+ * ## Colour
+ *
+ * Every layer is drawn from one four-stop ramp: `coreColor` (white-hot, only
+ * in glints, scan bands and burn edges) → `edgeColor` (pale rims) →
+ * `maskColor` (saturated lacquer) → `deepColor` (shadowed lacquer, pools,
+ * lane haze). The masks, wakes and pools are normal-blended so the deep stop
+ * really darkens the floor and carries the body.
  *
  * ## Hits (`handlesOwnHits`)
  *
@@ -132,8 +158,9 @@ export class Ability extends BaseAbility {
     return 0.7;
   }
 
+  /** Presentation-only linger after the fall (hits all land in travel). */
   get fadeDuration() {
-    return 0.8;
+    return Math.max(0.3, this.config?.lingerTime ?? 1.5);
   }
 
   /* ------------------------------------------------------------------ */
@@ -163,7 +190,7 @@ export class Ability extends BaseAbility {
       m.add(new LineSegments(engraving, this.engravingMat));
       const v = new Mesh(veil, this.veilMat);
       v.position.set(0, 0.52, -0.06); // hung from the crown, behind the face
-      v.rotation.y = Math.PI; // streams back along −z, toward the caster
+      v.rotation.y = Math.PI; // a plume streaming off the back of the head
       v.frustumCulled = false;
       m.add(v);
       m.position.y = 1.2;
@@ -194,6 +221,36 @@ export class Ability extends BaseAbility {
     this.glitter.renderOrder = 8;
     this.root.add(this.glitter);
 
+    // 8 · the pools under the fallen masks — one shared material, so the
+    // three lanes stay identical.
+    this.poolMat = own(createPoolMaterial(0));
+    this.pools = [];
+    for (let i = 0; i < 3; i++) {
+      const pool = new Mesh(plane, this.poolMat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.renderOrder = 3;
+      pool.visible = false;
+      this.root.add(pool);
+      this.pools.push(pool);
+    }
+
+    // 9 · the true strike: pooled mask copies in world space.
+    this.strikes = [];
+    this._strikeTimes = [];
+    this._strikePos = [];
+    for (let i = 0; i < MAX_STRIKES; i++) {
+      const strike = new Mesh(mask, own(createMaskMaterial()));
+      strike.visible = false;
+      strike.frustumCulled = false;
+      strike.renderOrder = 9;
+      this.group.add(strike);
+      this.strikes.push(strike);
+      this._strikeTimes.push(-1);
+      this._strikePos.push(new Vector3());
+    }
+    this._strikeNext = 0;
+    this._landed = false;
+
     // 7 · the shimmer (opaque proxy, see createShimmerMaterial)
     this.shimmerMat = own(createShimmerMaterial());
     this.shimmer = new Mesh(plane, this.shimmerMat);
@@ -211,6 +268,7 @@ export class Ability extends BaseAbility {
     this._fadeState = { clock: 0, fade: 1 };
     this._veilState = { clock: 0, fade: 1, calm: false };
     this._wakeState = { clock: 0, fade: 1 };
+    this._poolState = { clock: 0, fade: 0, dissolve: 0, calm: false };
     this._glitterState = { clock: 0, front: 0, spread: 0, fade: 1, capacity: MAX_GLITTER };
     this._shimmerState = { clock: 0, strength: 0, span: 6 };
 
@@ -222,7 +280,7 @@ export class Ability extends BaseAbility {
   createParticles() {
     this.fx = createExpansionFX(this.ctx, 'illusion', {
       shape: ParticleShape.SOFT,
-      colors: ['#ffffff', '#ffcefa', '#b87de9', '#392459'],
+      colors: ['#fff4fb', '#ff8fd6', '#b0207e', '#2a0838'],
     });
   }
 
@@ -252,6 +310,12 @@ export class Ability extends BaseAbility {
     this._hits.clear();
     this._clock = 0;
     this._calm = prefersReducedMotion();
+    this._landed = false;
+    this._strikeNext = 0;
+    this._lastStrikeFx = -1;
+    this._strikeTimes.fill(-1);
+    for (const strike of this.strikes) strike.visible = false;
+    for (const pool of this.pools) pool.visible = false;
     this.root.visible = true;
     this._lane = Math.max(-1, Math.min(1, Math.round(this.config.trueLane)));
     this._sync(0);
@@ -312,14 +376,6 @@ export class Ability extends BaseAbility {
         colorB: getColor(c.colorBurstB),
         colorC: getColor(c.colorBurstC),
       });
-      point.y = 0.02;
-      this.ctx.decals?.spawn?.(DecalType.RIPPLE, point, {
-        radius: c.rippleRadius * power,
-        life: c.decalLife,
-        intensity: c.rippleIntensity,
-        colorA: getColor(c.edgeColor),
-        colorB: getColor(c.trailColor),
-      });
     }
     this.lightBoost = c.finaleLight * power;
     if (c.impactShake > 0) this.ctx.shake?.add?.(c.impactShake * power, c.shakeDecay, c.shakeFrequency);
@@ -328,6 +384,27 @@ export class Ability extends BaseAbility {
 
   onFade(dt) {
     this._sync(dt);
+  }
+
+  /** The three masks hit the floor together: identical ripples, one knock. */
+  _land() {
+    const c = this.config;
+    const power = settings.global.explosionIntensity;
+    this._landed = true;
+    for (let lane = -1; lane <= 1; lane++) {
+      this.pointAt(1, point);
+      point.addScaledVector(this.side, lane * c.laneGap);
+      point.y = 0.02;
+      this.ctx.decals?.spawn?.(DecalType.RIPPLE, point, {
+        radius: c.rippleRadius * power,
+        life: c.decalLife,
+        intensity: c.rippleIntensity,
+        colorA: getColor(c.edgeColor),
+        colorB: getColor(c.maskColor),
+      });
+    }
+    this.lightBoost = Math.max(this.lightBoost, c.finaleLight * 0.6 * power);
+    if (c.landShake > 0) this.ctx.shake?.add?.(c.landShake * power, c.shakeDecay, c.shakeFrequency);
   }
 
   /** Honest feedback on a body that was actually struck. */
@@ -349,7 +426,18 @@ export class Ability extends BaseAbility {
       colorA: getColor(c.edgeColor),
       colorB: getColor(c.maskColor),
     });
-    this.lightBoost = Math.max(this.lightBoost, c.contactLight * settings.global.explosionIntensity);
+    const power = settings.global.explosionIntensity;
+    this.lightBoost = Math.max(this.lightBoost, c.contactLight * power);
+    // 9 · the real mask lunges out of the struck body.
+    const slot = this._strikeNext % MAX_STRIKES;
+    this._strikeNext++;
+    this._strikeTimes[slot] = this.age;
+    this._strikePos[slot].copy(position).setY(Math.max(0, position.y));
+    // One knock and flash per volley, however many bodies it struck.
+    if (this.age - this._lastStrikeFx < 0.2) return;
+    this._lastStrikeFx = this.age;
+    if (c.strikeShake > 0) this.ctx.shake?.add?.(c.strikeShake * power, c.shakeDecay, c.shakeFrequency);
+    if (c.strikeFlash > 0) this.ctx.flash?.trigger?.(getColor(c.maskColor), c.strikeFlash * power);
   }
 
   /* ------------------------------------------------------------------ */
@@ -449,57 +537,98 @@ export class Ability extends BaseAbility {
     this.root.position.copy(this.origin);
     this.root.rotation.y = Math.atan2(this.direction.x, this.direction.z);
 
-    const departure = this.phase === 'travel' ? 0 : clamp(this.impactTime / this.impactDuration);
-    // The lacquer starts to fray as the masks depart and is gone by the end.
-    const dissolve = this.phase === 'fade' ? 0.35 + 0.65 * fadeT : departure * 0.35;
+    const departure = this.phase === 'travel' ? 0 : this.phase === 'impact' ? clamp(this.impactTime / this.impactDuration) : 1;
+    // The impact beat: rear up (0 → fallStart), then fall face-up onto the
+    // floor (fallStart → fallStart + fallTime) under gravity; then lie.
+    const fallStart = clamp(c.fallStart);
+    const fallEnd = Math.min(1, fallStart + Math.max(0.05, c.fallTime));
+    const rear = departure < fallStart ? Math.sin(Math.PI * 0.5 * (departure / Math.max(0.01, fallStart))) : 1;
+    const fall = clamp((departure - fallStart) / Math.max(0.01, fallEnd - fallStart));
+    const drop = fall * fall; // gravity: slow off the top, fast into the floor
+    if (fall >= 1 && !this._landed && this.phase !== 'travel') this._land();
+    // Time since the masks landed (the pools' own clock).
+    const landedFor = this.phase === 'fade'
+      ? (1 - fallEnd) * this.impactDuration + this.fadeTime
+      : Math.max(0, departure - fallEnd) * this.impactDuration;
+    const lying = this._landed ? 1 : 0;
+
+    // The lacquer holds while the masks fall, then burns away in the pools.
+    const dissolve = this.phase === 'fade' ? smooth(0.3, 1, fadeT) * 1.02 : 0;
     const ms = this._maskState;
     ms.clock = clock;
-    ms.fade = appear * fade;
+    ms.fade = appear;
     ms.dissolve = dissolve;
     ms.calm = this._calm;
     this.maskMat.userData.sync(ms);
     this._fadeState.clock = clock;
-    this._fadeState.fade = appear * fade;
+    this._fadeState.fade = appear * (1 - 0.7 * fall) * (1 - smooth(0.2, 0.8, fadeT));
     this.engravingMat.userData.sync(this._fadeState);
     const vs = this._veilState;
     vs.clock = clock;
-    vs.fade = appear * fade * (1 - departure * 0.5);
+    vs.fade = appear * fade * (1 - Math.max(departure, fall));
     vs.calm = this._calm;
     this.veilMat.userData.sync(vs);
     this._wakeState.clock = clock;
-    this._wakeState.fade = appear * fade;
+    this._wakeState.fade = appear * (1 - smooth(0.25, 1, fadeT));
     this.wakeMat.userData.sync(this._wakeState);
-    this._fadeState.fade = fade;
+    this._fadeState.fade = 1 - smooth(0.4, 1, fadeT);
     this.shardMat.userData.sync(this._fadeState);
+    const ps = this._poolState;
+    ps.clock = clock;
+    ps.fade = smooth(0, Math.max(0.05, c.poolGrow * 0.5), landedFor) * lying;
+    ps.dissolve = smooth(0.45, 1, fadeT) * 1.05;
+    ps.calm = this._calm;
+    this.poolMat.userData.sync(ps);
 
     const front = Math.min(this.length, this.front);
     const bob = this._calm ? 0 : c.maskBob;
     const sway = this._calm ? 0 : c.maskSway;
     const orbitSpeed = c.shardSpin ?? 1.8;
+    const size = c.maskSize * (0.6 + 0.4 * appear) * (1 - departure * 0.1);
+    const restY = c.maskRestHeight * size;
+    const airY = c.maskHeight + c.maskRear * rear;
+    const poolR = Math.min(c.poolRadius * c.maskSize, c.laneGap * 0.75) * Easing.outCubic(clamp(landedFor / Math.max(0.05, c.poolGrow)));
     for (let i = 0; i < 3; i++) {
       const lane = i - 1,
         m = this.masks[i],
-        w = this.wakes[i];
-      m.position.set(lane * c.laneGap, c.maskHeight + Math.sin(clock * 3 + i) * bob, front);
-      m.rotation.y = Math.sin(clock * 2 + i) * sway;
-      m.scale.setScalar(c.maskSize * (1 - departure * 0.75) * (0.6 + 0.4 * appear));
+        w = this.wakes[i],
+        pool = this.pools[i];
+      const hover = c.maskHeight + Math.sin(clock * 3 + i) * bob;
+      const y = this.phase === 'travel' ? hover : airY + (restY - airY) * drop - (this.phase === 'fade' ? c.maskSink * size * smooth(0.15, 1, fadeT) : 0);
+      m.position.set(lane * c.laneGap, y, front);
+      // Rearing tips the face up a little; the fall lays it on its back,
+      // top toward the caster; lying, it turns slowly in its pool.
+      // The masks walk the line looking back at the caster (yaw π); rearing
+      // tips the face up, the fall drops it back onto its pool at
+      // `fallTilt`, still presenting the face; there it turns and sinks.
+      m.rotation.set(0.3 * rear * (1 - drop) + c.fallTilt * drop, Math.PI + Math.sin(clock * 2 + i) * sway * (1 - fall), (this.phase === 'fade' ? c.maskLieSpin * fadeT : 0) * (i % 2 ? 1 : -1));
+      m.scale.setScalar(size);
       w.position.set(lane * c.laneGap, 0.04, front * 0.5);
       w.scale.set(c.hitWidth * 2, Math.max(0.01, front), 1);
+      pool.visible = lying > 0 && poolR > 0.01 && ps.fade > 0.001;
+      pool.position.set(lane * c.laneGap, 0.035, front);
+      pool.scale.set(poolR * 2, poolR * 2, 1);
       for (let j = 0; j < SHARDS_PER_LANE; j++) {
-        const angle = (j * Math.PI * 2) / SHARDS_PER_LANE + clock * orbitSpeed;
-        const orbit = (c.shardOrbit ?? 0.55) + departure * (c.shardSpread ?? 1.2);
+        const angle = (j * Math.PI * 2) / SHARDS_PER_LANE + clock * orbitSpeed * (1 - 0.6 * lying);
+        // Peel out while the masks rear, rain down round them as they fall,
+        // then spiral in toward the sinking mask through the linger.
+        const orbit = ((c.shardOrbit ?? 0.55) + departure * (c.shardSpread ?? 1.2)) * (1 - 0.55 * smooth(0, 1, fadeT));
+        const airYs = m.position.y + Math.sin(angle) * orbit * 0.8;
+        const floorY = c.shardRest + 0.05 * Math.sin(angle * 3 + j) - (this.phase === 'fade' ? 0.15 * fadeT : 0);
+        const shardDrop = clamp(fall * 1.15 - (j % 3) * 0.05);
         shardTransform.position.set(
           lane * c.laneGap + Math.cos(angle) * orbit,
-          m.position.y + Math.sin(angle) * orbit * 0.8,
-          front + Math.sin(angle * 2) * 0.18 + departure * (j % 2 ? 0.45 : -0.45),
+          airYs + (floorY - airYs) * shardDrop * shardDrop,
+          front + (Math.sin(angle * 2) * 0.18 + departure * (j % 2 ? 0.45 : -0.45)) * (1 - shardDrop) + Math.sin(angle) * orbit * 0.8 * shardDrop,
         );
-        shardTransform.rotation.set(angle * 0.4, angle, clock * 2 + j);
-        shardTransform.scale.setScalar((c.shardSize ?? 0.12) * (1 - departure * 0.6) * fade);
+        shardTransform.rotation.set(angle * 0.4 + shardDrop * 1.2, angle, (clock * 2 + j) * (1 - 0.8 * lying));
+        shardTransform.scale.setScalar((c.shardSize ?? 0.12) * (1 - departure * 0.3) * (1 - smooth(0.5, 1, fadeT)));
         shardTransform.updateMatrix();
         this.shards.setMatrixAt(i * SHARDS_PER_LANE + j, shardTransform.matrix);
       }
     }
     this.shards.instanceMatrix.needsUpdate = true;
+    this._syncStrikes(clock);
 
     // 5 · glitter, dealt evenly over the lanes
     const gs = this._glitterState;
@@ -524,6 +653,32 @@ export class Ability extends BaseAbility {
     }
   }
 
+  /** 9 · the true strike masks: lunge down the line, swell, burn away. */
+  _syncStrikes(clock) {
+    const c = this.config;
+    const life = Math.max(0.05, c.strikeLife);
+    const yaw = Math.atan2(this.direction.x, this.direction.z);
+    for (let k = 0; k < MAX_STRIKES; k++) {
+      const strike = this.strikes[k];
+      const born = this._strikeTimes[k];
+      const t = born < 0 ? 1 : (this.age - born) / life;
+      strike.visible = t >= 0 && t < 1;
+      if (!strike.visible) continue;
+      const lunge = Easing.outCubic(t);
+      strike.position.copy(this._strikePos[k]).addScaledVector(this.direction, c.strikeLunge * lunge);
+      strike.position.y = c.maskHeight + c.strikeRise * Easing.outCubic(Math.min(1, t * 3)) + 0.15 * Math.sin(Math.PI * t);
+      // Looms over the struck body facing the caster, then drives down on it.
+      strike.rotation.set(0.25 + 0.5 * lunge, yaw + Math.PI, 0);
+      strike.scale.setScalar(c.maskSize * c.strikeSize * (0.55 + 0.45 * Easing.outBack(Math.min(1, t * 2.2))));
+      _strikeState.clock = clock;
+      _strikeState.fade = 1;
+      _strikeState.dissolve = smooth(0.25, 1, t) * 1.02;
+      _strikeState.calm = this._calm;
+      _strikeState.heat = c.strikeHeat * (1 - t);
+      strike.material.userData.sync(_strikeState);
+    }
+  }
+
   /* ------------------------------------------------------------------ */
   /* Pooling                                                             */
   /* ------------------------------------------------------------------ */
@@ -535,6 +690,8 @@ export class Ability extends BaseAbility {
     this._scope = null;
     this.root.visible = false;
     this.shimmer.visible = false;
+    for (const strike of this.strikes) strike.visible = false;
+    for (const pool of this.pools) pool.visible = false;
     this._hits.clear();
   }
 
@@ -599,14 +756,25 @@ export function buildEditor(gui, c, Editor) {
   R(masks, c, 'maskSway', 0, 1, 0.01, 'sway (rad)');
   R(masks, c, 'appearTime', 0.01, 1, 0.01, 'fades in over (s)');
   R(masks, c, 'maskGlow', 0, 6, 0.05, 'lacquer glow');
+  R(masks, c, 'maskShade', 0, 1, 0.01, 'key-light modelling');
+  R(masks, c, 'maskSpecular', 0, 4, 0.05, 'lacquer glint');
+  R(masks, c, 'maskRear', 0, 1.5, 0.01, 'rear up before the fall (m)');
+  R(masks, c, 'fallStart', 0, 0.9, 0.01, 'rear (× impact beat)');
+  R(masks, c, 'fallTime', 0.05, 1, 0.01, 'fall (× impact beat)');
+  R(masks, c, 'maskRestHeight', 0, 1, 0.01, 'rests at (× size)');
+  R(masks, c, 'fallTilt', 0, 1.6, 0.01, 'fallen lean (rad)');
+  R(masks, c, 'maskSink', 0, 1.5, 0.01, 'sinks in its pool (× size)');
+  R(masks, c, 'maskLieSpin', -3, 3, 0.01, 'turns in its pool (rad)');
   R(masks, c, 'maskOpacity', 0, 2, 0.01, 'opacity');
   R(masks, c, 'filmStrength', 0, 1, 0.01, 'iridescence');
   R(masks, c, 'glitch', 0, 3, 0.01, 'slice glitch');
   R(masks, c, 'scanSpeed', 0, 20, 0.1, 'scan speed');
   R(masks, c, 'engravingGlow', 0, 6, 0.05, 'engraving glow');
   R(masks, c, 'dissolveEdge', 0.01, 0.3, 0.005, 'burn edge');
-  color(masks, c, 'maskColor', 'mask');
-  color(masks, c, 'edgeColor', 'edge');
+  color(masks, c, 'coreColor', 'ramp · core');
+  color(masks, c, 'edgeColor', 'ramp · pale (edge)');
+  color(masks, c, 'maskColor', 'ramp · body (mask)');
+  color(masks, c, 'deepColor', 'ramp · deep');
 
   const veils = sub(folder, '2 · The veils');
   R(veils, c, 'veilLength', 0, 4, 0.01, 'length (m)');
@@ -622,6 +790,7 @@ export function buildEditor(gui, c, Editor) {
   R(wakes, c, 'wakeOpacity', 0, 1, 0.01, 'opacity');
   R(wakes, c, 'wakeShimmer', 0, 4, 0.01, 'shimmer');
   R(wakes, c, 'wakeScale', 0.2, 4, 0.01, 'band frequency');
+  R(wakes, c, 'wakeDeep', 0, 2, 0.01, 'deep haze');
 
   const shards = sub(folder, '4 · The shards');
   R(shards, c, 'shardSize', 0.03, 0.35, 0.01, 'mirror size');
@@ -630,6 +799,17 @@ export function buildEditor(gui, c, Editor) {
   R(shards, c, 'shardSpin', -6, 6, 0.05, 'orbit speed');
   R(shards, c, 'shardGlow', 0, 6, 0.05, 'glow');
   R(shards, c, 'shardOpacity', 0, 1, 0.01, 'opacity');
+  R(shards, c, 'shardRest', 0, 0.5, 0.01, 'fallen shards lie at (m)');
+
+  const pools = sub(folder, '4b · The pools (linger)');
+  R(pools, c, 'lingerTime', 0.3, 4, 0.05, 'linger (s, presentation only)');
+  R(pools, c, 'poolRadius', 0, 3, 0.01, 'radius (× size)');
+  R(pools, c, 'poolGrow', 0.05, 2, 0.01, 'spreads over (s)');
+  R(pools, c, 'poolOpacity', 0, 1, 0.01, 'opacity');
+  R(pools, c, 'poolGlow', 0, 4, 0.05, 'glow');
+  R(pools, c, 'poolSwirl', 0, 4, 0.05, 'swirl');
+  R(pools, c, 'poolVeins', 0, 2, 0.01, 'veins');
+  R(pools, c, 'poolRipple', 0, 2, 0.01, 'ripple fronts');
 
   const fx = sub(folder, '5 · Particles');
   R(fx, c, 'trailInterval', 0.02, 0.5, 0.01, 'trail puff every (s)');
@@ -678,6 +858,16 @@ export function buildEditor(gui, c, Editor) {
   R(finale, c, 'shakeDecay', 0.5, 20, 0.1, 'knock decay');
   R(finale, c, 'shakeFrequency', 1, 40, 0.5, 'knock frequency');
   R(finale, c, 'impactFlash', 0, 1, 0.01, 'flash');
+  R(finale, c, 'landShake', 0, 1, 0.01, 'knock as the masks land');
+
+  const strike = sub(folder, '6b · The true strike');
+  R(strike, c, 'strikeSize', 0.2, 3, 0.01, 'size (× mask)');
+  R(strike, c, 'strikeLife', 0.05, 2, 0.01, 'life (s)');
+  R(strike, c, 'strikeLunge', 0, 3, 0.01, 'lunge (m)');
+  R(strike, c, 'strikeRise', 0, 3, 0.01, 'looms above (m)');
+  R(strike, c, 'strikeHeat', 0, 4, 0.05, 'heat');
+  R(strike, c, 'strikeFlash', 0, 1, 0.01, 'flash');
+  R(strike, c, 'strikeShake', 0, 1, 0.01, 'knock');
 
   const shimmer = sub(folder, '7 · The shimmer');
   R(shimmer, c, 'shimmerStrength', 0, 3, 0.01, 'strength');

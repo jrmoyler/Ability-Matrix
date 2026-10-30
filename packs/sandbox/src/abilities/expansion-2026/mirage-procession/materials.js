@@ -87,8 +87,13 @@ const MASK_FRAGMENT = /* glsl */ `
   uniform float uFilm;
   uniform float uScan;
   uniform float uFresnel;
+  uniform float uShade;
+  uniform float uSpecular;
+  uniform float uHeat;
+  uniform vec3  uCore;
   uniform vec3  uColor;
   uniform vec3  uEdge;
+  uniform vec3  uDeep;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
 
@@ -104,21 +109,48 @@ const MASK_FRAGMENT = /* glsl */ `
     float n = fbm3(vLocal * 3.0 + vec3(0.0, 0.0, uClock * 0.2));
     vec2 dm = dissolveMask(n * 0.5 + 0.5 * snoise01(vLocal * 9.0), uDissolve, uEdgeWidth);
     if (dm.x < 0.5 && dm.y < 0.01) discard;
-    float rim = fresnelTerm(vViewDir, vNormalW, 2.0, uFresnel);
-    float bands = pow(max(0.0, cos(vLocal.y * 35.0 - uClock * uScan)), 14.0) * uShaderIntensity;
-    vec3 film = thinFilm(rim * 0.9 + n * 0.4 + uClock * 0.05);
-    vec3 col = mix(uColor, uEdge, clamp(rim + bands * 0.5, 0.0, 1.0));
-    col = mix(col, film * uEdge, uFilm * rim);
-    col += uEdge * dm.y * 3.0;
-    float alpha = (0.23 + rim * 0.4 + bands * 0.2 + dm.y) * uFade * uOpacity;
+    vec3 N = normalize(vNormalW);
+    if (!gl_FrontFacing) N = -N;
+    vec3 V = normalize(vViewDir);
+    // A fixed key from above and to the side models the sculpt: the deep stop
+    // fills every hollow (eye sockets, under the brow, the jaw), the
+    // saturated lacquer takes the lit planes, the pale tint only the rim.
+    vec3 L = normalize(vec3(0.3, 0.9, -0.3));
+    float lam = max(0.0, dot(N, L));
+    float rim = fresnelTerm(V, N, 2.4, uFresnel);
+    float bands = pow(max(0.0, cos(vLocal.y * 22.0 - uClock * uScan)), 30.0) * uShaderIntensity;
+    // Ramp index (gradient4: 0 core, ~0.33 pale, ~0.5 body, 1 deep): the
+    // vertical face sits in the deep plum, planes turned to the key light
+    // come up to the saturated lacquer, only the grazing rim reaches pale.
+    float lower = smoothstep(0.3, -0.7, vLocal.y) * 0.08; // the jaw falls into shadow
+    float t = 0.97 - mix(0.25, lam, uShade) * 0.3 - min(rim, 1.0) * 0.12 - n * 0.06 + lower;
+    vec3 col = gradient4(uCore, uEdge, uColor, uDeep, clamp(t, 0.5, 1.0));
+    // The pale tint is a thin grazing rim only.
+    col = mix(col, uEdge, smoothstep(0.7, 1.3, rim) * 0.75);
+    vec3 film = thinFilm(rim * 0.9 + n * 0.4 + uClock * 0.05) * uEdge;
+    col = mix(col, film, uFilm * smoothstep(0.4, 1.2, rim) * 0.6);
+    float spec = pow(max(0.0, dot(reflect(-V, N), L)), 48.0) * uSpecular;
+    // HDR only in the core: glints, scan bands, the burning edge.
+    col += uCore * (spec + bands * 0.08 + dm.y * 2.5);
+    col += uColor * uHeat;
+    float alpha = (0.92 + rim * 0.08) * uFade * uOpacity;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(alpha, 0.0, 1.0));
   }
 `;
 
-/** Holographic lacquer shared by all three masks. Additive. */
+/**
+ * Holographic lacquer shared by all three masks: a solid, key-lit shell on the
+ * cast's four-stop ramp (normal blend, writes depth) so the deep stop carries
+ * the body against the dark floor; the core only lives in the glints.
+ */
 export function createMaskMaterial() {
   const material = new ShaderMaterial({
-    ...additive(),
+    transparent: true,
+    depthWrite: true,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
     uniforms: sharedUniforms({
       // The cast's own clock (frozen under reduced motion, scaled by the
       // global animation speed) — not the shared frame time.
@@ -127,18 +159,23 @@ export function createMaskMaterial() {
       uDissolve: { value: 0 },
       uEdgeWidth: { value: 0.08 },
       uGlitch: { value: 1 },
-      uGlow: { value: 2 },
+      uGlow: { value: 1 },
       uOpacity: { value: 1 },
       uFilm: { value: 0.8 },
       uScan: { value: 7 },
       uFresnel: { value: 1 },
+      uShade: { value: 0.75 },
+      uSpecular: { value: 1.2 },
+      uHeat: { value: 0 },
+      uCore: { value: new Color() },
       uColor: { value: new Color() },
       uEdge: { value: new Color() },
+      uDeep: { value: new Color() },
     }),
     vertexShader: MASK_VERTEX,
     fragmentShader: MASK_FRAGMENT,
   });
-  /** @param {object} s { clock, fade, dissolve, calm } */
+  /** @param {object} s { clock, fade, dissolve, calm, heat? } */
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
@@ -153,8 +190,13 @@ export function createMaskMaterial() {
     u.uFilm.value = c.filmStrength;
     u.uScan.value = s.calm ? 0 : c.scanSpeed * g.noiseSpeed;
     u.uFresnel.value = g.fresnel;
+    u.uShade.value = c.maskShade;
+    u.uSpecular.value = c.maskSpecular;
+    u.uHeat.value = s.heat ?? 0;
+    u.uCore.value.copy(getColor(c.coreColor));
     u.uColor.value.copy(getColor(c.maskColor));
     u.uEdge.value.copy(getColor(c.edgeColor));
+    u.uDeep.value.copy(getColor(c.deepColor));
   };
   return material;
 }
@@ -341,6 +383,8 @@ const WAKE_FRAGMENT = /* glsl */ `
   uniform float uScale;
   uniform vec3  uColor;
   uniform vec3  uEdge;
+  uniform vec3  uDeep;
+  uniform float uDeepWeight;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
   varying vec2 vUv;
@@ -352,22 +396,28 @@ const WAKE_FRAGMENT = /* glsl */ `
     // uv.y is 0 at the mask, 1 back at the caster.
     float behind = vUv.y;
     float bend = fbm3(vec3(vWorld.xz * 0.6 * uScale, uClock * 0.3)) * 2.0;
-    float bands = pow(max(0.0, cos(behind * 33.0 * uScale - uClock * 5.0 + sin(vUv.x * 9.0) * 2.0 + bend * uShimmer)), 14.0);
+    float bands = pow(max(0.0, cos(behind * 33.0 * uScale - uClock * 5.0 + sin(vUv.x * 9.0) * 2.0 + bend * uShimmer)), 6.0);
     float side = 1.0 - smoothstep(0.35, 0.5, abs(vUv.x - 0.5));
     float near = 0.35 + 0.65 * pow(1.0 - behind, 1.2);
     float haze = (0.25 + 0.75 * snoise01(vec3(vWorld.xz * 1.3 * uScale, uClock * 0.6))) * 0.35 * uShaderIntensity;
-    float a = (bands + haze) * side * near * uFade * uOpacity;
+    // Normal blend on the ramp: a deep haze darkens the lane, the saturated
+    // violet rides the bands, the pale tint only right behind the mask.
+    float a = (bands * 0.9 + haze * 3.2 * uDeepWeight) * side * near * uFade * uOpacity;
     if (a < 0.002) discard;
-    vec3 col = mix(uColor, uEdge, bands * 0.4 * (1.0 - behind));
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(a, 0.0, 1.0));
+    float lift = clamp(bands * 1.4, 0.0, 1.0);
+    vec3 col = mix(uDeep, uColor * uGlow, lift);
+    col = mix(col, uEdge * uGlow, bands * 0.5 * (1.0 - behind));
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(a, 0.0, 1.0));
   }
 `;
 
-/** Heat shimmer down each lane. */
+/** Heat shimmer down each lane, on a deep haze (normal blend). */
 export function createWakeMaterial() {
   const material = new ShaderMaterial({
-    ...additive(),
+    ...additive({ blending: NormalBlending }),
     uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uDeepWeight: { value: 1 },
       uClock: { value: 0 },
       uFade: { value: 1 },
       uGlow: { value: 1.7 },
@@ -391,6 +441,8 @@ export function createWakeMaterial() {
     u.uOpacity.value = c.wakeOpacity * g.opacity;
     u.uShimmer.value = c.wakeShimmer * g.noiseStrength;
     u.uScale.value = c.wakeScale * g.noiseFrequency;
+    u.uDeep.value.copy(getColor(c.deepColor));
+    u.uDeepWeight.value = c.wakeDeep;
     u.uColor.value.copy(getColor(c.trailColor));
     u.uEdge.value.copy(getColor(c.edgeColor));
   };
@@ -427,6 +479,7 @@ const SHARD_FRAGMENT = /* glsl */ `
   uniform float uFresnel;
   uniform vec3  uColor;
   uniform vec3  uEdge;
+  uniform vec3  uCore;
   uniform float uGlobalGlow;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
@@ -443,7 +496,7 @@ const SHARD_FRAGMENT = /* glsl */ `
     float sky = smoothstep(-0.1, 0.5, Rf.y);
     float glint = pow(max(0.0, dot(Rf, normalize(vec3(0.4, 0.8, 0.3)))), 24.0);
     float rim = fresnelTerm(V, N, 3.0, uFresnel);
-    vec3 col = mix(uColor * 0.4, uEdge, sky) + uEdge * glint * 3.0;
+    vec3 col = mix(uColor * 0.35, uEdge, sky) + uCore * glint * 2.5;
     col = mix(col, thinFilm(rim + vSeed + uClock * 0.1) * uEdge, uFilm * rim);
     float a = (0.35 + 0.4 * sky + rim + glint) * uFade * uOpacity;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(a, 0.0, 1.0));
@@ -463,6 +516,7 @@ export function createShardMaterial() {
       uFresnel: { value: 1 },
       uColor: { value: new Color() },
       uEdge: { value: new Color() },
+      uCore: { value: new Color() },
     }),
     vertexShader: SHARD_VERTEX,
     fragmentShader: SHARD_FRAGMENT,
@@ -481,6 +535,7 @@ export function createShardMaterial() {
     u.uFresnel.value = g.fresnel;
     u.uColor.value.copy(getColor(c.maskColor));
     u.uEdge.value.copy(getColor(c.edgeColor));
+    u.uCore.value.copy(getColor(c.coreColor));
   };
   return material;
 }
@@ -664,6 +719,122 @@ export function createShimmerMaterial() {
     u.uSpeed.value = g.noiseSpeed;
     u.uLaneGap.value = c.laneGap;
     u.uSpan.value = s.span;
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The pools (linger)                                                   */
+/* -------------------------------------------------------------------- */
+
+const POOL_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vWorld;
+  void main() {
+    vUv = uv;
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const POOL_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uDissolve;
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSwirl;
+  uniform float uVeins;
+  uniform float uRipple;
+  uniform float uSeed;
+  uniform vec3  uCore;
+  uniform vec3  uEdge;
+  uniform vec3  uColor;
+  uniform vec3  uDeep;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  varying vec2 vUv;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+  ${FILM_GLSL}
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    // The lacquer the mask melted into: a deep pool whose saturated veins
+    // swirl round the fallen mask (stronger toward the centre) while slow
+    // ripple fronts roll out to a pale, noise-broken lip.
+    float ang = atan(p.y, p.x) + uClock * uSwirl * (0.6 / (0.25 + r)) + uSeed;
+    vec2 q = vec2(cos(ang), sin(ang)) * r;
+    float n = fbm3(vec3(q * 2.6, uClock * 0.25 + uSeed));
+    float veins = smoothstep(0.08, 0.0, abs(n)) * uVeins * uShaderIntensity;
+    float lip = snoise01(vec3(p * 3.0, uSeed + uClock * 0.4));
+    float edgeR = 0.82 + 0.14 * lip;
+    float body = 1.0 - smoothstep(edgeR - 0.25, edgeR, r);
+    float rim = exp(-pow((r - edgeR + 0.06) * 14.0, 2.0));
+    float ripple = pow(max(0.0, sin(r * 14.0 - uClock * 3.0)), 10.0) * body * (1.0 - r) * uRipple;
+    // Exit: the pool dries from the lip inward through a noise threshold.
+    vec2 dm = dissolveMask(fract(lip * 0.7 + (1.0 - r) * 0.5), uDissolve, 0.06);
+    if (dm.x < 0.5 && dm.y < 0.01) discard;
+    vec3 col = uDeep;
+    col = mix(col, uColor * uGlow, clamp(veins * 0.85 + ripple, 0.0, 1.0));
+    col = mix(col, uEdge * uGlow, clamp(rim * 0.8, 0.0, 1.0));
+    col = mix(col, thinFilm(r * 1.5 + uClock * 0.1) * uEdge * uGlow, rim * 0.3);
+    col += uCore * dm.y * 1.5;
+    float a = (body * 0.82 + rim * 0.6 + veins * 0.2) * uFade * uOpacity;
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(a, 0.0, 1.0));
+  }
+`;
+
+/** One pool under each fallen mask — identical in every lane. Normal blend. */
+export function createPoolMaterial(seed = 0) {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uClock: { value: 0 },
+      uFade: { value: 0 },
+      uDissolve: { value: 0 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSwirl: { value: 1 },
+      uVeins: { value: 1 },
+      uRipple: { value: 0.6 },
+      uSeed: { value: seed },
+      uCore: { value: new Color() },
+      uEdge: { value: new Color() },
+      uColor: { value: new Color() },
+      uDeep: { value: new Color() },
+    }),
+    vertexShader: POOL_VERTEX,
+    fragmentShader: POOL_FRAGMENT,
+  });
+  /** @param {object} s { clock, fade, dissolve, calm } */
+  material.userData.sync = (s) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uClock.value = s.clock;
+    u.uFade.value = s.fade;
+    u.uDissolve.value = s.dissolve;
+    u.uGlow.value = c.poolGlow * g.glow;
+    u.uOpacity.value = c.poolOpacity * g.opacity;
+    u.uSwirl.value = s.calm ? 0 : c.poolSwirl;
+    u.uVeins.value = c.poolVeins * g.noiseStrength;
+    u.uRipple.value = s.calm ? 0 : c.poolRipple;
+    u.uCore.value.copy(getColor(c.coreColor));
+    u.uEdge.value.copy(getColor(c.edgeColor));
+    u.uColor.value.copy(getColor(c.maskColor));
+    u.uDeep.value.copy(getColor(c.deepColor));
   };
   return material;
 }

@@ -45,12 +45,18 @@ export default {
     lightIntensity: 5,
     lightRadius: 9,
     finaleLight: 3, // light punch when the masks shatter (× explosion intensity)
-    contactLight: 2, // light punch on a committed hit
+    contactLight: 4, // light punch on a committed hit
 
-    /* --- palette --- */
-    maskColor: '#f3a5ed', // the masks' lacquer
-    edgeColor: '#fff3ff', // rims, engraving, shards
-    trailColor: '#9654d9', // wakes and veils
+    /* --- palette: one four-stop ramp on the illusion hue ---
+     * core (white-hot, only in scan bands / burn edges / glints)
+     *  → pale tint (rims, engraving) → saturated body (lit lacquer)
+     *  → dark deep (the lacquer in shadow, the pools, the lane haze).
+     * The deep stop carries the body so the masks sit on the dark floor. */
+    coreColor: '#fff4fb', // white-hot core
+    edgeColor: '#ffb3e6', // pale tint: rims, engraving, shards
+    maskColor: '#d42a96', // saturated body of the lacquer
+    deepColor: '#2a0838', // dark deep: shadowed lacquer, pools, lane haze
+    trailColor: '#7a2fc4', // wakes and veils (saturated violet)
 
     /* --- 1 · the masks --- */
     maskSize: 1, // mask scale
@@ -58,7 +64,16 @@ export default {
     maskBob: 0.14, // bob height (m)
     maskSway: 0.16, // sway (rad)
     appearTime: 0.25, // fades in over (s)
-    maskGlow: 2, // lacquer brightness
+    maskGlow: 1, // lacquer brightness (multiplies the whole ramp)
+    maskShade: 0.75, // how much the key light models the lacquer (0 flat, 1 full)
+    maskSpecular: 0.45, // white-hot glint off the lacquer
+    maskRear: 0.35, // the masks rear up before they fall (m)
+    maskRestHeight: 0.5, // fallen mask's centre rests at (m, × size)
+    fallTilt: 1.0, // the fallen mask leans back this far (rad; π/2 lies flat)
+    maskSink: 0.45, // fallen mask sinks into its pool over the linger (m, × size)
+    maskLieSpin: 0.7, // fallen mask turns in its pool over the linger (rad)
+    fallStart: 0.3, // fraction of the impact beat spent rearing before the fall
+    fallTime: 0.45, // fraction of the impact beat the fall takes
     maskOpacity: 1,
     filmStrength: 0.8, // thin-film iridescence on the rims
     glitch: 1, // slice glitches across the face
@@ -76,9 +91,10 @@ export default {
 
     /* --- 3 · the wakes --- */
     wakeGlow: 1.7,
-    wakeOpacity: 0.3,
+    wakeOpacity: 0.45,
     wakeShimmer: 1, // heat-shimmer bands
     wakeScale: 1, // band frequency
+    wakeDeep: 1, // weight of the deep haze that darkens each lane
 
     /* --- 4 · the shards --- */
     shardSize: 0.12, // mirror shard scale
@@ -87,6 +103,17 @@ export default {
     shardSpin: 1.8, // orbit speed (rad/s)
     shardGlow: 1.6,
     shardOpacity: 0.7,
+    shardRest: 0.06, // fallen shards lie at (m)
+
+    /* --- 4b · the pools (linger) --- */
+    lingerTime: 1.5, // presentation linger after the masks fall (s); no gameplay effect
+    poolRadius: 1.5, // pool under each fallen mask (m, × size, capped by lane spacing)
+    poolGrow: 0.45, // pool spreads over (s)
+    poolOpacity: 0.85,
+    poolGlow: 1.2,
+    poolSwirl: 1.2, // swirl speed of the lacquer in the pool
+    poolVeins: 1.4, // weight of the saturated veins
+    poolRipple: 0.6, // weight of the slow ripple fronts
 
     /* --- 5 · particles --- */
     trailInterval: 0.12, // seconds between identical trail puffs in all lanes
@@ -109,10 +136,10 @@ export default {
     contactSpread: 0.8,
     contactEmitRadius: 0.3, // emitter radius of the hit burst (m)
     sparkGlow: 1.4,
-    colorSparkA: '#ffffff',
-    colorSparkB: '#ffcefa',
-    colorSparkC: '#b87de9',
-    colorSparkD: '#392459',
+    colorSparkA: '#fff4fb',
+    colorSparkB: '#ff8fd6',
+    colorSparkC: '#b0207e',
+    colorSparkD: '#2a0838',
     glitterCount: 150, // GPU glitter along the three lanes (≤ 180)
     glitterSize: 0.05,
     glitterGlow: 2,
@@ -120,20 +147,30 @@ export default {
     glitterColor: '#ffe6fb',
 
     /* --- 6 · the finale & contacts --- */
-    finaleBurst: 1.1, // AIR shell per mask (m)
-    finaleIntensity: 0.6,
-    shellLife: 0.5, // AIR shell per mask lives (s)
-    shellOpacity: 0.5,
+    finaleBurst: 0.9, // AIR shell per mask (m)
+    finaleIntensity: 0.5,
+    shellLife: 0.4, // AIR shell per mask lives (s)
+    shellOpacity: 0.22,
     shellFresnel: 2.2, // rim sharpness of the shell
     rippleRadius: 1.6, // ripple decal per lane (m)
-    contactRadius: 1.2, // shockwave at a committed hit (m)
+    contactRadius: 1.8, // shockwave at a committed hit (m)
     decalLife: 0.8,
     rippleIntensity: 0.7, // RIPPLE decal brightness at the endpoints
     contactIntensity: 0.9, // SHOCKWAVE decal brightness at a hit
     contactWidth: 0.07, // its ring width
-    colorBurstA: '#ffffff',
-    colorBurstB: '#ffb6f0',
-    colorBurstC: '#6b3aa8',
+    colorBurstA: '#ffd6f1',
+    colorBurstB: '#d42a96',
+    colorBurstC: '#2a0838',
+    landShake: 0.08, // knock as the three masks hit the floor (× explosion intensity)
+
+    /* --- 6b · the true strike (honest feedback on a committed hit) --- */
+    strikeSize: 1.5, // the real mask lunging out of the struck body (× mask size)
+    strikeLife: 0.7, // (s)
+    strikeLunge: 0.9, // how far it lunges down the line (m)
+    strikeRise: 1.1, // it looms this far above the procession (m)
+    strikeHeat: 0.45, // saturated glow of the strike mask
+    strikeFlash: 0.06, // screen flash in the body colour (× explosion intensity)
+    strikeShake: 0.1, // camera knock (× explosion intensity)
     impactShake: 0.12, // (× explosion intensity, × camera shake)
     shakeDecay: 7,
     shakeFrequency: 20,

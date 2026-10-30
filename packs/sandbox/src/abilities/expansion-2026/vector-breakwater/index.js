@@ -132,6 +132,20 @@ function tuneSystem(system, c, prefix, gravityY, drag) {
  *      squashed pressure shell, camera knock and flash.
  *   6. **distortion** — a sheet on `LAYER.DISTORTION` riding each front.
  *
+ * ## Look
+ *
+ * One four-stop ramp (`coreColor` → `edgeColor` → `bodyColor` →
+ * `deepColor`). The fronts are dense, normal-blended walls: a dark umber
+ * body (`frontDensity`) with saturated pressure cells, a hard white-hot
+ * crest line and hot sides — force reads as mass, not jelly. Each sheet
+ * only rises out of the floor once it is clear of the caster (past the
+ * brace plus `frontClear` metres), so the first frames show the hero, the
+ * brace flaring and a low pressure lip leaving — never a wall on the hero.
+ * The scour is deep scorched ground with saturated seams; after the last
+ * break it cools (`coolTime`) while aftershock ripples keep rolling down
+ * the lane, then it crumbles away through a noise dissolve over the
+ * presentation-only linger (`lingerTime`).
+ *
  * Spray, grit and shards share one pooled streak system (the Batch C
  * contract allows one per cast), told apart by per-emit tint, size and speed.
  *
@@ -162,8 +176,9 @@ export class Ability extends BaseAbility {
     return Math.max(1.1, this.config.spacing * 3 + 0.5);
   }
 
+  /** Presentation-only linger: every front has arrived before it starts. */
   get fadeDuration() {
-    return 0.6;
+    return Math.max(0.2, this.config?.lingerTime ?? 1.4);
   }
 
   /** Fronts currently in the lane. HUD readout only. */
@@ -282,7 +297,7 @@ export class Ability extends BaseAbility {
     /** Scratch handed to the materials each frame — one apiece, reused. */
     this._frontState = { fade: 1, spent: 0, shimmer: 0 };
     this._fadeState = { fade: 1 };
-    this._corridorState = { fade: 1, length: 1, f0: -1, f1: -1, f2: -1 };
+    this._corridorState = { fade: 1, cool: 0, length: 1, f0: -1, f1: -1, f2: -1 };
     this._braceState = { fade: 1, h0: 0, h1: 0, h2: 0 };
     this._warpState = { strength: 0 };
     this._disposed = false;
@@ -339,12 +354,12 @@ export class Ability extends BaseAbility {
       endRadius: c.burstSize * g.explosionIntensity,
       life: 0.5,
       intensity: 1,
-      opacity: 0.55,
+      opacity: c.burstOpacity * g.opacity,
       fresnel: 2,
       squash: 0.35,
       colorA: getColor(c.edgeColor),
       colorB: getColor(c.bodyColor),
-      colorC: getColor(c.groundColor),
+      colorC: getColor(c.deepColor),
     });
     expansionImpact(this.ctx, c.edgeColor, c.impactShake * g.explosionIntensity, c.impactFlash * g.explosionIntensity);
   }
@@ -377,6 +392,13 @@ export class Ability extends BaseAbility {
     const cs = this._corridorState;
     cs.fade = fade;
     cs.length = this.length;
+    // The scour cools after the last front breaks (presentation clock only).
+    const lastArrival = (FRONTS - 1) * c.spacing + this.length / Math.max(0.001, speed);
+    cs.cool = saturate((this.age - lastArrival) / Math.max(0.05, c.coolTime));
+    // The sheet rises out of the floor only once it is clear of the caster:
+    // past the brace plus `frontClear` metres, so it never stands on the hero.
+    const clearFrom = c.braceSize;
+    const clearAt = c.braceSize + Math.max(0.05, c.frontClear);
 
     /* ---- the brace ---- */
     this.brace.scale.set(c.braceSize * Math.max(0.5, c.width * 0.6), 1, c.braceSize);
@@ -385,9 +407,11 @@ export class Ability extends BaseAbility {
       const elapsed = this.age - i * c.spacing;
       const front = saturate((elapsed * speed) / this.length) * this.length;
       const mesh = this.fronts[i];
-      mesh.visible = elapsed >= 0 && front < this.length;
+      const r = saturate((front - clearFrom) / (clearAt - clearFrom));
+      const rise = r * r * (3 - 2 * r);
+      mesh.visible = elapsed >= 0 && front < this.length && rise > 0.01;
       mesh.position.set(0, 0.04, front);
-      mesh.scale.set(c.width * 2, c.frontHeight, 1);
+      mesh.scale.set(c.width * 2 * (0.6 + 0.4 * rise), c.frontHeight * Math.max(0.001, rise), 1);
 
       // Launch and arrival beats fire once, on the frame they are crossed.
       if (elapsed >= 0 && !this._launched[i]) this._launch(i);
@@ -413,7 +437,7 @@ export class Ability extends BaseAbility {
       warp.visible = mesh.visible;
       if (warp.visible) {
         warp.position.set(0, 0, front + 0.05);
-        warp.scale.set(c.width * 2.2, c.warpHeight, 1);
+        warp.scale.set(c.width * 2.2, c.warpHeight * Math.max(0.001, rise), 1);
         this._warpState.strength = (1 - spent) * fade;
         warp.material.userData.sync(this._warpState);
       }
@@ -463,7 +487,7 @@ export class Ability extends BaseAbility {
           front - 0.25 - (j % 2) * 0.15 + peel * 0.45,
         );
         _finTransform.rotation.set(peel * 1.5, side * 0.3, side * (0.3 + peel));
-        _finTransform.scale.setScalar(active ? (c.finSize ?? 0.22) * (1 - peel) * fade : 0.001);
+        _finTransform.scale.setScalar(active && rise > 0.01 ? (c.finSize ?? 0.22) * (1 - peel) * fade * rise : 0.001);
         _finTransform.updateMatrix();
         this.fins.setMatrixAt(i * FINS_PER_FRONT + j, _finTransform.matrix);
       }
@@ -711,8 +735,12 @@ export function buildEditor(gui, c, Editor) {
 
   const fronts = subFolder(folder, '2 · Shield fronts');
   const sheet = subFolder(fronts, 'Sheet');
-  sheet.addColor(c, 'edgeColor').name('edge');
-  sheet.addColor(c, 'bodyColor').name('pressure');
+  sheet.addColor(c, 'coreColor').name('ramp · core');
+  sheet.addColor(c, 'edgeColor').name('ramp · pale (edge)');
+  sheet.addColor(c, 'bodyColor').name('ramp · body (pressure)');
+  sheet.addColor(c, 'deepColor').name('ramp · deep');
+  R(sheet, c, 'frontDensity', 0, 1, 0.01, 'wall density');
+  R(sheet, c, 'frontClear', 0.05, 6, 0.05, 'rises over (m past the brace)');
   R(sheet, c, 'frontHeight', 0.3, 5, 0.05, 'height (m)');
   R(sheet, c, 'frontGlow', 0, 6, 0.05, 'glow');
   R(sheet, c, 'frontOpacity', 0, 2, 0.01, 'opacity');
@@ -733,6 +761,12 @@ export function buildEditor(gui, c, Editor) {
   R(ground, c, 'groundOpacity', 0, 2, 0.01, 'opacity');
   R(ground, c, 'groundGlow', 0, 6, 0.05, 'glow');
   R(ground, c, 'scourWidth', 0.05, 3, 0.01, 'fresh band (× width)');
+  R(ground, c, 'groundDeep', 0, 1.5, 0.01, 'scorched base');
+  R(ground, c, 'groundSeams', 0, 2, 0.01, 'pressure seams');
+  R(ground, c, 'coolTime', 0.05, 4, 0.05, 'cools over (s)');
+  R(ground, c, 'aftershock', 0, 2, 0.01, 'aftershock ripples');
+  R(ground, c, 'aftershockSpeed', 0, 12, 0.1, 'aftershock speed (m/s)');
+  R(ground, c, 'lingerTime', 0.2, 4, 0.05, 'linger (s, presentation only)');
   R(ground, c, 'dustRate', 0, 200, 1, 'grit/second per front');
   R(ground, c, 'dustSize', 0.01, 0.5, 0.005, 'grit size');
   R(ground, c, 'dustLife', 0.1, 4, 0.05, 'grit lifetime');
@@ -766,6 +800,7 @@ export function buildEditor(gui, c, Editor) {
   R(brk, c, 'arrivalLight', 0, 12, 0.1, 'light per break');
   R(brk, c, 'shockRadius', 0, 10, 0.05, 'shockwave (m)');
   R(brk, c, 'burstSize', 0, 8, 0.05, 'pressure shell (m)');
+  R(brk, c, 'burstOpacity', 0, 1, 0.01, 'pressure shell opacity');
 
   const warp = subFolder(folder, '6 · Distortion');
   R(warp, c, 'warpStrength', 0, 3, 0.01, 'strength');
