@@ -20,10 +20,10 @@ export default {
     range: 18.0, // maximum cast distance, metres
     minRange: 3.0, // closer than this and the cast is refused
     speed: 17.0, // how fast every ring travels, metres/second
-    lifetime: 1.1, // seconds the boom hangs after the last ring lands
+    lifetime: 1.9, // seconds the boom (plate, hum) hangs after the last ring lands
     cooldown: 0.6, // seconds before the ability can be armed again
     castAnim: 'cast1', // which clip in `CAST_ANIMATIONS` the body throws
-    fadeTime: 0.6, // seconds everything takes to settle out
+    fadeTime: 0.9, // seconds everything takes to settle out
 
     /* --- where the train leaves the caster --- */
     handForward: 0.6, // metres in front of the caster
@@ -52,11 +52,11 @@ export default {
 
     /* --- the shader --- */
     rimWidth: 0.055, // width of the bright rim, fraction of the shell
-    rimBright: 3.2, // rim brightness
+    rimBright: 1.7, // rim brightness
     chroma: 0.045, // RGB split across the rim, fraction of the shell
     fresnelPower: 2.4,
-    fresnelBright: 0.9,
-    bodyOpacity: 0.32, // how much of the shell between the rims shows
+    fresnelBright: 0.5,
+    bodyOpacity: 0.38, // brightness of the interference bands through the body
     bands: 6.0, // interference bands across the shell
     beat: 1.65, // ratio of the second wave — the beat pattern between them
     bandSpeed: 16.0, // how fast the bands run outward
@@ -66,11 +66,23 @@ export default {
     intensity: 2.2, // emissive multiplier — bloom picks this up
     opacity: 1.0,
     softFade: 0.45, // metres it feathers out where it cuts the floor
-    colorRim: '#fff4fb',
-    colorBody: '#c79bff',
-    colorChromaR: '#ff4fa8',
-    colorChromaG: '#9dffe8',
-    colorChromaB: '#6a7cff',
+    colorRim: '#fff4fb', // white-hot core stop
+    colorBody: '#8e1fe0', // saturated body stop
+    colorChromaR: '#ff2f8f',
+    colorChromaG: '#a8d8ff',
+    colorChromaB: '#5a3cff',
+
+    /* --- the body: a filled lens of compressed air with a rolled lip --- */
+    bodyFill: 0.8, // opacity of the lens body (normal-blended, it darkens what it crosses)
+    bodyCentre: 0.5, // fill at the apex, × the fill at the front
+    capSplit: 0.78, // share of the shell grid that is the cap; the rest rolls into the lip
+    lipSize: 0.13, // thickness of the vortex lip, × the ring radius
+    lipCurl: 4.4, // radians the lip rolls back over itself
+    lipSpin: 2.6, // how fast air streaks roll round it
+    lipBright: 1.0, // lip brightness
+    lipOpacity: 0.92,
+    colorTint: '#ff86d2', // pale tint stop
+    colorDeep: '#14042a', // the dark deep stop
 
     /* ================================================================ */
     /* 2 · WARP — the screen bends under every ring                      */
@@ -92,22 +104,22 @@ export default {
     dustDrag: 2.4,
     dustOpacity: 0.28,
     dustTurbulence: 1.0,
-    colorDustA: '#b8adb6',
-    colorDustB: '#8e8494',
-    colorDustC: '#5f5868',
-    colorDustD: '#3a3546',
+    colorDustA: '#9a8aa6',
+    colorDustB: '#6a5a7a',
+    colorDustC: '#3e3150',
+    colorDustD: '#1c1428',
 
     /* ================================================================ */
     /* 4 · RIPPLES — the floor answering each ring                       */
     /* ================================================================ */
-    rippleSpacing: 1.9, // metres between ripple decals under one ring
-    rippleEvery: 2, // only every Nth ring lays ripples (1 = all of them)
+    rippleSpacing: 2.6, // metres between ripple decals under one ring
+    rippleEvery: 3, // only every Nth ring lays ripples (1 = all of them)
     rippleRadius: 0.9, // ripple radius, × the ring's radius
-    rippleLife: 0.85,
+    rippleLife: 1.2,
     rippleWidth: 0.07,
-    rippleIntensity: 0.75,
+    rippleIntensity: 0.22,
     colorRippleA: '#ffe6f6',
-    colorRippleB: '#a07bff',
+    colorRippleB: '#8e1fe0',
 
     /* ================================================================ */
     /* 5 · MUZZLE — little rings thrown off the hand per pulse           */
@@ -125,18 +137,18 @@ export default {
     /* ================================================================ */
     /* 6 · BOOM — the train lands                                        */
     /* ================================================================ */
-    boomBurst: 5.2, // AIR shell end radius, metres
+    boomBurst: 3.4, // AIR shell end radius, metres (inside the domes)
     boomBurstLife: 0.6,
     boomBurstIntensity: 1.5,
-    boomBurstOpacity: 0.55,
+    boomBurstOpacity: 0.32,
     colorBurstA: '#ffffff',
-    colorBurstB: '#ffd1f0',
-    colorBurstC: '#8a5cff',
+    colorBurstB: '#ff6fd0',
+    colorBurstC: '#2c0b52',
     shockRadius: 6.5, // SHOCKWAVE decal radius, metres
     shockLife: 0.75,
     shockWidth: 0.07,
     colorShockA: '#ffffff',
-    colorShockB: '#c79bff',
+    colorShockB: '#8e1fe0',
     floorRadius: 9.0, // how far the floor ripple runs, metres
     floorTime: 1.2, // seconds it takes to get there
     floorRings: 3, // wavelets in the ripple train (capped at 6)
@@ -151,6 +163,40 @@ export default {
     boomLight: 22, // light punch
     pulseShake: 0.035, // a tick of shake per ring leaving
     colorFlash: '#ffe6f6',
+
+    /* --- the domes: the boom stood on the floor, its echo, and the hum --- */
+    boomDomeRadius: 4.4, // metres
+    boomDomeTime: 0.32, // seconds it takes to open
+    boomDomeLife: 0.55, // seconds it takes to die once open
+    boomDomeSpread: 1.2, // half-angle, radians (1.57 = a hemisphere)
+    boomEcho: 0.2, // seconds before the echo dome
+    boomEchoScale: 0.72, // echo size, × the first
+    humRadius: 1.9, // metres — the standing dome left humming over the plate
+    humSpread: 1.3,
+    humAmp: 0.14, // how far it breathes in and out, fraction
+    humRate: 2.6, // breaths per second (the plate's lines pulse with it)
+    humDelay: 0.35, // seconds after the boom before it stands
+    humBright: 0.85,
+    humFill: 0.8, // body fill, × the rings'
+
+    /* ================================================================ */
+    /* 7 · CHLADNI PLATE — the floor sorts into the sound's figure       */
+    /* ================================================================ */
+    plateRadius: 4.6, // metres
+    plateModeA: 3, // nodal diameters of the first figure
+    plateRingsA: 2.5, // nodal circles of the first figure
+    plateModeB: 5, // ...and of the figure it morphs into
+    plateRingsB: 3.5,
+    plateMorphTime: 1.4, // seconds per morph (it swings back and forth)
+    plateLineWidth: 0.16, // width of the sand ridges, in pattern units
+    plateGrain: 34, // sand grain frequency
+    plateStain: 0.72, // dark stain where the floor shakes
+    plateGlow: 2.2, // ridge glow on each beat
+    laneWidth: 0.85, // lane half-width, × the rings' end radius
+    laneStripe: 0.9, // lane wavelength along the line, metres
+    laneAcross: 0, // nodes across the lane (0 = ripples straight across)
+    laneStain: 0.62, // dark stain under the lane
+    laneLines: 0.5, // strength of the sorted ridges in the lane, × the plate's
 
     /* --- the light --- */
     lightColor: '#ffd1f0',

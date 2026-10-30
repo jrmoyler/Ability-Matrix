@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -21,7 +21,18 @@ import { getColor } from '../../utils/color.js';
  * rather than baked geometry: dragging `spread` re-curves rings that are
  * already in flight.
  *
- * ## What the fragment draws
+ * ## The cap is a body, and the rim rolls into a lip
+ *
+ * The grid is split at `uSplit`: below it the rows are the cap; above it they
+ * roll on past the rim around a tube of radius `uLip × uRadius`, curling back
+ * over the shell by `uCurl` radians — the vortex ring a real pressure pulse
+ * sheds at its edge. The material is normal-blended: the cap is a filled lens
+ * of deep-violet compressed air (densest toward the front), the lip is lit by
+ * the sun and streaked with air rolling round it, and only the hot stops of
+ * the four-stop ramp (`uColorDeep` → `uColorBody` → `uColorTint` → `uColorRim`)
+ * are pushed past 1 for the bloom.
+ *
+ * ## What the fragment draws on the cap
  *
  *  - a **rim**, a narrow gaussian at v = 1, sampled three times at offsets of
  *    ±`uChroma` and tinted red / green / blue, so the leading edge splits into
@@ -37,21 +48,59 @@ import { getColor } from '../../utils/color.js';
 const SHELL_VERTEX = /* glsl */ `
   uniform float uRadius;
   uniform float uSpread;
+  uniform float uSplit;       // fraction of the grid that is the cap; the rest is the lip
+  uniform float uLip;         // tube radius of the rolled lip, × the ring radius
+  uniform float uCurl;        // radians the lip rolls back over itself
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uLobes;
+  uniform float uLobeDepth;
 
   varying vec2  vUv;
   varying vec3  vNormalW;
   varying vec3  vViewDir;
   varying float vViewZ;
+  varying float vCapV;        // 0 apex → 1 rim, held at 1 across the lip
+  varying float vLipV;        // 0 where the lip leaves the rim → 1 rolled under
+  varying float vPart;        // 0 cap, 1 lip
 
   void main() {
     vUv = uv;
     float spread = max(uSpread, 0.05);
-    float theta = uv.y * spread;             // v = 0 at the apex, 1 at the rim
     float phi = uv.x * 6.28318530718;
-    vec3 n = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+    vec2 er = vec2(cos(phi), sin(phi));
     // Sphere radius chosen so the rim's lateral radius is exactly uRadius.
     float sphere = uRadius / sin(spread);
-    vec3 local = vec3(n.xy, n.z - cos(spread)) * sphere;
+    float split = clamp(uSplit, 0.05, 0.98);
+    // Standing-wave lobes breathe the lip in and out around the ring.
+    float lobe = 1.0 + uLobeDepth * 0.35 * sin(phi * floor(uLobes + 0.5) + uTime * 2.1 + uSeed);
+
+    vec3 local;
+    vec3 n;
+    if (uv.y <= split) {
+      float cv = uv.y / split;
+      vCapV = cv;
+      vLipV = 0.0;
+      vPart = 0.0;
+      float theta = cv * spread;
+      n = vec3(sin(theta) * er, cos(theta));
+      local = vec3(n.xy, n.z - cos(spread)) * sphere;
+    } else {
+      float lv = (uv.y - split) / (1.0 - split);
+      vCapV = 1.0;
+      vLipV = lv;
+      vPart = 1.0;
+      float psi = lv * uCurl;
+      float tube = uLip * uRadius * lobe;
+      vec3 rimP = vec3(er * uRadius, 0.0);
+      vec3 nr = vec3(sin(spread) * er, cos(spread));    // shell normal at the rim
+      vec3 tr = vec3(cos(spread) * er, -sin(spread));   // on past the rim, down the meridian
+      // The tube rolls about a centre just inside the rim: the leading edge
+      // of the pressure front curls back over itself like a vortex ring.
+      vec3 centre = rimP - nr * tube;
+      n = nr * cos(psi) + tr * sin(psi);
+      local = centre + n * tube;
+    }
 
     vec4 world = modelMatrix * vec4(local, 1.0);
     vNormalW = normalize(mat3(modelMatrix) * n);
@@ -74,20 +123,28 @@ const SHELL_FRAGMENT = /* glsl */ `
   uniform float uFresnelPower;
   uniform float uFresnelBright;
   uniform float uBody;
+  uniform float uBodyFill;
+  uniform float uBodyCentre;
   uniform float uBands;
   uniform float uBeat;
   uniform float uBandSpeed;
   uniform float uBandSharp;
   uniform float uLobes;
   uniform float uLobeDepth;
+  uniform float uLipSpin;
+  uniform float uLipBright;
+  uniform float uLipOpacity;
   uniform float uIntensity;
   uniform float uOpacity;
   uniform float uSoftFade;
   uniform vec3  uColorRim;
+  uniform vec3  uColorTint;
   uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
   uniform vec3  uColorR;
   uniform vec3  uColorG;
   uniform vec3  uColorB;
+  uniform vec3  uLightDir;
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -100,9 +157,20 @@ const SHELL_FRAGMENT = /* glsl */ `
   varying vec3  vNormalW;
   varying vec3  vViewDir;
   varying float vViewZ;
+  varying float vCapV;
+  varying float vLipV;
+  varying float vPart;
 
   ${noiseGLSL}
   ${commonGLSL}
+
+  /** The four-stop ramp: deep → body → tint → white-hot. */
+  vec3 ramp(float h) {
+    h = clamp(h, 0.0, 1.0);
+    vec3 c = mix(uColorDeep, uColorBody, smoothstep(0.0, 0.4, h));
+    c = mix(c, uColorTint, smoothstep(0.4, 0.78, h));
+    return mix(c, uColorRim, smoothstep(0.78, 1.0, h));
+  }
 
   float rim(float v) {
     float d = (1.0 - v) / max(uRimWidth, 1e-3);
@@ -110,41 +178,63 @@ const SHELL_FRAGMENT = /* glsl */ `
   }
 
   void main() {
-    float v = vUv.y;
     float phi = vUv.x * 6.28318530718;
-
-    /* --- the chromatic rim --- */
-    float rr = rim(v + uChroma);
-    float rg = rim(v);
-    float rb = rim(v - uChroma);
-    float white = min(rr, min(rg, rb));
-    vec3 rimColor = uColorR * rr + uColorG * rg + uColorB * rb;
-    rimColor = rimColor * 0.6 + uColorRim * white * 1.4;
-
-    /* --- two tones beating across the body --- */
-    float phase = v * uBands * 6.28318530718 - uTime * uBandSpeed;
-    float w1 = sin(phase);
-    float w2 = sin(phase * uBeat + uSeed * 3.0);
-    float beat = (w1 + w2) * 0.5;
-    float band = pow(clamp(beat * beat, 0.0, 1.0), uBandSharp * 0.5);
-    // Standing-wave lobes around the ring, turning slowly.
-    float lobe = 1.0 - uLobeDepth * (0.5 + 0.5 * cos(phi * floor(uLobes + 0.5) + uTime * 1.3 + uSeed));
-    // A breath of noise so neighbouring rings never band identically.
-    float grain = 0.85 + 0.3 * snoise(vec3(phi * 1.5, v * 4.0, uTime * 0.8 + uSeed));
-    float body = band * lobe * grain * smoothstep(0.0, 0.35, v) * uBody * uShaderIntensity;
-
-    /* --- the silhouette --- */
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
     float fres = fresnelTerm(vViewDir, vNormalW, uFresnelPower, 1.0) * uFresnelBright;
+    float lobe = 1.0 - uLobeDepth * (0.5 + 0.5 * cos(phi * floor(uLobes + 0.5) + uTime * 1.3 + uSeed));
 
-    vec3 color = rimColor * uRimBright + uColorBody * (body + fres * 0.6);
-    float alpha = clamp(max(max(rr, max(rg, rb)), body + fres * 0.5), 0.0, 1.0) * uFade * uOpacity;
+    vec3 base;
+    vec3 emit;
+    float alpha;
+
+    if (vPart < 0.5) {
+      /* ---------- the cap: a filled lens of compressed air ---------- */
+      float v = vCapV;
+      float phase = v * uBands * 6.28318530718 - uTime * uBandSpeed;
+      float beat = (sin(phase) + sin(phase * uBeat + uSeed * 3.0)) * 0.5;
+      float band = pow(clamp(beat * beat, 0.0, 1.0), uBandSharp * 0.5);
+      float grain = 0.85 + 0.3 * snoise(vec3(phi * 1.5, v * 4.0, uTime * 0.8 + uSeed));
+      // Densest toward the rim, where the front is compressed hardest.
+      float comp = mix(uBodyCentre, 1.0, smoothstep(0.1, 0.95, v));
+      float b = band * lobe * grain;
+
+      base = mix(uColorDeep, uColorBody, clamp(b * 0.55 + comp * 0.25, 0.0, 1.0));
+      alpha = uBodyFill * comp * (0.75 + 0.25 * b);
+
+      // The chromatic edge where the cap meets the lip.
+      float rr = rim(v + uChroma);
+      float rg = rim(v);
+      float rb = rim(v - uChroma);
+      float white = min(rr, min(rg, rb));
+      vec3 rimColor = (uColorR * rr + uColorG * rg + uColorB * rb) * 0.5 + uColorRim * white;
+      emit = rimColor * uRimBright + ramp(0.45 + b * 0.35) * b * uBody * uShaderIntensity + uColorBody * fres * 0.5;
+      alpha = max(alpha, max(rr, max(rg, rb)) * 0.9);
+    } else {
+      /* ---------- the lip: a rolling vortex ring with thickness ---------- */
+      vec3 L = normalize(uLightDir);
+      float lambert = max(dot(N, L), 0.0);
+      float facing = abs(dot(N, V));
+      // Streaks of air rolling round the tube.
+      float roll = snoise(vec3(phi * 7.0 + uSeed, vLipV * 3.0 - uTime * uLipSpin, uSeed));
+      float streak = smoothstep(0.1, 0.8, roll);
+      // Crest (just past the rim) is hottest, the rolled-under side is deep.
+      float cx = vLipV * 2.6 - 0.35;
+      float crest = exp(-cx * cx * 2.0);
+      float h = clamp(0.12 + 0.36 * crest + 0.2 * lambert + 0.2 * streak * lobe, 0.0, 1.0);
+      base = ramp(h * 0.8) * (0.55 + 0.45 * facing);
+      emit = ramp(h) * (crest * 0.9 + streak * 0.35) * uLipBright + uColorBody * fres * 0.25;
+      alpha = uLipOpacity * (0.75 + 0.25 * streak) * smoothstep(1.0, 0.85, vLipV);
+    }
+
+    alpha = clamp(alpha + fres * 0.1, 0.0, 1.0) * uFade * uOpacity;
     if (alpha < 0.003) discard;
 
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
     if (alpha < 0.003) discard;
 
-    color *= uIntensity * uGlobalGlow * uFade * uOpacity;
+    vec3 color = base + emit * uIntensity * uGlobalGlow;
     gl_FragColor = vec4(color, alpha);
   }
 `;
@@ -322,13 +412,23 @@ export function createResonanceShellMaterial() {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
       uSeed: { value: Math.random() * 10 },
       uRadius: { value: 1 },
       uSpread: { value: 0.8 },
+      uSplit: { value: 0.8 },
+      uLip: { value: 0.15 },
+      uCurl: { value: 4.4 },
+      uBodyFill: { value: 0.6 },
+      uBodyCentre: { value: 0.3 },
+      uLipSpin: { value: 2.5 },
+      uLipBright: { value: 1.4 },
+      uLipOpacity: { value: 0.9 },
+      uColorTint: { value: new Color(1, 0.6, 0.85) },
+      uColorDeep: { value: new Color(0.02, 0.0, 0.05) },
       uFade: { value: 1 },
       uRimWidth: { value: 0.05 },
       uRimBright: { value: 3 },
@@ -355,7 +455,11 @@ export function createResonanceShellMaterial() {
     fragmentShader: SHELL_FRAGMENT
   });
 
-  /** @param {object} state { radius, fade, seed } — the ring's own envelope */
+  /**
+   * @param {object} state { radius, fade, seed, spread?, lip?, fill? } — the
+   *   ring's own envelope; `spread` overrides the train's dome angle (the boom
+   *   domes and the hum), `lip` and `fill` scale the lip and the body.
+   */
   material.userData.sync = (state) => {
     const c = settings.sonic;
     const g = settings.global;
@@ -364,7 +468,17 @@ export function createResonanceShellMaterial() {
     u.uSeed.value = state.seed;
     u.uRadius.value = state.radius;
     u.uFade.value = state.fade;
-    u.uSpread.value = c.spread;
+    u.uSpread.value = state.spread > 0 ? state.spread : c.spread;
+    u.uSplit.value = c.capSplit;
+    u.uLip.value = c.lipSize * (state.lip ?? 1);
+    u.uCurl.value = c.lipCurl;
+    u.uBodyFill.value = c.bodyFill * (state.fill ?? 1);
+    u.uBodyCentre.value = c.bodyCentre;
+    u.uLipSpin.value = c.lipSpin * g.noiseSpeed;
+    u.uLipBright.value = c.lipBright;
+    u.uLipOpacity.value = c.lipOpacity;
+    u.uColorTint.value.copy(getColor(c.colorTint));
+    u.uColorDeep.value.copy(getColor(c.colorDeep));
     u.uRimWidth.value = c.rimWidth;
     u.uRimBright.value = c.rimBright;
     u.uChroma.value = c.chroma * g.shaderIntensity;
@@ -417,8 +531,8 @@ export function createResonanceWarpMaterial() {
     const g = settings.global;
     const u = material.uniforms;
     u.uRadius.value = state.radius;
-    u.uSpread.value = c.spread;
-    u.uStrength.value = state.fade * c.warpStrength * g.distortion;
+    u.uSpread.value = state.spread > 0 ? state.spread : c.spread;
+    u.uStrength.value = state.fade * c.warpStrength * g.distortion * (state.warp ?? 1);
     u.uWidth.value = c.warpWidth;
     u.uBody.value = c.warpBody;
   };
@@ -482,5 +596,203 @@ export function createResonanceFloorMaterial(pass = 'color') {
     u.uColorRim.value.copy(getColor(c.colorRim));
   };
 
+  return material;
+}
+
+/* ==================================================================== */
+/* The Chladni plate — the floor sorts itself into the sound's figure     */
+/* ==================================================================== */
+
+/**
+ * Sand on a vibrating plate runs off the parts that move and piles up on the
+ * nodal lines that do not — a Chladni figure. This floor layer is that: a dark
+ * stain where the floor is shaking (the cast's deep tone on the ground) with
+ * bright sorted ridges along the nodal lines, coloured up the same ramp as the
+ * shells and pulsing with the hum.
+ *
+ * Two shapes from one shader:
+ *  - `disc` (uMode 0) — the plate the boom leaves: a circular mode
+ *    cos(nθ)·sin(kπr) that *morphs* between two modes over the linger, so the
+ *    lines visibly crawl into a new figure while it hangs;
+ *  - `lane` (uMode 1) — the strip the train lays down the line: a standing
+ *    wave grid across and along the path, revealed behind the lead ring.
+ */
+const PLATE_VERTEX = /* glsl */ `
+  uniform vec2 uQuad;
+  varying vec2 vLocal;
+  void main() {
+    vLocal = (uv - 0.5) * uQuad;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const PLATE_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uMode;        // 0 disc, 1 lane
+  uniform vec2  uQuad;
+  uniform float uRadius;      // disc radius / lane half-width, metres
+  uniform float uLength;      // lane length, metres
+  uniform float uReveal;      // disc: metres reached · lane: metres down the line
+  uniform float uMorph;       // 0..1 between the two disc modes
+  uniform vec2  uModeA;       // (nodal diameters, nodal circles)
+  uniform vec2  uModeB;
+  uniform float uStripe;      // lane: wavelength along, metres
+  uniform float uAcross;      // lane: nodes across
+  uniform float uLineWidth;
+  uniform float uGrain;
+  uniform float uStain;
+  uniform float uGlow;
+  uniform float uHum;         // 0..1 the beat
+  uniform float uFade;
+  uniform float uDissolve;
+  uniform float uLineAmt;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorRim;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+
+  varying vec2 vLocal;
+
+  ${noiseGLSL}
+
+  vec3 ramp(float h) {
+    h = clamp(h, 0.0, 1.0);
+    vec3 c = mix(uColorDeep, uColorBody, smoothstep(0.0, 0.4, h));
+    c = mix(c, uColorTint, smoothstep(0.4, 0.78, h));
+    return mix(c, uColorRim, smoothstep(0.78, 1.0, h));
+  }
+
+  float discMode(vec2 m, float r, float th) {
+    return cos(floor(m.x + 0.5) * th + uSeed) * sin(max(m.y, 0.5) * 3.14159265 * r);
+  }
+
+  void main() {
+    float edgeN = snoise(vec3(vLocal * 0.9, uSeed)) * 0.12;
+    float pattern;
+    float mask;
+    float hot;
+
+    if (uMode < 0.5) {
+      float d = length(vLocal);
+      float r = d / max(uRadius, 0.01);
+      float th = atan(vLocal.y, vLocal.x);
+      float pa = discMode(uModeA, r, th);
+      float pb = discMode(uModeB, r, th + 0.4);
+      pattern = mix(pa, pb, smoothstep(0.0, 1.0, uMorph));
+      mask = (1.0 - smoothstep(0.7, 1.0, r + edgeN)) * (1.0 - smoothstep(uReveal - 0.4, uReveal, d));
+      hot = 1.0 - r * 0.6;
+    } else {
+      float along = vLocal.y + uLength * 0.5;
+      // The lane widens with the rings that laid it.
+      float laneHalf = uRadius * mix(0.22, 1.0, sqrt(clamp(along / max(uLength, 0.1), 0.0, 1.0)));
+      float ax = vLocal.x / max(laneHalf, 0.01);
+      float acrossWave = uAcross > 0.01 ? cos(uAcross * 3.14159265 * ax + uSeed) : 1.0;
+      // Ridges bowed and wandering like real sand ripples, not ruled lines.
+      float wander = along + 0.35 * snoise(vec3(vLocal * 0.45, uSeed)) - 0.25 * ax * ax;
+      pattern = acrossWave * sin(6.28318530718 * wander / max(uStripe, 0.05) + uSeed * 2.0);
+      mask = (1.0 - smoothstep(0.65, 1.0, abs(ax) + edgeN))
+           * smoothstep(0.6, 1.8, along)
+           * (1.0 - smoothstep(uReveal - 0.8, uReveal, along));
+      hot = 0.6 + 0.4 * smoothstep(uLength * 0.4, uLength, along);
+    }
+    if (mask < 0.004) discard;
+
+    // Sand on the nodal lines, gritty.
+    float w = uLineWidth * (1.0 + 0.4 * uHum);
+    float line = 1.0 - smoothstep(0.0, w, abs(pattern));
+    float grit = smoothstep(0.25, 0.75, snoise(vec3(vLocal * uGrain, uSeed)) * 0.5 + 0.5);
+    line *= (0.55 + 0.45 * grit) * uLineAmt;
+    if (uDissolve > 0.0) line *= smoothstep(uDissolve - 0.1, uDissolve + 0.1, snoise(vec3(vLocal * 2.2, uSeed + 4.0)) * 0.5 + 0.5);
+
+    // The rest of the plate is shaking: the deep stain, darker at the antinodes.
+    float anti = smoothstep(0.2, 1.0, abs(pattern));
+    vec3 base = mix(uColorDeep, uColorBody * 0.35, (1.0 - anti) * 0.4);
+    float h = clamp(0.35 + 0.35 * hot + 0.35 * uHum, 0.0, 1.0);
+    vec3 lineColor = ramp(h);
+    vec3 color = mix(base, lineColor, line) + ramp(h) * line * uHum * uGlow * uGlobalGlow * uShaderIntensity * 0.8;
+
+    float alpha = max(uStain * (0.55 + 0.45 * anti), line) * mask * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+/**
+ * @param {'disc'|'lane'} kind
+ */
+export function createResonancePlateMaterial(kind = 'disc') {
+  const lane = kind === 'lane';
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uSeed: { value: Math.random() * 10 },
+      uMode: { value: lane ? 1 : 0 },
+      uQuad: { value: new Vector2(1, 1) },
+      uRadius: { value: 4 },
+      uLength: { value: 10 },
+      uReveal: { value: 0 },
+      uMorph: { value: 0 },
+      uModeA: { value: new Vector2(3, 2) },
+      uModeB: { value: new Vector2(5, 3) },
+      uStripe: { value: 1.2 },
+      uAcross: { value: 2 },
+      uLineWidth: { value: 0.12 },
+      uGrain: { value: 30 },
+      uStain: { value: 0.7 },
+      uGlow: { value: 2 },
+      uHum: { value: 0 },
+      uFade: { value: 1 },
+      uDissolve: { value: 0 },
+      uLineAmt: { value: 1 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorRim: { value: new Color() }
+    }),
+    vertexShader: PLATE_VERTEX,
+    fragmentShader: PLATE_FRAGMENT
+  });
+
+  /** @param {object} s { seed, quadX, quadY, radius, length, reveal, morph, hum, fade, dissolve } */
+  material.userData.sync = (s) => {
+    const c = settings.sonic;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = s.seed;
+    u.uQuad.value.set(s.quadX, s.quadY);
+    u.uRadius.value = s.radius;
+    u.uLength.value = s.length;
+    u.uReveal.value = s.reveal;
+    u.uMorph.value = s.morph;
+    u.uHum.value = s.hum;
+    u.uFade.value = s.fade;
+    u.uDissolve.value = s.dissolve;
+    u.uModeA.value.set(c.plateModeA, c.plateRingsA);
+    u.uModeB.value.set(c.plateModeB, c.plateRingsB);
+    u.uStripe.value = c.laneStripe;
+    u.uAcross.value = c.laneAcross;
+    u.uLineWidth.value = c.plateLineWidth;
+    u.uGrain.value = c.plateGrain * g.noiseFrequency;
+    u.uStain.value = (lane ? c.laneStain : c.plateStain) * g.opacity;
+    u.uLineAmt.value = lane ? c.laneLines : 1;
+    u.uGlow.value = c.plateGlow * g.glow * (lane ? c.laneLines * 0.4 : 1);
+    u.uColorDeep.value.copy(getColor(c.colorDeep));
+    u.uColorBody.value.copy(getColor(c.colorBody));
+    u.uColorTint.value.copy(getColor(c.colorTint));
+    u.uColorRim.value.copy(getColor(c.colorRim));
+  };
   return material;
 }

@@ -3,7 +3,8 @@ import { Ability, AbilityPhase } from '../Ability.js';
 import {
   createResonanceShellMaterial,
   createResonanceWarpMaterial,
-  createResonanceFloorMaterial
+  createResonanceFloorMaterial,
+  createResonancePlateMaterial
 } from '../../materials/collective/ResonancePulseMaterial.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { DecalType } from '../../effects/GroundDecals.js';
@@ -20,7 +21,10 @@ export const ID = 'sonic';
 const MAX_PULSES = 12;
 /** Grid the shell is wrapped from: around × apex-to-rim. */
 const SHELL_AROUND = 56;
-const SHELL_DOWN = 14;
+const SHELL_DOWN = 22;
+/** Two boom domes (the blast and its echo) and the hum that stands after. */
+const MAX_DOMES = 3;
+const HUM = 2;
 
 const _emit = {};
 const _pos = new Vector3();
@@ -29,6 +33,7 @@ const _end = new Vector3();
 const _dir = new Vector3();
 const _zAxis = new Vector3(0, 0, 1);
 const _up = new Vector3(0, 1, 0);
+const _yAxis = new Vector3(0, 1, 0);
 
 /**
  * SONIC — Resonance Pulse.
@@ -56,9 +61,29 @@ const _up = new Vector3(0, 1, 0);
  *   5. **MUZZLE** — little RING particles thrown off the hand as each pulse
  *      leaves, and a tick of shake per pulse so the train is *felt* as a
  *      rhythm.
- *   6. **BOOM** — when the last ring lands: an AIR shell, a SHOCKWAVE decal, a
+ *   6. **BOOM** — when the last ring lands: two pressure **domes** (the
+ *      same filled shell, stood on the floor with its lip rolling round the
+ *      foot — the blast and its echo), an AIR shell, a SHOCKWAVE decal, a
  *      chromatic ripple train racing across the floor (colour + warp), a ring
  *      of dust, a light punch, a flash and a camera kick.
+ *   7. **CHLADNI PLATE** — the floor answers the way sand on a sounding plate
+ *      does: under the train a *lane* of standing-wave nodal lines is sorted
+ *      out of a dark stain behind the lead ring, and at the boom a *disc* of
+ *      nodal lines (cos nθ · sin kπr) that keeps morphing between two modes for
+ *      the whole linger, its ridges pulsing with the hum. Both stay until the
+ *      exit, then blow away grain by grain.
+ *   8. **HUM** — after the boom a smaller filled dome stands over the plate and
+ *      breathes in and out at `humRate`: the resonance the cast is named for,
+ *      still ringing.
+ *
+ * ## The shells are bodies, not outlines
+ *
+ * Each ring is a filled lens of compressed air — a deep-violet body,
+ * normal-blended so it darkens what it passes in front of, densest toward the
+ * front, with interference bands running through it — whose leading edge
+ * rolls back over itself into a thick **vortex lip** (built in the same vertex
+ * stage), lit from the sun and streaked with air rolling round the tube. The
+ * colour ramp is white-hot → pink tint → saturated violet → near-black deep.
  *
  * ## Decisions
  *
@@ -110,7 +135,7 @@ export class ResonancePulseAbility extends Ability {
         material,
         warp,
         warpMaterial,
-        state: { radius: 1, fade: 0, seed: Math.random() * 10 },
+        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 0, lip: 1, fill: 1, warp: 1 },
         launched: false,
         landed: false,
         done: false,
@@ -142,6 +167,56 @@ export class ResonancePulseAbility extends Ability {
     this.group.add(this.floorWarp);
 
     this._floorState = { quadSize: 1, front: 0, fade: 0 };
+
+    /* ---- layers 6 & 8: the boom domes and the hum ---- */
+    this.domes = [];
+    for (let i = 0; i < MAX_DOMES; i++) {
+      const material = createResonanceShellMaterial();
+      const mesh = new Mesh(this.shellGeometry, material);
+      mesh.name = i === HUM ? 'SonicHum' : `SonicDome${i}`;
+      mesh.layers.set(LAYER.VFX);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 12;
+      mesh.visible = false;
+      mesh.quaternion.setFromUnitVectors(_zAxis, _yAxis);
+      this.group.add(mesh);
+      const warpMaterial = createResonanceWarpMaterial();
+      const warp = new Mesh(this.shellGeometry, warpMaterial);
+      warp.name = `${mesh.name}Warp`;
+      warp.layers.set(LAYER.DISTORTION);
+      warp.frustumCulled = false;
+      warp.visible = false;
+      warp.quaternion.copy(mesh.quaternion);
+      this.group.add(warp);
+      this.domes.push({
+        mesh,
+        material,
+        warp,
+        warpMaterial,
+        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 1.2, lip: 1, fill: 1, warp: 1 }
+      });
+    }
+
+    /* ---- layer 7: the Chladni lane and plate ---- */
+    this.plateGeometry = new PlaneGeometry(1, 1, 1, 1).rotateX(-Math.PI / 2);
+    this.laneMaterial = createResonancePlateMaterial('lane');
+    this.lane = new Mesh(this.plateGeometry, this.laneMaterial);
+    this.lane.name = 'SonicLane';
+    this.lane.layers.set(LAYER.VFX);
+    this.lane.renderOrder = 5;
+    this.lane.frustumCulled = false;
+    this.lane.visible = false;
+    this.group.add(this.lane);
+    this.plateMaterial = createResonancePlateMaterial('disc');
+    this.plate = new Mesh(this.plateGeometry, this.plateMaterial);
+    this.plate.name = 'SonicPlate';
+    this.plate.layers.set(LAYER.VFX);
+    this.plate.renderOrder = 5;
+    this.plate.frustumCulled = false;
+    this.plate.visible = false;
+    this.group.add(this.plate);
+    this._laneState = { seed: 0, quadX: 1, quadY: 1, radius: 1, length: 1, reveal: 0, morph: 0, hum: 0, fade: 1, dissolve: 0 };
+    this._plateState = { seed: 0, quadX: 1, quadY: 1, radius: 1, length: 1, reveal: 0, morph: 0, hum: 0, fade: 1, dissolve: 0 };
 
     // Per-cast clocks, reset in `onSpawn`; initialised so the HUD can read them.
     this._count = 0;
@@ -190,7 +265,8 @@ export class ResonancePulseAbility extends Ability {
   get instanceCount() {
     let n = 0;
     for (let i = 0; i < this._count; i++) if (this.rings[i].mesh.visible) n++;
-    return n + (this.floor.visible ? 1 : 0);
+    for (let i = 0; i < MAX_DOMES; i++) if (this.domes[i].mesh.visible) n++;
+    return n + (this.floor.visible ? 1 : 0) + (this.plate.visible ? 1 : 0) + (this.lane.visible ? 1 : 0);
   }
 
   get impactDuration() {
@@ -288,6 +364,15 @@ export class ResonancePulseAbility extends Ability {
 
     this.floor.visible = false;
     this.floorWarp.visible = false;
+    for (let i = 0; i < MAX_DOMES; i++) {
+      this.domes[i].mesh.visible = false;
+      this.domes[i].warp.visible = false;
+      this.domes[i].state.seed = Math.random() * 10;
+    }
+    this._laneState.seed = Math.random() * 10;
+    this._plateState.seed = Math.random() * 10;
+    this.plate.visible = false;
+    this.lane.visible = false;
   }
 
   /** Where the train leaves the caster. */
@@ -489,6 +574,103 @@ export class ResonancePulseAbility extends Ability {
     this.floorWarpMaterial.userData.sync(state);
   }
 
+  /** The beat, 0..1: a thump per ring leaving, then the hum's own rate. */
+  _hum() {
+    const c = settings.sonic;
+    const since = this.age - this._lastLaunch;
+    const thump = Math.exp(-since * 9);
+    if (this._boomAge < 0) return thump;
+    const ring = 0.5 + 0.5 * Math.sin(this._boomAge * c.humRate * Math.PI * 2);
+    return Math.max(thump, ring * ring);
+  }
+
+  /** The Chladni lane down the line, revealed behind the lead ring. */
+  _updateLane(exit) {
+    const c = settings.sonic;
+    const st = this._laneState;
+    const half = Math.max(0.05, c.ringEnd * c.laneWidth);
+    this.pointAt(0.5, this.lane.position).setY(0.024);
+    this.lane.rotation.set(0, Math.atan2(-this.direction.x, -this.direction.z), 0);
+    st.quadX = half * 2.4;
+    st.quadY = this.length + 1;
+    this.lane.scale.set(st.quadX, 1, st.quadY);
+    st.radius = half;
+    st.length = this.length;
+    st.reveal = this._boomAge >= 0 ? this.length + 2 : this.front + 0.5;
+    st.hum = this._hum();
+    st.fade = 1 - Easing.inQuad(saturate(exit));
+    st.dissolve = saturate(exit);
+    this.laneMaterial.userData.sync(st);
+    this.lane.visible = c.laneStain > 0 || c.plateLineWidth > 0;
+  }
+
+  /** The plate the boom leaves, and its figure crawling between modes. */
+  _updatePlate(exit) {
+    const c = settings.sonic;
+    const g = settings.global;
+    if (this._boomAge < 0) return;
+    const st = this._plateState;
+    const radius = Math.max(0.1, c.plateRadius * g.explosionIntensity);
+    this.pointAt(1, this.plate.position).setY(0.026);
+    st.quadX = st.quadY = radius * 2.4;
+    this.plate.scale.set(st.quadX, 1, st.quadY);
+    st.radius = radius;
+    st.length = 0;
+    st.reveal = Easing.outCubic(saturate(this._boomAge / Math.max(0.05, c.floorTime * 0.6))) * radius * 1.3;
+    st.morph = 0.5 - 0.5 * Math.cos((this._boomAge * Math.PI) / Math.max(0.1, c.plateMorphTime));
+    st.hum = this._hum();
+    st.fade = 1 - Easing.inQuad(saturate(exit));
+    st.dissolve = saturate(exit);
+    this.plateMaterial.userData.sync(st);
+    this.plate.visible = st.fade > 0.002;
+  }
+
+  /** The two boom domes and the hum, stood on the floor at the end. */
+  _updateDomes(exit) {
+    const c = settings.sonic;
+    const g = settings.global;
+    const out = 1 - Easing.inQuad(saturate(exit));
+    for (let i = 0; i < MAX_DOMES; i++) {
+      const dome = this.domes[i];
+      const st = dome.state;
+      let visible = false;
+      if (this._boomAge >= 0) {
+        if (i === HUM) {
+          const a = this._boomAge - c.humDelay;
+          if (a > 0) {
+            const breathe = Math.sin(this._boomAge * c.humRate * Math.PI * 2);
+            st.radius = Math.max(0.05, c.humRadius * (1 + c.humAmp * breathe) * Easing.outCubic(saturate(a / 0.35)));
+            st.fade = saturate(a / 0.3) * c.humBright * out;
+            st.spread = c.humSpread;
+            st.lip = 0.8 + 0.3 * breathe;
+            st.fill = c.humFill;
+            st.warp = 0.5;
+            visible = st.fade > 0.002;
+          }
+        } else {
+          const a = this._boomAge - i * c.boomEcho;
+          if (a > 0) {
+            const scale = i === 0 ? 1 : c.boomEchoScale;
+            st.radius = Math.max(0.05, c.boomDomeRadius * scale * g.explosionIntensity * Easing.outCubic(saturate(a / Math.max(0.02, c.boomDomeTime))));
+            st.fade = (1 - Easing.inQuad(saturate((a - c.boomDomeTime * 0.35) / Math.max(0.05, c.boomDomeLife)))) * out;
+            st.spread = c.boomDomeSpread;
+            st.lip = 1.25;
+            st.fill = 0.85;
+            st.warp = 1.4;
+            visible = st.fade > 0.002;
+          }
+        }
+      }
+      dome.mesh.visible = visible;
+      dome.warp.visible = visible;
+      if (!visible) continue;
+      this.pointAt(1, dome.mesh.position).setY(0);
+      dome.warp.position.copy(dome.mesh.position);
+      dome.material.userData.sync(st);
+      dome.warpMaterial.userData.sync(st);
+    }
+  }
+
   /* ------------------------------------------------------------------ */
   /* Phases                                                              */
   /* ------------------------------------------------------------------ */
@@ -496,6 +678,7 @@ export class ResonancePulseAbility extends Ability {
   onTravel() {
     this._syncParticles();
     for (let i = 0; i < this._count; i++) this._updateRing(this.rings[i], i, 1);
+    this._updateLane(0);
   }
 
   onImpact() {
@@ -515,7 +698,7 @@ export class ResonancePulseAbility extends Ability {
       intensity: c.boomBurstIntensity,
       opacity: c.boomBurstOpacity,
       fresnel: 2.0,
-      displace: 0.3,
+      displace: 0.1,
       squash: 0.75,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
@@ -571,6 +754,10 @@ export class ResonancePulseAbility extends Ability {
 
     for (let i = 0; i < this._count; i++) this._updateRing(this.rings[i], i, fadeAll);
     this._updateFloor(fadeAll);
+    const exit = this.phase === AbilityPhase.FADE ? saturate(t - 1) : 0;
+    this._updateLane(exit);
+    this._updatePlate(exit);
+    this._updateDomes(exit);
   }
 
   onDestroy() {
@@ -583,6 +770,12 @@ export class ResonancePulseAbility extends Ability {
     }
     this.floor.visible = false;
     this.floorWarp.visible = false;
+    for (let i = 0; i < MAX_DOMES; i++) {
+      this.domes[i].mesh.visible = false;
+      this.domes[i].warp.visible = false;
+    }
+    this.plate.visible = false;
+    this.lane.visible = false;
     this._boomAge = -1;
     this._count = 0;
   }
@@ -596,6 +789,13 @@ export class ResonancePulseAbility extends Ability {
     this.floorGeometry.dispose();
     this.floorMaterial.dispose();
     this.floorWarpMaterial.dispose();
+    for (const dome of this.domes) {
+      dome.material.dispose();
+      dome.warpMaterial.dispose();
+    }
+    this.plateGeometry.dispose();
+    this.laneMaterial.dispose();
+    this.plateMaterial.dispose();
     super.dispose();
   }
 }
@@ -728,6 +928,50 @@ export function buildEditor(gui, c, Editor) {
   R(boom, c, 'boomFlash', 0, 1, 0.01, 'flash');
   boom.addColor(c, 'colorFlash').name('flash colour');
   R(boom, c, 'boomLight', 0, 60, 0.5, 'light punch');
+
+  const body = rings.addFolder('Body & lip');
+  R(body, c, 'bodyFill', 0, 1, 0.01, 'body fill');
+  R(body, c, 'bodyCentre', 0, 1, 0.01, 'fill at the centre (×)');
+  R(body, c, 'capSplit', 0.3, 0.97, 0.01, 'cap / lip split');
+  R(body, c, 'lipSize', 0, 0.5, 0.005, 'lip thickness (× radius)');
+  R(body, c, 'lipCurl', 0.5, 6.2, 0.05, 'lip roll (rad)');
+  R(body, c, 'lipSpin', 0, 10, 0.05, 'lip roll speed');
+  R(body, c, 'lipBright', 0, 6, 0.05, 'lip brightness');
+  R(body, c, 'lipOpacity', 0, 1, 0.01, 'lip opacity');
+  body.addColor(c, 'colorTint').name('tint');
+  body.addColor(c, 'colorDeep').name('deep');
+
+  const domes = boom.addFolder('Domes & hum');
+  R(domes, c, 'boomDomeRadius', 0.2, 12, 0.05, 'dome radius (m)');
+  R(domes, c, 'boomDomeTime', 0.02, 2, 0.01, 'dome opens over (s)');
+  R(domes, c, 'boomDomeLife', 0.05, 3, 0.01, 'dome dies over (s)');
+  R(domes, c, 'boomDomeSpread', 0.2, 1.55, 0.01, 'dome half-angle (rad)');
+  R(domes, c, 'boomEcho', 0, 1, 0.01, 'echo delay (s)');
+  R(domes, c, 'boomEchoScale', 0.1, 2, 0.01, 'echo size (×)');
+  R(domes, c, 'humRadius', 0.1, 6, 0.05, 'hum radius (m)');
+  R(domes, c, 'humSpread', 0.2, 1.55, 0.01, 'hum half-angle (rad)');
+  R(domes, c, 'humAmp', 0, 0.6, 0.01, 'hum breath');
+  R(domes, c, 'humRate', 0.1, 12, 0.05, 'hum rate (Hz)');
+  R(domes, c, 'humDelay', 0, 1.5, 0.01, 'hum starts after (s)');
+  R(domes, c, 'humBright', 0, 1.5, 0.01, 'hum strength');
+  R(domes, c, 'humFill', 0, 1.5, 0.01, 'hum body fill (×)');
+
+  const plate = folder.addFolder('7 · Chladni plate');
+  R(plate, c, 'plateRadius', 0.5, 12, 0.05, 'plate radius (m)');
+  R(plate, c, 'plateModeA', 0, 10, 1, 'mode A diameters');
+  R(plate, c, 'plateRingsA', 0.5, 8, 0.5, 'mode A circles');
+  R(plate, c, 'plateModeB', 0, 10, 1, 'mode B diameters');
+  R(plate, c, 'plateRingsB', 0.5, 8, 0.5, 'mode B circles');
+  R(plate, c, 'plateMorphTime', 0.1, 6, 0.05, 'mode morph time (s)');
+  R(plate, c, 'plateLineWidth', 0, 0.6, 0.005, 'nodal line width');
+  R(plate, c, 'plateGrain', 1, 120, 1, 'sand grain');
+  R(plate, c, 'plateStain', 0, 1, 0.01, 'plate stain');
+  R(plate, c, 'plateGlow', 0, 8, 0.05, 'line glow on the hum');
+  R(plate, c, 'laneWidth', 0.1, 2, 0.01, 'lane half-width (× ring end)');
+  R(plate, c, 'laneStripe', 0.2, 5, 0.05, 'lane wavelength (m)');
+  R(plate, c, 'laneAcross', 0, 6, 0.5, 'lane nodes across');
+  R(plate, c, 'laneStain', 0, 1, 0.01, 'lane stain');
+  R(plate, c, 'laneLines', 0, 1.5, 0.01, 'lane ridge strength');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('light colour');
