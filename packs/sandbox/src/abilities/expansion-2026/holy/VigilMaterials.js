@@ -12,9 +12,13 @@ import { sharedUniforms } from '../../../core/FrameUniforms.js';
  * rig. `uClock` is the cast's visual clock (held at zero under reduced
  * motion), never the shared frame time.
  *
- * The sanctuary is *light*, not stone: every surface is additive and
- * `toneMapped: false`, so pulses can push it past 1 and bloom. Form comes from
- * fresnel rims, grain and the authored geometry, not from opacity.
+ * The sanctuary is **gilded stone lit from within**: the arches are solid,
+ * sun-lit pale-gold masonry whose shaded faces fall to a dark bronze (the
+ * cast's deep stop), with gilt trim and kindling veins of light; the bells and
+ * crown are solid lit gold. The light itself — lamp flames, floor sigil,
+ * curtains, the column, the processional runner — stays additive and
+ * `toneMapped: false`, so pulses can push it past 1 and bloom. Palette: core
+ * `uCore` → tint `uColor` → body (gilt/stone) → deep `uDeep`.
  */
 
 const SURFACE_VARYINGS = /* glsl */ `
@@ -47,10 +51,10 @@ function surfaceVertex(displace = '') {
   `;
 }
 
-function holyMaterial({ uniforms, vertexShader = surfaceVertex(), fragmentShader, blending = AdditiveBlending, depthTest = true }) {
+function holyMaterial({ uniforms, vertexShader = surfaceVertex(), fragmentShader, blending = AdditiveBlending, depthTest = true, depthWrite = false }) {
   return new ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite,
     depthTest,
     side: DoubleSide,
     blending,
@@ -86,10 +90,14 @@ const ARCH_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uPulse;
   uniform float uBuild;
+  uniform float uKindle;      // 0..1 how far the veins of light have climbed
   uniform float uGlow;
   uniform float uShaderIntensity;
   uniform vec3 uColor;
   uniform vec3 uCore;
+  uniform vec3 uStone;
+  uniform vec3 uDeep;
+  uniform vec3 uLightDir;
   ${SURFACE_VARYINGS}
 
   ${noiseGLSL}
@@ -97,32 +105,62 @@ const ARCH_FRAGMENT = /* glsl */ `
 
   void main() {
     vec3 N = normalize(vNormalW);
+    if (!gl_FrontFacing) N = -N;
     vec3 V = normalize(vViewDir);
     float fres = fresnelTerm(V, N, 2.2, 1.0);
 
     // Build front: feet first, keystone last.
     float climb = 1.0 - abs(vUv.x - 0.5) * 2.0;
     float n = snoise01(vec3(vUv.x * 14.0, vUv.y * 6.0, 1.3));
-    vec2 build = dissolveMask(1.0 - climb + n * 0.25 * uShaderIntensity, 1.25 - uBuild * 1.3, 0.08);
-    float built = 1.0 - build.x;
+    // Built where the feet-first value has passed the falling threshold; the
+    // band just past it is the burning build edge.
+    float bv = 1.0 - climb + n * 0.25 * uShaderIntensity;
+    float th = 1.25 - uBuild * 1.3;
+    if (bv < th) discard;
+    float buildEdge = (1.0 - smoothstep(th, th + 0.08, bv)) * step(uBuild, 0.999);
 
-    float grain = 0.5 + 0.5 * sin(vUv.x * 160.0 + snoise(vec3(vUv * vec2(40.0, 8.0), uClock * 0.4)) * 2.0);
+    // Exit: the masonry crumbles away on a burning edge.
+    float en = snoise01(vec3(vUv * vec2(18.0, 5.0), 7.0));
+    float gone = 1.0 - uFade * 1.08;
+    if (en < gone) discard;
+    float exitEdge = (1.0 - smoothstep(gone, gone + 0.06, en)) * step(0.001, gone);
+
+    // Lit stone: sun-facing faces pale gold, shaded faces fall to bronze.
+    float diff = clamp(dot(N, normalize(uLightDir)), 0.0, 1.0);
+    float sky = 0.5 + 0.5 * N.y;
+    float grain = 0.5 + 0.5 * sin(vUv.x * 160.0 + snoise(vec3(vUv * vec2(40.0, 8.0), 0.0)) * 2.0);
+    float lit = clamp(0.04 + diff * 0.8 + sky * 0.1, 0.0, 1.0);
+    vec3 stone = mix(uDeep, uStone, lit * lit * (3.0 - 2.0 * lit)) * (0.85 + 0.25 * grain);
+
     float faceEdge = abs(fract(vUv.y * 4.0) - 0.5) * 2.0;
-    float trim = smoothstep(0.82, 1.0, faceEdge);
+    float trim = smoothstep(0.8, 1.0, faceEdge);
+    // Veins of light kindle from the feet to the keystone over the vigil.
+    float vein = smoothstep(0.9, 0.98, 1.0 - abs(snoise(vec3(vUv.x * 26.0, vUv.y * 5.0, 2.0))));
+    float reach = uKindle * 1.1 - (1.0 - climb) * 1.0 - n * 0.1;
+    float kindled = smoothstep(0.0, 0.05, reach);
+    float kindleFront = exp(-abs(reach) * 30.0) * step(uKindle, 0.999);
     // The pulse climbs the sweep from the feet to the keystone as it decays.
     float ripple = exp(-abs(climb - (1.0 - uPulse)) * 18.0) * uPulse;
 
-    vec3 color = mix(uColor, uCore, clamp(trim * 0.5 + fres * 0.4 + uPulse * 0.35 + ripple, 0.0, 1.0));
-    float alpha = (0.22 + grain * 0.1 + trim * 0.35 + fres * 0.35 + uPulse * 0.25 + ripple * 0.6) * built;
-    alpha += build.y * 1.2; // the burning build edge
-    alpha *= uFade;
-    if (alpha < 0.004) discard;
-    gl_FragColor = vec4(color * uGlow, alpha);
+    vec3 light = uColor * (trim * 0.9 + vein * kindled * 1.4 + fres * 0.35 + uPulse * 0.25)
+               + uCore * (kindleFront * 1.2 + ripple * 1.6 + buildEdge * 3.0 + exitEdge * 2.0);
+    vec3 color = stone + light * uGlow;
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
 
 export function createVigilArchMaterial() {
-  return holyMaterial({ fragmentShader: ARCH_FRAGMENT, uniforms: { uBuild: { value: 1 } } });
+  return holyMaterial({
+    fragmentShader: ARCH_FRAGMENT,
+    blending: NormalBlending,
+    depthWrite: true,
+    uniforms: {
+      uBuild: { value: 1 },
+      uKindle: { value: 1 },
+      uStone: { value: new Color('#e2c48e') },
+      uDeep: { value: new Color('#3a2209') }
+    }
+  });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -143,6 +181,8 @@ const GILT_FRAGMENT = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uCore;
   uniform vec3 uGilt;
+  uniform vec3 uDeep;
+  uniform vec3 uLightDir;
   ${SURFACE_VARYINGS}
 
   ${noiseGLSL}
@@ -150,21 +190,36 @@ const GILT_FRAGMENT = /* glsl */ `
 
   void main() {
     vec3 N = normalize(vNormalW);
+    if (!gl_FrontFacing) N = -N;
     vec3 V = normalize(vViewDir);
+    vec3 L = normalize(uLightDir);
     float fres = fresnelTerm(V, N, 2.6, 1.0);
+    float diff = clamp(dot(N, L), 0.0, 1.0);
+    float spec = pow(max(dot(N, normalize(L + V)), 0.0), 36.0);
     float brush = snoise01(vec3(vUv.x * 2.0, vUv.y * 40.0, 0.7));
     float bands = smoothstep(0.75, 1.0, sin(vUv.y * 38.0) * 0.5 + 0.5);
     float ring = pow(max(0.0, sin(vUv.y * 24.0 - uClock * 30.0)), 6.0) * uRing;
 
-    vec3 color = uGilt * (0.45 + 0.35 * brush) + uColor * bands * 0.4 + uCore * (fres * 0.8 + ring + uPulse * 0.3);
-    float alpha = (0.35 + fres * 0.45 + bands * 0.15 + ring * 0.6 + uPulse * 0.2) * uFade;
-    if (alpha < 0.004) discard;
-    gl_FragColor = vec4(color * uGlow, alpha);
+    // Solid gold: lit faces gilt, shaded faces dark bronze, a hot specular.
+    vec3 metal = mix(uDeep, uGilt, clamp(0.08 + diff * 0.85 + fres * 0.2, 0.0, 1.0)) * (0.8 + 0.35 * brush);
+    vec3 light = uCore * (spec * 1.4 + ring * 1.8 + uPulse * 0.35) + uColor * (fres * 0.55 + bands * 0.12);
+    vec3 color = metal + light * uGlow;
+    // Exit: the gold dissolves on a bright edge.
+    float en = snoise01(vec3(vUv * vec2(6.0, 9.0), 3.0));
+    float gone = 1.0 - uFade * 1.08;
+    if (en < gone) discard;
+    color += uCore * (1.0 - smoothstep(gone, gone + 0.06, en)) * step(0.001, gone) * 2.0;
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
 
 export function createVigilGiltMaterial() {
-  return holyMaterial({ fragmentShader: GILT_FRAGMENT, uniforms: { uRing: { value: 0 }, uGilt: { value: new Color('#ffcf6a') } } });
+  return holyMaterial({
+    fragmentShader: GILT_FRAGMENT,
+    blending: NormalBlending,
+    depthWrite: true,
+    uniforms: { uRing: { value: 0 }, uGilt: { value: new Color('#e8a33a') }, uDeep: { value: new Color('#3a2209') } }
+  });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -240,6 +295,7 @@ const FLOOR_FRAGMENT = /* glsl */ `
   uniform float uWave;
   uniform float uReveal;
   uniform float uSpin;
+  uniform float uKindle;
   uniform float uGlow;
   uniform float uShaderIntensity;
   uniform vec3 uColor;
@@ -265,6 +321,9 @@ const FLOOR_FRAGMENT = /* glsl */ `
     float runeBand = smoothstep(0.66, 0.68, r) * (1.0 - smoothstep(0.84, 0.86, r));
     // Rune cells: about half the cells in the band carry a glowing glyph dot.
     float runes = step(0.5, cell.y) * (1.0 - smoothstep(0.12, 0.28, cell.x)) * runeBand;
+    // The runes light one by one through the vigil.
+    float lit = fract(cell.y * 13.7);
+    runes *= 0.25 + 0.75 * smoothstep(lit - 0.08, lit, uKindle * 1.05);
     float embers = pow(snoise01(vec3(p * 5.0, uClock * 0.5)), 5.0) * uShaderIntensity * (1.0 - smoothstep(0.6, 0.95, r));
     float wave = exp(-abs(r - uWave) * 40.0) * step(0.01, uWave) * uPulse;
     float centre = exp(-r * 6.0) * 0.4;
@@ -283,7 +342,7 @@ const FLOOR_FRAGMENT = /* glsl */ `
 export function createVigilFloorMaterial() {
   return holyMaterial({
     fragmentShader: FLOOR_FRAGMENT,
-    uniforms: { uWave: { value: 0 }, uReveal: { value: 0 }, uSpin: { value: 0.05 } }
+    uniforms: { uWave: { value: 0 }, uReveal: { value: 0 }, uSpin: { value: 0.05 }, uKindle: { value: 1 } }
   });
 }
 
@@ -518,4 +577,106 @@ const FOOTPRINT_FRAGMENT = /* glsl */ `
 
 export function createVigilFootprintMaterial() {
   return holyMaterial({ fragmentShader: FOOTPRINT_FRAGMENT, uniforms: { uFade: { value: 0 } } });
+}
+
+/* ---------------------------------------------------------------------- */
+/* The consecrated ground (the deep stop under the sigil)                  */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * A dark bronze stain under the sigil, drawn round with the same sweep: the
+ * floor inside the sanctuary goes deep and warm so the gold reads against it,
+ * with a faint ember grain and a darker rim. Normal blending, so it darkens.
+ */
+const GROUND_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uReveal;
+  uniform float uDark;
+  uniform vec3 uDeep;
+  uniform vec3 uColor;
+  ${SURFACE_VARYINGS}
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    float a = atan(p.y, p.x);
+    float sweep = (a + 3.14159265) / 6.2831853;
+    float drawn = 1.0 - smoothstep(uReveal * 1.05 - 0.08, uReveal * 1.05, sweep);
+    float n = fbm3(vec3(p * 3.0, 1.7));
+    float disc = (1.0 - smoothstep(0.88 + n * 0.06, 1.0, r));
+    float grain = pow(snoise01(vec3(p * 9.0, uClock * 0.3)), 6.0);
+    vec3 color = uDeep * (0.7 + 0.5 * n) + uColor * grain * 0.6;
+    float alpha = disc * drawn * uDark * (0.75 + 0.25 * n) * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createVigilGroundMaterial() {
+  return holyMaterial({
+    fragmentShader: GROUND_FRAGMENT,
+    blending: NormalBlending,
+    uniforms: { uReveal: { value: 0 }, uDark: { value: 0.6 }, uDeep: { value: new Color('#3a2209') } }
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* The processional runner (travel)                                        */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The path the votive is carried along, laid on the floor behind it as it
+ * goes: a runner of light from the hand to the votive. `vUv.y` runs 0 at the
+ * hand to 1 at the votive (`uFront` metres), `vUv.x` across. A white-gold
+ * centre line and two gilt borders over a dark bronze cloth, rune dashes
+ * marching toward the circle, hottest at the votive and cooling to bronze at
+ * the hand. After the arrival it is taken up from the hand end (`uTake`).
+ */
+const RUNNER_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uFront;
+  uniform float uTake;
+  uniform float uGlow;
+  uniform vec3 uColor;
+  uniform vec3 uCore;
+  uniform vec3 uDeep;
+  ${SURFACE_VARYINGS}
+
+  ${noiseGLSL}
+
+  void main() {
+    float along = vUv.y;
+    float wob = snoise(vec3(along * 12.0, uClock, 0.0)) * 0.03;
+    if (along < uTake + wob) discard;
+    float x = abs(vUv.x - 0.5) * 2.0;
+    float metres = along * uFront;
+    float heat = smoothstep(0.0, 1.0, along);
+    float centre = exp(-x * x * 28.0);
+    float borders = exp(-abs(x - 0.72) * 26.0);
+    float dashes = step(0.55, fract(metres * 1.4 - uClock * 2.0)) * exp(-abs(x - 0.38) * 22.0);
+    float takeEdge = (1.0 - smoothstep(0.0, 0.05, along - uTake - wob)) * step(0.001, uTake);
+    float edge = 1.0 - smoothstep(0.8, 1.0, x + snoise(vec3(metres * 1.5, 0.0, 2.0)) * 0.08);
+    float tail = smoothstep(0.0, 0.08, along);
+
+    vec3 light = uColor * (centre * 1.2 + borders * 0.8 + dashes * 0.6) * (0.5 + 0.5 * heat)
+               + uCore * (centre * pow(heat, 4.0) * 1.6 + takeEdge * 1.5);
+    vec3 color = uDeep + light * uGlow;
+    float glow = clamp(centre + borders * 0.7 + dashes * 0.5 + takeEdge, 0.0, 1.0);
+    float alpha = max(0.7 * edge * (0.5 + 0.5 * heat), glow) * tail * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createVigilRunnerMaterial() {
+  return holyMaterial({
+    fragmentShader: RUNNER_FRAGMENT,
+    blending: NormalBlending,
+    uniforms: { uFront: { value: 0 }, uTake: { value: 0 }, uDeep: { value: new Color('#3a2209') } }
+  });
 }

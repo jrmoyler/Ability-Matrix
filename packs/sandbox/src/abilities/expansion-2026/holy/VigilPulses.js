@@ -120,7 +120,8 @@ export class VigilPulses {
 
     this.primary.copy(getColor(c.holyColor));
     this.core.copy(getColor(c.coreColor));
-    this.dark.copy(this.primary).multiplyScalar(0.35);
+    // The shell's outer stop is the cast's dark bronze, not a dimmed tint.
+    this.dark.copy(getColor(c.deepColor ?? '#3a2209'));
     const radius = bounded(c.zoneRadius, 4, 0.2, 8);
     const glow = bounded(c.glyphGlow, 0.75, 0, 2);
     this.ctx.bursts?.spawn(BurstMode.AIR, this.point, {
@@ -128,7 +129,7 @@ export class VigilPulses {
       endRadius: radius,
       life: 0.55,
       intensity: glow * 0.55 * settings.global.explosionIntensity,
-      opacity: 0.45,
+      opacity: 0.28,
       colorA: this.core,
       colorB: this.primary,
       colorC: this.dark
