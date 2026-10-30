@@ -1,4 +1,15 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
+import {
+  AddEquation,
+  Color,
+  CustomBlending,
+  DoubleSide,
+  NormalBlending,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  ShaderMaterial,
+  Vector2,
+  Vector3
+} from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -20,10 +31,12 @@ import { getColor } from '../../utils/color.js';
  *    the cloud whose warp is noise sampled in a frame twisted by height, so the
  *    world behind it visibly churns and spirals before anything has fallen.
  *  - **the column** — the same tube, splayed at the foot (a real downburst
- *    fans out where it meets the ground) and pinched up into the cloud. Additive
- *    wind streaks fall down it; its leading front is a hot band; a fresnel
- *    term keeps the walls bright and the middle clear. It is lifted off the
- *    floor through a ragged noise edge when the slam is spent.
+ *    fans out where it meets the ground) and pinched up into the cloud. It is
+ *    drawn premultiplied: a dark storm-blue body of falling air (the deep and
+ *    body stops of the ramp, shaded by the sun) carries the mass, and only the
+ *    streak crests, the walls seen edge-on and the leading front add light
+ *    (pale tint and white-hot). It is lifted off the floor through a ragged
+ *    noise edge when the slam is spent.
  *  - **the ground blast** — the floor. A telegraph while the cloud gathers (the
  *    circle's edge darkens and pulses), then the shock ring racing out, the
  *    radial scour the outflow combs into the dust behind it, and the pressed
@@ -320,6 +333,11 @@ const COLUMN_FRAGMENT = /* glsl */ `
   uniform float uLiftY;       // the column is let go of from below this height
   uniform vec3  uColor;
   uniform vec3  uColorHot;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform float uBodyOpacity;
+  uniform float uBodyLight;
+  uniform vec3  uLightDir;
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -351,7 +369,8 @@ const COLUMN_FRAGMENT = /* glsl */ `
     // Walls bright, the middle clear: you look through a tube of moving air.
     vec3 N = normalize(vNormalW);
     vec3 V = normalize(vViewDir);
-    float rim = pow(1.0 - abs(dot(N, V)), 2.2) * uRim;
+    float edgeOn = pow(1.0 - abs(dot(N, V)), 2.2);
+    float rim = edgeOn * uRim;
 
     // The leading front: a hot band right at the bottom of what has fallen.
     float front = exp(-max(y - uBottom, 0.0) / max(uFrontWidth, 0.02)) * uFront;
@@ -363,8 +382,17 @@ const COLUMN_FRAGMENT = /* glsl */ `
     float n = snoise(vec3(ring * 0.6, y * 0.9 + uSeed * 3.0));
     float keep = smoothstep(uLiftY, uLiftY + 0.9, y + n * 0.6);
 
-    float energy = (0.18 + lines * 0.82 * uShaderIntensity) * (0.35 + rim) * uOpacity;
-    vec3 color = uColor * energy * uGlow + uColorHot * (front * (0.6 + 0.4 * lines) + lines * rim * 0.4);
+    // The body: dark falling air, denser at the walls, banded by the streaks,
+    // the sun-side a shade lighter. This is what the eye reads as the column.
+    float sun = clamp(dot(N, normalize(uLightDir)) * 0.5 + 0.5, 0.0, 1.0);
+    float shade = mix(0.5, sun, uBodyLight);
+    vec3 body = mix(uColorDeep, uColorBody, 0.25 + 0.75 * shade * (0.45 + 0.55 * lines));
+    float density = clamp((0.6 + 0.4 * lines) * (0.75 + 0.25 * edgeOn) * uBodyOpacity, 0.0, 1.0);
+
+    // Light only where it belongs: streak crests, edge-on walls, the front.
+    float crest = pow(lines, 1.6);
+    float energy = crest * (0.25 + rim) * uOpacity * uShaderIntensity;
+    vec3 light = uColor * energy * uGlow + uColorHot * (front * (0.6 + 0.4 * lines) + crest * rim * 0.3);
 
     // The splayed foot is seen face-on from above and stacks up its own
     // layers: thin it, so the column reads as air hitting the floor, not a disc.
@@ -375,7 +403,9 @@ const COLUMN_FRAGMENT = /* glsl */ `
     mask *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
     if (mask < 0.004) discard;
 
-    gl_FragColor = vec4(color * mask * uGlobalGlow, 1.0);
+    // Premultiplied: the body occludes, the light adds.
+    float a = clamp(density + front * 0.15, 0.0, 1.0) * mask;
+    gl_FragColor = vec4((body * density + light * uGlobalGlow) * mask, a);
   }
 `;
 
@@ -384,7 +414,10 @@ export function createWindColumnMaterial() {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneMinusSrcAlphaFactor,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -408,7 +441,11 @@ export function createWindColumnMaterial() {
       uFade: { value: 1 },
       uLiftY: { value: -10 },
       uColor: { value: new Color() },
-      uColorHot: { value: new Color() }
+      uColorHot: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uBodyOpacity: { value: 0.7 },
+      uBodyLight: { value: 0.5 }
     }),
     vertexShader: COLUMN_VERTEX,
     fragmentShader: COLUMN_FRAGMENT
@@ -433,13 +470,17 @@ export function createWindColumnMaterial() {
     u.uOpacity.value = c.columnOpacity * g.opacity;
     u.uGlow.value = c.columnGlow * g.glow;
     u.uRim.value = c.columnRim * g.fresnel;
-    u.uFront.value = c.columnFront * g.glow;
+    u.uFront.value = c.columnFront * g.glow * (state.front ?? 1);
     u.uFrontWidth.value = c.columnFrontWidth;
     u.uSoftFade.value = c.columnSoftFade;
     u.uFade.value = state.fade;
     u.uLiftY.value = state.liftY;
     u.uColor.value.copy(getColor(c.colorColumn));
     u.uColorHot.value.copy(getColor(c.colorColumnHot));
+    u.uColorBody.value.copy(getColor(c.colorColumnBody));
+    u.uColorDeep.value.copy(getColor(c.colorColumnDeep));
+    u.uBodyOpacity.value = c.columnBodyOpacity * g.opacity;
+    u.uBodyLight.value = c.columnBodyLight;
   };
 
   return material;
@@ -592,6 +633,9 @@ const GROUND_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform vec3  uColorRing;
   uniform vec3  uColorScour;
+  uniform vec3  uColorScourLit;
+  uniform float uScourRidge;
+  uniform float uRingShadow;
   uniform vec3  uColorImprint;
   uniform vec3  uColorWarn;
   uniform float uGlobalGlow;
@@ -635,13 +679,22 @@ const GROUND_FRAGMENT = /* glsl */ `
     float fine = snoise(vec3(dir * uScourStreaks * 0.5, r * 0.6 - uSeed));
     float comb = clamp(0.5 + 0.5 * (streak * 0.7 + fine * 0.3) * uScourContrast, 0.0, 1.0);
     float scour = behind * uScour * smoothstep(0.2, 1.0, r) * (0.35 + 0.65 * comb);
-    col = mix(col, uColorScour * (0.6 + 0.6 * comb), clamp(scour * uScourOpacity * 1.4, 0.0, 1.0));
+    // Deep troughs, pale combed ridges: the floor carries the dark mass, the
+    // ridges catch the light.
+    vec3 scourCol = mix(uColorScour, uColorScourLit, smoothstep(0.55, 0.95, comb) * uScourRidge);
+    col = mix(col, scourCol, clamp(scour * uScourOpacity * 1.4, 0.0, 1.0));
     a = max(a, scour * uScourOpacity);
 
     // 4 · the shock ring, with a short bright trail behind it.
     float wr = uWave * (1.0 + rag * 0.06);
     float d = (r - wr) / max(uRingWidth, 0.01);
-    float ring = exp(-d * d) + (r < wr ? exp((r - wr) / max(uRingWidth * 3.0, 0.02)) * 0.35 : 0.0);
+    // A dark trough dragged just behind the front, so the bright edge sits on
+    // the deep tone rather than on bare floor.
+    float dt_ = (r - (wr - uRingWidth * 2.2)) / max(uRingWidth * 1.6, 0.02);
+    float trough = exp(-dt_ * dt_) * uRingLevel * uRingShadow;
+    col = mix(col, uColorImprint, clamp(trough, 0.0, 1.0));
+    a = max(a, trough * 0.9);
+    float ring = exp(-d * d) + (r < wr ? exp((r - wr) / max(uRingWidth * 3.0, 0.02)) * 0.2 : 0.0);
     ring *= uRingLevel * (0.65 + 0.35 * comb);
     col += uColorRing * ring * uRingGlow * uShaderIntensity * uGlobalGlow;
     a = max(a, ring * 0.9);
@@ -692,6 +745,9 @@ export function createGroundBlastMaterial() {
       uOpacity: { value: 1 },
       uColorRing: { value: new Color() },
       uColorScour: { value: new Color() },
+      uColorScourLit: { value: new Color() },
+      uScourRidge: { value: 0.5 },
+      uRingShadow: { value: 0.8 },
       uColorImprint: { value: new Color() },
       uColorWarn: { value: new Color() }
     }),
@@ -726,6 +782,9 @@ export function createGroundBlastMaterial() {
     u.uOpacity.value = g.opacity;
     u.uColorRing.value.copy(getColor(c.colorRing));
     u.uColorScour.value.copy(getColor(c.colorScour));
+    u.uColorScourLit.value.copy(getColor(c.colorScourLit));
+    u.uScourRidge.value = c.scourRidge * g.shaderIntensity;
+    u.uRingShadow.value = c.ringShadow;
     u.uColorImprint.value.copy(getColor(c.colorImprint));
     u.uColorWarn.value.copy(getColor(c.colorWarn));
   };
