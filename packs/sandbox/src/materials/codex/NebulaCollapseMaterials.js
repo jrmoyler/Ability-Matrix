@@ -167,6 +167,11 @@ const GAS_FRAGMENT = /* glsl */ `
   uniform vec3  uColorB;
   uniform vec3  uColorC;
   uniform vec3  uColorHot;
+  uniform vec3  uColorDeep;
+  uniform float uAccent;
+  uniform float uLane;        // LANE pass: how much it darkens
+  uniform float uLaneLift;    // LANE pass: its own violet glow
+  uniform float uCollapseThin; // how much a fully collapsed puff thins away
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -199,30 +204,50 @@ const GAS_FRAGMENT = /* glsl */ `
     float cloud = body * (smoothstep(-0.45, 0.6, n) * (1.0 - uWisp) + fil * uWisp * 1.6);
     float density = clamp(cloud * uDensity, 0.0, 1.0);
 
-    // Colour: a pick between the three gases, heated toward white-gold.
-    float pick = fract(vSeed.y + n * 0.25);
-    vec3 col = pick < 0.5 ? mix(uColorA, uColorB, smoothstep(0.0, 1.0, pick * 2.0))
-                          : mix(uColorB, uColorC, smoothstep(0.0, 1.0, pick * 2.0 - 1.0));
+    // Colour: violet is the body; a share of puffs carry a teal or magenta
+    // accent, and the thin parts fall to the deep tone.
+    float pick = fract(vSeed.y + n * 0.15);
+    float acc = 1.0 - uAccent;
+    vec3 col = uColorA;
+    col = mix(col, uColorB, smoothstep(acc, acc + 0.12, pick) * (1.0 - smoothstep(acc + 0.5 * uAccent, acc + 0.5 * uAccent + 0.08, pick)));
+    col = mix(col, uColorC, smoothstep(acc + 0.5 * uAccent + 0.04, acc + 0.5 * uAccent + 0.14, pick));
+    col = mix(uColorDeep, col, smoothstep(0.05, 0.55, density));
     float heat = uHeat * vState.x * (1.0 - vState.z * 0.6);
-    col = mix(col, uColorHot, clamp(heat, 0.0, 1.0) * 0.75);
+    // Heat only reaches white-gold in the thin filaments; the body stays violet.
+    col = mix(col, uColorHot, clamp(heat, 0.0, 1.0) * (0.25 + 0.4 * fil));
     col *= 0.6 + 0.8 * fil;
     // Compression brightens it; a blown-out wisp cools and dims.
-    float bright = uGlow * (1.0 + heat * 1.5) * (1.0 - vState.y * 0.55);
+    float bright = uGlow * (1.0 + heat * 0.6) * (1.0 - vState.y * 0.55) / (1.0 + vState.x * 1.2);
 
-    float alpha = density * uFade;
+    // What has fallen in has become the star: the collapsed gas thins away
+    // rather than stacking thirty puffs into a white blot.
+    float alpha = density * uFade * (1.0 - uCollapseThin * vState.x);
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
     if (alpha < 0.003) discard;
+  #ifdef LANE
+    // The dust lane: a dark body the glowing gas sits on. Deep at the heart of
+    // the puff, warming to a dim violet at its edge, so it reads as dust.
+    vec3 lane = mix(uColorDeep, uColorA * 0.45, uLaneLift * (1.0 - body) + uLaneLift * 0.3 * fil);
+    gl_FragColor = vec4(lane, clamp(alpha * uLane * (0.6 + 0.4 * body), 0.0, 1.0));
+  #else
     gl_FragColor = vec4(col * bright * uGlobalGlow * uShaderIntensity, clamp(alpha, 0.0, 1.0));
+  #endif
   }
 `;
 
-export function createNebulaGasMaterial() {
+/**
+ * @param {boolean} [lane] the dark dust-lane pass: same puffs, normal-blended
+ *   deep violet, drawn under the glowing gas so the cloud has a body and a
+ *   dark stop against the floor instead of adding up to white.
+ */
+export function createNebulaGasMaterial(lane = false) {
   const material = new ShaderMaterial({
+    defines: lane ? { LANE: '' } : {},
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: lane ? NormalBlending : AdditiveBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -239,10 +264,15 @@ export function createNebulaGasMaterial() {
       uHeat: { value: 0 },
       uFade: { value: 0 },
       uSoftFade: { value: 1 },
+      uAccent: { value: 0.35 },
+      uLane: { value: 0 },
+      uLaneLift: { value: 0.3 },
+      uCollapseThin: { value: 0.75 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() },
-      uColorHot: { value: new Color() }
+      uColorHot: { value: new Color() },
+      uColorDeep: { value: new Color() }
     }),
     vertexShader: GAS_VERTEX,
     fragmentShader: GAS_FRAGMENT
@@ -254,7 +284,12 @@ export function createNebulaGasMaterial() {
     const g = settings.global;
     const u = material.uniforms;
     syncPlace(u, state);
-    u.uPuffSize.value = c.puffSize;
+    u.uPuffSize.value = c.puffSize * (lane ? c.laneSize : 1);
+    u.uAccent.value = Math.min(1, Math.max(0, c.gasAccent));
+    u.uLane.value = c.laneDensity * g.opacity;
+    u.uLaneLift.value = c.laneLift;
+    u.uCollapseThin.value = lane ? c.collapseThin * 0.5 : c.collapseThin;
+    u.uColorDeep.value.copy(getColor(c.colorDeep));
     u.uSizeJitter.value = c.puffSizeJitter * g.randomness;
     u.uCoreSize.value = c.puffCoreSize;
     u.uBlastSize.value = c.puffBlastSize;
@@ -525,7 +560,8 @@ const CORONA_FRAGMENT = /* glsl */ `
     float rays = streak * exp(-beyond / max(uRayLength, 0.01));
     float glow = exp(-beyond / max(uFalloff, 0.01));
     float edge = 1.0 - smoothstep(0.8, 1.0, r);
-    vec3 col = uColorHot * glow * 1.2 + uColorRay * rays * 1.6;
+    // White-gold only right at the limb; the glow cools to the tint as it spreads.
+    vec3 col = mix(uColorRay, uColorHot, glow * glow) * glow * 0.9 + uColorRay * rays * 1.3;
     float level = (glow + rays) * edge * uFade;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(level, 0.0, 1.0));
   }
@@ -621,6 +657,7 @@ const DISK_FRAGMENT = /* glsl */ `
   uniform vec3  uColorHot;
   uniform vec3  uColorMid;
   uniform vec3  uColorOut;
+  uniform vec3  uColorDeep;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
 
@@ -644,8 +681,12 @@ const DISK_FRAGMENT = /* glsl */ `
     float outer = 1.0 - smoothstep(0.55, 1.0, t);
     float level = inner * outer * (0.35 + 0.65 * lanes);
 
-    vec3 col = mix(uColorHot, uColorMid, smoothstep(0.0, 0.45, t));
-    col = mix(col, uColorOut, smoothstep(0.4, 1.0, t));
+    // Ramp: white-gold only at the inner lip, pale tint, then violet body,
+    // with the dust between the arms falling to the deep tone.
+    vec3 col = mix(uColorHot, uColorMid, smoothstep(0.0, 0.07, t));
+    col = mix(col, uColorOut, smoothstep(0.07, 0.25, t));
+    col = mix(col, uColorDeep, smoothstep(0.55, 1.0, t) * 0.7);
+    col = mix(uColorDeep, col, 0.25 + 0.75 * lanes);
 
     // The limb turning toward the camera is brighter.
     vec3 radial = normalize(vWorld - uCentre);
@@ -655,7 +696,7 @@ const DISK_FRAGMENT = /* glsl */ `
     level *= 1.0 + uDoppler * toward;
     level *= uFade;
     if (level < 0.003) discard;
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * (1.0 + (1.0 - t) * 1.5), clamp(level, 0.0, 1.0));
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * (1.0 + pow(1.0 - t, 6.0) * 1.5), clamp(level, 0.0, 1.0));
   }
 `;
 
@@ -683,6 +724,7 @@ export function createAccretionDiskMaterial() {
       uSeed: { value: 0 },
       uColorHot: { value: new Color() },
       uColorMid: { value: new Color() },
+      uColorDeep: { value: new Color() },
       uColorOut: { value: new Color() }
     }),
     vertexShader: RING_VERTEX,
@@ -710,6 +752,7 @@ export function createAccretionDiskMaterial() {
     u.uColorHot.value.copy(getColor(c.colorHot));
     u.uColorMid.value.copy(getColor(c.colorB));
     u.uColorOut.value.copy(getColor(c.colorA));
+    u.uColorDeep.value.copy(getColor(c.colorDeep));
   };
 
   return material;
@@ -1043,6 +1086,109 @@ export function createNebulaGroundMaterial() {
     u.uColorB.value.copy(getColor(c.colorGasB));
     u.uColorC.value.copy(getColor(c.colorGasC));
     u.uColorHot.value.copy(getColor(c.colorHot));
+  };
+
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The gravity well — the floor pulled in under the collapse             */
+/* -------------------------------------------------------------------- */
+
+const WELL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uSeed;
+  uniform float uRadius;      // metres
+  uniform float uStrength;    // 0..1
+  uniform float uDepth;
+  uniform float uArms;
+  uniform float uTwist;
+  uniform float uPhase;       // integrated, rad
+  uniform float uRim;
+  uniform float uOpacity;
+  uniform vec3  uColorA;
+  uniform vec3  uColorB;
+  uniform vec3  uDeep;
+
+  varying vec2 vFlat;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vFlat;
+    float r = length(p);
+    float R = max(uRadius, 0.1);
+    float q = r / R;
+    if (q > 1.25) discard;
+    float a = atan(p.y, p.x);
+    // Log-spiral arms of dust; turning the phase winds them in toward the heart.
+    float sp = a * uArms + uTwist * log(q + 0.08) * uArms * 0.5 + uPhase;
+    float n = snoise(vec3(p * 0.9, uSeed + uPhase * 0.15));
+    float arm = pow(0.5 + 0.5 * sin(sp + n * 1.4), 3.0);
+    float disc = 1.0 - smoothstep(0.75, 1.05, q);
+    // The heart sinks toward the deep tone; the arms are dim violet dust on it.
+    float sink = uDepth * disc * (0.55 + 0.45 * (1.0 - q));
+    float rim = exp(-pow((q - 1.0) / 0.07, 2.0)) * uRim;
+    vec3 col = mix(uDeep, uColorA * 0.9, arm * (0.35 + 0.65 * q) * disc);
+    col = mix(col, uColorB, rim * 0.6);
+    float alpha = (sink * (0.8 + 0.2 * arm) + arm * disc * 0.35 + rim * 0.5) * uStrength * uOpacity;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.95));
+  }
+`;
+
+/** The floor dragged into a dark, spiralling well. Normal-blended: it darkens. */
+export function createNebulaWellMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+    uniforms: sharedUniforms({
+      uCentre: { value: new Vector3() },
+      uQuad: { value: 10 },
+      uLift: { value: 0.012 },
+      uSeed: { value: 0 },
+      uRadius: { value: 4 },
+      uStrength: { value: 0 },
+      uDepth: { value: 0.8 },
+      uArms: { value: 4 },
+      uTwist: { value: 2.5 },
+      uPhase: { value: 0 },
+      uRim: { value: 1 },
+      uOpacity: { value: 1 },
+      uColorA: { value: new Color() },
+      uColorB: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: WELL_FRAGMENT
+  });
+
+  /** @param {object} state { centre, radius, strength, phase, seed } */
+  material.userData.sync = (state) => {
+    const c = settings.nebula;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCentre.value.copy(state.centre);
+    u.uRadius.value = state.radius;
+    u.uQuad.value = state.radius * 2.6;
+    u.uSeed.value = state.seed;
+    u.uStrength.value = state.strength;
+    u.uDepth.value = c.wellDepth;
+    u.uArms.value = Math.max(1, Math.round(c.wellArms));
+    u.uTwist.value = c.wellTwist;
+    u.uPhase.value = state.phase;
+    u.uRim.value = c.wellRim * g.glow;
+    u.uOpacity.value = g.opacity;
+    u.uColorA.value.copy(getColor(c.colorA));
+    u.uColorB.value.copy(getColor(c.colorB));
+    u.uDeep.value.copy(getColor(c.colorDeep));
   };
 
   return material;
