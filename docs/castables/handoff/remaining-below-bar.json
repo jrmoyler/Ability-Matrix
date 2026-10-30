@@ -1,7 +1,156 @@
 {
+ "regradedOn": "2026-10-30",
+ "tool": "tools/capture-cast.mjs --targets=cluster (default)",
+ "nearMiss": [
+  {
+   "uid": "matrix-expansion/thunderhead-parasite",
+   "oldScore": 2,
+   "score": 5,
+   "failing": [
+    4,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The thundercloud is a soft pale white-lavender puff with no dark storm deep tone; a thunderhead should be bruise-dark with lightning lighting it from inside",
+    "Lightning strikes onto the dummies are thin squiggles that barely read at 8 m; thicken the bolts and add a strike flash per hit",
+    "The cloud shape is almost static from 0.67 s to 2.33 s; churn or swell it during the linger",
+    "Floor answer is a dark indigo pool under the cluster, which works, but it has no crackle or scorch detail"
+   ],
+   "onScreen": "A small blue cloud forms over the cluster with a lightning thread to the caster, swells into a pale white cloud that sends thin bolts into the dummies above a dark indigo floor pool.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/toxin-evolution",
+   "oldScore": 2,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    5,
+    6,
+    12,
+    14
+   ],
+   "antipatterns": [
+    "Missing travel",
+    "Static bloom"
+   ],
+   "gaps": [
+    "A ~1.5 m translucent lime seed crystal now stands in the dummy cluster over a green vein glyph disc from f8, but no flight from the caster is visible - it appears at the target",
+    "The pod and disc barely change from 0.27 s to 2.33 s beyond a faint halo ring; give the linger a membrane/coil growth or stain spread",
+    "Pod is small relative to the zone and translucent; scale it up and add a dark deep-green stop and an impact burst on the host"
+   ],
+   "onScreen": "A translucent lime seed crystal sits among the dummies on a green veined glyph disc, a 'poisoned' tag appears and a faint halo forms; little else changes.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/adaptive-fabricator",
+   "oldScore": 4,
+   "score": 6,
+   "failing": [
+    3,
+    5,
+    6,
+    10,
+    14
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "A sentry tower now grows in the centre and a translucent dome forms over it by 2.3 s, so the hero reads at distance",
+    "Everything is translucent pale cyan; the sentry should be an opaque lit machine with a dark deep tone",
+    "No travel from caster to deploy point and no firing/impact beat in the window; the sweep wedge on the disc is the only active motion"
+   ],
+   "onScreen": "A large cyan hex disc draws at the target, a pale cyan sentry tower rises at its centre with a sweep wedge, and a translucent dome closes over it.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/temporal-mortgage",
+   "oldScore": null,
+   "score": 6,
+   "failing": [
+    1,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Missing travel"
+   ],
+   "gaps": [
+    "Nothing visible happens for the first 0.67 s beyond a small blue glow; add a wind-up at the hand and a visible travel to the circle",
+    "The mainspring still reads as a solid drum with a glitchy blue/white streaked skin; open the coils so the spring silhouette reads",
+    "The streaked white/blue texture has no dark deep stop and looks like video noise rather than a mechanism"
+   ],
+   "onScreen": "After a near-empty first half second, a blue-white streaked drum with a winding key on top appears over the cluster inside ripple rings and flings the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "atlas/relay",
+   "oldScore": 3,
+   "score": 7,
+   "failing": [
+    1,
+    3,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "Strong travel and chain now: bolt from hand, relays light across the dummy group, bodies flung, splash rings stay on the floor",
+    "The relay discs on the floor are bright white ring outlines; fill them with a field shader and a deep-blue stop",
+    "No authored hero form beyond bolts and splash particles; a relay node/lattice mesh at each body would give it mass"
+   ],
+   "onScreen": "A jagged white bolt leaves the hand, relays across five dummies leaving bright splash rings, then lingers as blue sparks and overlapping ring decals while dummies are flung.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/glyphs",
+   "oldScore": 5,
+   "score": 7,
+   "failing": [
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The final detonation column at 2.3 s is pure white and blows out the middle of the frame; ramp it from white core through violet to deep indigo",
+    "The stamped sigils are flat floor discs; give each stamp a lift/drop or ring burst so the stamp has 3D motion",
+    "The dark purple stacked form at the target end is not explained by the rest of the cast; tie it to the sigil line"
+   ],
+   "onScreen": "Glowing blue-white sigil circles stamp themselves down the line from the caster toward a dark purple stacked form at the target, then detonate one after another into a tall white column at the far end.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-new/mirage",
+   "oldScore": 4,
+   "score": 7,
+   "failing": [
+    1,
+    4,
+    10
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "Now has travel (a white strip runs from caster to target) and a tall flickering spectral copy with blue-violet flame spires over an iridescent floor disc",
+    "The copy is a white blob of noise; an authored silhouette of the caster would sell 'spectral copy'",
+    "Palette is mostly white/pastel; add a deep violet stop to ground it"
+   ],
+   "onScreen": "A pink-violet flicker at the caster sends a white strip forward, then a tall white spectral copy flares at the target ringed by blue-violet flame spires over an iridescent disc.",
+   "captureError": null
+  }
+ ],
  "hand": [
   {
    "uid": "matrix-expansion/ashen-doppelganger",
+   "oldScore": 4,
    "score": 4,
    "failing": [
     1,
@@ -17,652 +166,239 @@
     "Missing travel"
    ],
    "gaps": [
-    "The 'ash echo' is a flat, saturated red-orange silhouette overlapping the caster, with no ash texture, ember edge or deep tone",
-    "The only floor read is a thin red ring and a soft orange smoke pool around the caster",
-    "There are no visible scorches on foes, no travel and no impact beat within 2.3 s"
+    "The ash echo is still a flat saturated red-orange silhouette overlapping the caster, with no ash texture, ember edge or dark tone",
+    "The floor read is a thin red ring and an orange smoke pool at the caster's feet",
+    "No echo travels to the dummies and nothing scorches them within 2.3 s"
    ],
-   "onScreen": "A flat orange-red copy of the caster flickers on top of him inside a thin red ring while an orange smoke pool spreads at his feet.",
-   "error": null,
-   "isRig": null
+   "onScreen": "A flat orange-red copy of the caster flickers on top of him inside a thin red ring while an orange smoke pool spreads at his feet; the dummies are untouched.",
+   "captureError": null
   },
   {
-   "uid": "matrix-expansion/nightshade-inheritance",
-   "score": 4,
+   "uid": "codex/bloomcrown",
+   "oldScore": 5,
+   "score": 5,
    "failing": [
     2,
     5,
+    6,
+    10,
+    12,
+    13
+   ],
+   "antipatterns": [
+    "Washed out",
+    "Outline-only"
+   ],
+   "gaps": [
+    "Blossom garland is bigger now but hangs high above the circle and only drifts; the gather-and-slam is not reached by 2.3 s",
+    "Floor mandala is a faint thin white outline",
+    "Pastel pink/green with no deep tone; no impact on the dummies"
+   ],
+   "onScreen": "A garland of pink lotus blossoms on a green vine flies over the dummy group and hovers high above a faint white line mandala.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/cometharpoon",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    4,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The harpoon is a white spark on a thin tether; the comet-ice head needs body at play distance",
+    "Impact is a translucent white dome and a white splash; ice petals do not stand up",
+    "The linger is a static pale frost patch with no motion and no deep blue tone"
+   ],
+   "onScreen": "A white comet spark on a thin tether hits the cluster, a translucent white dome and shock ring pop, white ice splashes out and a pale frost patch remains as dummies lie down.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/heartstake",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    6
+   ],
+   "antipatterns": [
+    "Specks at distance"
+   ],
+   "gaps": [
+    "The stake is still about 1 m and thin; at 8 m it is a small red marker in a large ring",
+    "The ring glyph is a pale outline; the blood splatter left on the floor at 2.3 s is the best ground layer",
+    "Nothing grows or roots visibly after the strike; the linger is the small stake plus a stain"
+   ],
+   "onScreen": "A red glow flies to the cluster, a small red barbed stake plants in the target inside a pale red ring with crack veins, dummies fall, and a blood splatter is left on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/orbitlock",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is still thin white orbit rings carrying plain lit spheres; gravity does not read (no dark well or warp)",
+    "The final lock is a violet-edged ring with small domes over a faint disc; it is an outline more than a field",
+    "White/lavender dominates; the violet rim is the only deep stop"
+   ],
+   "onScreen": "A star over the cluster bursts into white spheres on tilted orbit rings, the rings widen over the dummies, then collapse into a violet-rimmed floor ring with glowing domes as dummies are lifted.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/shearwall",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    3,
+    6,
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Washed out"
+   ],
+   "gaps": [
+    "The wall is still flat billboard planes carrying a white zig-zag pattern with no thickness or volume",
+    "The ground is thin cyan stripes (a diagram), and a red patch at the end of the line is the only filled area",
+    "By 2.3 s the wall is gone and only stripes remain; no linger motion",
+    "White/cyan only, no deep tone"
+   ],
+   "onScreen": "Flat bands of white zig-zag noise sweep down the line over thin cyan floor stripes, reach the dummies with a ring and red patch, then vanish leaving the stripes.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/mass-weft",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    5,
+    6,
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Static bloom"
+   ],
+   "gaps": [
+    "Corridor is still a violet-white wireframe grid; needs a filled warp field with a dark deep tone",
+    "Twisting white ribbons are thin and unchanged from 0.7 s to 2.3 s",
+    "No visible strike or impact on the dummies at the end of the corridor"
+   ],
+   "onScreen": "A violet wireframe grid corridor runs from the caster to the dummies with thin white ribbons twisting down its centre, unchanged to 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/nightshade-inheritance",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    2,
+    5,
+    6,
+    12,
+    14
+   ],
+   "antipatterns": [
+    "Specks at distance"
+   ],
+   "gaps": [
+    "Mark is a small violet crystal tuft at f8 and nothing reads at f20",
+    "The strike now has a violet floor ring and a stain that stays, but the crystal cluster on the dummy is ~1 m and reads as a small tuft",
+    "Scale the crystal growth to the zone and show the spread to a second enemy"
+   ],
+   "onScreen": "A small violet crystal tuft flashes near the front dummy, then a violet ring and crystal cluster burst on one dummy and leave a purple floor stain.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/predatory-canopy",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    5,
+    6,
+    8
+   ],
+   "antipatterns": [
+    "Missing travel"
+   ],
+   "gaps": [
+    "The canopy itself is still above the top of the frame; only hanging vines show; lower it or derive height so it reads at 8 m",
+    "The pod travel is a tiny green leaf glyph and there is no impact beat when it lands",
+    "The floor field is now a filled green ring, a real improvement, but the lash/bind beat is small green stubs at 2.3 s"
+   ],
+   "onScreen": "A small green leaf flies out, then green vines hang from an off-screen canopy over a glowing green field ring and short green tendrils bind the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/pulse-covenant",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    5,
+    6,
     12,
     13,
     14
    ],
    "antipatterns": [
-    "Specks at distance",
-    "No ground"
+    "Static bloom",
+    "Missing travel"
    ],
    "gaps": [
-    "The mark is a small violet crystal tuft about 0.5 m on one enemy; it vanishes at 8 m",
-    "Nothing reads at f20 between the mark and the strike",
-    "The strike is a small cluster of violet crystals on one dummy, with no floor answer or spread to a second enemy visible"
+    "All four frames are near-identical: heart and six tendrils over the caster with no pulse or beat change",
+    "Nothing reaches the dummies; no projectile, tether or blood wave travels out",
+    "Floor is only a thin red ring outline; no impact flash or stain"
    ],
-   "onScreen": "A small violet crystal tuft appears near the front dummy, then a cluster of violet crystal shards and a blue swirl sits on one dummy in the group.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/shearwall",
-   "score": 5,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "Wall is flat billboard planes carrying a white squiggle pattern; no thickness or volume, reads as a texture not a wall of air",
-    "Ground is a set of thin cyan stripes (diagram) rather than a scoured field",
-    "Wall disappears by 2.3 s, leaving only the stripes; no linger motion",
-    "No colour ramp: white/cyan only, no deep tone"
-   ],
-   "onScreen": "Two stacked flat bands of white zig-zag noise sweep forward down the line over a floor of thin cyan stripes, then tear apart and vanish leaving the stripes.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A crimson heart floats over the caster with six pink tendrils planted round a thin red ring and holds unchanged to 2.3 s.",
+   "captureError": null
   },
   {
    "uid": "matrix-new/bloodroot",
+   "oldScore": 5,
    "score": 5,
    "failing": [
     5,
     6,
     8,
     10
-   ],
-   "antipatterns": [
-    "Missing travel",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Frames 8 and 20 show nothing at all: no anticipation or visible root travel for ~0.7 s",
-    "Thorns are thin, uniformly glowing red slivers; no dark deep tone or lit bark/flesh material, reads as neon",
-    "Ground is a red glyph ring outline under the thicket",
-    "Thicket stays static once grown; no draining/pulsing linger visible"
-   ],
-   "onScreen": "After ~1 s of nothing a red glyph ring and a thicket of thin neon-red thorns burst up over the target and spread wider, impaling dummies.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/heartstake",
-   "score": 5,
-   "failing": [
-    1,
-    2,
-    6
-   ],
-   "antipatterns": [
-    "Specks at distance"
-   ],
-   "gaps": [
-    "The heartstake itself is ~1 m and thin; at 8 m it is a small red marker in a big ring",
-    "Ring glyph on the floor is a pale outline; the burst is thin red cracks",
-    "Linger shows the same small stake with dummies down; nothing grows/roots visibly"
-   ],
-   "onScreen": "A small red barbed stake flies down the line, plants in the target with a pale ring and red crack splatter, and stays as a small red marker while dummies fall.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/pulse-covenant",
-   "score": 5,
-   "failing": [
-    2,
-    5,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Static bloom",
-    "Missing travel"
-   ],
-   "gaps": [
-    "Self-cast: a ~1 m crimson heart above the caster with six pink tendrils; all four frames are near-identical, no beat/pulse silhouette change visible",
-    "Heart and tendrils are small relative to the frame; nothing reaches the target or the floor beyond a thin ring outline under the caster",
-    "No impact beat (flash/shake/burst) visible; no ground stain"
-   ],
-   "onScreen": "A glossy crimson heart hangs over the caster's head with six thin pink tendrils fanned to the floor and a faint red ring at the feet; it holds unchanged through 2.3 s.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/cometharpoon",
-   "score": 5,
-   "failing": [
-    2,
-    4,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Specks at distance",
-    "Washed out"
-   ],
-   "gaps": [
-    "The harpoon is a small white spark on a thin tether line; the comet-ice head needs a body at play distance",
-    "Impact is a translucent white dome and ring; the ice 'petals' bloom as a flat white splash decal rather than standing ice",
-    "The linger is a static pale frost patch; no petal motion after impact"
-   ],
-   "onScreen": "A small white comet spark on a thin starlight tether flies down the line, a translucent white dome and shock ring pop at the target, white ice petals splash flat and leave a pale frost patch.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/bloomcrown",
-   "score": 5,
-   "failing": [
-    2,
-    5,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Specks at distance",
-    "Washed out"
-   ],
-   "gaps": [
-    "Crown is a string of ~6 small pink blossoms on a thin vine hanging high over the zone; at 8 m it is a small garland, not a crown over the circle",
-    "Gather-and-slam beat not reached by 2.3 s; the floor mandala is a thin pale outline",
-    "Pastel pink/green with no deep tone",
-    "Needs scale-to-zone and a stronger ground layer (filled mandala, petals on the floor)"
-   ],
-   "onScreen": "A small garland of pink lotus blossoms on a green vine flies to and hovers high over the zone, slowly orbiting, above a faint pink line-art mandala on the floor.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/predatory-canopy",
-   "score": 5,
-   "failing": [
-    2,
-    5,
-    6,
-    8,
-    12
    ],
    "antipatterns": [
     "Missing travel"
    ],
    "gaps": [
-    "The canopy itself sits above the capture frame: only hanging vines are visible at the top edge; lower it or scale so the overhead trap reads at 8 m",
-    "Pod travel is a small green leaf glyph; landing has no impact beat",
-    "At f40-f70 the cast is static: a green rune disc and dangling vines (trap is waiting, lash not shown)",
-    "Floor sigil is good but the hero is off-screen"
-   ],
-   "onScreen": "A small green pod flies from the caster, then a round green rune circle appears on the floor near a dummy with dark vines dangling into frame from an unseen canopy above.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "collective/chain",
-   "score": 5,
-   "failing": [
-    1,
-    2,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "No ground",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Nothing is left on screen by 2.3 s: no linger beat, the bolts just vanish",
-    "No visible floor mark under struck bodies or at the grounding point",
-    "The impact 'dome' is a pale unshaded hemisphere with no ramp or deep tone",
-    "No hero mass: the jagged ribbons are the whole cast; they read well but are thin at 8 m"
-   ],
-   "onScreen": "A jagged white-violet bolt from the hand forks to a point about 4 m ahead; a pale hemisphere flashes; one arc leaps sideways; at 2.3 s the screen is empty.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/orbitlock",
-   "score": 5,
-   "failing": [
-    2,
-    3,
-    10,
-    11,
-    12
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The hero is a set of thin white orbit rings with small white spheres; it has no mass, and gravity does not read (no dark well, no warp)",
-    "The exit floor is a thin ring with little domes, an outline with no filled field",
-    "The colour is white/lavender with no deep tone; it reads as a diagram",
-    "It is the shared codex rig template (TWIST/ARCH constants, DetailLayer+RigHero) seen in sibling casts"
-   ],
-   "onScreen": "A star twinkles high up, splits into a cluster of white moons on criss-crossed orbit rings over the zone, then they settle into a thin violet-edged floor ring of small domes.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "matrix-expansion/mass-weft",
-   "score": 5,
-   "failing": [
-    1,
-    6,
-    9,
-    13
-   ],
-   "antipatterns": [
-    "Outline-only"
-   ],
-   "gaps": [
-    "The corridor is a violet wireframe floor grid; it needs a filled warp field with a dark deep tone",
-    "The twisting white ribbons along the centre are thin and the same from 0.7 s to 2.3 s",
-    "No visible strikes or impact beat on enemies within the capture"
-   ],
-   "onScreen": "A violet wireframe grid corridor unrolls from the caster down the line, with twisting white ribbons spiralling along its centre, and it holds unchanged to 2.3 s.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "collective/tempest",
-   "score": 6,
-   "failing": [
-    2,
-    8,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Funnel is pale white/grey with no dark deep tone; reads as fog/smoke rather than wind with weight",
-    "Anticipation/travel weak: a 0.6 m wisp at the hand and a small funnel at target until ~1 s; the funnel only reaches full size after impact",
-    "Ground treatment is a single thin white ring plus a faint warm spot; no scoured/debris floor layer sized to the zone",
-    "Funnel top clips out of the 8 m frame; shape is one smooth cone with no medium-scale bands or debris carried up it"
-   ],
-   "onScreen": "Small wisp at hand, then a white tornado funnel grows at the target to ~6 m tall with a thin white ring on the floor; it holds and slowly fades.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/downburst",
-   "score": 6,
-   "failing": [
-    5,
-    8,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Anticipation is ~1.5 s+: frames 8-40 show only a cloud at the very top edge of frame and a faint swirl decal; the slam lands after 2 s",
-    "The storm cloud sits above the camera frame so the gather is barely visible; lower it or pull the camera-facing read into frame",
-    "Column and dust skirt are pale white/beige with no deep tone; reads as fog",
-    "Total screen time likely >4.5 s given impact after 2.3 s"
-   ],
-   "onScreen": "A swirled cloud gathers high above (mostly off-frame) with a faint spiral on the floor; after ~2 s a pale bell-shaped column of air slams down and blasts a wide dust ring out across the circle.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "collective/crimson",
-   "score": 6,
-   "failing": [
-    2,
-    5,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Missing travel"
-   ],
-   "gaps": [
-    "Ground is a thin red pentagram/rune ring outline rather than a filled blood field",
-    "No travel: a blood moon pops into the sky and the glyph appears at the target with nothing leaving the caster",
-    "Impaling spikes only appear late (~1.3-2.3 s) and are ~1.5 m; the central spire is thin",
-    "Moon is a flat textured disc in the sky; detached from the action"
-   ],
-   "onScreen": "A red blood moon appears in the sky, a glowing red pentagram ring draws on the floor, a pink dome swells and then a cluster of red spikes impales the circle centre.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/hemorrhage",
-   "score": 6,
-   "failing": [
-    1,
-    2,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Washed out",
-    "Outline-only"
-   ],
-   "gaps": [
-    "The rim 'wall' is a thin flat red band only ~0.3 m tall; it reads as a ring outline, not a spinning wall",
-    "Final burst is a pale translucent pink dome; the deep tone is missing so it reads as fog",
-    "Hero form beyond ring band/orb is absent; no authored solid",
-    "Travel orb is a small white-pink dot"
-   ],
-   "onScreen": "A small glowing orb flies out, races round the rim drawing a red band ring, then the ring bursts inward into a pale pink dome with concentric ripples on the floor.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/arterial",
-   "score": 6,
-   "failing": [
-    1,
-    2,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Specks at distance",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero artery is a thin red tube (~0.3 m) that reads as a line at 8 m",
-    "After the slam only scattered blood specks remain; no stain/trench along the line",
-    "Whole-screen red flash at frame 20 tints the entire frame; flash should be brief and localised"
-   ],
-   "onScreen": "A thin red artery shoots up from the caster's wrist, arches overhead with a ring flourish, slams down the line spraying blood specks, then only scattered droplets remain.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/veinlattice",
-   "score": 6,
-   "failing": [
-    3,
-    4,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Flat blob"
-   ],
-   "gaps": [
-    "Vein dome is flat, single-tone unlit red; no shading/fresnel/ramp, reads as a 2D cut-out",
-    "Dome is fully formed by 1.3 s and identical at 2.3 s; no beating/pulse visible in the linger",
-    "Small-scale detail (droplets, pulse sparks) is missing"
-   ],
-   "onScreen": "A red vein tether runs from the caster to a dark-red stain on the floor, then a large dome lattice of branching flat red veins rises over the circle and holds.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/mindlattice",
-   "score": 6,
-   "failing": [
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Cage is a huge white light-bar cylinder with blown-out bloom; no colour ramp (arcane reads as generic white)",
-    "Ground is a thin violet glyph ring",
-    "Cage holds mostly static from 1.3 s to 2.3 s"
-   ],
-   "onScreen": "A white diamond flies to the target, a violet glyph ring draws, then a large white cylinder cage of glowing bars and wavy patterns slams down over the circle and holds.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/mirage-procession",
-   "score": 6,
-   "failing": [
-    3,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Three masks are pale pink, flat-looking forms (~1.5 m); add a lit/ramped material with a dark deep tone so they read as masks rather than pink blobs",
-    "After the masks pop into bubbles (~1.3 s) they vanish to specks by 2.3 s; only the lanes remain",
-    "Lanes are strong (wavy violet floor fields) but static"
-   ],
-   "onScreen": "Three pale pink masks process down three wavy violet floor lanes, become translucent pink bubbles at the end, then two dissolve and the chosen lane strikes, leaving the violet lanes glowing.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/rimehalo",
-   "score": 6,
-   "failing": [
-    1,
-    2,
-    6
-   ],
-   "antipatterns": [
-    "Outline-only"
-   ],
-   "gaps": [
-    "Halo is a ring of small ice needles ~0.5 m tall; at 8 m it reads as a glittering ring band rather than a noose of needles",
-    "Ground mark is a thin ring plus faint inner ripple; no frosted field",
-    "Closing beat (noose tightening) is subtle between 1.3 and 2.3 s"
-   ],
-   "onScreen": "A star of light travels over frost prints, a thin white ring draws round the target, ice needles spring up round the rim into a glittering crown band that tightens.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/whiteout",
-   "score": 6,
-   "failing": [
-    1,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "The whiteout is a flat floor sheet of white swirling noise; no vertical body of blowing snow",
-    "Icicle rain (frame 8) is the only vertical element and is gone by frame 20",
-    "Everything is white with no deep tone; reads as a fog decal"
-   ],
-   "onScreen": "A burst of falling icicle streaks at the start, then a wide white swirling snow sheet rolls down the line on the floor with a frosty dome, and stays as a white swirled strip.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/glacier-bell",
-   "score": 6,
-   "failing": [
-    1,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Bell is a small translucent pale dome (~1.5 m) inside a ring of spikes; the hero lacks a faceted, lit ice body",
-    "Frost field and spike ring are pale white-blue with no deep tone",
-    "Linger reduces to a flat frosted disc; the bell vanishes"
-   ],
-   "onScreen": "A spark arcs to the target and a thin ring draws, a translucent pale bell with a fountain drops into a ring of ice spikes, then it settles into a frosted disc with small spikes.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "atlas/stillpoint",
-   "score": 6,
-   "failing": [
-    1,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Dome is a geodesic lattice of white glowing struts (wireframe) over a violet fill; reads as a diagram dome, no solid form",
-    "Nothing at the hand or along the path at 0.27 s; dome just appears at the target",
-    "Dome is static from 0.67 s to 2.3 s; the 'held then released' beat does not show",
-    "Ground is a violet glow disc only"
-   ],
-   "onScreen": "A white-strutted geodesic lattice dome with a violet glow appears over the target circle and holds still, with frozen dummies inside.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/secondself",
-   "score": 6,
-   "failing": [
-    2,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Specks at distance"
-   ],
-   "gaps": [
-    "Golden second self is a body-size glowing figure but with heavy ring flourishes it reads as a blur; by 1.3 s it shrinks into small gold sparks",
-    "Footprint trail is small gold dots; no ground layer sized to the line",
-    "End impact is a thin white ring and an orange hoop; little mass"
-   ],
-   "onScreen": "A glowing golden copy of the caster steps out in a swirl of gold rings, runs the line leaving small gold footprint sparks, and ends in a thin white ring with an orange hoop as dummies fall.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/rewindsnare",
-   "score": 6,
-   "failing": [
-    1,
-    2,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Outline-only"
-   ],
-   "gaps": [
-    "Film strip hero is flat and thin; on the floor it reads as a dotted spiral outline",
-    "Cocoon at the end is a small (~1.5 m) bright film block; the snare's mass is mostly on the floor",
-    "Cream/white only; no deep tone"
-   ],
-   "onScreen": "A glowing film strip unspools from the caster down to the target, spirals out across the circle in looping frames, then rewinds inward and wraps a dummy in a small film cocoon.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "codex/stasisbell",
-   "score": 6,
-   "failing": [
-    2,
-    5,
-    6,
-    10
-   ],
-   "antipatterns": [
-    "Outline-only"
-   ],
-   "gaps": [
-    "The brass bell (well-lit, good material) hangs above the top of the 8 m frame and is half cut off",
-    "For 0.7 s only a thin gold ring outline is on the floor; the bell drop is not visible",
-    "Ring of thin gold rods and white wave bands is outline-like; no filled stasis field"
-   ],
-   "onScreen": "A thin gold ring draws round the target; a lit brass bell appears high above, a ring of thin gold rods stands up round the rim and white sound-wave bands ripple between them as dummies freeze.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/faultwake-bastion",
-   "score": 6,
-   "failing": [
-    2,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Flat blob"
-   ],
-   "gaps": [
-    "The column chain runs straight away from the camera so the cast reads as one rock slab behind the caster; stagger heights/offset sideways so the chain reads",
-    "Impact dust is a flat grey polygon disc (frame 40) — unlit, single tone, pasted",
-    "No fissure or crack written into the floor along the chain; nothing stays on the ground",
-    "After rising, slabs stand static and only emit a smoke plume; give them settle/crumble motion"
-   ],
-   "onScreen": "A chain of dark basalt slabs veined with glowing lava erupts from the caster's feet down the line, flinging molten chunks, a grey dust disc pops at the far end and an orange flare marks the last column.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "collective/aegis",
-   "score": 6,
-   "failing": [
-    6,
-    9,
-    10,
-    12
-   ],
-   "antipatterns": [
-    "Static bloom",
-    "Washed out"
-   ],
-   "gaps": [
-    "After the slam the dome stands as an unchanging bright white-blue hex shell through 2.3 s; cells, scan lines and ripples do not visibly animate in the linger",
-    "Dome seams are near-white over most of the surface; it lacks the deep blue stop and reads as overexposed",
-    "Only two bespoke shaders and one particle type; the floor sigil is a thin outline"
-   ],
-   "onScreen": "A thin blue sigil circle draws on the floor, then a 4 m hexagonal-lattice dome of white-blue light slams up with a translucent blue shell flash, throws a dummy, and stands glowing over a pale ring.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "atlas/polarity",
-   "score": 6,
-   "failing": [
-    2,
-    5,
-    12
-   ],
-   "antipatterns": [
-    "Specks at distance"
-   ],
-   "gaps": [
-    "The capsules are well made but ≈0.4 m: at 8 m they are small red/blue dots — scale them to the zone",
-    "The ordered detonation cascade has not started by 2.3 s; the capture window shows only lob, plant and the field forming, so the impact beat comes very late",
-    "Field lines at 2.3 s are a tangle of thin white strands over a red floor stain; thicken the tethers"
-   ],
-   "onScreen": "Red and blue lathed capsule mines arc from the hand and plant round the target circle, then thin white field lines knit between them over a red-blue field glow on the floor.",
-   "error": null,
-   "isRig": false
+    "f8 and f20 still show nothing: ~0.7 s of dead air with no root crawl from the caster",
+    "Thorns are uniformly glowing neon red slivers with no dark bark/blood deep tone",
+    "Thicket grows then holds; no drain pulse in the linger"
+   ],
+   "onScreen": "After ~1 s of nothing, a red ring and thin neon-red thorns burst from the floor around the dummies and spread into a dense thicket.",
+   "captureError": null
   },
   {
    "uid": "atlas/chakram",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     2,
@@ -672,79 +408,36 @@
     "Specks at distance"
    ],
    "gaps": [
-    "The toothed disc is ≈0.5 m and at 8 m reads as a bright speck with a streak; the authored teeth are not legible — scale up or add a larger smear",
-    "Bank hits are a yellow flash sphere; the chevron bank sigils on the floor are the strongest element",
-    "Return arc and catch are hard to see; trail ribbon is thin"
+    "The toothed disc is still about 0.5 m and reads as a small speck with a streak; the teeth are not legible",
+    "Bank hits are a yellow flash sphere; the gold chevron sigils left on the floor are the strongest element",
+    "The return arc and catch are hard to see and the trail ribbon is thin"
    ],
-   "onScreen": "A glowing toothed disc leaves the hand, zig-zags between dummies with yellow flashes on each bite, burning gold chevron-ring sigils into the floor, then curves back to the caster.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A small glowing disc leaves the hand, bites the first dummy inside a yellow flash, zig-zags through the cluster burning gold chevron-ring sigils into the floor, and is gone by 2.3 s.",
+   "captureError": null
   },
   {
-   "uid": "atlas/reversal",
-   "score": 6,
-   "failing": [
-    5,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "Anticipation is a faint blue glow on the floor; the incoming bolt that the shield catches is not visible in the frames",
-    "The assembled shield is a flat, near-white segmented disc that reads as overexposed; give the plates metal lighting and a deep blue stop",
-    "The widening return cone only appears at 2.3 s as a thin pale wedge; the counter blow needs mass and a ground answer"
-   ],
-   "onScreen": "White plates tumble in and lock into a 2 m segmented round shield standing over a pale ring near the dummies, which then flares and throws a thin pale cone outward.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/vector-breakwater",
-   "score": 6,
-   "failing": [
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Washed out"
-   ],
-   "gaps": [
-    "The first shield front spawns on top of the caster and fills the frame, hiding the character for the first 0.7 s",
-    "After the fronts pass, the lane is a hard-edged rectangular grid decal that sits unchanged through 2.3 s",
-    "Peach-orange translucent fronts with no deep tone read as jelly; the element (force) needs a harder, denser edge",
-    "Front collision at the far end is a small spray of lines"
-   ],
-   "onScreen": "Three tall translucent peach shield domes with vein patterns sweep from the caster down the lane, leaving a wide rectangular floor grid of glowing orange streaks that stays.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-new/aetherblade",
+   "uid": "atlas/polarity",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     2,
-    6,
-    9,
-    13
+    5,
+    12
    ],
    "antipatterns": [
-    "Static bloom"
+    "Specks at distance"
    ],
    "gaps": [
-    "Swords are long but very thin (≈0.15 m blades); at 8 m they read as white needles — widen the blade/guard and add a ghost volume",
-    "Rune circles on the floor carry most of the read and sit static once stamped",
-    "Each stab has a small white flash; no burst, shake or decal punch per blade, and no exit beat by 2.3 s",
-    "Only two bespoke shaders; blue-white palette lacks a dark deep tone"
+    "Capsule mines are still ~0.4 m and read as small red/blue dots among the dummies",
+    "The detonation cascade is not reached by 2.33 s; impact beat is missing from the window",
+    "Field lines at 2.33 s are a thin red-blue tangle; thicken the tethers and scale the field to the zone"
    ],
-   "onScreen": "Spectral blue-white swords form high above the line and stab down one after another onto a chain of glowing blue rune circles running from the caster's feet, standing upright in them.",
-   "error": null,
-   "isRig": false
+   "onScreen": "Red and blue capsule mines arc out and plant among the dummies, then thin red-blue field strands knit between them over a faint red floor glow.",
+   "captureError": null
   },
   {
    "uid": "atlas/refractor",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     2,
@@ -752,40 +445,164 @@
     10
    ],
    "antipatterns": [
-    "Specks at distance"
+    "Specks at distance",
+    "Missing travel"
    ],
    "gaps": [
-    "The charged lance's travel to the prism is not visible (frame 8 only a glow at the hand)",
-    "The prism is a ≈1 m faceted crystal floating high; the refracted beams are thin cyan lines — scale both",
-    "Floor sigils are flat white rings; the impact flash on the prism is a translucent purple shell",
-    "Palette is near-white/cyan without a deep stop"
+    "The lance's travel to the prism is still not visible; frame 8 shows only a glow at the hand",
+    "The prism is about 1 m, and the refracted beams are thin; scale both",
+    "Floor sigils are flat white rings and the palette is white/cyan without a deep stop"
    ],
-   "onScreen": "A faceted white prism appears over the far end of the line, flashes inside a violet shell, and splits into thin cyan-white beams that snap to three dummies, burning white triangle sigils into the floor.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A glow at the caster's hand, then a white faceted prism stands over the cluster, flashes inside a violet shell, and leaves white rune rings on the floor with a small ring nearer the caster.",
+   "captureError": null
   },
   {
-   "uid": "codex/railgun",
+   "uid": "atlas/reversal",
+   "oldScore": 6,
    "score": 6,
    "failing": [
-    2,
+    5,
     6,
-    12
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The incoming bolt the shield catches is not visible; anticipation is a faint blue floor glow",
+    "The assembled shield is an overexposed near-white disc; give the plates metal lighting and a deep blue stop",
+    "The return cone is not visible by 2.33 s; the counter blow has no mass or ground answer in the window"
+   ],
+   "onScreen": "White plates tumble in and lock into a ~2 m segmented round shield over a pale ring among the dummies and glow brighter; no counter blast is seen.",
+   "captureError": null
+  },
+  {
+   "uid": "atlas/stillpoint",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    5,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Static bloom"
+   ],
+   "gaps": [
+    "Dome is still a white-strut geodesic wireframe over a violet glow; give the panels a filled glass/time-field body",
+    "Nothing at the hand or along the path; the dome just appears at 0.67 s",
+    "Dome is identical from 0.67 s to 2.33 s; the held-then-released beat is not shown in the window"
+   ],
+   "onScreen": "A glowing white geodesic lattice dome with a violet floor glow snaps over the dummy group and holds still.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/arterial",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    6,
+    14
    ],
    "antipatterns": [
     "Static bloom"
    ],
    "gaps": [
-    "Anticipation is good (hard-light coils at the hand) but the fired slug and beam are a thin orange line ≈0.2 m wide; the shot needs a thicker core, a sheath and a distortion trail",
-    "The scorch line is the main linger and is static; no smoke, embers or cooling",
-    "Target end is a thin cyan ring; no impact burst at the end of the line"
+    "The artery is now a thicker segmented red tube and reads at 8 m in the rise, but it is gone by 2.3 s",
+    "At 0.67 s a full-screen red tint covers the whole frame; make the flash brief and local to the slam",
+    "The linger is a blood-stain trail with scattered droplets that only fades; nothing in the stain moves"
    ],
-   "onScreen": "White-blue hard-light coils spin up round the caster's hand, a slug fires leaving a thin molten orange line down the floor to a thin cyan ring at the far end, which cools into a dark scorched streak.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A segmented red artery rears up from the caster's wrist, slams down the line under a full-screen red flash with a ring at the cluster, and leaves a blood-stain trail and droplets on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/darkwell",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "Peak is a big violet disc with a crackling white wall rim - impressive at 0.67-1.3 s but still flat; the floor never visibly sags into a well",
+    "By 2.3 s it collapses to a thin outline ring and a small central spout, losing mass for half the linger",
+    "Colours are violet and white-hot; there is no near-black core that eats light"
+   ],
+   "onScreen": "A black ring telegraphs at the target, a large violet disc with a jagged white energy wall erupts under the dummies, then shrinks to a thin ring and a small spout.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/downburst",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    5,
+    8,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "Anticipation still ~2 s: the cloud sits at the top edge of frame and only a faint swirl decal shows until the slam after 1.33 s",
+    "The slam is now a big bell column and wide dust ring that buffets dummies, but it is pale white/beige with no deep tone",
+    "Lower the cloud into frame and shorten the gather"
+   ],
+   "onScreen": "A storm cloud swirls at the top edge of frame over a faint floor spiral, then a pale bell-shaped air column slams down and blasts a wide white dust ring through the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/hemorrhage",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "Travel and rim race read well; the ring band is thicker now",
+    "The inward burst is a pale pink translucent dome; give it a dark blood stop",
+    "No authored solid hero beyond the band/dome; the spinning wall should stand taller"
+   ],
+   "onScreen": "A glowing orb races out and round the rim drawing a red band, then the circle bursts into a pale pink dome with concentric red ripples on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/mindlattice",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    6,
+    10,
+    11,
+    13
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The cage is a large white light-bar cylinder with blown-out bloom; no colour ramp, arcane reads as generic white",
+    "The ground is a thin violet glyph ring that the cage then covers",
+    "The cage holds almost unchanged from 1.3 s to 2.3 s"
+   ],
+   "onScreen": "A white diamond flies to the cluster, a violet glyph ring draws as white shards rain, then a large white cylinder cage of glowing bars slams down over the circle and holds while dummies lie outside.",
+   "captureError": null
   },
   {
    "uid": "codex/nebula",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     2,
@@ -794,39 +611,97 @@
    ],
    "antipatterns": [],
    "gaps": [
-    "The nebula cloud forms above the circle at the top edge of the frame and spills off it; derive its height and size from zoneRadius so the gather reads in shot",
-    "The collapse into a newborn star and the 'drag what stands beneath' beat are not visible by 2.3 s — the cloud only grows",
-    "Floor answer is concentric cyan ripple rings; no scorched/gravity-pulled ground"
+    "The nebula cloud still forms at the top edge of the frame and spills off it; derive its height from zoneRadius",
+    "The collapse into a newborn star and the drag of what stands beneath are not visible by 2.3 s; the cloud only grows",
+    "The floor answer is concentric cyan ripple rings; no gravity-pulled ground"
    ],
-   "onScreen": "A bright point of light over the target swells into a large cyan-magenta volumetric nebula cloud full of sparkles hanging above the circle, with concentric cyan ripple rings on the floor beneath.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A bright point over the cluster swells into a large cyan-magenta volumetric nebula cloud full of sparkles at the top of the frame, with a thin ring and then concentric cyan ripples on the floor.",
+   "captureError": null
   },
   {
-   "uid": "collective/sonic",
+   "uid": "codex/railgun",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
+    6,
+    12
+   ],
+   "antipatterns": [
+    "Static bloom"
+   ],
+   "gaps": [
+    "Coil anticipation at the hand is strong; the shot is still a thin orange line",
+    "The far end is a thin cyan ring with no burst on the dummies",
+    "The scorch streak is static; add smoke, embers and cooling motion"
+   ],
+   "onScreen": "Hard-light coils spin up round the hand, a slug fires a thin molten orange line to a thin cyan ring at the dummies, which cools into a dark scorched streak.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/rewindsnare",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     1,
-    3,
+    2,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "Film strip travel and spiral read well, but on the floor the strip is a thin dotted spiral outline",
+    "The cocoon at 2.33 s is a ~1.5 m bright cream block; scale it up and give it a lit film material",
+    "Cream/white only; add a dark sepia deep stop"
+   ],
+   "onScreen": "A glowing film strip runs from the caster to the circle, spirals out under the dummies in looping frames, then rewinds inward into a small bright film cocoon.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/rimehalo",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The needle noose now reads at 8 m, but as a translucent swirled glassy band, not a crown of ice needles; facet it into distinct spikes",
+    "The band has a white-cyan skin with no dark deep stop and reads as liquid more than frost",
+    "Between 1.3 and 2.3 s the band barely tightens; the closing beat is subtle"
+   ],
+   "onScreen": "A star travels over small frost prints, a thin white ring draws round the cluster, then a thick translucent white-cyan swirled band stands up round the rim and narrows slightly with a puff of frost mist.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/secondself",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
     6,
     13
    ],
    "antipatterns": [
-    "Outline-only",
-    "Static bloom"
+    "Specks at distance"
    ],
    "gaps": [
-    "Hero is a train of thin lavender ring outlines (spherical caps) - lovely at the hand but reads as line art; rings need a filled body",
-    "Boom at the end is weak: f70 is just a pale smoke cloud with no shockwave or floor mark",
-    "Ripple decals on the floor fade with the train; nothing remains after impact",
-    "Good travel and anticipation; layers (rings, floor discs, dust) are there"
+    "The golden second self is body-size at first but by 1.3 s it is a knot of gold rings and sparks",
+    "The footprint trail is small gold dots with no ground layer sized to the line",
+    "The end beat is a thin white ring and an orange hoop with little mass"
    ],
-   "onScreen": "A train of lavender pressure-ring shells travels from the caster down the line, laying glowing disc ripples on the floor with dust puffs at the sides, then dissolves into a pale smoke cloud at the end.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A glowing golden copy of the caster steps out in gold ring flourishes, runs the line as a swirl of gold rings leaving small footprint sparks, and ends in a thin white ring with an orange hoop as dummies fall.",
+   "captureError": null
   },
   {
    "uid": "codex/sirennote",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     6,
@@ -837,121 +712,140 @@
     "Washed out"
    ],
    "gaps": [
-    "Sheet of air and the Chladni floor marks are white-cyan with no dark deep tone; on the dark floor it reads as chalk lines",
-    "Wavefront at f20 is a large translucent polyhedral shell - reads as glass, not pressure",
-    "Everything is gone by f70 (only a faint speck); linger beat after the note ends is missing",
-    "Good: body-height vibrating sheet along the line with travel and impact"
+    "The vibrating sheet and Chladni floor marks are white-cyan with no dark deep tone; they read as chalk lines",
+    "The wavefront at 0.67 s is a large translucent shell that reads as glass, not pressure",
+    "Everything is gone by 2.3 s; the linger after the note ends is missing"
    ],
-   "onScreen": "A tall ribbed white-cyan vibrating sheet stands up along the line from the caster with curved white Chladni lines on the floor either side, a big faceted translucent shell at the end at 0.7 s, then it all vanishes.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A tall ribbed white-cyan vibrating sheet stands up along the line from the caster over curved white floor marks, a translucent shell bursts at the cluster, and by 2.3 s only the dummies remain.",
+   "captureError": null
   },
   {
-   "uid": "matrix-expansion/overtone-spiral",
+   "uid": "codex/stasisbell",
+   "oldScore": 6,
    "score": 6,
    "failing": [
-    1,
     2,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "The lit brass bell still hangs at the top of the frame and is cut off; lower it so the toll reads in shot",
+    "For 0.67 s only a thin gold ring outline is on the floor; there is no visible drop or travel",
+    "The rods and white sound-wave bands are thin; the inner floor ripple helps but the stasis field is not filled"
+   ],
+   "onScreen": "A thin gold ring draws round the cluster, a lit brass bell appears at the top of the frame, a ring of thin gold rods stands up round the rim and white wave bands ripple between them over a ringed floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/umbral",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
     6,
     13
    ],
-   "antipatterns": [
-    "Specks at distance"
-   ],
+   "antipatterns": [],
    "gaps": [
-    "The tuning fork resonator is ~1 m and reads as a small white prop inside the zone; scale it toward body height or more",
-    "The harmonic fronts are good (zone-sized lobed ridges) but thin; the plate/Chladni pattern is faint",
-    "f8 shows only a tiny ring at the target - travel carrier is not visible at 8 m",
-    "Fronts expand and fade; no lasting floor result after the third strike"
+    "The crescent guillotine blade on its chain is big and reads well, but it swings at the frame edge in f8 and f40",
+    "Impact leaves only a scatter of dark specks; cut a lasting dark gash into the floor where it lands",
+    "The linger at f70 is a few thin violet rings and blade tips; give it a body (shadow pool, rising wisps)"
    ],
-   "onScreen": "A tiny ring appears at the zone, a small white tuning fork stands up inside a green bubble, then three lobed green-violet pressure fronts roll out across the circle over a faint patterned floor.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A huge violet crescent blade on a chain swings across the sky and through the group, leaves a patch of dark specks, then small violet rings and blade points flash among fallen dummies.",
+   "captureError": null
   },
   {
-   "uid": "collective/spore",
+   "uid": "codex/veinlattice",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    3,
+    4,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Flat blob"
+   ],
+   "gaps": [
+    "Vein dome is flat single-tone unlit red; add ramp shading and fresnel",
+    "Dome is identical at 1.33 s and 2.33 s; no beating pulse",
+    "Floor stain and tether are good; small-scale droplets/sparks missing"
+   ],
+   "onScreen": "A red vein tether runs from the caster to a dark red floor stain, then a large flat red branching vein dome rises over the circle and holds as dummies are flung.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/voidbloom",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     2,
     5,
-    8
+    10
    ],
    "antipatterns": [
-    "Missing travel",
-    "Specks at distance"
+    "Missing travel"
    ],
    "gaps": [
-    "Nothing reads for the first 0.7 s: the pod is a small green ball high in the sky; the landing is invisible",
-    "Mushrooms at peak are ~1 m tall; the cluster occupies about a third of the zone - scale up or add more",
-    "Spore cloud is not visible in frames; the 'corroding cloud' needs density",
-    "Good: lit lathe mushrooms with glowing caps over a voronoi mycelium floor that stays"
+    "A white star appears at the target with no path from the caster; add a surge or crawl from the hand",
+    "The flower stands up only briefly at 0.67 s (about 2 m); at peak it lies flat as curled white petals on a violet starburst decal, so it never reads as a bloom",
+    "Petals are pale white with violet glow; the near-black void deep tone is missing from the hero",
+    "Good: the petals visibly curl closed between 1.3 s and 2.3 s, so the linger moves"
    ],
-   "onScreen": "A small green spore pod arcs high toward the zone, then a ring and a glowing green vein network spread on the floor and a cluster of glowing cyan-capped mushrooms sprouts in it.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A white star telegraphs among the dummies, white petals rise briefly, then a wide flat violet starburst with curled white petals spreads under the dummies and slowly closes inward.",
+   "captureError": null
   },
   {
-   "uid": "matrix-expansion/vigil-of-embers",
+   "uid": "codex/whiteout",
+   "oldScore": 6,
    "score": 6,
    "failing": [
-    2,
-    5,
-    8
+    1,
+    6,
+    10
    ],
    "antipatterns": [
-    "Specks at distance"
+    "Washed out"
    ],
    "gaps": [
-    "Arches, bells and lamps sit high and small: at 8 m the sanctuary reads as a cluster of white flames at the top of frame over a light-shaft curtain",
-    "Votive travel is a tiny white flake; nothing visibly arrives",
-    "Gothic arches (authored lathe/arch geometry) are not legible at play distance - scale them to the zone",
-    "Good: gold runic floor sigil at true radius, curtain of light"
+    "Snow sheet is a flat white floor swirl; no vertical body of blowing snow after the icicle rain at f8",
+    "Everything is white with no deep blue tone",
+    "Sheet holds static from 1.33 s to 2.33 s"
    ],
-   "onScreen": "A tiny white votive flake drifts to the zone, then a curtain of pale light shafts and a gold runic floor circle appear under a cluster of small white lamp flames and spires.",
-   "error": null,
-   "isRig": false
+   "onScreen": "Icicles rain down at the start, then a wide white swirling snow sheet rolls down the line onto the dummies and holds.",
+   "captureError": null
   },
   {
-   "uid": "codex/miasma",
+   "uid": "collective/aegis",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     6,
     10,
     12
    ],
-   "antipatterns": [],
-   "gaps": [
-    "Glob is a lime-yellow bulb with no dark deep tone; reads as a light bulb rather than bile",
-    "Pool is a flat bright lime splat with a thin ring; needs darker sludge, bubbles and evaporation fumes to keep moving",
-    "Impact crown of sludge is not visible (f20->f40 jumps from glob in air to finished pool)",
-    "Good: visible lobbed travel and a zone-sized pool that stays"
+   "antipatterns": [
+    "Static bloom",
+    "Washed out"
    ],
-   "onScreen": "A wobbling lime-green bile glob swells at the hand and lobs down the line, then a bright lime acid pool with a splashy rim spreads under the dummies and sits there.",
-   "error": null,
-   "isRig": false
+   "gaps": [
+    "After the slam the hex dome stands unchanged from 1.3 s to 2.3 s; animate cells, scan lines or ripples in the linger",
+    "The dome is near-white over most of its surface and lacks the deep blue stop",
+    "The floor sigil is a thin outline and there is little particle variety"
+   ],
+   "onScreen": "A blue sigil circle draws round the cluster, a white-blue hex-lattice dome slams up and throws the dummies out, then stands unchanged.",
+   "captureError": null
   },
   {
-   "uid": "codex/bilelance",
+   "uid": "collective/chain",
+   "oldScore": 5,
    "score": 6,
    "failing": [
-    2,
-    6
-   ],
-   "antipatterns": [],
-   "gaps": [
-    "The fluted drill is ~0.6 m and hidden in rings at the caster; it reads as a green glow, not a screwing spike",
-    "Eruption at the bore is a small translucent bubble and a thin smoke plume",
-    "Good: dark eaten trench with a lime core along the full line that stays, plus a spiral drain"
-   ],
-   "onScreen": "A lime bile spike spins at the caster inside green rings, drills down the line leaving a lime-cored dark trench, bores into the floor in a translucent bubble and leaves a spiral drain with a thin green plume.",
-   "error": null,
-   "isRig": false
-  },
-  {
-   "uid": "matrix-expansion/fulminant-relay",
-   "score": 6,
-   "failing": [
-    2,
+    1,
+    6,
     12,
     13
    ],
@@ -959,37 +853,122 @@
     "No ground"
    ],
    "gaps": [
-    "The hero seed is about 1 m inside a pale bubble; scale it up, or add a corona, to read at 8 m",
-    "The jumps between targets are thin, short arcs; the chain does not read across the group",
-    "There is no ground layer except a small dark smudge at the launch point",
-    "The travel trail is a thin violet streak"
+    "Chain now visibly forks across all dummies and flings them - travel and world response are good",
+    "By 2.3 s only faint sparks on fallen bodies remain; no floor scorch or grounding mark",
+    "No hero mass beyond thin bolts; add a charged node or scorch decal per body"
    ],
-   "onScreen": "A faceted ice-blue crystal seed in a glassy bubble launches from the hand on a violet streak, sits among the dummies and spits thin arcs that knock them down.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A jagged white bolt leaves the hand, forks across the dummy line flinging bodies, and leaves only faint sparks on the fallen dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "collective/crimson",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    5,
+    6,
+    13
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Missing travel"
+   ],
+   "gaps": [
+    "Nothing travels from the caster; the moon and glyph simply appear",
+    "The pentagram is a thin glowing outline rather than a filled blood field",
+    "The spike field at 1.3-2.3 s now reads at play distance, but the moon is a flat disc detached from the action"
+   ],
+   "onScreen": "A blood moon appears in the sky, a glowing red pentagram ring draws round the cluster, a red pulse and a crown of red spikes impale the circle and fling the dummies.",
+   "captureError": null
   },
   {
    "uid": "collective/graviton",
+   "oldScore": 6,
    "score": 6,
    "failing": [
-    1,
     6,
     10
    ],
    "antipatterns": [
-    "Outline-only"
+    "Outline-only",
+    "Static bloom"
    ],
    "gaps": [
-    "The floor funnel is a violet wireframe grid; it needs a filled lensing field with a dark core",
-    "The vortex hero is a flat ring and eye shape and barely changes after impact",
-    "No deep tone: it reads magenta-on-blue and lacks the black gravity well at the centre"
+    "The vortex eye is now larger and textured, but the floor funnel is still a violet wireframe grid; fill it with a lensing field and a black core",
+    "f20, f40 and f70 are almost identical: nothing is dragged in or crushed during the linger",
+    "No dark deep tone at the well centre; it reads magenta on blue rather than a gravity sink"
    ],
-   "onScreen": "A small violet vortex eye opens over the target, then a magenta wireframe funnel sinks the floor about 3.5 m across while dummies are dragged in, and both hold unchanged to 2.3 s.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A violet vortex eye opens over the group, a magenta wireframe funnel sinks the floor beneath it, and the pair holds nearly unchanged to 2.3 s.",
+   "captureError": null
   },
   {
-   "uid": "codex/darkwell",
+   "uid": "collective/sonic",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    1,
+    3,
+    6,
+    13
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "Ring train is thin lavender outlines; needs a filled pressure-shell body",
+    "The boom at the end is a pale smoke puff with no shockwave or floor mark",
+    "Floor ripple discs fade with the train; nothing stays after impact"
+   ],
+   "onScreen": "A train of lavender pressure-ring shells travels from the caster to the dummies laying ripple discs on the floor, then ends in a pale smoke puff.",
+   "captureError": null
+  },
+  {
+   "uid": "collective/tempest",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
+    8,
+    10,
+    11,
+    13
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The funnel is pale white/grey with no dark deep tone and reads as smoke rather than heavy wind",
+    "Anticipation is a small wisp at the hand and the funnel only reaches size after 1 s",
+    "The ground is one thin white ring plus a faint warm spot; no scoured debris floor",
+    "The funnel top leaves the frame and has no medium-scale bands or debris carried up"
+   ],
+   "onScreen": "A wisp leaves the caster's hand, a small funnel forms at the cluster and grows into a tall pale white tornado inside a thin ring that lifts dummies up out of frame.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/faultwake-bastion",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
+    3,
+    6,
+    13
+   ],
+   "antipatterns": [
+    "Flat blob"
+   ],
+   "gaps": [
+    "The slab chain still runs straight away from the camera; it now starts at the caster's feet and hides the caster, so it reads as one wall",
+    "The impact dust at 1.33 s is a flat grey unlit polygon dome",
+    "No fissure along the chain; slabs stand static with flying molten chunks only"
+   ],
+   "onScreen": "Dark lava-veined basalt slabs erupt from the caster's feet down the line, flinging molten chunks, with a flat grey dust dome at the far end, and stand static.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/glacier-bell",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     1,
@@ -997,19 +976,99 @@
     10
    ],
    "antipatterns": [
-    "Outline-only"
+    "Washed out"
    ],
    "gaps": [
-    "The hero is a flat violet disc with a jagged white rim; there is no visible sag or depth to the well",
-    "The linger collapses to a thin outline ring and a small spout, so it loses mass after 1.3 s",
-    "No dark-matter deep tone: the colours are violet and white, not a well that eats light"
+    "The bell is a small translucent pale dome inside a ring of spikes; it needs a faceted, lit ice body",
+    "The frost field and spike ring are pale white-blue with no deep tone",
+    "By 2.3 s the bell is gone and the cast is a flat frosted disc"
    ],
-   "onScreen": "A black dot, then a flat violet disc with a crackling white rim spreads about 4 m wide on the floor, then shrinks to a thin ring with a small violet spout in the centre.",
-   "error": null,
-   "isRig": false
+   "onScreen": "A spark tethered to the caster draws a thin ring round the cluster, a translucent pale bell drops inside a ring of ice spikes, then it settles into a frosted disc with low spikes as dummies fall.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/mirage-procession",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "Masks are clearer now (pale pink faceted masks) but still pastel with no deep tone",
+    "After becoming bubbles at 1.33 s the masks are gone by 2.33 s; only the lanes remain",
+    "The chosen-lane strike does not read as a distinct impact"
+   ],
+   "onScreen": "Three pale pink masks process down three wavy violet floor lanes, turn into pink bubbles at the dummies, then vanish leaving the lanes glowing.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/vector-breakwater",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The first shield front spawns on top of the caster and fills the frame for the first 0.67 s",
+    "After the fronts pass, the lane is a hard-edged orange grid decal that sits unchanged through 2.3 s",
+    "The peach-orange translucent fronts read as jelly; force needs a harder, denser edge and a dark stop"
+   ],
+   "onScreen": "Three tall translucent peach shield domes with vein patterns sweep down the lane from the caster, crash into the cluster, and leave a hard-edged glowing orange grid on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/vigil-of-embers",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
+    5,
+    6
+   ],
+   "antipatterns": [
+    "Specks at distance"
+   ],
+   "gaps": [
+    "f20 shows nothing at all: the votive flake at f8 vanishes before anything forms at the target, so travel and anticipation do not read",
+    "The bells/arches sit as a small white cluster at the top of the zone; scale them so the sanctuary is a body-height-plus structure",
+    "Good: gold runic floor sigil at true radius and light-shaft curtain over the dummies; f40 and f70 are near-identical, so give the linger its own motion"
+   ],
+   "onScreen": "A small white flake near the target at f8, nothing at f20, then a gold rune circle with pale light shafts and a cluster of white bells above the dummies that holds unchanged to 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-new/aetherblade",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    2,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Static bloom"
+   ],
+   "gaps": [
+    "Swords stab down in sequence onto a chain of blue rune circles, but the planted blades read as thin white needles at 8 m",
+    "Rune circles carry the read and sit static once stamped",
+    "Blue-white palette lacks a deep tone; no exit beat by 2.33 s"
+   ],
+   "onScreen": "Large spectral swords form overhead and stab down one after another onto a chain of glowing blue rune circles from the caster to the dummies, leaving thin blades upright.",
+   "captureError": null
   },
   {
    "uid": "matrix-new/emberveil",
+   "oldScore": 6,
    "score": 6,
    "failing": [
     5,
@@ -1018,326 +1077,150 @@
    ],
    "antipatterns": [
     "Washed out",
-    "Static bloom"
+    "Static bloom",
+    "Missing travel"
    ],
    "gaps": [
-    "Nothing visible at f8–f20: no anticipation or travel before the cage pops in",
-    "The cage of crossed fire strands is blown out to white-orange with no dark ember deep tone",
-    "The cage is identical at 1.3 s and 2.3 s; the inward collapse is not seen in the linger"
+    "f8 and f20 show nothing: there is no anticipation or travel before the cage pops in",
+    "The dome of crossed burning strands is blown out to white-orange with no dark ember stop",
+    "f40 and f70 are identical; the inward collapse the cast promises is not seen"
    ],
-   "onScreen": "After a blank half-second, a large dome lattice of crossed burning strands, about 5 m wide, blazes around the target and holds, bright white-orange.",
-   "error": null,
-   "isRig": null
+   "onScreen": "After two blank frames, a large blown-out dome of crossed fire strands about 5 m wide covers the group and stays unchanged at 2.3 s.",
+   "captureError": null
   },
   {
-   "uid": "matrix-new/umbra",
-   "score": 6,
+   "uid": "codex/bilelance",
+   "oldScore": 6,
+   "score": 7,
    "failing": [
     2,
+    6
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "The drill reads now as a lime gem spinning in rings at the caster and the bubbling lime trench along the line is strong and lingers",
+    "The eruption at the far end is still only a translucent green dome and two flat rings; it needs a mass of bile bursting upward",
+    "By f70 the far end is a small flat spiral; give the linger a drip, bubble or collapse so the shape keeps changing"
+   ],
+   "onScreen": "A lime gem spike spins in green rings at the caster, drills a bubbling lime trench with a dark edge to the group, raises a translucent green dome there and leaves a lime spiral and trench at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/miasma",
+   "oldScore": 6,
+   "score": 7,
+   "failing": [
     10
    ],
    "antipatterns": [],
    "gaps": [
-    "The rising hand is about 1 m tall and hard to read at 8 m; scale it to the pool",
-    "The pool is violet and lacks a near-black deep tone, so shadow does not eat light",
-    "Little visible drag-under motion in the frames"
+    "Glob and pool are still dominated by bright lime; the pool needs a dark bile-green deep tone in its body so it reads as sludge, not light",
+    "The splash crown at 1.3 s is now visible but short; fumes at 2.3 s are faint - thicken the rising fumes",
+    "Good: visible lobbed glob with travel, a zone-sized bubbling pool with splash ring and spatter drops that stays"
    ],
-   "onScreen": "A violet puff at the hand, then a jagged violet shadow pool spreads under the dummies, a small purple hand rises from it, and the pool stays bubbling.",
-   "error": null,
-   "isRig": null
+   "onScreen": "A wobbling lime bile glob arcs from the hand, lands in a sludge splash with a ring among the dummies, and leaves a lime pool with spatter and faint fumes.",
+   "captureError": null
   },
   {
-   "uid": "codex/umbral",
-   "score": 6,
+   "uid": "collective/spore",
+   "oldScore": 6,
+   "score": 7,
    "failing": [
-    13,
-    6
-   ],
-   "antipatterns": [],
-   "gaps": [
-    "The blade is off-screen or at the frame edge in two of four frames; its arc should land within the camera",
-    "The impact leaves only small rings and dark specks; there is no floor cut",
-    "The linger is thin rings and fallen dummies"
-   ],
-   "onScreen": "A giant violet crescent guillotine blade on a long chain swings down from the sky through the group, leaving dark specks, then small violet rings flash among the fallen dummies.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/voidbloom",
-   "score": 6,
-   "failing": [
-    1,
-    2,
+    5,
     6
    ],
    "antipatterns": [
-    "Outline-only"
+    "Missing travel"
    ],
    "gaps": [
-    "The flower is small (under 1 m) through f20 and then flattens into a floor pattern; it never stands up as a bloom",
-    "The bloom is a flat violet/white floor decal with petal shapes; it needs height and petals closing",
-    "The snap-shut-and-sink beat is not visible"
+    "The pod is a small green ball high in the sky at 0.27-0.67 s; the arc from the hand and the landing still barely read - add a trail and a landing burst",
+    "The corroding spore cloud is only a faint green haze above the cluster at 2.3 s; give it density and drift so the linger moves",
+    "Good: zone-filling cluster of lit glowing-cap mushrooms over a bright voronoi mycelium crack floor, around the dummies"
    ],
-   "onScreen": "A small white star flower appears among the dummies, opens into a few small petals, then spreads as a flat violet-and-white petal pattern on the floor under the group.",
-   "error": null,
-   "isRig": null
+   "onScreen": "A small green pod drops among the dummies, a ring and mycelium cracks spread at 1.3 s, and by 2.3 s a cluster of pale glowing mushrooms fills the zone over a green cracked floor.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/fulminant-relay",
+   "oldScore": 6,
+   "score": 7,
+   "failing": [
+    6,
+    11
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "The seed is now large and readable, but the jumps between targets at 2.3 s are only small blue sparks on the floor - make each relay arc a visible bolt",
+    "Element is ambiguous: the faceted ice-blue crystal in a glass bubble reads as frost more than charge; add crackling arcs on the seed",
+    "Good: violet travel trail from the hand, a scorched dark track left on the floor, dummies knocked down"
+   ],
+   "onScreen": "A big faceted blue crystal seed in a glassy bubble rides a violet trail to the dummies, bursts among them, and by 2.3 s sits over knocked-down targets with a dark scorch line back to the caster.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-expansion/overtone-spiral",
+   "oldScore": 6,
+   "score": 7,
+   "failing": [
+    1,
+    2,
+    5
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "The harmonic field is now a zone-sized lobed teal/green shader disc that ripples and lingers into f70 - that part reads well",
+    "The tuning-fork hero at the centre is still a ~1 m pale prop inside a pale ring; scale it to body height or more so the spell has a standing silhouette",
+    "Travel is only a tiny ring at the target in f8; add a visible carrier from the caster to the fork"
+   ],
+   "onScreen": "A small ring at f8, then a green dome round the centre dummy, then a wide lobed teal resonance disc with a small white fork at its middle that knocks dummies out and lingers with purple flecks at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "matrix-new/umbra",
+   "oldScore": 6,
+   "score": 7,
+   "failing": [
+    2
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "The rising hand is now about body height but is translucent violet and hidden among the dummies; make it darker and larger so it reads at 8 m",
+    "Good: violet telegraph at the caster's hand, a dark puff travelling out, a dark-cored pool with violet rim tendrils that keeps moving",
+    "The drag-under at 2.3 s is small; sink the target visibly into the pool"
+   ],
+   "onScreen": "A violet burst at the hand, a dark puff moves out, a dark-centred violet shadow pool spreads under the dummies with a clawed hand rising, and at 2.3 s the pool holds a sinking target.",
+   "captureError": null
   }
  ],
  "rig": [
   {
-   "uid": "codex/katabatic",
-   "score": 4,
-   "failing": [
-    2,
-    6,
-    9,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer template); only the hero geometry differs",
-    "Hero 'sheet' is a small white sail (~2 m) that stays put then vanishes; line casts need a body-height+ feature along the line",
-    "Ground is a row of small white crescent decals; gone or faint by 2.3 s",
-    "Exit pops: by frame 70 only a faint ring remains"
-   ],
-   "onScreen": "A white folded sail-like shape rides near the target while small white crescent marks line the path; dummies are knocked down and by 2.3 s only a faint ring is left.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/rotor",
-   "score": 5,
-   "failing": [
-    5,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Missing travel",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero rotor stack is already fully up at the target by frame 8; no anticipation or travel from the hand",
-    "Template sameness: same RigHero/DetailLayer/material rig as 12 other Codex casts",
-    "Linger is mostly static: the stack and green noise curtain hold then fade; by 2.3 s only a thin ring remains",
-    "Ground is a thin ring outline"
-   ],
-   "onScreen": "A glowing mint-green stack of airfoil blades (~3 m) stands at the target inside a wavy green noise curtain, holds, then fades to a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/venturi",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    5,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Template sameness",
-    "Missing travel",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a cylinder of thin white glowing bars/lines (wire diagram), no mass",
-    "Appears at the target fully formed at frame 8; no travel",
-    "Template sameness with the Codex rig family",
-    "Ground is a thin ring; nothing torn or scoured"
-   ],
-   "onScreen": "A wireframe drum of thin white bars appears on the target circle, flickers and contracts, then leaves a faint teal ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/crosscut",
-   "score": 4,
-   "failing": [
-    2,
-    3,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Hero is a huge flat pale-teal ribbon sweep hinged at the caster that fills the near frame and occludes the caster; reads as a UI swoosh, not air",
-    "A long thin arc line spans the whole frame (outline)",
-    "No floor mark at the target; target gets a faint dome only",
-    "Template sameness with Codex rig family"
-   ],
-   "onScreen": "Pale teal ribbon blades swing across in front of the caster in a wide arc with a thin arc line spanning the scene; a faint dome at the target, then everything fades.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/tickcage",
-   "score": 5,
-   "failing": [
-    5,
-    6,
-    10,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Missing travel",
-    "Washed out"
-   ],
-   "gaps": [
-    "Cage of cream-coloured slabs is already standing at the target at frame 8; no anticipation/travel",
-    "Slabs are pale cream with no deep tone and no glow ramp; reads as cardboard rather than clockwork",
-    "Template sameness with the Codex rig family (RigHero/DetailLayer)",
-    "Ground is a thin ring; nothing written into the floor"
-   ],
-   "onScreen": "A ring of twelve cream-coloured upright slabs stands on the target circle, folds inward one notch at a time into a flat cluster, leaving a faint ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/doppel",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Ground is a row of pink disc-and-ring outlines down the line (diagram)",
-    "Lance hero is a small pale pink-white cone; the 'decoy vs real' read is lost at 8 m",
-    "By 2.3 s only a thin ring at the target remains; no lingering cut/scar"
-   ],
-   "onScreen": "A pale pink cone-lance and pink petal shards leave the caster, a row of pink discs with white rings marks the line, a faint dome pops at the target and it all fades to a ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/falsefloor",
-   "score": 5,
-   "failing": [
-    1,
-    5,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Missing travel",
-    "Washed out"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Glowing pink tile floor is already at the target at frame 8; no travel",
-    "Floor tiles are blown-out pink-white with no deep tone; the 'drop' collapses to a small glowing clump",
-    "Exit leaves only a thin pink ring"
-   ],
-   "onScreen": "A disc of glowing pink floor tiles appears on the target under a translucent dome, the tiles drop into a bright clump, and a thin pink ring is left.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/mirrorhalo",
+   "uid": "codex/slingvolley",
+   "oldScore": 3,
    "score": 3,
    "failing": [
     1,
-    2,
     3,
-    5,
+    4,
     10,
-    11
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Missing travel",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "The 'mirror rings' render as a giant blown-out white-pink smeared band (~8 m wide) that fills the top half of frame; no readable ring form",
-    "No travel: fully formed at frame 8",
-    "Element (illusion/mirror) is not identifiable; reads as overexposed fog"
-   ],
-   "onScreen": "A huge overexposed pink-white smeared band hovers over the target circle for ~1.5 s, then breaks into fragments over a thin pink ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/feintcage",
-   "score": 5,
-   "failing": [
-    5,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Missing travel",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Cage is already up at the target at frame 8; no travel",
-    "Bars are pale pink translucent planes with white edges; low contrast, no deep tone",
-    "Linger collapses to a small fan of spikes and a thin ring"
-   ],
-   "onScreen": "A cage of translucent pink bar panels stands on the target circle, twists and collapses into a small fan of pale spikes with a thin ring around it.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/glamour",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    10,
-    13
+    11,
+    12
    ],
    "antipatterns": [
     "Template sameness",
     "Outline-only",
-    "Washed out"
+    "Specks at distance"
    ],
    "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Sweep hero is a pale pink-white ribbon (thin) with petal wisps; reads as noise at 8 m",
-    "Ground is again a row of pink discs with ring outlines (same as doppel)",
-    "Ends in a thin ring; no lingering mark"
+    "The volley is still red arc lines over a red floor grid and concentric red rings - a diagram, with no body",
+    "The stones are small flat pink cog sprites rather than lit rock",
+    "Impact is an orange sunburst sprite; afterwards only a faint red smear along the line"
    ],
-   "onScreen": "Pale pink ribbon wisps sweep from the caster along the line over a row of pink ring discs, a pale streak crosses the target, then everything fades to a ring.",
-   "error": null,
-   "isRig": true
+   "onScreen": "Red arc lines and a red floor grid with concentric rings span the line, small pink cog sprites fly along it, an orange sunburst flashes at the group and a faint red smear remains at 2.3 s.",
+   "captureError": null
   },
   {
    "uid": "codex/afterimage",
+   "oldScore": 4,
    "score": 4,
    "failing": [
     2,
@@ -1352,1570 +1235,606 @@
     "Washed out"
    ],
    "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Hero is a fan of flat pale-pink grid-textured blades hinged at the caster (reads as a UI swoosh)",
-    "A thin pink dashed line spans the whole frame (outline)",
-    "Target only gets a faint dome and a ring; nothing on the floor"
+    "The hero is still a fan of flat pale-pink faceted blades hinged at the caster, which hides the caster and reads as a UI swoosh",
+    "A thin red line and a dashed pink ribbon span the whole frame regardless of range",
+    "At the group there is only a faint dome and a pink cone on the floor; nothing lands with mass"
    ],
-   "onScreen": "A fan of flat pale pink grid-patterned blades swings from the caster with a long pink dashed line across the scene, a faint dome flashes at the target, and it fades.",
-   "error": null,
-   "isRig": true
+   "onScreen": "A fan of flat pink faceted blades sweeps round the caster under a frame-wide red arc line, a pink cone of light points at the group, and a single pink blade remains at the caster at 2.3 s.",
+   "captureError": null
   },
   {
-   "uid": "codex/latebolt",
-   "score": 5,
-   "failing": [
-    2,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Hero bolts are small cream capsule shapes (~0.4 m) - specks at 8 m",
-    "Large pale white-pink fan sheets near the caster at 0.27-0.67 s read as smears, not bolts",
-    "Ground grid of thin orange dashes; gone by 2.3 s leaving only specks and a ring"
-   ],
-   "onScreen": "Pale fan sheets and a swarm of small cream capsule 'bolts' leave the caster down an orange dashed grid, hang, then arrive at the target in reverse order and fade to a faint ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/chronowell",
-   "score": 6,
-   "failing": [
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness"
-   ],
-   "gaps": [
-    "Shares ~94% of its code with 12 other Codex rig casts (RigHero+DetailLayer+same material module); only the hero geometry and a few constants differ",
-    "Gold tiered hero and orbiting pieces read well at 0.27-0.67 s, but by 2.3 s it shrinks to a small ~1 m column",
-    "Floor 'aged' field is a flat pinkish-grey splat with no deep tone; exits to a thin ring",
-    "No travel from the caster"
-   ],
-   "onScreen": "A gold tiered clockwork well with orbiting cog pieces stands on the target, stretches up into a tall gold column over a pinkish aged floor stain, then shrinks to a small hourglass column in a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/keystone",
-   "score": 5,
-   "failing": [
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Stones are flat single-tone ochre panels on LAYER.VFX: unlit, no shadow, no rock grain — they read as cardboard, not keystone masonry",
-    "Ring is built from the shared Codex RigHero 'cage' template (same rig as presscage/tensor/bindrune); the crush-inward motion is the only identity",
-    "Floor answer is a thin orange ring and streak decal; no crater or crack under the lock",
-    "Palette is a single ochre with no dark deep stop"
-   ],
-   "onScreen": "Ochre keystones fall from the sky into a 4 m drum-like ring of flat panels at the target, which crushes inward to a small capstone pile with orange radial streaks, leaving a faint ring on the floor.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/scarp",
+   "uid": "codex/crosscut",
+   "oldScore": 4,
    "score": 4,
    "failing": [
     3,
-    4,
-    5,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Missing travel"
-   ],
-   "gaps": [
-    "Scarp is a drum of flat single-tone ochre blocks on LAYER.VFX: unlit, no shadow, no strata or rock grain — reads as stacked cardboard",
-    "Full-size at the target by frame 8: no anticipation and no fissure travelling from the caster",
-    "A translucent striped 'voice' sheet hangs behind the blocks like a placeholder screen",
-    "Topple is a shrink-and-scatter with a thin orange ring left on the floor; no rubble or crack stays"
-   ],
-   "onScreen": "A 3 m drum of flat ochre blocks stands at the target behind a translucent striped sheet, bursts outward with orange streaks and shrinks to a small pile inside a thin orange ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/sinter",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    4,
-    5,
     6,
     10,
     11,
     13
    ],
    "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Missing travel",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The hero is a ring of flat ochre plates lying on the floor: knee-high at most, so the silhouette at 8 m is a tan disc",
-    "Plates are unlit single-tone panels on LAYER.VFX; sinter (mineral crust) should be lit, layered and glittering",
-    "No travel or anticipation; the plate is already in place at frame 8, and the 'walk the rim' motion does not read",
-    "The stamp beat is a faint orange streak burst; the linger is a fading ring decal"
-   ],
-   "onScreen": "A flat ring of tan plates sits on the floor round the target, flashes orange as dummies are flattened, then shrinks to a small tan patch inside an orange ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/loess",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "The curtain is a row of flat cream spindle shapes on a rail: it reads as a fence or a ribcage, not windblown silt",
-    "Pieces are unlit single-tone on LAYER.VFX with no dust volume; loess wants a dense SMOKE/dust wall with grain",
-    "Nothing buries the line: no silt drift or ground layer is left along it",
-    "Many detail pieces cluster at the caster's feet and occlude the character"
-   ],
-   "onScreen": "A fence of cream spindle-shaped slats snaps sideways across the line from the caster to the far end, pieces fan round the caster's feet, then it collapses into a small heap with a faint ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/vectorlance",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    4,
-    6,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Specks at distance",
     "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The hero 'lance' is a small white spark and thin red beam about 0.3 m wide: at 8 m the cast is a line of specks",
-    "Pink arrow glyphs are a few cm tall and unreadable",
-    "The far-end bloom is a faint pink dome; after 1 s only a thin red ring remains",
-    "Shared Codex lance template (same rig as presslance/redshift/raster) — nothing that reads as 'velocity vector' beyond small arrows"
-   ],
-   "onScreen": "A thin red-white beam runs from the caster down the line with tiny pink arrow glyphs and faint red tick marks, a small pink dome blooms at the far end and leaves a thin red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/slingvolley",
-   "score": 3,
-   "failing": [
-    1,
-    3,
-    4,
-    10,
-    11,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Specks at distance"
-   ],
-   "gaps": [
-    "The volley is drawn as red arc lines and a red floor grid — a diagram, with no body",
-    "The 'stones' are small pink cog-shaped sprites (≈0.2 m), flat and additive rather than solid, lit rock",
-    "Impact is a pink sun-burst sprite and a faint dome; afterwards only a thin red ring",
-    "Pink-red pastel palette with no dark deep stop"
-   ],
-   "onScreen": "Red sling arcs and a red grid of floor lines run down the line while small pink cog-shaped stones loop beside the caster; a pink starburst blooms at the far end and leaves a thin red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/shearstep",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    6,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The 'step' is rows of flat white-pink glowing slabs and a white rail; they are unlit and single-tone, so they read as UI blocks, not a sheared line",
-    "The sideways shear does not read: the slabs just sit offset and fade",
-    "The floor gets only faint red tick lines; nothing stays after 2 s except a thin ring",
-    "Pieces cluster on the caster and obscure the character"
-   ],
-   "onScreen": "A staircase of flat, glowing white-pink slabs offset sideways runs from the caster down the line under a white rail, with a red smear, then fades leaving a thin red ring at the far end.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/orbitpendulum",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    7,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The orbit is drawn as a huge thin pink ring arcing across the whole sky and off frame: it ignores range and reads as a UI overlay",
-    "The mass is a translucent pastel-pink drum on a pink rod with no lit or opaque core; it sweeps through the caster and occludes them",
-    "Pink pin glyphs are tiny; the release at the far end is only a faint pink dome",
-    "Pastel pink everywhere, no dark deep tone; only a small ring is left at the end"
-   ],
-   "onScreen": "A translucent pink drum on a long pink tether swings round the caster under a giant pink orbit arc spanning the sky, small pink pin glyphs dot the line, and a faint pink dome pops at the far end, leaving a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/kinethalo",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    5,
-    6,
-    10,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Missing travel",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The whole cast is a flat glowing sigil disc on the floor (≈3 m) plus a faint dome flash: no hero with height or thickness",
-    "No visible orbit of stored momentum — the 'ring orbits then dumps tangent' motion does not read",
-    "No travel or anticipation: the disc is already at the target at frame 8",
-    "White-pink pastel, no deep tone; the linger is a fading red ring"
-   ],
-   "onScreen": "A flat, glowing white-pink sigil disc lies on the floor at the target, a faint pink dome pops over it, and it fades to a thin red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/presscage",
-   "score": 3,
-   "failing": [
-    1,
-    3,
-    4,
-    5,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "Bars are thin flat white-pink slabs and rings inside a translucent drum — a diagram of a cage, with no mass",
-    "The squeeze-and-spit-upward motion does not read; no body is visibly launched in the frames",
-    "Same cage rig as tensor/bindrune/keystone with a different hue",
-    "Ends as a thin red ring; no floor stamp"
-   ],
-   "onScreen": "A translucent pink drum of thin glowing bars and stacked rings stands at the target, a pink dome pops over it, the bars shrink inward and leave a thin red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/surgewell",
-   "score": 5,
-   "failing": [
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The inhale is flat white-pink shards lying round the circle; they read as paper scraps, not momentum being poured in",
-    "The surge column is a good tall helix but is pastel pink-white with no deep tone and no core volume",
-    "Release dome is a faint translucent shell; the floor is left with only a thin red ring"
-   ],
-   "onScreen": "Flat pink shards are drawn into the centre of the circle, then a 3 m white-pink helix column twists up with a translucent dome and red rings, before fading to a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/impulse",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Collect beat is peach flat ring fragments and small moth-like flecks — unreadable as gathered force",
-    "The release is a peach lattice funnel with a fan of thin radial lines on the floor: wireframe-like, no mass or core",
-    "Same 'well' rig as surgewell/manawell; colour is the main difference",
-    "Pastel peach with no deep tone; leaves a thin red ring"
-   ],
-   "onScreen": "Peach ring fragments and flecks swirl into the target circle, a peach lattice funnel stretches up over a fan of thin radial floor lines, and it fades to a red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/tensor",
-   "score": 3,
-   "failing": [
-    1,
-    3,
-    4,
-    6,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The cage is a wireframe of thin peach struts and rings — a line drawing with no body, no lighting, no thickness",
-    "The 'held pressure' inside is a faint white blob at 0.67 s, then nothing",
-    "Shockwave ring is the only impact element; the cage shrinks and leaves a red ring",
-    "Same cage rig as presscage/bindrune/keystone"
-   ],
-   "onScreen": "A wireframe drum of thin peach struts drops onto the target circle, a faint white glow pulses inside, a pale shock ring rolls out, and the cage shrinks to a small strut tangle in a red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/vectorhalo",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    5,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Missing travel",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Whole cast is a flat peach ring sigil lying on the floor with a faint dome flash — no hero above ankle height",
-    "No vectors visibly ring the rim or release tangent; motion does not read",
-    "Indistinguishable from kinethalo/hardpoint/zodiac except hue"
-   ],
-   "onScreen": "A flat ring of jagged peach glyphs lies on the floor at the target, a faint dome pops, and it fades to a red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/shearforce",
-   "score": 4,
-   "failing": [
-    2,
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Specks at distance"
-   ],
-   "gaps": [
-    "The hero is a small peach X-shaped glyph with two ring loops at the head of the line (≈1 m) — reads as an icon, not a shear",
-    "Coin-like peach pieces line the path at 10–20 cm; they are specks at 8 m",
-    "Pink pinwheel stamps on the floor are the strongest element but fade by 2.3 s; the line is not visibly 'parted sideways'",
-    "Pastel peach/pink with no deep tone"
-   ],
-   "onScreen": "A small peach X-glyph with ring loops rides down the line while peach coin pieces line the path and pink pinwheel stamps flare on the floor, ending in a faint dome and a thin red ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/moment",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    7,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Washed out"
-   ],
-   "gaps": [
-    "The moment arm is a huge low-poly peach hammer drawn flat in one tone (faceted, unlit, translucent) that fills the foreground and hides the caster",
-    "The swing arc is a giant thin red/white line across the whole screen that ignores range",
-    "Delivery at the stop is a faint pink dome; the 'load' landing has no impact mass or floor answer",
-    "Arm scale does not derive from range — it reaches well past the frame on one side"
-   ],
-   "onScreen": "A giant, flat-shaded translucent peach hammer on a long shaft swings across the foreground through the caster under a screen-wide red arc line, a faint pink dome pops at the far end, and the arm shrinks away.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/presslance",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Specks at distance",
-    "Flat blob"
-   ],
-   "gaps": [
-    "The press is a few flat peach cards (≈0.5 m) clustered round the caster; nothing advances down the line visibly",
-    "No flattened trail along the line — the floor gets only a few red ticks and a thin ring",
-    "Pastel peach cards are unlit and single-tone",
-    "Impact at the far end is a faint pink disc"
-   ],
-   "onScreen": "Flat peach card shapes swirl round the caster with a small red flicker, a faint pink disc pops at the far end, and a thin red ring is left.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/manawell",
-   "score": 5,
-   "failing": [
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Drained mana is small pale-blue flat shards and a translucent floor pool; the drain reads as paper fluttering in",
-    "The reflux column is a cluster of translucent pale crystal spikes under a glassy dome — no bright core, no deep blue stop",
-    "Same 'well' rig as surgewell/impulse; the floor is left with only a thin blue ring"
-   ],
-   "onScreen": "Pale blue shards drift into a translucent pool on the target circle, a cluster of glassy crystal spikes rises inside a faint dome, and it fades to a thin blue ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/sigilvolley",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only"
-   ],
-   "gaps": [
-    "The arcs are drawn as curtains of thin white-blue lines (the same sling-arc diagram as slingvolley) — no projectile body",
-    "Sigils are small white star sprites (≈0.2 m); brands on impact are small flashes",
-    "A blue floor grid down the line and a thin ring are all that is left by 2.3 s"
-   ],
-   "onScreen": "Curtains of thin white-blue arc lines sweep from the caster down the line, small white star sigils tumble along them and flash at the far end over a blue floor grid, leaving a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/servopylon",
-   "score": 4,
-   "failing": [
-    2,
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
     "Washed out",
     "Flat blob"
    ],
    "gaps": [
-    "Pylons are translucent pale-cyan glow, not machined metal: tech hardware should be opaque, lit, on LAYER.WORLD with shadows",
-    "The main pylon is so tall it leaves the top of the frame at every beat; the ring of small pylons is thin rods",
-    "A translucent striped hex 'voice' wall surrounds it like a placeholder screen",
-    "Same spire rig as scarp — topples and shrinks to a small piece in a cyan ring"
-   ],
-   "onScreen": "A tall translucent cyan pylon with a hammer head stamps up at the centre of the target circle among thin cyan rods inside a translucent striped hex wall, leans, then shrinks to a small piece in a cyan ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/raster",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    4,
-    10,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "The raster is a scatter of flat pale-cyan saw-tooth slats and short stripes around the caster; no scan front sweeps the line row by row",
-    "Nothing burns: no lasting scanline scorch on the floor, only a thin cyan ring at the end",
-    "Flat unlit pale-cyan cards, no deep tone, no hot core"
-   ],
-   "onScreen": "Flat pale-cyan sawtooth slats and dashed stripes flicker round the caster and along the line, a faint dome pops at the far end, and a thin cyan ring remains.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/gimbal",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only"
-   ],
-   "gaps": [
-    "The 'gimballed cutter' is a white wire coil and nested ring outline riding a tall helix column — line-drawn, no metal body",
-    "Floor discs and X-marks along the line are tiny pale icons",
-    "The yaw sweep across the cast does not read; the cutter mostly occludes the caster",
-    "Leaves only a thin cyan ring"
-   ],
-   "onScreen": "A white wire coil cutter with nested rings rides a helix column from the caster down the line among small pale disc and X icons on the floor, a faint dome pops and a thin cyan ring remains.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/hardpoint",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Hardpoints are a ring of flat pale-cyan blocks lying on the floor (knee height) — unlit, translucent, no machined detail",
-    "The 'fire outward together' beat shows no projectiles; dummies are simply thrown",
-    "Same halo rig as kinethalo/zodiac/sinter; leaves a thin cyan ring"
-   ],
-   "onScreen": "A flat ring of pale-cyan blocks locks round the target circle, a faint dome pops, dummies are flung outward, and the ring shrinks to a small cluster inside a thin cyan ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/redshift",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    4,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Specks at distance"
-   ],
-   "gaps": [
-    "The 'lance' is a small white cage-shaped wire capsule (≈0.6 m) with thin ring outlines stacked down the line; it does not stretch and does not redshift (stays white-violet)",
-    "Small ringed glyph sprites line the path and read as specks",
-    "Nothing stays on the floor except a thin ring at the far end"
-   ],
-   "onScreen": "A small white wire capsule rides from the caster down the line, leaving a stack of thin white-violet ring outlines and small glyph sprites, a faint dome pops at the far end and a thin ring remains.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/magnetar",
-   "score": 5,
-   "failing": [
-    3,
-    4,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Seed arcs are drawn as huge translucent white-pink curtains that start on the caster and fill the foreground — they hide the character for the first 0.7 s",
-    "Paired flares are small pink star sprites; the burst at the far end is modest",
-    "Floor gets magenta smudge stains along the line that fade; by 2.3 s only a thin magenta ring remains",
-    "Pastel pink-white, no deep tone"
-   ],
-   "onScreen": "Two tall translucent white-pink curtain arcs sweep from the caster down the line, small pink seeds burst into paired flares along a magenta-stained path, and a thin magenta ring is left at the end.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/zodiac",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    3,
-    5,
-    6,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Missing travel"
-   ],
-   "gaps": [
-    "The zodiac ring is a flat line-drawn violet-white sigil lying on the floor; it never visibly locks overhead before dropping",
-    "No travel, no body above ankle height; impact is a faint translucent dome and a pale shock ring",
-    "Same halo rig as kinethalo/vectorhalo/hardpoint; ends as a thin ring"
-   ],
-   "onScreen": "A flat line-drawn violet-white zodiac sigil with small orbiting glyph rings lies on the floor at the target, a faint dome and pale shock ring pop, and it fades to a thin violet ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/quarkspire",
-   "score": 5,
-   "failing": [
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The braided column is a strong double-helix silhouette (≈3 m) but is drawn as pale lavender wire strands with no core or volume",
-    "Translucent ripple sheets around it read as noise; the spin-throw is visible only as tumbling dummies",
-    "Shrinks to a small helix in a thin ring; no ground mark"
-   ],
-   "onScreen": "A tall pale-lavender double-helix column braids up at the target amid translucent swirling sheets, flings dummies off its spin, then shrinks to a small helix inside a thin violet ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/bindrune",
-   "score": 4,
-   "failing": [
-    3,
-    4,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Washed out"
-   ],
-   "gaps": [
-    "The rune 'bars' are flat white blocks with small glyphs, unlit and near-white, inside a translucent wavy striped wall that reads as a placeholder screen",
-    "The brand on break-out is a thin blue ring with three small leftover pieces; no burned rune sigil stays",
-    "Same cage rig as presscage/tensor/keystone",
-    "No anticipation or travel; already standing at frame 8"
-   ],
-   "onScreen": "A ring of flat white rune slabs stands at the target inside a translucent wavy striped wall, holds, then breaks outward flinging dummies and leaves a thin blue ring with a few slab stubs.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/leywhip",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    4,
-    10,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only"
-   ],
-   "gaps": [
-    "The whip is a white ribbon swipe with small white glyph sprites; the ley line itself is a row of thin white ring outlines down the path",
-    "Floor marks are small white bracket/tick glyphs that read as UI",
-    "The sideways crack does not visibly displace anything; ends as a thin ring"
-   ],
-   "onScreen": "A white ribbon whips sideways off the caster with small white glyph sprites, leaving a row of thin white ring outlines and bracket glyphs down the line that fade to a thin ring at the far end.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/caustic",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a thin white line/stick (the lance) plus small tripod 'detail' pieces, both under 0.5 m wide; nothing body-height reads",
-    "Same 957-line codex line template as filament/noonblade/subtone/cadence/glissando/prismfault/facetvolley/needleglass/reliclash: identity is only hue + small instanced piece",
-    "Floor scar is a yellow smoky strip that fades by f70 to nothing; only a thin ring remains",
-    "Caustic light (the element) does not read: no refracted ripple pattern, just yellow fog"
-   ],
-   "onScreen": "A thin white stick-lance pointing up the line with a yellow smoky glow along the floor, small white tripod spikes scattered beside the path, a translucent bubble shell at the end; by 2.3 s only a faint ring remains.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/aureole",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    11,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "The whole cast is a flat glowing ring with small spikes on the floor (a diagram of a halo); no standing hero with height or mass",
-    "Same 900-line codex zone template (body/lens/ground/voice/detail/RigHero) as photonwell, latticeflare, clangor, overtone, whisperwell, geodecage, shardchoir, lensewell, censers, vowcage, hymnwell",
-    "After the flare at f20 the ring only fades; by f70 a thin ring outline is all that is left",
-    "No impact burst reads beyond a faint translucent dome; floor mark is a thin outline"
-   ],
-   "onScreen": "A bright flat sunburst ring with small spikes lying on the floor at the zone, a faint translucent dome over it at 0.7 s, then it shrinks/fades to a thin pale ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/photonwell",
-   "score": 5,
-   "failing": [
-    1,
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a white crumpled 'chandelier' blob under a translucent pyramid/tent sheet; it reads as fog, not light being drained to a point",
-    "Same codex zone template as aureole/latticeflare/etc.; the pyramid canopy is the only distinct silhouette",
-    "Linger is static then fades to a ring by f70; no drain-then-release motion visible",
-    "Ground pattern is a faint caustic disc that disappears; no lasting mark"
-   ],
-   "onScreen": "Small white crystal chunks hover over a glowing gold floor disc, then a translucent pyramid tent with a white blob at its apex stands over the zone and fades to a pale ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/filament",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    6,
-    7,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "At f8 a huge flat white sheet of picket-shaped planes covers the caster (unlit, no ramp), then it collapses to thin gold lines on the floor",
-    "Hero is flat billboarded strips, no thickness or lighting; reads as UI stripes rather than filaments stitching",
-    "Same codex line template as caustic/noonblade/etc.",
-    "By f70 only faint lines and a thin ring remain; no stitched result lingers"
-   ],
-   "onScreen": "A wall of flat white fence-picket panels erupts over the caster, then becomes eight parallel gold light streaks along the floor toward a small ring at the end, which fade out.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/noonblade",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    7,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Washed out"
-   ],
-   "gaps": [
-    "Hero is a big flat cream-white crescent blade with no ramp or depth (unlit, single tone); reads as a paper cut-out",
-    "A thin yellow ring encircles the whole arena (f8-f40), detached from the cast and not derived from the line",
-    "Blade swings around the caster but the strike never visibly lands down the line; by f70 only a small ring at the end and a fragment at the caster remain",
-    "Same codex line template as caustic/filament/etc."
-   ],
-   "onScreen": "A huge flat cream crescent blade sweeps around the caster with petal-like sparks and a sunburst at the hand, a thin yellow ring around the arena; then everything vanishes except a small ring down the line.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/latticeflare",
-   "score": 4,
-   "failing": [
-    2,
-    6,
-    11,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a wireframe pylon/tower of thin white lines and a ring of thin hatched walls: outline, no body",
-    "Tower stays static f8-f40 and then is simply gone at f70 (pop), leaving a thin ring",
-    "No flare bloom outward visible despite the description ('blooms outward')",
-    "Same codex zone template as aureole/photonwell/etc."
-   ],
-   "onScreen": "A thin white wireframe radio-tower lattice stands in the zone inside a ring of faint hatched walls, a brief floor ring at 0.7 s, then it all vanishes to a thin ring outline.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/subtone",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a mushroom-shaped wireframe dome plus small pale-green scribbled loops - line art at ~1 m, no body",
-    "Bore down the line is a stack of thin rings; no visible drilled bore or floor scar",
-    "By f70 only a thin ring at the line end remains",
-    "Same codex line template as caustic/filament/etc."
-   ],
-   "onScreen": "A pale green wireframe dome hovers over the caster with scribbled loop glyphs around it, then a column of thin rings and loops runs down the line and shrinks to a small ring at the end.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/clangor",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Hero is a ring of flat neon-yellow-green scribble panels (cage bars drawn as flat strokes) - no metal, no lighting, no clang",
-    "Cage stays and then fades to a thin floor ring; no bar strike or ring-out motion",
-    "Element (sound/metal clang) does not read; looks like a hologram fence",
-    "Same codex zone template as aureole/latticeflare/etc."
-   ],
-   "onScreen": "A boxy cage of flat lime-green stroke panels stands in the zone, a thin floor ring expands at 1.3 s, then the cage fades to a faint green scribble on a pale ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/overtone",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a flat ring of tangled white-yellow scribble lines lying on the floor: a diagram, no height",
-    "Collapse onto the fundamental (per description) is not readable - it just fades into concentric thin rings",
-    "Same codex zone template as aureole/clangor/etc.",
-    "No floor mark other than thin ring outlines"
-   ],
-   "onScreen": "A flat glowing ring of tangled pale-yellow scribble strokes on the floor beside a dummy, a faint dome at 0.7 s, then concentric thin ring outlines fading.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/whisperwell",
-   "score": 5,
-   "failing": [
-    1,
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a scatter of small white paper-cone 'whisper' shards around a bright floor disc - specks, then a ~2 m spiky green crystal column",
-    "Linger is a pale fog patch then a thin ring; no lasting floor mark",
-    "Element (sound) reads as ice/crystal shards",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "Small white paper-cone shards circle a bright floor disc, then a spiky pale-green column shoots up out of a fog patch lifting a dummy, and fades to a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/cadence",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Hero is a set of translucent white fountain arches at the caster plus small glowing lime capsules marching down a striped floor strip - flat, pastel",
-    "Beat/downbeat detonation at the end is a small translucent dome and a ring",
-    "By f70 everything is gone except a thin ring; no lasting mark of the beats",
-    "Same codex line template as caustic/filament/etc."
-   ],
-   "onScreen": "Pale white fountain arches spray over the caster, then rows of small glowing lime capsules line a striped floor strip down the line toward a translucent dome at the end, which fades to a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/glissando",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    6,
-    10,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only",
-    "Washed out"
-   ],
-   "gaps": [
-    "Hero is a row of flat pale-green piano-key slats and stray dash strokes - flat cards with no lighting or ramp",
-    "Line reads as scattered ladders and thin rings; the sideways slide/late arrival is not legible",
-    "By f70 only a small scribble and a ring remain",
-    "Same codex line template as caustic/filament/etc."
-   ],
-   "onScreen": "A row of flat pale-green piano-key slats sweeps over the dummies with scattered dash strokes and small ladder glyphs along the line, thin rings march down it, then a small green scribble remains on a ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/prismfault",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a small faceted violet glass cluster at the caster plus chevron streaks on the floor; the 'fault' never reads as a crack in the ground",
-    "Three wakes are not distinguishable; by f70 only a small ring at the end remains",
-    "Same codex line template as caustic/filament/etc.",
-    "Needs a real floor fault (geometry or field) along the line that stays"
-   ],
-   "onScreen": "A cluster of violet glass shards bursts at the caster with violet chevron streaks on the floor, a translucent dome at the line's end, pale fog discs down the line, then just a small violet ring remains.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/geodecage",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Hero is a lavender shell of flat translucent panels with drawn outlines - reads as a hologram, not stone/crystal (should be opaque, lit, shadowed)",
-    "Points firing inward are not visible; the cage just shrinks to a small disc on a ring by f70",
-    "Floor gets a lilac splat at f40 that does not persist",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "A large open lavender clamshell of flat translucent panels with small spires stands over the zone, closes into a low crown over a lilac floor splat, then shrinks to a small disc inside a violet ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/shardchoir",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "Shards are flat-shaded white-violet slabs lying in a ring; no refraction or lit facets - read as paper cut-outs",
-    "Converge-on-one-note beat collapses to a flat fan of slabs then a small ring",
-    "Floor mark is a thin ring outline",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "A ring of flat white-violet crystal slabs and spires stands around the zone rim, folds inward into a flat fan of slabs inside a thin dome, then shrinks to a small cluster on a violet ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/lensewell",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Lens disc and column are pale lilac translucent shapes - no glass refraction reads; column is ~2 m",
-    "Floor lilac splat appears and vanishes; f70 is a thin ring with a few flakes",
-    "Same codex zone template as aureole/clangor/etc.",
-    "Column of glare should be the hero: make it tall, bright-cored and lasting"
-   ],
-   "onScreen": "A glowing lilac lens disc on the floor with petal flakes flying round it, a small obelisk rises from it, then a lilac pool spreads and the obelisk crowns with shards before fading to a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/facetvolley",
-   "score": 5,
-   "failing": [
-    1,
-    6,
-    7,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness"
-   ],
-   "gaps": [
-    "Faceted seeds are small white cones (~0.4 m) along a violet zig-zag strip; the strip is the main read, not the facets",
-    "Plants 'where they strike' are not visible as distinct impacts; by f70 only a faint ring at the end",
-    "Same codex line template as caustic/filament/etc.",
-    "Good violet ramp with a dark deep; give the seeds size and make the plantings persist"
-   ],
-   "onScreen": "A tall violet zig-zag curtain rises along the line from the caster with small white crystal cones dropping onto a violet chevron floor strip, then it fades to a small ring at the end.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/needleglass",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    7,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Hero is a long segmented pale-lilac glass needle at the caster - a good authored shape but flat-shaded and pastel, no refraction or dark stop",
-    "A thin lilac ring arcs around the whole arena (like noonblade's yellow one) not derived from the line",
-    "The far-side shatter is a faint ring + specks; by f70 the needle has shrunk to a stub and nothing marks the floor",
-    "Same codex line template as caustic/noonblade/etc."
-   ],
-   "onScreen": "A long segmented pale-lilac glass needle lies across the caster and swings while a thin lilac ring arcs around the arena and a small dotted dome sits at the far end; it then shrinks to a stub at the hand.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/censers",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    11,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "Hero is a central white spire with small white blob 'censers' hanging on wires inside faint hatched walls - pale, no smoke or incense, holy/gold barely reads",
-    "No march: the censers stay put and then collapse to a small cluster on a ring",
-    "Floor treatment is a faint glow then a ring outline",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "A white spire with a ring of small glowing white orbs hanging from thin wires stands among dummies inside faint hatched walls, then shrinks to a small gold cluster on a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/reliclash",
-   "score": 5,
-   "failing": [
-    1,
-    3,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Hero is a chain of small white-gold ring links scattered along the line - flat outlines ~0.4 m, no metal",
-    "Lash motion is not legible; links just sit in rows and fade",
-    "Brands on bodies are small orange specks; floor has only thin rings at the end",
-    "Same codex line template as caustic/filament/etc."
-   ],
-   "onScreen": "Rows of small white-gold chain-link outlines and a gold streak run down the line from the caster through the dummies with thin rings, then everything fades to a ring and a few gold specks.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/vowcage",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Outline-only"
-   ],
-   "gaps": [
-    "Bars are thin white neon strokes on a translucent hatched cylinder - a drawn cage rather than lit metal/holy gold",
-    "Break-outward beat is just the bars fading inside a faint drum; no burst",
-    "Floor gets thin ring outlines only",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "A dome of thin white neon bars draws over the zone inside a faint translucent hatched drum, becomes upright bars, then fades to a faint drum and a thin ring.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/hymnwell",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Static bloom"
-   ],
-   "gaps": [
-    "Hero is a ring of flat bright white-gold slab glyphs and floating sticks; then a ~2.5 m crown of white pillars - flat-shaded",
-    "Lift of judged bodies is not visible",
-    "Floor mark is a thin ring and a faint orange glow",
-    "Same codex zone template as aureole/clangor/etc."
-   ],
-   "onScreen": "A ring of bright flat white-gold slabs stands on the floor with floating stick shards around it, then rises into a tall crown of white light pillars over a thin ring and shrinks away.",
-   "error": null,
-   "isRig": true
-  },
-  {
-   "uid": "codex/slingwell",
-   "score": 4,
-   "failing": [
-    2,
-    3,
-    6,
-    10,
-    11,
-    12
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Outline-only"
-   ],
-   "gaps": [
-    "The hero is cream coil and ring pieces lying on the floor, the same bone-cream colour as the other codex gravity rigs; gravity does not read",
-    "The impact is a faint pale cone and orange radial streaks; no well, no pull",
-    "The linger reduces to a flat ring and a tiny cluster"
-   ],
-   "onScreen": "Cream spiral coils and concentric floor rings appear around a dummy, a faint pale cone lifts with orange radial streaks as a dummy is flung, then a thin floor ring remains.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/tidebar",
-   "score": 5,
-   "failing": [
-    3,
-    10,
-    11,
-    6
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The bars are authored and read in silhouette, but they are flat cream/bone with no gravity-element ramp or deep tone",
-    "After the tilt the cast becomes a flat radial-ray floor decal that only fades",
-    "No anticipation at the hand; the bars are already standing at f8"
-   ],
-   "onScreen": "A ring of tall cream bars on a dark disc tilts inward and collapses flat into a sunburst floor print with a thin ring, which then fades.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/perigee",
-   "score": 3,
-   "failing": [
-    1,
-    2,
-    5,
-    6,
-    10,
-    11,
-    12
-   ],
-   "antipatterns": [
-    "Outline-only",
-    "Specks at distance",
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The entire cast is thin white rings and tiny bodies about 3 m across on the floor; nothing has height or mass at 8 m",
-    "The impact is only a pale ring shockwave",
-    "No travel, no element read, and the linger is a shrinking outline"
-   ],
-   "onScreen": "Thin white orbit rings with tiny bead bodies circle a dummy on the floor, a pale shock ring expands, then a small grey ring remains.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/masslance",
-   "score": 3,
-   "failing": [
-    2,
-    3,
-    5,
-    7,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Flat blob",
-    "Template sameness",
-    "Missing travel",
-    "Washed out"
-   ],
-   "gaps": [
-    "Huge cream faceted dome pieces spawn around and on top of the caster, hiding him, instead of a lance that travels down the line",
-    "A gravity lance is not readable: no dense dark core and no pinning line",
-    "The pieces are single-tone cream faceted shells",
-    "At 2.3 s the only things left are a small dome and a ring near the line end"
-   ],
-   "onScreen": "Large cream faceted shell pieces bloom on and around the caster, stack forward into a short column, then shrink away, leaving a small dome and ring a few metres ahead.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/shearorbit",
-   "score": 4,
-   "failing": [
-    1,
-    2,
-    3,
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out",
-    "Specks at distance"
-   ],
-   "gaps": [
-    "White arc ribbons and small cream cubes along the line; the masses are small and pale, with no gravity colour",
-    "The cubes scatter and fade; there is no crater or shear scar to read",
-    "The end state is a tiny ring and lump far down the line"
-   ],
-   "onScreen": "White arcs loop over the line while small cream blocks orbit and drop along it, sliding forward in pale streaks, then a small ring and lump remain at the end.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/plumbswing",
-   "score": 4,
-   "failing": [
-    2,
-    3,
-    6,
-    10,
-    11,
-    12,
-    13
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Washed out"
-   ],
-   "gaps": [
-    "The hero is a thin cream rod from the hand plus a very long hairline arc across the scene; neither has mass at 8 m",
-    "The plumb weight is a faint smudge; the swing does not read as heavy",
-    "The floor gets only a small ring at the end; no impact flash or pull"
-   ],
-   "onScreen": "A long cream rod juts from the caster while a thin white-orange arc sweeps across the whole scene behind the dummies and a faint weight hangs mid-air, then it all fades to a small ring.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/penumbra",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Washed out",
-    "Template sameness"
-   ],
-   "gaps": [
-    "The sheet is a set of flat pale lavender panels; it reads as cloth or paper, not shadow",
-    "The floor wake is a row of soft pale smudges",
-    "Everything fades by 2.3 s to a small ring; no linger motion",
-    "It uses the shared RigHero/template constants"
-   ],
-   "onScreen": "A tall pale lavender sheet of hanging panels sweeps across the line, leaving a row of faint smudges, while dummies drop, then fades to a small ring.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/duskspire",
-   "score": 5,
-   "failing": [
-    3,
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "The spire is a violet mesh with visible grid/facet lines, so it reads as wireframe rather than solid shadow; it needs lit or ramp shading with a near-black deep tone",
-    "It shares the pool+rig template with mournhalo, nullwell and eventcage: same speckled floor pool and grid-faceted hero, recoloured",
-    "No anticipation at the hand; the spire is already standing at f8"
-   ],
-   "onScreen": "A violet grid-faceted tent spire with outward spikes stands over the group on a speckled violet pool, then sinks into a dark floor stain.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/mournhalo",
-   "score": 4,
-   "failing": [
-    1,
-    3,
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob",
-    "Washed out"
-   ],
-   "gaps": [
-    "The halo is a violet grid-faceted ring wall that reads as a debug mesh, not shadow",
-    "The speckled pool is the same as duskspire's, nullwell's and eventcage's",
-    "The tightening goes from a ring to a shallow bowl that fades; there is no snuff/collapse beat"
-   ],
-   "onScreen": "A violet grid-faceted ring wall surrounds the group on a speckled violet pool, tightens into a shallow bowl and shrinks into a dark floor stain.",
-   "error": null,
-   "isRig": null
-  },
-  {
-   "uid": "codex/nullwell",
-   "score": 4,
-   "failing": [
-    3,
-    6,
-    10,
-    11
-   ],
-   "antipatterns": [
-    "Template sameness",
-    "Flat blob"
-   ],
-   "gaps": [
-    "The hero is a blue grid-faceted pyramid/hourglass that reads as a wireframe placeholder",
-    "The speckled blue pool is the shared template pool",
-    "Void does not read as a null point: there is no dark centre that drinks light"
-   ],
-   "onScreen": "A blue speckled pool spreads under the group with a crown of blue faceted shards, rises into a grid-faceted hourglass shape, then shrinks into a dark stain.",
-   "error": null,
-   "isRig": null
+    "The hero is still a huge flat pale-teal ribbon sweep hinged at the caster that occludes the caster and fills the near frame; it reads as a UI swoosh, not wind",
+    "Long thin arc lines and target rings span the whole frame - a diagram, not a gust",
+    "No floor mark at the target; only a faint wake strip down the line at 2.3 s",
+    "Give the gust a translucent body with a dark-teal deep tone and curling debris, sized to the line"
+   ],
+   "onScreen": "Pale teal ribbon blades and long thin arcs sweep around the caster, a ring stack forms down the line toward the dummies, and by 2.3 s only a faint teal wake strip and a small swirl at the caster remain.",
+   "captureError": null
   },
   {
    "uid": "codex/eventcage",
+   "oldScore": 4,
    "score": 4,
    "failing": [
     1,
+    3,
+    5,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The cage is a thin blue wire dome.",
+    "The speckled blue pool repeats the mournhalo template.",
+    "No missing-centre read; it collapses into a dark stain."
+   ],
+   "onScreen": "A thin blue wire dome over the dummies spreads into a speckled blue pool, flares into a small ring structure and leaves a dark blue stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/filament",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    1,
+    3,
+    6,
+    7,
+    10
+   ],
+   "antipatterns": [
+    "Washed out",
+    "Template sameness"
+   ],
+   "gaps": [
+    "At f8 a huge flat white picket-shaped sheet still covers the caster and the foreground; it is unlit with no ramp.",
+    "The 'filaments arc and stitch' beat is only a thin gold squiggle at the targets; nothing reads as filaments.",
+    "After the sheet goes, the cast is a flat gold floor beam that fades; build the hero at the line, not over the caster."
+   ],
+   "onScreen": "A giant white picket-fence curtain stands over the caster, breaks up, and leaves a flat gold radial beam on the floor with a thin gold squiggle at the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/glissando",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    1,
+    3,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Washed out",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is still rows of flat pale-green piano-key slats and ladders scattered over the line, unlit.",
+    "The sideways slide reads as clutter rather than a single gliding shout; the slats cover the caster.",
+    "A ripple stripe on the floor stays, but sound does not read; build one swept, bright-cored wave that slides and arrives late."
+   ],
+   "onScreen": "Flat pale-green piano-key slats and ladders scatter along and around the line over a green ripple stripe, then fade to the stripe and a small flicker at the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/hollowvolley",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    3,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Flat blob",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The seeds are blue grid-faceted pods that read as wireframe placeholders.",
+    "They pile around the caster instead of arcing out to land.",
+    "No implosions are visible; the pods just fade to a blue smear."
+   ],
+   "onScreen": "Blue grid-faceted pods, white arcs and a wire dome rise along the line near the caster, then sink into a blue smear by 2.33 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/kinethalo",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    1,
+    2,
+    5,
+    6,
+    12
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Missing travel"
+   ],
+   "gaps": [
+    "The cast is a red sigil disc on the floor (about 4 m) with a faint dome flash; no hero has height or thickness",
+    "The stored-momentum ring orbit does not read; fragments sit on the disc",
+    "Already at the target at 0.27 s with no travel or anticipation",
+    "Improved: saturated red with a dark-red stain at 2.3 s instead of pastel"
+   ],
+   "onScreen": "A red sigil disc appears under the dummies, a faint dome flashes and throws them, and the disc fades into a dark-red stain with scattered fragments.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/masslance",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    5,
+    7,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Missing travel"
+   ],
+   "gaps": [
+    "Lit cream faceted spheres now line the path and a large sphere sits at the target, but several spawn on top of the caster at f8.",
+    "A gravity lance still does not read: no dense dark core, no pinning line, single-tone cream.",
+    "Send one heavy dark lance down the line with a dragging trench behind it."
+   ],
+   "onScreen": "Cream faceted stone spheres crowd around the caster and down the line to a large sphere at the dummies over a warm floor stripe, then scatter to small debris.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/mirrorhalo",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    3,
+    5,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Flat blob",
+    "Missing travel",
+    "Washed out"
+   ],
+   "gaps": [
+    "The mirror ring is a wall of flat, unlit, single-tone bright pink panels, about 8 m wide; it reads as cardboard, not mirrors",
+    "Fully formed at 0.27 s with no travel or anticipation",
+    "Give the panels a reflective fresnel shader with a dark tone and show three distinct rings walking the rim",
+    "Improved: the panels now shatter at 1.3 s and leave a pink stain at 2.3 s"
+   ],
+   "onScreen": "A wall of flat bright-pink panels rings the target zone from the first frame, cracks and shatters into pink fragments, and leaves a magenta stain with a few shards.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/moment",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    3,
+    4,
+    7,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob"
+   ],
+   "gaps": [
+    "The moment arm is a huge low-poly peach hammer drawn flat, filling the foreground and hiding the caster for three frames",
+    "The swing arc is a frame-wide red/white line that ignores range",
+    "Delivery at the group is a faint grey dome and a red smear; there is no impact mass"
+   ],
+   "onScreen": "A giant flat peach low-poly hammer on a long rod swings at the caster's feet under a frame-wide red arc line, a red glow column hangs near the caster, and only a red smear and broken pieces remain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/orbitpendulum",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    3,
+    7,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out"
+   ],
+   "gaps": [
+    "The orbit is still a thin pink ring arcing across the whole frame, ignoring range",
+    "The mass is a translucent pastel-pink drum on a rod with no lit or opaque core, and it sweeps through and hides the caster",
+    "Red concentric floor rings and a red stain at f70 give a floor answer, but the release at the far end is barely visible"
+   ],
+   "onScreen": "A translucent pink drum on a rod orbits the caster under a frame-wide pink ring line, red concentric rings stand on the floor, and only a red streak remains toward the group at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/perigee",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    1,
+    2,
+    4,
+    5,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Specks at distance",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The cast is still thin white orbit rings with tiny beads on the floor.",
+    "A brown stain now appears and stays, but nothing has height or mass.",
+    "No travel and no gravity read; the ring dip and eclipse are invisible."
+   ],
+   "onScreen": "Thin white orbit rings with small beads circle the dummies, then a brown stain with faint rings spreads and remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/presscage",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    1,
+    3,
+    4,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Outline-only"
+   ],
+   "gaps": [
+    "The world now answers: the squeeze flings dummies outward and a dark-red floor stain stays at f70",
+    "The bars are still thin flat red slabs inside a translucent striped drum - a diagram of a cage, with no mass",
+    "The cage is full size at f8 with no travel, and nothing is visibly spat upward"
+   ],
+   "onScreen": "Red slab bars inside a translucent drum squeeze the group, flatten into a ring of red bars and rings on the floor, and leave a dark-red stain with dummies flung outward at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/redshift",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    1,
+    2,
+    4,
+    6,
+    13
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Specks at distance"
+   ],
+   "gaps": [
+    "The lance is a small violet wire capsule (about 1 m) at the target; it never stretches down the line or shifts toward red.",
+    "The path is a beam of violet spots with small streak sprites to either side; nothing has mass at 8 m.",
+    "Only a faint violet smear remains by 2.33 s; make the lance a long tapered body that reddens and leaves a scorched trail."
+   ],
+   "onScreen": "A violet wire capsule at the target fires a beam of violet spots back down the line flanked by small violet streaks, a faint dome pops, and it fades to a dim violet smear.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/riftpendulum",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    3,
+    7,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob"
+   ],
+   "gaps": [
+    "The hero is still a huge violet grid-faceted blade/seed-pod swinging around the caster, like debug geometry.",
+    "It occupies the caster's position instead of the cast line, hiding the caster for the whole cast.",
+    "The rift is only a blue haze stripe and a pale dome at the group; open a dark tear at the target on the beat."
+   ],
+   "onScreen": "A giant violet grid-lined pod-blade swings around the caster in the foreground while a blue haze stripe and a pale dome appear at the dummies.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/servopylon",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    2,
+    3,
+    4,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out"
+   ],
+   "gaps": [
+    "The main pylon is so tall it leaves the top of the frame in every beat; the ring of small pylons is thin glowing rods",
+    "Pylons are translucent pale cyan glow, not machined metal: make them opaque, lit and shadowed",
+    "The striped translucent hex wall around them still reads as a placeholder screen; only a faint cyan floor glow remains at f70"
+   ],
+   "onScreen": "A tall cyan pylon stamps into a ring of thin glowing rods inside a striped translucent hex wall, flings the dummies, and fades to a faint cyan floor glow at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/vectorhalo",
+   "oldScore": 3,
+   "score": 4,
+   "failing": [
+    1,
+    2,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Missing travel"
+   ],
+   "gaps": [
+    "Impact now bursts into a red-orange floor field with jagged shards and flings the dummies, and a red stain stays",
+    "There is still no hero above ankle height: f8 is a flat ring on the floor",
+    "No vectors visibly ring the rim or release tangentially; add raised arrow or blade forms that orbit and fly off"
+   ],
+   "onScreen": "A flat orange ring lies under the group, bursts into a red-orange field of jagged shards that flings the dummies, and fades to a red floor stain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/venturi",
+   "oldScore": 4,
+   "score": 4,
+   "failing": [
+    1,
+    2,
+    5,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Missing travel",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is still a drum of thin glowing teal bars around the group (a wire diagram), already full size at f8",
+    "No travel or anticipation from the caster",
+    "The drum squeezes and sinks to a teal floor glow by f70; the cough-out does not read - give the air a filled volume"
+   ],
+   "onScreen": "A wireframe drum of thin teal bars stands round the group from f8, squeezes in and sinks into a teal floor glow by 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/absence",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The lance is a short violet faceted shape at the far end; it does not read as a lance at 8 m.",
+    "Thin violet glyph slivers are scattered randomly on the floor around the line.",
+    "A dark violet stripe now lingers down the line, but the impact is a pale dome flash and the unmaking is not visible."
+   ],
+   "onScreen": "A short violet shard strikes the dummy group under a pale dome flash while a violet stripe and scattered glyph slivers mark the line, fading by 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/aureole",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    6
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is still a flat glowing gold ring with short spikes on the floor; it has no standing height or mass at 8 m.",
+    "The tighten-and-flare beat is a ring of spikes brightening; no flare column or burst rises.",
+    "A gold floor stain now lingers, but the ring only fades; give it a vertical halo or flare with its own motion."
+   ],
+   "onScreen": "A thin gold spiked ring lies on the target circle, brightens and tightens with short spikes as dummies are flung, and leaves a soft gold floor stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/cadence",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out"
+   ],
+   "gaps": [
+    "The white fountain arches at the caster are translucent pastel with no ramp.",
+    "The beats are small lime capsules beside a green ripple strip; they never arc and detonate visibly.",
+    "The green strip persists, but nothing moves in the linger."
+   ],
+   "onScreen": "White translucent arches spray over the caster as lime capsules line a green ripple strip to the target, then a green ripple strip remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/clangor",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob"
+   ],
+   "gaps": [
+    "The cage is still flat neon-green scribble panels with no metal, lighting or ramp.",
+    "No bar strike or clang motion; the cage just slumps into the floor.",
+    "A green ripple pool now stays at f70, but sound/metal does not read; make the bars solid lit metal that drop and ring with radial shock rings."
+   ],
+   "onScreen": "A ring of flat neon-green scribble bars stands round the dummies, sinks into a pale splash, and leaves a green ripple pool.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/doppel",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The lance at the target is a thin pink spike; the decoy-versus-real read is lost at 8 m",
+    "Most of the frame is a pastel pink fan cone and drifting pink shards near the caster; no dark magenta deep tone",
+    "Improved: a wavy pink floor trail now stays down the line through 2.3 s",
+    "Scale the real lance to body height and make the decoy visibly shatter beside it"
+   ],
+   "onScreen": "A pink fan cone and drifting pink crystal shards spread from the caster toward the dummies where a thin pink lance strikes, leaving a wavy pink floor trail.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/duskspire",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    3,
+    5,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The spire is still a violet mesh with visible grid lines, so it reads as wireframe rather than solid shadow.",
+    "Spikes now grow and a dark pool remains at f70, but there is no anticipation at the hand; the spire is up at f8.",
+    "Use lit/ramp shading with a near-black core so it drinks light."
+   ],
+   "onScreen": "A violet grid-lined spire stands in the circle over a speckled violet pool, sprouts spikes at 1.3 s, and shrinks to a small spire in a dark pool.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/facetvolley",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The seeds are small pale white cones; the violet curtain and strip are the main read.",
+    "The plantings do not read as distinct impacts.",
+    "Only a violet strip remains; give the seeds size, a violet ramp and lasting crystal plants."
+   ],
+   "onScreen": "A violet curtain rises along the line while small white crystal cones drop beside it onto a violet strip, then the strip remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/falsefloor",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    5,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Missing travel",
+    "Washed out"
+   ],
+   "gaps": [
+    "The glowing pink tile floor is already under the group at f8; nothing travels from the caster",
+    "The tiles are blown-out pink-white with no deep tone; the drop collapses to a small pink clump",
+    "The dummies do fall, but the ground never opens into a dark pit; give the floor a void with depth"
+   ],
+   "onScreen": "A glowing pink tile disc lies under the group, a translucent dome rises, the dummies drop, and a pink clump and magenta stain remain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/feintcage",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    5,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Missing travel"
+   ],
+   "gaps": [
+    "The cage of hot-pink slabs is already standing round the group at f8; nothing travels from the caster",
+    "Slabs are glossy pink with only a little magenta depth; the two cages spinning opposite ways (the feint) cannot be told apart",
+    "Linger is a fan of pink spikes then a magenta floor stain - give the real cut a distinct dark blade beat"
+   ],
+   "onScreen": "A ring of pink translucent slabs encloses the group, folds into a starburst of pink spikes under a thin halo, and leaves a magenta floor stain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/geodecage",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
     3,
     6,
     10,
@@ -2926,18 +1845,195 @@
     "Washed out"
    ],
    "gaps": [
-    "The cage is a faint blue wire dome, nearly invisible at f8",
-    "The speckled blue pool repeats the nullwell/mournhalo template",
-    "There is no 'missing centre' read; the erase is just a fade into a dark stain"
+    "The geode shell is still flat translucent lavender panels with drawn outlines; it reads as a hologram, not crystal.",
+    "The 'points fire inward' beat is not visible; the shell just collapses into a pale splash.",
+    "A pale lavender floor splat lingers, but it is pastel with no dark deep; make the shell opaque lit crystal with inward spikes."
    ],
-   "onScreen": "A faint blue wire dome sits over the group, a speckled blue pool spreads, a small blue ring structure forms and then fades to a dark floor stain.",
-   "error": null,
-   "isRig": null
+   "onScreen": "Lavender panelled shell pieces close round the dummies, collapse into a pale lavender splash at 1.3 s, and leave a pale disc with small debris.",
+   "captureError": null
   },
   {
-   "uid": "codex/absence",
+   "uid": "codex/gimbal",
+   "oldScore": 4,
    "score": 5,
    "failing": [
+    3,
+    6,
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out"
+   ],
+   "gaps": [
+    "The cutter is a pale white helix ribbon running down the line with floor hex discs; it is a white emissive strip with no lit metal body.",
+    "The yaw sweep does not read; the ribbon just lies along the line and fades.",
+    "By 2.33 s only a faint cyan strip remains; leave a burned cut along the line and give the cutter a cyan-to-deep-teal ramp."
+   ],
+   "onScreen": "A white helix ribbon and cyan floor stripes run from the caster to the target among cyan hex disc icons, a dome pops and dummies fly, then it fades to a faint cyan strip.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/glamour",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "The glamour veil near the target is a small pink cloth shape; the hero does not read at 8 m",
+    "The pastel pink fan and petal wisps along the line read as noise; add a dark magenta deep tone",
+    "Improved: a wavy pink floor trail and scattered fallen targets remain at 2.3 s"
+   ],
+   "onScreen": "A pink veil floats at the dummies while a pink fan cone with petal wisps runs from the caster, then targets fall and a wavy pink trail stays on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/hardpoint",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    5,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out",
+    "Missing travel"
+   ],
+   "gaps": [
+    "The hardpoint ring is now thicker lit blocks, but they are pale translucent cyan with no dark deep tone, so it still reads as a hologram dais at knee height.",
+    "The 'fire outward together' beat has no projectiles or muzzle flashes; dummies are simply thrown off the ring.",
+    "No anticipation at the hand and no travel from caster to ring; the ring is already standing at f8.",
+    "Linger is a faint cyan ripple patch; give the blocks a lock-and-fire motion and a scorch ring that stays."
+   ],
+   "onScreen": "A knee-high ring of pale-cyan lit blocks stands on the target circle, dummies are flung outward, and by 2.3 s only a faint cyan ripple patch remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/impulse",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    4,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "Now orange with a darker red ramp: a glowing orange floor field spreads and dummies are flung, which reads as force",
+    "The collect beat is still small moth-like flecks and a pink ring; the release hero is a thin wireframe goblet/funnel with no core",
+    "Give the release a filled column or shock body and travel from the caster"
+   ],
+   "onScreen": "Orange flecks flutter into a pink ring round the group, an orange floor field spreads and flings the dummies, a thin wireframe funnel rises at the centre and an orange glow remains at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/katabatic",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    6,
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Washed out"
+   ],
+   "gaps": [
+    "There is now a large pale-teal sail at the target and arcing wind streaks along the line, so it reads further than before",
+    "A wall of concentric teal rings stands at the caster and occludes the caster for the first half; it reads as a UI target, not cold air",
+    "Everything is pale translucent teal with no deep tone; by f70 only a faint wispy trail remains on the floor"
+   ],
+   "onScreen": "A pale teal sail hangs over the group while concentric ring sheets and fluttering streaks stream along the line from the caster, leaving a faint teal wisp trail at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/latebolt",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "Large pale white fan sheets near the caster at 0.27-0.67 s read as smears, not bolts",
+    "Bolts are cream capsules about 0.4 m long lining the path - specks at 8 m",
+    "Improved: an orange floor fan trail now stays through 2.3 s; the ornate glyph at the target is readable",
+    "Make the delayed bolts one big readable projectile with a hot core and a dark-amber tone"
+   ],
+   "onScreen": "Pale white fan sheets and cream capsule bolts line the path to an ornate glyph at the dummies, then an orange fan trail stays on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/latticeflare",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    4,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only",
+    "Static bloom",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is a tall gold wireframe pylon of thin lines; it has height but no body or volume.",
+    "The tower stays static f8-f40 then is gone by f70; no outward flare bloom is visible.",
+    "A gold floor stain now persists and dummies are thrown, but the ring of hatched walls is pale noise; give the lattice filled emissive struts and a flare burst."
+   ],
+   "onScreen": "A gold wireframe lattice tower stands in the circle among hatched translucent walls, dummies are flung, and a gold floor stain remains after the tower goes.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/lensewell",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The lens is a bright white-lilac floor disc with small shards; no glass refraction reads.",
+    "The column of glare is a short white obelisk (~2 m), not the bright tall hero the description promises.",
+    "The pale pool lingers but only fades; give the column a white-hot core, a deep violet base and a lasting flare."
+   ],
+   "onScreen": "A bright lilac disc with shards forms under the dummies, a short white obelisk rises at 1.3 s over a pale splash, and a pale pool with small debris remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/leywhip",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
     2,
     3,
     6,
@@ -2948,57 +2044,851 @@
     "Washed out"
    ],
    "gaps": [
-    "The lance is a short violet grid-faceted shape; it does not read as a lance at 8 m",
-    "The floor shards are thin violet glyph slivers scattered randomly",
-    "The impact at the group is a pale dome flash; the unmaking is not visible"
+    "The whip is a broad white ribbon swipe at the caster with small white glyph sprites; it has no rope or energy body and no ramp.",
+    "A blue radial fan decal now marks the line and stays, but scattered white tick/bracket glyphs still read as UI.",
+    "The 'cracks sideways' beat does not displace anything; add a visible lateral fissure along the ley line."
    ],
-   "onScreen": "A short violet faceted lance shoots from the caster down a blue streak line with thin violet glyph slivers on the floor, a pale dome flashes at the group, and a blue trail fades.",
-   "error": null,
-   "isRig": null
+   "onScreen": "A white ribbon whips from the caster down the line, a blue radial fan decal spreads along the path and stays, and white tick glyphs litter the floor while dummies are tagged.",
+   "captureError": null
   },
   {
-   "uid": "codex/hollowvolley",
-   "score": 4,
+   "uid": "codex/loess",
+   "oldScore": 4,
+   "score": 5,
    "failing": [
+    3,
+    4,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob"
+   ],
+   "gaps": [
+    "A brown ground strip now runs along the line and stays at f70, so the floor answers",
+    "The curtain is still a row of flat wooden spindle posts on a rail - it reads as a fence, not windblown silt",
+    "Replace the posts with a dense dust wall (smoke/grain layers) with a dark base, and keep the caster unoccluded"
+   ],
+   "onScreen": "A row of wooden spindle posts on a long rail rises along the line, brown starburst decals lay a strip to the group, the posts gather into a pile there and a brown strip remains at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/magnetar",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    5,
+    6,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Washed out",
+    "Template sameness"
+   ],
+   "gaps": [
+    "Huge translucent white-pink curtain arcs still start at the caster and fill the foreground for the first ~0.7 s, hiding him.",
+    "The paired-flare burst at the targets is a small pink glow; nothing at the target reads as a magnetar (no dense core, no field lines).",
+    "After the curtains fade the cast is only a pink floor stripe and small glows; give the seeds a visible arc travel and a bright-cored burst with a dark magenta deep tone."
+   ],
+   "onScreen": "Two tall white-pink translucent curtains frame the caster and the line, then dissolve into a pink floor stripe with small glows at the dummy cluster.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/mournhalo",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    5,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The halo is a violet grid-faceted ring wall that still reads as a debug mesh.",
+    "The speckled violet pool repeats eventcage's.",
+    "It tightens into a bowl and a dark stain, but there is no snuff beat and no travel."
+   ],
+   "onScreen": "A violet grid-faceted ring wall surrounds the dummies on a speckled violet pool, tightens into a shallow bowl and leaves a dark violet stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/needleglass",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    3,
+    6,
+    7,
+    10
+   ],
+   "antipatterns": [
+    "Washed out",
+    "Template sameness"
+   ],
+   "gaps": [
+    "The segmented glass needle still lies across the caster in the foreground instead of travelling to the line end.",
+    "A huge thin white arc ring sweeps across the whole scene and reads as a stray outline.",
+    "The lavender floor beam lingers but is pastel and flat; send the needle down the line and give it refraction and a dark stop."
+   ],
+   "onScreen": "A long pale-lilac segmented glass needle sits across the caster while a thin white arc sweeps the scene and a lavender beam lies along the line, fading by 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/nullwell",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    5,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The hero is still a blue grid-faceted funnel/hourglass that reads as a wireframe placeholder.",
+    "A darker pool now remains at f70, but there is no dark centre drinking light at the peak; the pool is bright speckled blue.",
+    "Make the null point a near-black core with a light-eating rim and inward-flowing particles."
+   ],
+   "onScreen": "A speckled blue pool forms under the dummies, a blue grid-faceted funnel rises over a ring at 1.3 s, and a small funnel remains over a dark pool.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/overtone",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Outline-only"
+   ],
+   "gaps": [
+    "A glowing lime ring disc now fills the zone and dummies are flung, leaving a green pool.",
+    "Everything is flat on the floor; the overtones never walk up the rim or show height.",
+    "The collapse onto the fundamental is a fade, not a visible contraction."
+   ],
+   "onScreen": "A glowing lime-yellow ring of scribble strokes lies under the dummies, flings them outward, and settles into a green pool with a faint rim.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/penumbra",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    3,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The sheet is now a vivid violet hanging-panel curtain and the line gets violet streaks and a dark wake.",
+    "It is bright violet, not shadow; shadow should darken and eat light.",
+    "Everything fades by 2.33 s; give the wake a crawling linger."
+   ],
+   "onScreen": "A violet panel curtain hangs at the target while violet streaks and a dark wake run down the line, dummies drop, and a faint dark trail remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/plumbswing",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    7,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The plumb weight is now a large lit faceted bob on a rod, but it swings in the foreground over the caster and blocks the view of the line.",
+    "A hairline arc still spans the whole scene; the swing path should be placed at the target from range.",
+    "Gravity/weight lacks a dark deep tone and an impact; add a crushing hit and floor crater where the swing lands."
+   ],
+   "onScreen": "A huge cream faceted plumb bob on a rod hangs and swings across the foreground beside the caster while a long arc line crosses the scene, leaving a floor stripe and debris.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/presslance",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    5,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Flat blob"
+   ],
+   "gaps": [
+    "The press is a big flat orange plate that is already at the target at 0.27 s; nothing visibly advances down the line",
+    "Flat peach shards along the line are unlit and single-tone",
+    "Improved: a red flattened band stays on the floor through 2.3 s"
+   ],
+   "onScreen": "A large orange press plate slams among the dummies while flat peach shards and burst stars fill a red band down the line, which remains as a red trail.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/raster",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Washed out"
+   ],
+   "gaps": [
+    "Improved: a bright white scan stripe now runs down the line at 0.27-0.67 s and leaves a scanline band on the floor",
+    "Cyan slats and the long bars near the target are flat, unlit cards",
+    "By 2.3 s only a faint cyan trail remains; burn it in with a hot-edged scorch",
+    "Pale cyan dominates with no deep teal tone"
+   ],
+   "onScreen": "A white scan stripe sweeps down the line among flat cyan slats and long bars to the dummies, rings flash, and a faint cyan scanline trail stays.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/reliclash",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    3,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Specks at distance"
+   ],
+   "gaps": [
+    "The relic chain is still rows of small flat gold ring links (~0.4 m) along the line, with no metal or lighting.",
+    "The lash now travels to the dummies, but the links just sit in rows and fade; no whip or snap motion reads.",
+    "A warm gold floor smear now lingers, but the brands on bodies are small specks; make one thick lit chain that whips down the line and sears a brand decal."
+   ],
+   "onScreen": "Small flat gold chain links line the path from caster to the dummies over a warm floor glow, a chain arcs over the group, and a gold smear remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/scarp",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    5,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob",
+    "Missing travel"
+   ],
+   "gaps": [
+    "Impact improved: the wall bursts outward with an orange flash, dummies are flung and a dark-orange floor stain stays",
+    "The scarp itself is still a drum of flat tan box blocks that read as cardboard - no rock grain, strata or lit stone",
+    "The translucent striped sheet behind the blocks still reads as a placeholder screen, and the wall is full size at f8 with no fissure from the caster"
+   ],
+   "onScreen": "A drum of tan box blocks stands over the group behind a striped translucent sheet, bursts outward with an orange flash that flings the dummies, and leaves a crumbled pile on an orange stain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/shearforce",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Flat blob"
+   ],
+   "gaps": [
+    "Improved: the shear glyph at the head is now about 2 m tall and readable, and a red-orange band down the line stays at 2.3 s",
+    "The shear form and flanking coin cards are flat, unlit peach shapes",
+    "The line is not visibly parted sideways; burst stars sit in place and fade"
+   ],
+   "onScreen": "A tall peach shear glyph stands at the dummies while a red-orange band with burst stars and flanking coin cards runs down the line, leaving a red floor trail.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/shearorbit",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    10,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The masses are now lit tan rock blocks that drop along the line and leave a brown strip.",
+    "The blocks are small (about half a metre) and the white arcs are thin lines.",
+    "Gravity does not read; there is no crater where the masses land."
+   ],
+   "onScreen": "White arcs loop over the line while tan rock blocks orbit and drop along it onto a brown strip, then the brown strip remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/shearstep",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    6,
+    11,
+    13
+   ],
+   "antipatterns": [
+    "Flat blob"
+   ],
+   "gaps": [
+    "The step is rows of flat red slabs offset along the line; colour is now saturated, but they are unlit blocks",
+    "The sideways shear does not read as motion; the slabs sit and fade",
+    "By 2.3 s only a faint red trail remains; nothing is torn into the floor"
+   ],
+   "onScreen": "Rows of flat red slabs and a white rail step down the line with ripple rings to the dummies, a few targets fall, and a faint red trail remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/sigilvolley",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Outline-only"
+   ],
+   "gaps": [
+    "The arcs are still curtains of thin white-blue lines with no projectile body",
+    "Star sigils are now larger and readable, and a blue fan band and ring mark the floor",
+    "Colour is mostly white and pale blue; add a deep indigo tone and give each sigil a solid body that brands the target"
+   ],
+   "onScreen": "Curtains of thin white-blue arc lines with star sigils sweep from the caster to the dummies, a ring flashes at the target, and a fading blue fan stays on the floor.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/sinter",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    4,
+    5,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Missing travel",
+    "Static bloom"
+   ],
+   "gaps": [
+    "The hero is a ring of flat ochre plates already in place at 0.27 s; knee-high at most, so at 8 m it is a tan disc",
+    "No travel and no visible 'walk the rim'; the plates just flatten outward",
+    "Plates are now shaded, but sinter should glitter and layer; add mineral grain and a crystalline crust growing",
+    "The linger is a static orange crust disc that only fades"
+   ],
+   "onScreen": "A ring of ochre plates sits round the dummies, flattens outward into a sunburst of plates that pins the targets, and leaves an orange crust disc.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/slingwell",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Outline-only"
+   ],
+   "gaps": [
+    "The floor answers now: a brown radial crater stays to 2.33 s and dummies fly.",
+    "The hero is cream spiral rings on the floor and a faint pale cone; there is no well mass.",
+    "Gravity does not read: nothing visibly pulls in before the fling."
+   ],
+   "onScreen": "Cream spiral rings lie under the dummies, a pale cone lifts with orange-brown radial streaks as dummies are flung, and a brown crater stain remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/subtone",
+   "oldScore": 4,
+   "score": 5,
+   "failing": [
+    1,
+    3,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Outline-only"
+   ],
+   "gaps": [
+    "The bore now shows as green ripple bands down the line that persist to 2.33 s.",
+    "The hero is still a lime wire dome plus wire loop glyphs; no solid drilled bore.",
+    "After impact the strip only fades; make the bore pulse or tunnel through the linger."
+   ],
+   "onScreen": "A lime wire dome at the target and floating wire loop glyphs sit over green ripple bands running down the line, which shrink to a green ripple strip.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/tensor",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    3,
+    4,
+    5,
+    6,
+    11
+   ],
+   "antipatterns": [
+    "Missing travel"
+   ],
+   "gaps": [
+    "The cage is orange bars and rings - thicker than before but still a line frame with little body or lighting",
+    "No travel; the cage is already round the dummies at 0.27 s",
+    "Improved: a red pressure pool spreads under the cage and stays as a dark-red stain at 2.3 s",
+    "The held pressure inside the cage does not read; add a compressed core volume"
+   ],
+   "onScreen": "An orange bar cage stands round the dummies, a red pressure pool spreads beneath as it tightens, and it collapses to a red stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/tickcage",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    1,
+    5,
+    11
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Missing travel"
+   ],
+   "gaps": [
+    "The slabs are now lit copper/wood blocks with a darker ramp and a floor stain stays, which is an improvement",
+    "The ring of plain boxes is already standing at f8; nothing travels from the caster",
+    "The boxes read as wooden posts, not clockwork; give them gears, ticks or dial geometry so time reads"
+   ],
+   "onScreen": "A ring of copper-brown slabs stands round the group from f8, topples inward into a pile and leaves an orange-brown floor stain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/vectorlance",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    2,
+    6,
+    10,
+    13
+   ],
+   "antipatterns": [
+    "Static bloom"
+   ],
+   "gaps": [
+    "The lance head is now a faceted orange crystal (about 1 m) at the target, but the beam is a thin red line with ripple rings",
+    "Arrow glyphs along the line are small",
+    "By 2.3 s only a faint red smear remains; nothing marks the floor",
+    "Thicken the vector into a body with a hot core and leave a scorched track"
+   ],
+   "onScreen": "A thin red beam with ripple rings and small arrow glyphs runs from the caster to a faceted orange crystal head among the dummies, then fades to a faint red smear.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/whisperwell",
+   "oldScore": 5,
+   "score": 5,
+   "failing": [
+    2,
     3,
     6,
     10,
     11
    ],
    "antipatterns": [
-    "Flat blob",
+    "Template sameness",
+    "Specks at distance"
+   ],
+   "gaps": [
+    "The whisper wall is a scatter of small flat green paper-cone shards around a bright disc; it reads as specks.",
+    "The shout is a ~2 m spiky green crystal column, which reads as ice/crystal rather than sound.",
+    "A green speckled pool now lingers, but nothing pulses or ripples like sound; add expanding sound rings and a taller bright-cored column."
+   ],
+   "onScreen": "Flat green cone shards circle the dummies over a bright disc, a spiky green column shoots up at 1.3 s over a green pool, then shrinks to a small spike.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/zodiac",
+   "oldScore": 3,
+   "score": 5,
+   "failing": [
+    1,
+    2,
+    5,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Outline-only",
+    "Missing travel"
+   ],
+   "gaps": [
+    "The zodiac ring is still a flat line-drawn violet sigil on the floor; it never locks overhead and drops.",
+    "There is no anticipation or travel; it is already on the floor at 0.27 s.",
+    "The impact now flings dummies and leaves a dark violet floor stain, but the ring needs height and a visible drop beat."
+   ],
+   "onScreen": "A flat violet zodiac sigil with glyph rings lies under the dummy cluster, a dome pops and flings them outward, and a dark violet floor stain remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/bindrune",
+   "oldScore": 4,
+   "score": 6,
+   "failing": [
+    4,
+    5,
+    10
+   ],
+   "antipatterns": [
     "Template sameness"
    ],
    "gaps": [
-    "The seeds are big blue grid-faceted gem pods that read as wireframe placeholders, not void",
-    "They pile around the caster instead of arcing out to land",
-    "The implosions are not visible; the pods simply fade into a blue smear"
+    "The rune slabs are now blue-violet and read as a ring of standing bars inside a wavy wall, and the break-out flings dummies onto a blue stain.",
+    "There is no anticipation or travel; the bars are already standing at 0.27 s.",
+    "Slabs and wall are one mid-blue with no white-hot core or dark deep; burn glowing runes into the slabs and add a darker ground sigil that stays."
    ],
-   "onScreen": "Large blue grid-faceted gem pods and a wire dome burst up around the caster along the line, then sink into a blue smear by 2.3 s.",
-   "error": null,
-   "isRig": null
+   "onScreen": "A ring of blue-violet rune slabs stands at the target inside a translucent wavy wall, holds, then bursts outward flinging dummies and leaves a blue speckled stain with debris.",
+   "captureError": null
   },
   {
-   "uid": "codex/riftpendulum",
-   "score": 4,
+   "uid": "codex/caustic",
+   "oldScore": 4,
+   "score": 6,
+   "failing": [
+    1,
+    2,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Static bloom"
+   ],
+   "gaps": [
+    "The light element now reads: a golden beam and dappled caustic strip run the line and persist to 2.33 s.",
+    "The lance itself is still a thin stick at the target; give it a body-height refractive form.",
+    "The strip only fades after impact; animate the caustic ripple through the linger."
+   ],
+   "onScreen": "A bright golden beam runs from the caster to the target over a dappled gold floor strip with ray streaks, a thin lance and ring mark the far end, and a gold scar remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/censers",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "Holy now reads: a gold spire with hanging gold censers stands over a gold pool that persists.",
+    "There is no anticipation or travel; it is already standing at 0.27 s.",
+    "The gold is pale and lacks a deep tone; smoke from the censers is not visible."
+   ],
+   "onScreen": "A gold spire with glowing gold censers hanging from a crossbar stands among the dummies, swings and shrinks into a small cluster on a dappled gold pool.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/chronowell",
+   "oldScore": 6,
+   "score": 6,
+   "failing": [
+    5,
+    6,
+    10
+   ],
+   "antipatterns": [
+    "Missing travel",
+    "Washed out"
+   ],
+   "gaps": [
+    "Good: a gold drum with orbiting pieces turns into a tall lit hourglass column at f40 - a real hero",
+    "The aged floor at f40 is a flat pale-peach splat with no deep tone; by f70 the hero is a small ~1 m flare over an orange stain",
+    "Nothing travels from the caster; the drum is full size at f8"
+   ],
+   "onScreen": "A gold clockwork drum with orbiting gold pieces sits on the group, rises into a tall hourglass column over a pale peach floor splat, then collapses to a small flare on an orange stain at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/hymnwell",
+   "oldScore": 5,
+   "score": 6,
    "failing": [
     3,
-    7,
-    10,
+    4,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The ring of slab glyphs and the ~2.5 m crown of pillars are flat-shaded cream-gold with no ramp or deep tone.",
+    "A gold-and-dark floor stain now lingers and the crown rises then shrinks, but judged bodies are not visibly lifted.",
+    "Add fresnel/ramp shading to the pillars and a rising lift column that carries the bodies."
+   ],
+   "onScreen": "A ring of glowing gold slabs and floating rods forms round the dummies, a crown of tall gold pillars rises over a speckled gold floor stain at 1.3 s, then shrinks.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/manawell",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    3,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "Improved: a dark-blue rune sigil fills the zone floor and a crystal column rises and flings the dummies",
+    "The crystals and dome are still pale translucent blue with no bright core or opaque body",
+    "The drained shards at f8 are small flat flakes; nothing travels from the caster"
+   ],
+   "onScreen": "Small pale-blue shards drift into a ring round the group, a translucent dome with pale crystal spikes rises over a dark-blue rune sigil and flings the dummies, then fades to a faint spire at 2.3 s.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/noonblade",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    3,
+    6,
+    7
+   ],
+   "antipatterns": [
+    "Template sameness",
+    "Flat blob"
+   ],
+   "gaps": [
+    "The crescent blade now has a gold ramp and a sunburst at the hand, and a gold strip reaches the target.",
+    "The blade is still a flat paper cut-out with no thickness or lighting.",
+    "A large yellow ring circles the whole arena, detached from the line; derive it from the line length or remove it."
+   ],
+   "onScreen": "A huge flat gold crescent blade with a sunburst swings at the caster inside an arena-wide yellow ring, a gold strip runs to the target, and a gold scar and blade fragment remain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/photonwell",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    1,
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "Gold shards gather over a glowing disc, a pyramid tent with a bright core forms and dummies are flung, then a gold pool stays: the drain-and-release now reads.",
+    "The pyramid is a plain translucent sheet; there is no travel from the caster.",
+    "The gold is pale throughout; add an amber-to-deep-brown deep tone so it does not wash out."
+   ],
+   "onScreen": "Gold shards rain onto a glowing disc under the dummies, a translucent pyramid with a bright core stands over it as dummies are flung, then a dappled gold pool remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/prismfault",
+   "oldScore": 4,
+   "score": 6,
+   "failing": [
+    1,
+    2,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "A violet faceted floor strip now runs the line and persists, with crystal shards beside it.",
+    "The hero is a small violet star at the target; no fault geometry rises along the line.",
+    "Three wakes are not distinguishable and the strip only fades."
+   ],
+   "onScreen": "A violet prism star at the target sends a faceted violet floor strip down the line flanked by small crystals, rings pop at the far end, and the violet strip remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/quarkspire",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    3,
+    4,
+    5,
+    6
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "The ~3 m double-helix is a strong silhouette but is still drawn as pale lavender strands with no core or volume.",
+    "A darker purple ripple pool now grounds it, but the spin-throw reads only as tumbling dummies; no swirl or streaks follow the spin.",
+    "No anticipation or travel: the column is fully up at f8, and it shrinks to a small helix by 2.3 s rather than unbraiding."
+   ],
+   "onScreen": "A tall lavender double-helix column stands in the target circle over a dark-purple rippling pool, dummies are thrown off, and it shrinks to a small helix over the pool.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/rotor",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    5,
+    10
+   ],
+   "antipatterns": [
+    "Missing travel"
+   ],
+   "gaps": [
+    "The tall teal rotor stack is fully up at the target at 0.27 s; no anticipation at the hand and no travel",
+    "Colours are pale teal and mint with no dark deep tone; the noise curtain reads as a fog sheet",
+    "Good: big readable hero (taller than the dummies) with a rippling ground pool that stays and shrinks through 2.3 s"
+   ],
+   "onScreen": "A tall stack of teal rotor blades stands in the circle from the first frame with a teal noise curtain and ripple pool, dummies are buffeted, and by 2.3 s only a small stack over a teal ripple stain remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/shardchoir",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    3,
+    5
+   ],
+   "antipatterns": [
+    "Template sameness"
+   ],
+   "gaps": [
+    "A ring of violet crystal spires stands around the dummies, folds inward and leaves a violet stain with shard debris: the converge beat reads.",
+    "The spires are flat-shaded slabs with no refraction or lit facets.",
+    "There is no anticipation or travel from the caster."
+   ],
+   "onScreen": "A ring of violet crystal spires stands around the dummies, folds inward into a fan of slabs and settles into a violet shard-strewn stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/surgewell",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    5,
     11
    ],
    "antipatterns": [
-    "Flat blob",
+    "Missing travel"
+   ],
+   "gaps": [
+    "Improved: a tall red helix column with a hot core now stands over a red ripple floor, and the throw sends dummies flying",
+    "No travel from the caster; the inhaled shards are already round the circle at 0.27 s",
+    "Element (momentum) is ambiguous; the red helix reads as fire",
+    "The linger at 2.3 s is a fading red stain and a small column"
+   ],
+   "onScreen": "Red shards are drawn into the centre of the zone, a tall red helix column surges up with a ripple floor and flings the dummies, then it shrinks to a faint stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/tidebar",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    5,
+    11
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "The bars are now lit bronze/metal with shading and a dark crater stain, but they are already standing at f8 with no anticipation at the hand.",
+    "Gravity does not read without the label: the bars look like wooden/bronze stakes and the radial light rays read as a holy burst.",
+    "Give the tilt a crushing downward pull (dust pushed in, bodies pinned) and a near-black heavy core."
+   ],
+   "onScreen": "A ring of lit bronze bars stands round the dummies, tilts inward at 1.3 s over radial light rays, and collapses into a dark brown crater stain.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/vowcage",
+   "oldScore": 5,
+   "score": 6,
+   "failing": [
+    1,
+    5
+   ],
+   "antipatterns": [
     "Template sameness"
    ],
    "gaps": [
-    "The hero is a huge violet grid-faceted blade or seed-pod shape swinging around the caster; the faceted grid shading looks like debug geometry",
-    "It occupies the caster's position instead of the cast line, hiding the caster",
-    "The rift opened on the beat is only a blue haze pillar"
+    "Gold bars form a dome, turn upright and fling dummies outward, leaving a gold pool: the break-out beat now reads.",
+    "The bars are thin tubes inside a translucent hatched drum; they have no forged weight.",
+    "There is no anticipation or travel from the caster."
    ],
-   "onScreen": "A huge violet grid-faceted pod-like blade with spines swings around the caster and lies down on the floor while a blue haze pillar stands at the group.",
-   "error": null,
-   "isRig": null
+   "onScreen": "Gold bars draw a dome over the dummies inside a translucent hatched drum, turn upright and break outward, flinging dummies, and a gold pool remains.",
+   "captureError": null
+  },
+  {
+   "uid": "codex/keystone",
+   "oldScore": 5,
+   "score": 7,
+   "failing": [
+    4,
+    6
+   ],
+   "antipatterns": [],
+   "gaps": [
+    "Improved: stones now drop from above (anticipation), crush into a lit stone mound with crack lines and a dust burst, and flung dummies sell the impact",
+    "Stone texture is striped tan panels with little grain; add rock noise and chips",
+    "The linger at 2.3 s is a fading orange crater disc with a small mound; give it settling dust or crumbling motion"
+   ],
+   "onScreen": "Keystones fall into a tall ring of lit ochre stones round the dummies, crush inward into a cracked mound with an orange dust burst that throws the targets, and leave an orange crater.",
+   "captureError": null
   }
  ]
 }

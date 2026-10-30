@@ -9,7 +9,7 @@ State after PR #21 (branch `claude/castables-upgrade-standardize-pw8sid`).
 - The Arch-Wizard duel and the dummy roster, the quality standard, reference storyboards and the capture tool.
 
 ## Still to do, in priority order
-1. **Re-grade before upgrading.** `audit/audit-group*.json` were scored before `tools/capture-cast.mjs` stood dummies where a cast lands, and before the shared Codex pass. Re-capture each remaining uid with the current tool and re-score it against `docs/castable-quality-standard.md`; many 6s may now pass.
+1. **Re-grade before upgrading — done 2026-10-30.** All 136 remaining uids were re-captured with the current `tools/capture-cast.mjs` (dummy cluster) and re-scored against `docs/castable-quality-standard.md`. `remaining-below-bar.json` now holds the fresh scores (`nearMiss`, `hand`, `rig`, each worst first, with `oldScore`). 65 went up and none went down, but **none reached 8**: near-misses 5–7, hand-authored 4–7 (34 at 6), Codex rig 3–7 (mostly 4–5). The common gaps are unchanged: flat or unlit heroes, no travel from the caster, a linger that only fades, and the shared rig look. `audit/` keeps the old scores for history.
 2. **Seven near-misses** (upgraded, honest score under 8):
    - `matrix-expansion/toxin-evolution`: the membrane is all additive glow; it needs a solid dark body.
    - `matrix-expansion/thunderhead-parasite`: the cloud is a smooth pale puff; it needs cauliflower or volumetric structure and a dark base.
