@@ -1,16 +1,19 @@
-import { Mesh, Vector3 } from 'three';
+import { InstancedBufferAttribute, InstancedMesh, Mesh, Object3D, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import {
   createRelayTetherGeometry,
   createRelayQuadGeometry,
   createRelayFloorGeometry,
+  createRelayProngGeometry,
+  PRONG_WIDTH,
   MAX_TETHER_POINTS
 } from '../../assets/atlas/ArcRelayGeometry.js';
 import {
   createRelayTetherMaterial,
   createRelayCoreMaterial,
   createRelaySigilMaterial,
-  createRelayWarpMaterial
+  createRelayWarpMaterial,
+  createRelayProngMaterial
 } from '../../materials/atlas/ArcRelayMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -37,6 +40,9 @@ const MAX_TETHERS = MAX_NODES;
 const MAX_BRANCH = 3;
 /** Burn marks laid along one link when it is claimed. */
 const MAX_SCARS_PER_LINK = 10;
+/** Conductor prongs in one relay cage. The editor's `prongCount` clamps to this. */
+const MAX_PRONGS = 7;
+const TAU = Math.PI * 2;
 
 /** What the lattice is doing right now. */
 const Mode = Object.freeze({
@@ -60,6 +66,7 @@ const _dir = new Vector3();
 const _toCam = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _scar = new Vector3();
+const _prong = new Object3D();
 
 /**
  * RELAY — Arc Relay.
@@ -91,9 +98,22 @@ const _scar = new Vector3();
  *      billboard over each body: boiling plasma ball, crackling filaments
  *      re-struck on a quantised clock, a broken containment ring that spins,
  *      and a hot shell that races out of it on the discharge.
- *   3. **GROUND SIGILS** (`createRelaySigilMaterial`) — a relay seal drawn
- *      in under each body as it charges, throbbing under overload, wiped
- *      outward by the discharge; plus an ARC burn when it is claimed.
+ *   2b. **CONDUCTOR CAGE** (the hero solid, `createRelayProngGeometry` +
+ *      `createRelayProngMaterial`) — the claim tears a ring of lit,
+ *      shadow-casting steel lightning rods (insulator stacks, hooked points)
+ *      up out of the floor round the body, staggered, overshooting, leaning
+ *      in so their points crown the head. Held, they hum and their insulator
+ *      grooves glow; under overload the heat creeps from the points down the
+ *      whole rod and the cage opens like a flower; on the discharge the rods
+ *      are blown outward white-hot, then topple, cool through the ramp to the
+ *      deep tone and sink back into the floor — the linger's own motion. One
+ *      InstancedMesh on `LAYER.WORLD`; every angle and length is resolved
+ *      from `settings.relay` each frame.
+ *   3. **GROUND SIGILS** (`createRelaySigilMaterial`) — a filled, charged
+ *      plate under each body: a deep floor-darkening disc lit by a plasma
+ *      field and crawling veins, with the seal's rings on top; drawn in as
+ *      it charges, throbbing under overload, wiped outward by the discharge;
+ *      plus an ARC burn when it is claimed.
  *   3b. **CONDUCTION SCARS** — the floor remembers the lattice: when a link
  *      races to a new relay it burns a dotted line of ARC + SCORCH marks along
  *      its ground track (one per `scarSpacing` metres, at most ten a link),
@@ -222,11 +242,27 @@ export class ArcRelayAbility extends Ability {
         ringPhase: 0,
         spin: 0,
         seed: 0,
+        /** Bearing of the cage's first prong, rolled at the claim. */
+        cagePhase: 0,
         coreState: { size: 1, charge: 0, overload: 0, burst: 0, fade: 1, ringPhase: 0, seed: 0 },
-        sigilState: { reveal: 0, overload: 0, burst: 0, fade: 1, spin: 0 },
+        sigilState: { reveal: 0, overload: 0, burst: 0, fade: 1, spin: 0, seed: 0 },
         warpState: { strength: 0, seed: 0 }
       });
     }
+
+    /* ---- layer 2b: the conductor cages, one instanced draw ---- */
+    this.prongGeometry = createRelayProngGeometry();
+    this.prongHeat = new InstancedBufferAttribute(new Float32Array(MAX_NODES * MAX_PRONGS * 4), 4);
+    this.prongGeometry.setAttribute('aHeat', this.prongHeat);
+    this.prongMaterial = createRelayProngMaterial();
+    this.prongs = new InstancedMesh(this.prongGeometry, this.prongMaterial, MAX_NODES * MAX_PRONGS);
+    this.prongs.name = 'RelayCage';
+    this.prongs.layers.set(LAYER.WORLD);
+    this.prongs.castShadow = true;
+    this.prongs.receiveShadow = true;
+    this.prongs.frustumCulled = false;
+    this.prongs.count = 0;
+    this.group.add(this.prongs);
 
     /** Reused by `DummyField#findTargets`, so polling allocates nothing. */
     this._targets = [];
@@ -345,6 +381,7 @@ export class ArcRelayAbility extends Ability {
 
     for (let i = 0; i < MAX_TETHERS; i++) this._releaseTether(this.tethers[i]);
     for (let i = 0; i < MAX_NODES; i++) this._releaseNode(this.nodes[i]);
+    this.prongs.count = 0;
 
     this._hand(this._handPoint);
 
@@ -424,6 +461,7 @@ export class ArcRelayAbility extends Ability {
     node.ringPhase = Math.random() * 6.28;
     node.spin = Math.random() * 6.28;
     node.seed = Math.random() * 10;
+    node.cagePhase = Math.random() * TAU;
     node.point.set(dummy.position.x, settings.dummies.height * c.nodeHeight, dummy.position.z);
     node.core.visible = true;
     node.sigil.visible = true;
@@ -570,7 +608,7 @@ export class ArcRelayAbility extends Ability {
         radius: c.shockRadius * g.explosionIntensity,
         life: c.shockLife,
         width: 0.06,
-        intensity: 1.2,
+        intensity: c.shockIntensity,
         colorA: getColor(c.colorShockA),
         colorB: getColor(c.colorShockB)
       });
@@ -767,6 +805,7 @@ export class ArcRelayAbility extends Ability {
     ss.burst = discharged ? Easing.outQuad(saturate(this._dischargeAge / Math.max(0.1, this.impactDuration))) : 0;
     ss.fade = 1 - Easing.inQuad(after);
     ss.spin = node.spin;
+    ss.seed = node.seed;
     node.sigilMaterial.userData.sync(ss);
     node.sigil.visible = ss.fade > 0.001;
 
@@ -779,6 +818,77 @@ export class ArcRelayAbility extends Ability {
     ws.seed = node.seed;
     node.warpMaterial.userData.sync(ws);
     node.warp.visible = ws.strength > 0.004;
+  }
+
+  /**
+   * The conductor cages, closed-form from each relay's clock and the
+   * lattice's mode: rise out of the floor → hum → open under overload → blown
+   * outward white-hot on the discharge → topple, cool and sink. Writes every
+   * prong's matrix and its `aHeat` (heat, reach, seed, flicker).
+   */
+  _updateCage(overload) {
+    const c = settings.relay;
+    const g = settings.global;
+    const n = Math.max(0, Math.min(MAX_PRONGS, Math.round(c.prongCount)));
+    const discharged = this._mode === Mode.DISCHARGED;
+    const da = this._dischargeAge;
+    const blow = discharged ? Easing.outCubic(saturate(da / Math.max(0.02, c.cageBlowTime))) : 0;
+    const sink = discharged ? Easing.inQuad(saturate((da - c.cageSinkDelay) / Math.max(0.05, c.cageSinkTime))) : 0;
+    const width = c.prongWidth / PRONG_WIDTH;
+    const time = frame.uTime.value * g.animationSpeed;
+    let k = 0;
+
+    for (let i = 0; i < this._nodeCount && n > 0; i++) {
+      const node = this.nodes[i];
+      const charge = saturate(node.age / Math.max(0.02, c.chargeTime));
+      for (let p = 0; p < n; p++) {
+        const seed = node.seed * 7.13 + p * 1.618;
+        const jitter = (Math.sin(seed * 12.9898) * 0.5) * c.cageJitter * g.randomness;
+        const bearing = node.cagePhase + (p / n) * TAU + jitter;
+        const reach = c.cageRadius * (1 + jitter * 0.4) + c.cageBlowPush * blow;
+        const H = c.cageHeight * (1 + jitter * 0.25);
+        const inward = reach - c.cageTipRadius;
+        const L = Math.hypot(H, inward);
+        let lean = Math.atan2(inward, H);
+
+        // Torn up out of the floor, staggered round the ring, overshooting.
+        const rise = saturate((node.age - c.cageDelay - p * c.cageStagger) / Math.max(0.02, c.cageRiseTime));
+        const grow = rise > 0 ? Easing.outBack(rise) : 0;
+        lean *= 0.35 + 0.65 * Easing.outCubic(rise);
+        // Held: a hum; overload: the cage opens; discharge: blown outward.
+        lean += Math.sin(time * 41 + seed * 3.7) * c.cageHum * (0.25 + overload) * (1 - blow);
+        lean -= c.cageSplay * overload;
+        lean = lean + (-c.cageBlowAngle - lean) * blow;
+        const len = L * grow * (1 - 0.25 * sink);
+
+        const cx = Math.cos(bearing);
+        const cz = Math.sin(bearing);
+        _prong.position.set(node.point.x + cx * reach, -len * c.cageSink * sink - 0.04, node.point.z + cz * reach);
+        _prong.rotation.set(0, -bearing, lean);
+        const sx = len > 1e-4 ? width * (0.85 + 0.15 * grow) : 0;
+        _prong.scale.set(sx, Math.max(1e-4, len), sx);
+        _prong.updateMatrix();
+        this.prongs.setMatrixAt(k, _prong.matrix);
+
+        // Heat: grooves first, the points as the charge settles, the whole
+        // rod under overload; a white-hot spike on the discharge that cools.
+        let heat;
+        let heatReach;
+        if (discharged) {
+          heat = c.cageDischargeHeat * Math.exp(-da / Math.max(0.05, c.cageCoolTime)) + c.cageIdleHeat * 0.3 * (1 - sink);
+          heatReach = 1;
+        } else {
+          heat = (c.cageIdleHeat * Easing.outQuad(charge) + overload * (1 - c.cageIdleHeat)) + Math.exp(-6 * node.age) * 0.6;
+          heatReach = lerp(c.cageIdleReach, 1, overload) * charge;
+        }
+        this.prongHeat.setXYZW(k, heat, heatReach, seed, c.cageCrackle * (0.3 + overload + blow));
+        k++;
+      }
+    }
+    this.prongs.count = k;
+    this.prongs.instanceMatrix.needsUpdate = true;
+    this.prongHeat.needsUpdate = true;
+    this.prongMaterial.userData.sync();
   }
 
   _sparkBurst(point, radius, count, direction, speed, spread = 1.1) {
@@ -943,6 +1053,7 @@ export class ArcRelayAbility extends Ability {
       if (tether.active) this._updateTether(tether, dt, overload);
     }
     for (let i = 0; i < this._nodeCount; i++) this._updateNode(this.nodes[i], dt, overload);
+    this._updateCage(overload);
 
     const live = this._mode === Mode.GROW || this._mode === Mode.OVERLOAD ? 1 + overload * 2 : 0;
     this._nodeFx(dt, live);
@@ -977,6 +1088,7 @@ export class ArcRelayAbility extends Ability {
     this._nodeCount = 0;
     this._targets.length = 0;
     this._mode = Mode.GROUNDED;
+    this.prongs.count = 0;
   }
 
   dispose() {
@@ -989,6 +1101,8 @@ export class ArcRelayAbility extends Ability {
     this.tetherGeometry.dispose();
     this.quadGeometry.dispose();
     this.floorGeometry.dispose();
+    this.prongGeometry.dispose();
+    this.prongMaterial.dispose();
     super.dispose();
   }
 }
@@ -1083,6 +1197,40 @@ export function buildEditor(gui, c, Editor) {
   core.addColor(c, 'colorCoreEdge').name('edge');
   core.addColor(c, 'colorCoreRing').name('ring');
 
+  /* ---- layer 2b ---- */
+  const cage = folder.addFolder('2b · Conductor cage (hero)');
+  R(cage, c, 'prongCount', 0, MAX_PRONGS, 1, 'prongs per relay');
+  R(cage, c, 'cageRadius', 0.2, 2.5, 0.01, 'foot ring radius (m)');
+  R(cage, c, 'cageTipRadius', 0, 1.5, 0.01, 'point ring radius (m)');
+  R(cage, c, 'cageHeight', 0.4, 4, 0.01, 'height (m)');
+  R(cage, c, 'prongWidth', 0.02, 0.2, 0.001, 'foot half-width (m)');
+  R(cage, c, 'cageJitter', 0, 1, 0.01, 'irregularity');
+  R(cage, c, 'cageDelay', 0, 0.5, 0.005, 'rises after the claim (s)');
+  R(cage, c, 'cageRiseTime', 0.02, 1, 0.005, 'rises over (s)');
+  R(cage, c, 'cageStagger', 0, 0.2, 0.002, 'stagger per prong (s)');
+  R(cage, c, 'cageHum', 0, 0.2, 0.001, 'hum (rad)');
+  R(cage, c, 'cageSplay', 0, 0.8, 0.005, 'opens at overload (rad)');
+  R(cage, c, 'cageBlowAngle', 0, 1.6, 0.01, 'blown out to (rad)');
+  R(cage, c, 'cageBlowPush', 0, 2, 0.01, 'blown out by (m)');
+  R(cage, c, 'cageBlowTime', 0.02, 1, 0.005, 'blown over (s)');
+  R(cage, c, 'cageSinkDelay', 0, 2, 0.01, 'sinks after (s)');
+  R(cage, c, 'cageSinkTime', 0.05, 3, 0.01, 'sinks over (s)');
+  R(cage, c, 'cageSink', 0, 1.5, 0.01, 'sinks by (× length)');
+  R(cage, c, 'cageIdleHeat', 0, 1, 0.01, 'held heat');
+  R(cage, c, 'cageIdleReach', 0, 1, 0.01, 'held heat reach (× length)');
+  R(cage, c, 'cageDischargeHeat', 0, 2, 0.01, 'discharge heat');
+  R(cage, c, 'cageCoolTime', 0.05, 3, 0.01, 'cools over (s)');
+  R(cage, c, 'cageCrackle', 0, 1, 0.01, 'heat crackle');
+  R(cage, c, 'prongGlow', 0, 8, 0.05, 'heat glow');
+  R(cage, c, 'prongGroove', 0, 3, 0.01, 'insulator groove glow');
+  R(cage, c, 'prongRoughness', 0, 1, 0.01, 'roughness');
+  R(cage, c, 'prongMetalness', 0, 1, 0.01, 'metalness');
+  cage.addColor(c, 'colorProng').name('steel');
+  cage.addColor(c, 'colorProngHot').name('heat: white point');
+  cage.addColor(c, 'colorProngTint').name('heat: tint');
+  cage.addColor(c, 'colorProngBody').name('heat: body');
+  cage.addColor(c, 'colorProngDeep').name('heat: deep');
+
   /* ---- layer 3 ---- */
   const sigil = folder.addFolder('3 · Ground sigils');
   R(sigil, c, 'sigilRadius', 0.1, 4, 0.01, 'radius (m)');
@@ -1091,8 +1239,14 @@ export function buildEditor(gui, c, Editor) {
   R(sigil, c, 'sigilLine', 0.005, 0.15, 0.001, 'line width');
   R(sigil, c, 'sigilIntensity', 0, 8, 0.05, 'intensity');
   R(sigil, c, 'sigilOpacity', 0, 1, 0.01, 'opacity');
+  R(sigil, c, 'sigilFill', 0, 1, 0.01, 'plate darkness');
+  R(sigil, c, 'sigilField', 0, 3, 0.01, 'plasma field');
+  R(sigil, c, 'sigilFieldScale', 0.5, 10, 0.05, 'field scale');
+  R(sigil, c, 'sigilVeins', 0, 3, 0.01, 'current veins');
   sigil.addColor(c, 'colorSigil').name('colour');
   sigil.addColor(c, 'colorSigilHot').name('hot');
+  sigil.addColor(c, 'colorSigilBody').name('field body');
+  sigil.addColor(c, 'colorSigilDeep').name('plate deep');
   R(sigil, c, 'arcRadius', 0.1, 6, 0.05, 'ARC burn on claim (m)');
   R(sigil, c, 'groundArcRadius', 0.1, 8, 0.05, 'ARC burn when grounding (m)');
   R(sigil, c, 'arcLife', 0.1, 6, 0.05, 'burn lifetime');
@@ -1138,6 +1292,7 @@ export function buildEditor(gui, c, Editor) {
   R(dis, c, 'burstIntensity', 0, 6, 0.05, 'shell intensity');
   R(dis, c, 'shockRadius', 0, 12, 0.05, 'shockwave (m)');
   R(dis, c, 'shockLife', 0.05, 3, 0.01, 'shockwave lifetime');
+  R(dis, c, 'shockIntensity', 0, 3, 0.01, 'shockwave intensity');
   dis.addColor(c, 'colorBurstA').name('shell core');
   dis.addColor(c, 'colorBurstB').name('shell body');
   dis.addColor(c, 'colorBurstC').name('shell edge');

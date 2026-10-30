@@ -78,6 +78,15 @@ export default {
     colorGlyph: '#7c8cff', // blue-violet glow
     colorDeep: '#2a1288', // the deeper violet of the wash and the runes
     colorRune: '#b49cff', // the rune band
+    /* --- the inked plate under the strokes: a filled seal impression --- */
+    plateCover: 0.72, // how far the plate darkens the floor, 0..1 (the deep stop)
+    plateInk: 0.55, // arcane ink swirling in the plate (the body stop)
+    plateInkScale: 2.4, // swirls across the plate
+    colorPlate: '#0d0628', // the plate itself
+    /* --- the stamp's 3D beat --- */
+    stampChips: 16, // obsidian chips kicked up by each slam
+    stampChipSpeed: 3.6, // m/s
+    stampDust: 0.7, // the dust ring each slam throws
 
     /* ================================================================ */
     /* 1b · THE SEAL STONES — the hero: the stamps that print the glyphs  */
@@ -95,19 +104,26 @@ export default {
     sealSlam: 0.28, // fraction of the flight spent slamming down
     sealDwell: 0.08, // seconds it sits in its print before lifting
     sealSquash: 0.22, // squash on the slam
-    sealHover: 2.2, // metres it hovers at over its print (above a body standing on it)
+    sealHover: 1.95, // metres it hovers at over its print (above a body standing on it)
     sealRiseTime: 0.35, // seconds to lift to the hover
     sealBob: 0.08, // metres of hover bob
     sealSpin: 0.7, // rad/s it turns while hovering
     sealTilt: 0.35, // rad it tips toward its print as the chain charges
     sealFling: 8, // m/s it is flung up the pillar
     sealGone: 0.45, // seconds to be swallowed by the pillar
-    sealGlow: 1.6, // rune engraving glow
+    sealGlow: 2.4, // rune engraving glow
     sealRunes: 12, // rune cells round the band
     sealRoughness: 0.36,
     sealMetalness: 0.15,
     colorSeal: '#1c1530', // obsidian
     colorSealRune: '#8f7bff', // engraving
+    /* --- the binding shaft: rune-rain from each hovering seal to its print --- */
+    bindStrength: 0.65, // 0 = none
+    bindGlow: 1.0,
+    bindFoot: 0.8, // × glyph radius at the floor
+    bindStreaks: 14, // streams of rune-rain round it
+    bindFlow: 3.2, // how fast it falls (negative climbs)
+    bindFresnel: 1.8, // edge brightening
 
     /* ================================================================ */
     /* 2 · RUNE FRAGMENTS — floating above each glyph                     */
@@ -129,13 +145,14 @@ export default {
     pillarFlare: 0.9, // how much wider the base flares
     pillarTime: 0.9, // seconds each pillar stands
     pillarRise: 0.1, // seconds it takes to shoot to full height
-    pillarGlow: 0.85, // brightness
-    pillarCore: 0.6, // white-hot core strength (the thin axis only)
+    pillarGlow: 0.8, // brightness
+    pillarCore: 0.45, // white-hot core strength (the thin axis only)
     pillarCoreTight: 10, // how thin the white axis is (higher = thinner)
     pillarStreaks: 10, // light streaks round it
     pillarStreakSpeed: 6, // how fast they race up
     pillarFresnel: 2.2, // edge brightening
     pillarSoftFade: 0.5, // soft contact with the floor, metres
+    pillarCover: 0.55, // how much the deep walls cover what is behind (premultiplied, not additive)
     colorPillarCore: '#ffffff',
     colorPillarA: '#9aa6ff',
     colorPillarB: '#6a3dff',
@@ -155,12 +172,12 @@ export default {
     shockReach: 2.4, // × glyph radius the ring travels
     shockTime: 0.45, // seconds it takes
     shockWidth: 0.08, // metres
-    shockGlow: 3,
+    shockGlow: 2,
     decalShock: 1, // strength of the engine shockwave decal
     burstSize: 1.6, // metres — the ionised shell at each eruption
-    burstIntensity: 1.1,
-    colorShock: '#c4b6ff',
-    colorBurstA: '#e6e0ff',
+    burstIntensity: 0.8,
+    colorShock: '#a594ff',
+    colorBurstA: '#cbbfff',
     colorBurstB: '#7c8cff',
     colorBurstC: '#3a1aa8',
     /* the floor keeps the chain: each stamp leaves a dark imprint, each
@@ -202,8 +219,8 @@ export default {
     streakSpeed: 16,
     streakLifetime: 0.5,
     streakStretch: 0.6,
-    streakGlow: 2.6,
-    colorStreakA: '#ffffff',
+    streakGlow: 2.0,
+    colorStreakA: '#e6e0ff',
     colorStreakB: '#c4b6ff',
     colorStreakC: '#7c8cff',
     colorStreakD: '#3a1aa8',
@@ -212,8 +229,8 @@ export default {
     ringSize: 3.2, // × pillar radius
     ringRise: 6, // m/s they climb
     ringLifetime: 0.45,
-    ringGlow: 2.2,
-    colorRingA: '#ffffff',
+    ringGlow: 1.6,
+    colorRingA: '#d8ceff',
     colorRingB: '#9aa6ff',
     colorRingC: '#6a3dff',
     colorRingD: '#1a0c50',

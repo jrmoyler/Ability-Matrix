@@ -16,11 +16,11 @@ A strip of false water races from your feet to the circle with two chromatic gho
 | 3.05–4.35 | Exit | Veil blown outward and thinned (0.6 s); shards skid and fade; the lake dries in from its shore (evap) then fades. |
 
 ## Layers
-1. Copy — caster rig clone (`SkeletonUtils`), `createMirageBodyMaterial` (fresnel, chromatic interference bands, strobe, slice tearing, assembly seam, burst erosion). `abilities/matrix-new/MirageConstructAbility.js`, `materials/matrix-new/MirageConstructMaterials.js`.
+1. Copy — caster rig clone (`SkeletonUtils`), `createMirageBodyMaterial` (premultiplied dark violet glass #1a0f4a covering the background — `bodyCover` 0.78 — so it reads as your silhouette; pale rim #cfe6ff, saturated bands #7a7cff; fresnel, chromatic interference bands, strobe, slice tearing, assembly seam, burst erosion). `abilities/matrix-new/MirageConstructAbility.js`, `materials/matrix-new/MirageConstructMaterials.js`.
 2. Afterimages — two more draws on the same skeleton, tinted #ff5ad0 / #4ff2ff; run on the road during travel.
-3. Reflection — third draw, flipped through the floor in the vertex stage, no depth test, clipped to the lake, fading over 2.2 m.
-4. Heat veil (hero geometry) — `createMirageVeilGeometry` param-space ribbons placed/swayed/tapered in `createMirageVeilMaterial` (#6f7cff body, #e8d4ff bands, white spine).
-5. False lake — `createMiragePoolMaterial`, normal-blended deep #0a0c26 + env-probe sky reflection + iridescent ripples + shore.
+3. Reflection — third draw, flipped through the floor in the vertex stage, no depth test, clipped where the eye ray crosses the water (so it sits on the lake rather than spilling toward the camera), hidden by anything in front of the water (scene depth), same dark glass (`reflectCover`), fading over 3.2 m.
+4. Heat veil (hero geometry) — `createMirageVeilGeometry` param-space ribbons placed/swayed/tapered in `createMirageVeilMaterial` (#6f7cff body, #e8d4ff bands, white spine, smoking out to deep #24106a at the tips, premultiplied cover).
+5. False lake — `createMiragePoolMaterial`, normal-blended deep #0b0826 + env-probe sky reflection + 4 iridescent ripples broken into wavelets by noise + softer shore.
 6. Road — `createMirageRoadMaterial`, same false water along the line.
 7. Heat haze + burst shock (LAYER.DISTORTION).
 8. Motes (SOFT, curl) and sparks (STREAK); instanced light shards.
@@ -29,10 +29,13 @@ A strip of false water races from your feet to the circle with two chromatic gho
 A real mirage: the copy stands on water that is not there, its upside-down image in it, inside a ring of bent air.
 
 ## Palette
-core #ffffff, tint #d0e8ff, body #6f7cff, deep #0a0c26
+core #ffffff, tint #cfe6ff, body #6f7cff / #7a7cff, deep #1a0f4a / #24106a / #0b0826
 
 ## Gameplay
 `handlesOwnHits`: at the burst every live dummy within `killReach × zoneRadius` dies, thrown outward (impulse 7, lift 4.5). Unchanged.
 
 ## What the capture shows (after)
 `sheets/matrix-new__mirage-sheet.jpg`: f8 ghosts on the road; f20 blue road reaching the circle; f40/f70 3 m copy inside a crown of chromatic heat-tongues over a dark ringed lake; f90 the burst. Short of the bar: the reflection is faint at the 45° capture camera and the lake still reads ring-heavy.
+
+## What the capture shows (upgrade C)
+`/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-C/r2/matrix-new__mirage-sheet.jpg`: f32–f70 a tall violet-glass copy with a pale rim inside violet-tipped heat tongues, its inverted violet image on the dark lake in front of it, wavelet ripples instead of target rings; the white column that used to spill from the lake to the caster is gone. Before 7 → after honest 8. Short: in the cluster capture the dummies stand in front of the copy and cut its silhouette.
