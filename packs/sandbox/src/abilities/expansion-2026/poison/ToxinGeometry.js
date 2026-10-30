@@ -13,6 +13,8 @@ import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, TubeGeometry,
  *  - `toxinCoilGeometry`     one stage's coil, different per tier
  *  - `toxinSporeGeometry`    a lumpy spore bead
  *  - `toxinPoolGeometry`     the infection stain on the floor
+ *  - `toxinTendrilGeometry`  one blight tendril (the zone-scale hero)
+ *  - `toxinTrailGeometry`    the venom stream drawn along the flight
  */
 
 const TAU = Math.PI * 2;
@@ -129,6 +131,98 @@ export function toxinSporeGeometry() {
     }
   }
   return finish(positions, uvs, indices);
+}
+
+/**
+ * One blight tendril — the hero at zone scale. A straight, unit-length tube
+ * along +Y (`position.y` is the 0..1 arc parameter `t`) whose cross-section
+ * is authored, so the shader can bend it into an arc that erupts out of the
+ * stain, leans out and curls back over the host (`createTendrilMaterial`).
+ *
+ *  - big: a flared root tapering to a hooked point (`pow(1 − t, 0.75)`)
+ *  - medium: five flutes twisting up its length, and four **pustules** — fat
+ *    one-sided swellings on alternating faces, the sacs the toxin ripens in
+ *  - small: left to the shader (veins, mottling, wet highlight)
+ *
+ * `position.xz` is the cross-section offset at base radius 1 (the shader
+ * scales it by `tendrilThick`), `normal` is the analytic surface normal in the
+ * same unbent frame, `aKnob` (0..1) marks the pustules so they glow.
+ */
+export function toxinTendrilGeometry(rows = 56, cols = 15) {
+  const positions = [], normals = [], uvs = [], knobs = [], indices = [];
+  const pustules = [
+    [0.2, 0.0],
+    [0.37, 2.4],
+    [0.54, 4.4],
+    [0.7, 1.3]
+  ];
+  for (let j = 0; j < rows; j++) {
+    const t = j / (rows - 1);
+    const taper = Math.pow(1 - t, 0.75) * (1 + 0.55 * Math.exp(-t * 9));
+    for (let i = 0; i < cols; i++) {
+      const a = (i * TAU) / (cols - 1);
+      let knob = 0;
+      for (const [kt, ka] of pustules) {
+        const d = Math.atan2(Math.sin(a - ka), Math.cos(a - ka));
+        knob += Math.exp(-Math.pow((t - kt) / 0.045, 2)) * Math.exp(-(d * d) / 0.9);
+      }
+      knob = Math.min(1, knob);
+      const flute = 0.09 * Math.cos(a * 5 + t * 7);
+      const r = taper * (1 + 0.7 * knob + flute);
+      // Slope of the radius along t (finite difference) tilts the normal.
+      const t2 = Math.min(1, t + 0.01);
+      const taper2 = Math.pow(1 - t2, 0.75) * (1 + 0.55 * Math.exp(-t2 * 9));
+      const dr = ((taper2 - taper) / 0.01) * 0.07;
+      const nl = Math.hypot(1, dr) || 1;
+      positions.push(Math.cos(a) * r, t, Math.sin(a) * r);
+      normals.push(Math.cos(a) / nl, -dr / nl, Math.sin(a) / nl);
+      uvs.push(i / (cols - 1), t);
+      knobs.push(knob);
+      if (j < rows - 1 && i < cols - 1) {
+        const n = j * cols + i;
+        indices.push(n, n + cols, n + 1, n + 1, n + cols, n + cols + 1);
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('aKnob', new Float32BufferAttribute(knobs, 1));
+  geometry.setIndex(indices);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
+ * The venom stream the seed vessel draws through the air: a unit tube along
+ * +X (`position.x` is the 0..1 parameter along the flight), cross-section in
+ * YZ at radius 1. The shader lays it on the flight arc from the caster to the
+ * landing point, reveals it behind the vessel and lets it sag to the floor and
+ * dry once the vessel has burst.
+ */
+export function toxinTrailGeometry(segments = 72, sides = 8) {
+  const positions = [], normals = [], uvs = [], indices = [];
+  for (let j = 0; j <= segments; j++) {
+    const s = j / segments;
+    for (let i = 0; i <= sides; i++) {
+      const a = (i * TAU) / sides;
+      positions.push(s, Math.cos(a), Math.sin(a));
+      normals.push(0, Math.cos(a), Math.sin(a));
+      uvs.push(s, i / sides);
+      if (j < segments && i < sides) {
+        const n = j * (sides + 1) + i;
+        indices.push(n, n + sides + 1, n + 1, n + 1, n + sides + 1, n + sides + 2);
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 /**

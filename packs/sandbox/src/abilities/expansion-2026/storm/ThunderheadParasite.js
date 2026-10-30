@@ -15,6 +15,7 @@ import {
   createBoltMaterial,
   createCloudDepthMaterial,
   createCloudMaterial,
+  createFlareMaterial,
   createParasiteWarpMaterial,
   createShadowMaterial
 } from './ThunderheadParasiteMaterial.js';
@@ -68,26 +69,35 @@ export const CONFIG = Object.freeze({
     /* ================================================================ */
     /* 1 · THE THUNDERHEAD                                               */
     /* ================================================================ */
-    cloudHeight: 3.4, // metres above the host's feet (the belly hangs well over a 1.8 m body)
-    cloudSize: 1.75, // scale of the cluster (≈ 2.4 m across at 1, ≈ 4.2 m at the default)
-    cloudFlatten: 0.8, // vertical squash
-    cloudBillow: 0.16, // metres the lobes boil out
+    cloudHeight: 3.0, // metres above the host's feet (the belly hangs well over a 1.8 m body)
+    cloudSize: 1.5, // scale of the cluster (≈ 2.9 m across at 1, ≈ 4.4 m at the default)
+    cloudFlatten: 0.85, // vertical squash
+    cloudBillow: 0.12, // metres of fine billow on every lobe
     cloudBillowScale: 1.6, // billow noise frequency
     cloudDrift: 0.35, // billow noise speed
     cloudSpin: 0.05, // turns/second the cluster slowly wheels
-    cloudOpacity: 0.92,
+    cloudOpacity: 0.96,
+    cloudBoil: 0.1, // each lobe swells and sinks on its own by this share of its size
+    cloudBoilRate: 0.7, // boils per second
+    cloudTwist: 0.12, // radians/second the crown wheels against the belly (updraft shear)
+    cloudAnvil: 1, // how far the anvil spreads out over the ride (0..1.5)
+    cloudSwell: 0.14, // the cloud grows by this share as it feeds, across the ride
+    cloudSurge: 0.06, // lobes heave out on every bolt (× bolt power)
+    cloudCrownLight: 1, // how far the sun-facing upper lobes reach the crown tint
+    cloudLining: 1.3, // the thin silver lining on the lobes' edges
+    cloudEmber: 0.3, // violet smoulder in the crevices between flashes
     cloudEdge: 1.6, // how deep the silhouette is torn into wisps
     cloudFollow: 6, // how tightly it trails its host (1/s)
     cloudBob: 0.08, // metres of slow vertical bob
     formTime: 0.45, // seconds to condense on arrival
     seedScale: 0.4, // the stormlet's size in flight (× cloud)
     softFade: 0.5, // metres of soft intersection with the scene
-    flashGlow: 2.6, // brightness of lightning inside the cloud
+    flashGlow: 1.7, // brightness of lightning inside the cloud
     idleFlash: 1.6, // ambient sheet-lightning flickers per second
-    colorCloudDark: '#06061a', // deep: the belly
-    colorCloudMid: '#2c2f78', // body
-    colorCloudLit: '#7c86d6', // tint: the sun-lit crown
-    colorCloudFlash: '#eef1ff', // core: lightning inside it
+    colorCloudDark: '#040410', // deep: the belly
+    colorCloudMid: '#272a6c', // body
+    colorCloudLit: '#8790e0', // tint: the sun-lit crown
+    colorCloudFlash: '#c9c4ff', // core: lightning inside it
 
     /* ================================================================ */
     /* 2 · THE TETHER — strands hanging from the cloud onto its host     */
@@ -95,7 +105,7 @@ export const CONFIG = Object.freeze({
     strandCount: 5, // max 5
     strandReach: 1.4, // metres up the host the strands touch
     strandSpread: 0.45, // metres the strands fan out at the cloud
-    strandWidth: 0.025, // ribbon half-width, metres
+    strandWidth: 0.045, // ribbon half-width, metres
     strandJag: 0.14, // metres of jag
     strandFlicker: 18, // re-shapes per second
     strandGlow: 1.4,
@@ -109,12 +119,14 @@ export const CONFIG = Object.freeze({
     /* 3 · THE STRIKE — one retaliation                                  */
     /* ================================================================ */
     strikeLife: 0.25, // seconds the bolt and the cloud flood last
-    strikeWidth: 0.09, // ribbon half-width, metres
+    strikeWidth: 0.2, // ribbon half-width, metres (reads at play distance)
     strikeJag: 0.35, // metres of jag
-    strikeGlow: 3,
-    strikeBranchLength: 0.9, // metres, the two side branches
+    strikeGlow: 3.6,
+    strikeBranchLength: 1.3, // metres, the two side branches
     strikeShake: 0.12,
-    strikeFlash: 0.08,
+    strikeFlash: 0.12,
+    flareSize: 1.1, // metres, the contact flash where the bolt lands (× bolt power)
+    flareGlow: 1.6,
     strikeBurst: 1.2, // metres, the ionised shell on the host
     strikeMark: 1.2, // metres, the branching burn under the host
     strikeMarkLife: 3.5, // the burn stays through the linger
@@ -122,7 +134,7 @@ export const CONFIG = Object.freeze({
     latchStrength: 1, // the bite on arrival: a full bolt onto the host (or the ground) — presentation only
     feedInterval: 0.85, // seconds between feeding bolts while it rides the host (0 = none) — presentation only
     feedJitter: 0.5, // ± share of that interval, so the feeding is irregular
-    feedStrength: 0.55, // size of a feeding bolt, × a retaliation
+    feedStrength: 0.85, // size of a feeding bolt, × a retaliation
     colorStrikeCore: '#ffffff',
     colorStrikeBody: '#a9b6ff',
     colorBurstA: '#ffffff',
@@ -184,7 +196,10 @@ export const CONFIG = Object.freeze({
     /* 8 · GROUND & DISTORTION                                           */
     /* ================================================================ */
     shadowRadius: 1.8, // metres (× cloud size)
-    shadowOpacity: 0.7,
+    shadowOpacity: 0.85,
+    crackleGlow: 0.5, // the net of charge crawling over the pool (idle; floods on a strike)
+    crackleScale: 1.3, // cells per metre of that net
+    scorchDarken: 0.8, // the charred centre under the host, grown as it feeds
     shadowWet: 0.6, // cold sheen on the pool's rim
     colorShadow: '#05060f',
     colorWet: '#8d9cff',
@@ -226,20 +241,26 @@ const UP = new Vector3(0, 1, 0);
  *
  * Layers, each a folder in the editor:
  *
- *   1. **the thunderhead** — an authored cumulus (`createCloudGeometry`: eleven
- *      lobes, flat base, sheared anvil) under a billowing, crown-lit,
- *      wisp-edged shader that condenses out of noise on arrival, flickers with
- *      sheet lightning from inside, floods bright on a strike, and dissolves
- *      on exit. It flies small (the stormlet), blooms on arrival, trails its
+ *   1. **the thunderhead** — an authored cumulonimbus (`createCloudGeometry`:
+ *      42 lobes — flat belly, tower, budding cauliflower turrets, sheared
+ *      anvil — with baked crevice burial) under a bruise-dark shader: belly
+ *      at the deep stop, crevices darker still, only open upper faces lit,
+ *      violet embers smouldering in the gaps. Through the ride every lobe
+ *      boils on its own phase, the crown wheels against the belly, the anvil
+ *      spreads and the cloud swells as it feeds; each bolt heaves it. It
+ *      condenses out of noise on arrival, lights from inside with sheet
+ *      lightning, floods through its gaps on a strike, and dissolves on exit. It flies small (the stormlet), blooms on arrival, trails its
  *      host on a spring and bobs.
  *   2. **the tether** — faint strands crackling from the cloud's belly onto
  *      the host while it is attached: you can see what it is feeding on.
  *   3. **the strike** — the retaliation: a bright jagged bolt from the cloud
- *      to the host's feet with two side branches.
+ *      to the host's feet with two side branches, and a contact flare (a
+ *      white-violet star billboard) where it lands.
  *   4. **rain** — STREAKs falling from the cloud's base onto the host.
  *   5. **mist** — non-additive SMOKE torn off the cloud's base, so it sheds.
  *   6. **sparks** — STREAKs sprayed off the host by each strike.
- *   7. **the ground** — the cloud's wet shadow pool following the host, a
+ *   7. **the ground** — the cloud's wet shadow pool following the host (a
+ *      crackle net of charge crawling over it, a centre charring black), a
  *      DUSTRING from the arrival downdraft, an ARC burn + SCORCH per strike.
  *   8. **the beats** — an AIR shell on arrival, a STORM shell on every
  *      strike, camera knock, flash and light punch, all scaled by globals.
@@ -340,6 +361,16 @@ export class ThunderheadParasiteAbility extends Ability {
       this.group.add(mesh);
     }
 
+    /* ---- layer 3b: the contact flare where a bolt lands ---- */
+    this.flareGeometry = createWarpQuad();
+    this.flareMaterial = createFlareMaterial();
+    this.flare = new Mesh(this.flareGeometry, this.flareMaterial);
+    this.flare.layers.set(LAYER.VFX);
+    this.flare.frustumCulled = false;
+    this.flare.renderOrder = 12;
+    this.flare.visible = false;
+    this.group.add(this.flare);
+
     /* ---- layer 7: the shadow pool ---- */
     this.shadowGeometry = createGroundQuad();
     this.shadowMaterial = createShadowMaterial();
@@ -382,8 +413,10 @@ export class ThunderheadParasiteAbility extends Ability {
     this._latchPending = false;
     this._nextFeed = 0;
     this._reduced = false;
-    this._cloudState = { seed: 0, form: 1, flash: 0, sheet: 0, sheetPos: this._sheetPos, fade: 1 };
-    this._shadowState = { radius: 1, fade: 1, rain: 1, seed: 0 };
+    this._twist = 0;
+    this._cloudState = { seed: 0, form: 1, flash: 0, sheet: 0, sheetPos: this._sheetPos, fade: 1, twist: 0, anvil: 0, surge: 0 };
+    this._shadowState = { radius: 1, fade: 1, rain: 1, seed: 0, flash: 0, scorch: 0 };
+    this._flareState = { fade: 0, size: 1, roll: 0 };
     this._warpState = { width: 1, height: 1, strength: 0, seed: 0 };
   }
 
@@ -460,6 +493,7 @@ export class ThunderheadParasiteAbility extends Ability {
 
     this._seed = Math.random() * 100;
     this._spin = Math.random() * TAU;
+    this._twist = 0;
     this._sheet = 0;
     this._shownStrikes = 0;
     this._warpKick = 0;
@@ -477,6 +511,7 @@ export class ThunderheadParasiteAbility extends Ability {
     for (const mesh of this.strands) mesh.visible = false;
     this.strike.visible = false;
     for (const mesh of this.strikeBranches) mesh.visible = false;
+    this.flare.visible = false;
     this._draw(0);
   }
 
@@ -677,11 +712,14 @@ export class ThunderheadParasiteAbility extends Ability {
       this.cloudPosition.copy(this.attachPosition);
     }
     this._spin += c.cloudSpin * TAU * dt * g.animationSpeed;
+    if (!this._reduced) this._twist += (c.cloudTwist ?? 0) * dt * g.animationSpeed;
 
     /* --- how much cloud there is --- */
     const since = travelling ? 0 : this.impactTime + (fading ? this.impactDuration : 0);
     const grow = travelling ? 0 : Easing.outBack(saturate(since / Math.max(0.05, c.formTime)));
-    let scale = c.cloudSize * (c.seedScale + (1 - c.seedScale) * grow);
+    // It feeds and grows: swelling across the whole ride, not just on arrival.
+    const ride = travelling ? 0 : saturate(since / Math.max(0.2, this.impactDuration));
+    let scale = c.cloudSize * (c.seedScale + (1 - c.seedScale) * grow) * (1 + (c.cloudSwell ?? 0) * ride);
     // In flight the stormlet condenses out of nothing over its first moments
     // (form 0 on the first frame), then on arrival heaps up to fully formed.
     let form = travelling ? 0.8 * Easing.outCubic(saturate(this.age / Math.max(0.05, c.formTime * 0.5))) : Math.min(1, 0.8 + 0.2 * grow);
@@ -713,6 +751,9 @@ export class ThunderheadParasiteAbility extends Ability {
     cs.flash = strike;
     cs.sheet = Math.max(this._sheet, strike);
     cs.fade = fade;
+    cs.twist = this._twist;
+    cs.anvil = (c.cloudAnvil ?? 1) * Easing.outCubic(ride);
+    cs.surge = this._reduced ? 0 : strike;
     this.cloudMaterial.uniforms.uSoftFade.value = c.softFade;
     this.cloudMaterial.userData.sync(c, cs);
 
@@ -729,7 +770,18 @@ export class ThunderheadParasiteAbility extends Ability {
     ss.fade = fade * (travelling ? 0.25 : saturate(grow));
     ss.rain = travelling ? 0 : 1;
     ss.seed = this._seed;
+    ss.flash = strike;
+    ss.scorch = travelling ? 0 : Easing.outCubic(saturate(since / 2.5));
     this.shadowMaterial.userData.sync(c, ss);
+
+    /* --- the contact flare where the bolt lands --- */
+    const fs = this._flareState;
+    this.flare.visible = strike > 0.01 && (c.flareSize ?? 0) > 0;
+    fs.fade = strike;
+    fs.size = (c.flareSize ?? 1.1) * Math.max(0.3, this._boltPower) * (0.7 + 0.3 * strike) * g.explosionIntensity;
+    fs.roll = this._strikeRoll * 0.37;
+    this.flare.position.set(this.attachPosition.x, 0.35, this.attachPosition.z);
+    this.flareMaterial.userData.sync(c, fs);
 
     this._warpKick = Math.max(0, this._warpKick - dt * 3);
     const ws = this._warpState;
@@ -1002,6 +1054,7 @@ export class ThunderheadParasiteAbility extends Ability {
     for (const mesh of this.strands) mesh.visible = false;
     this.strike.visible = false;
     for (const mesh of this.strikeBranches) mesh.visible = false;
+    this.flare.visible = false;
   }
 
   dispose() {
@@ -1015,6 +1068,8 @@ export class ThunderheadParasiteAbility extends Ability {
     this.strike.geometry.dispose();
     for (const mesh of this.strikeBranches) mesh.geometry.dispose();
     this.strikeMaterial.dispose();
+    this.flareGeometry.dispose();
+    this.flareMaterial.dispose();
     this.shadowGeometry.dispose();
     this.shadowMaterial.dispose();
     this.warpGeometry.dispose();
@@ -1073,6 +1128,15 @@ export function buildEditor(gui, c, Editor) {
   R(cloud, c, 'cloudDrift', 0, 3, 0.01, 'billow speed');
   R(cloud, c, 'cloudSpin', -1, 1, 0.005, 'wheel (turns/s)');
   R(cloud, c, 'cloudOpacity', 0, 1, 0.01, 'opacity');
+  R(cloud, c, 'cloudBoil', 0, 0.4, 0.005, 'lobe boil');
+  R(cloud, c, 'cloudBoilRate', 0, 4, 0.05, 'boils/s');
+  R(cloud, c, 'cloudTwist', -1, 1, 0.01, 'updraft shear (rad/s)');
+  R(cloud, c, 'cloudAnvil', 0, 1.5, 0.01, 'anvil spread');
+  R(cloud, c, 'cloudSwell', 0, 1, 0.01, 'grows as it feeds');
+  R(cloud, c, 'cloudSurge', 0, 0.3, 0.005, 'heave per bolt');
+  R(cloud, c, 'cloudCrownLight', 0, 1.5, 0.01, 'crown light');
+  R(cloud, c, 'cloudLining', 0, 3, 0.01, 'silver lining');
+  R(cloud, c, 'cloudEmber', 0, 2, 0.01, 'crevice smoulder');
   R(cloud, c, 'cloudEdge', 0.1, 6, 0.05, 'wisp edge');
   R(cloud, c, 'cloudFollow', 0.5, 30, 0.1, 'follow tightness');
   R(cloud, c, 'cloudBob', 0, 0.6, 0.005, 'bob (m)');
@@ -1108,6 +1172,8 @@ export function buildEditor(gui, c, Editor) {
   R(strike, c, 'strikeBranchLength', 0, 3, 0.05, 'branch length (m)');
   R(strike, c, 'strikeShake', 0, 1, 0.01, 'camera knock');
   R(strike, c, 'strikeFlash', 0, 0.5, 0.01, 'flash');
+  R(strike, c, 'flareSize', 0, 4, 0.05, 'contact flare (m)');
+  R(strike, c, 'flareGlow', 0, 6, 0.05, 'contact flare glow');
   R(strike, c, 'strikeBurst', 0, 4, 0.05, 'shell (m)');
   R(strike, c, 'strikeMark', 0, 4, 0.05, 'burn (m)');
   R(strike, c, 'strikeMarkLife', 0.1, 6, 0.05, 'burn life');
@@ -1160,6 +1226,9 @@ export function buildEditor(gui, c, Editor) {
   R(ground, c, 'shadowRadius', 0, 4, 0.01, 'shadow (× cloud)');
   R(ground, c, 'shadowOpacity', 0, 1, 0.01, 'shadow opacity');
   R(ground, c, 'shadowWet', 0, 1, 0.01, 'wet sheen');
+  R(ground, c, 'crackleGlow', 0, 3, 0.01, 'crackle');
+  R(ground, c, 'crackleScale', 0.2, 5, 0.05, 'crackle cells / m');
+  R(ground, c, 'scorchDarken', 0, 1, 0.01, 'scorched centre');
   ground.addColor(c, 'colorShadow').name('shadow');
   ground.addColor(c, 'colorWet').name('wet sheen');
   R(ground, c, 'warpStrength', 0, 3, 0.01, 'downdraft warp');

@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -89,6 +89,9 @@ const MEMBRANE_FRAGMENT = /* glsl */ `
   uniform float uShaderIntensity;
   uniform vec3  uColor;
   uniform vec3  uCore;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
+  uniform float uBodyAlpha;
   uniform sampler2D uSceneDepth;
   uniform vec2  uResolution;
   uniform float uCameraNear;
@@ -116,11 +119,26 @@ const MEMBRANE_FRAGMENT = /* glsl */ `
     float rib = pow(max(0.0, cos(vUv.y * 42.0 - uTime * 3.0)), 18.0);
 
     float rim = fresnelTerm(vViewDir, vNormalW, 2.0, uFresnel);
-    float heat = clamp(veins * 0.55 + rim * 0.35 + vCyst * 0.5 + uStage * 0.08 + uPulse * 0.3, 0.0, 1.0);
-    vec3 col = mix(uColor, uCore, heat) * uGlow * uGlobalGlow * (1.0 + uPulse * 0.8);
+
+    // A dark, wet, lit sac — not a glow. The skin is shaded off the scene key
+    // (wrapped, it is flesh) from the deep stop up to a dim body tone; only the
+    // veins, the cysts and a thin silhouette carry light of their own.
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+    float mottle = 0.6 + 0.4 * fbm3(vec3(vUv * vec2(7.0, 5.0), uStage * 0.3 + 1.1));
+    vec3 skin = mix(uDeep, uColor * 0.42, wrap * wrap * mottle);
+    skin *= 0.65 + 0.35 * smoothstep(0.0, 0.35, vUv.y);
+    float spec = pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 48.0) * 0.55;
+    float heat = clamp(veins * 0.7 + vCyst * 0.8 + uPulse * 0.35, 0.0, 1.0);
+    vec3 light = mix(uColor, uCore, clamp(vCyst + uPulse * 0.5, 0.0, 1.0)) * (veins * 0.85 + vCyst * 1.2 + rib * 0.2 + rim * 0.35);
+    vec3 col = skin + vec3(spec) * mix(vec3(1.0), uCore, 0.4);
+    col += light * uGlow * uGlobalGlow * (1.0 + uPulse * 0.8);
     col += uCore * burn * 2.5;
 
-    float alpha = (0.12 + veins * 0.32 + rib * 0.1 + rim * 0.38 + vCyst * 0.2) * uFade * uOpacity * uShaderIntensity;
+    float alpha = (uBodyAlpha + rim * 0.3 + veins * 0.1 + vCyst * 0.15 + heat * 0.05) * uFade * uOpacity * uShaderIntensity;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
     if (alpha < 0.003) discard;
@@ -133,11 +151,15 @@ export function createMembraneMaterial() {
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
-    blending: AdditiveBlending,
+    // Normal-blended: the sac is dark and *occludes* (mostly) — the host shows
+    // through only as a shadow inside it.
+    blending: NormalBlending,
     toneMapped: false,
     uniforms: sharedUniforms({
       // Own clock, held at 0 under reduced motion (the shared uTime is not).
       uTime: { value: 0 },
+      uDeep: { value: new Color('#0b1806') },
+      uBodyAlpha: { value: 0.62 },
       uStage: { value: 0 },
       uPulse: { value: 0 },
       uFade: { value: 1 },
@@ -172,8 +194,10 @@ export function createMembraneMaterial() {
     u.uVeinSharp.value = c.veinSharp;
     u.uOpacity.value = g.opacity;
     u.uSoftFade.value = c.softFade;
+    u.uBodyAlpha.value = c.membraneOpacity ?? 0.62;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
+    copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
   };
   return material;
 }
@@ -208,6 +232,8 @@ const VESSEL_FRAGMENT = /* glsl */ `
   uniform float uGlobalGlow;
   uniform vec3  uColor;
   uniform vec3  uCore;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
@@ -216,26 +242,36 @@ const VESSEL_FRAGMENT = /* glsl */ `
   ${commonGLSL}
 
   void main() {
+    if (uFade < 0.01) discard;
     float ribs = pow(max(0.0, cos(vUv.x * 31.42 + sin(vUv.y * 9.0 - uTime))), 16.0);
     // The seed: a hot knot glowing through the waist, mottled by noise.
     float seed = exp(-abs(vUv.y - 0.55) * 8.0) * (0.7 + 0.3 * snoise(vec3(vUv * 6.0, uTime * 0.7)));
     float rim = fresnelTerm(vViewDir, vNormalW, 2.2, uFresnel);
-    vec3 col = mix(uColor, uCore, clamp(seed * 0.5 + ribs * 0.45 + rim * 0.3, 0.0, 1.0)) * uGlow * uGlobalGlow;
-    float alpha = (0.2 + seed * 0.25 + ribs * 0.3 + rim * 0.35) * uFade;
-    if (alpha < 0.003) discard;
-    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+    // A solid, lit husk: dark ribbed rind shaded off the scene key, the seed
+    // and the rib seams glowing through it.
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+    vec3 rind = mix(uDeep, uColor * 0.45, wrap * wrap) * (0.75 + 0.25 * (1.0 - ribs));
+    float spec = pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 40.0) * 0.6;
+    vec3 glow = mix(uColor, uCore, clamp(seed * 0.8 + rim * 0.2, 0.0, 1.0)) * (seed * 0.9 + ribs * 0.35 + rim * 0.4);
+    vec3 col = rind + vec3(spec) + glow * uGlow * uGlobalGlow;
+    gl_FragColor = vec4(col, uFade);
   }
 `;
 
 export function createVesselMaterial() {
   const material = new ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     side: DoubleSide,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     toneMapped: false,
     uniforms: sharedUniforms({
       uTime: { value: 0 },
+      uDeep: { value: new Color('#0b1806') },
       uBreathe: { value: 1 },
       uFade: { value: 1 },
       uFresnel: { value: 1.6 },
@@ -256,6 +292,7 @@ export function createVesselMaterial() {
     u.uGlow.value = c.vesselGlow * g.glow;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
+    copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
   };
   return material;
 }
@@ -680,6 +717,343 @@ export function createBlightMaterial() {
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
     copyColor(u.uStain.value, c.stainColor);
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The blight tendrils — the zone-scale hero                            */
+/* -------------------------------------------------------------------- */
+
+const TENDRIL_VERTEX = /* glsl */ `
+  attribute vec4  aPose;   // angle round the host, seed, height ×, curl ×
+  attribute vec2  aLife;   // grow 0..1, stage throb 0..1
+  attribute float aKnob;
+  uniform float uTime;
+  uniform float uRing;     // metres from the host the roots erupt
+  uniform float uHeight;   // arc length of a tendril, metres
+  uniform float uCurl;     // radians the arc turns back over the host
+  uniform float uLean;     // radians it leans out at the root
+  uniform float uThick;    // root radius, metres
+  uniform float uWrithe;   // 0 under reduced motion
+
+  varying vec2  vUv;
+  varying vec3  vNormalW;
+  varying vec3  vView;
+  varying float vT;
+  varying float vKnob;
+  varying float vSeed;
+  varying float vGrow;
+  varying float vPulse;
+
+  void main() {
+    float t = position.y;
+    float grow = aLife.x;
+    float a = aPose.x;
+    float seed = aPose.y;
+    vec3 radial = vec3(cos(a), 0.0, sin(a));
+    vec3 D = -radial;                       // toward the host
+    vec3 Y = vec3(0.0, 1.0, 0.0);
+    vec3 S = vec3(-sin(a), 0.0, cos(a));
+
+    // It is still coming out of the ground: shorter and straighter while it grows.
+    float len = max(0.05, uHeight * aPose.z * (0.3 + 0.7 * grow));
+    float writhe = sin(uTime * 1.3 + seed * 6.0) * 0.14 * uWrithe;
+    float curl = uCurl * aPose.w * (0.35 + 0.65 * grow) * (1.0 + writhe);
+    float phi0 = -uLean * (0.6 + 0.4 * aPose.w);
+    float phi = phi0 + curl * t;
+    // Constant-curvature arc from phi0 to phi (closed form of ∫ tangent ds).
+    vec3 spine;
+    if (abs(curl) > 1e-3) {
+      float k = curl / len;
+      spine = ((cos(phi0) - cos(phi)) * D + (sin(phi) - sin(phi0)) * Y) / k;
+    } else {
+      spine = len * t * (sin(phi0) * D + cos(phi0) * Y);
+    }
+    // Writhing: a slow sideways S travelling up it, strongest at the tip.
+    spine += S * sin(uTime * 1.9 + seed * 5.0 - t * 3.5) * 0.22 * t * t * (len / 2.6) * uWrithe;
+
+    vec3 T = sin(phi) * D + cos(phi) * Y;
+    vec3 Nb = cos(phi) * D - sin(phi) * Y;
+    // Every stage throb swells it; the pustules swell more.
+    float swell = uThick * (0.55 + 0.45 * grow) * (1.0 + aLife.y * (0.18 + 0.4 * aKnob));
+    vec3 p = radial * uRing + spine + (position.x * Nb + position.z * S) * swell;
+    vec3 n = normal.x * Nb + normal.z * S + normal.y * T;
+
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vView = cameraPosition - world.xyz;
+    vUv = uv;
+    vT = t;
+    vKnob = aKnob;
+    vSeed = seed;
+    vGrow = grow;
+    vPulse = aLife.y;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const TENDRIL_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uFade;       // 1 alive → 0 withered
+  uniform float uVeinGlow;
+  uniform float uPustuleGlow;
+  uniform float uVeinSpeed;
+  uniform float uSpecular;
+  uniform float uRim;
+  uniform float uGlobalGlow;
+  uniform vec3  uLightDir;
+  uniform vec3  uColor;      // saturated body
+  uniform vec3  uCore;       // white-hot pustules
+  uniform vec3  uDeep;       // the dark stop it roots in
+
+  varying vec2  vUv;
+  varying vec3  vNormalW;
+  varying vec3  vView;
+  varying float vT;
+  varying float vKnob;
+  varying float vSeed;
+  varying float vGrow;
+  varying float vPulse;
+
+  ${noiseGLSL}
+
+  void main() {
+    if (vGrow <= 0.001) discard;
+    // Revealed along its own length behind a ragged front, so it *erupts*.
+    float rag = snoise(vec3(vUv.x * 4.0, vT * 5.0, vSeed * 3.0)) * 0.08;
+    float front = vGrow * 1.08 + rag;
+    if (vT > front) discard;
+    float lip = 1.0 - smoothstep(front - 0.06, front, vT);
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vView);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float ndl = dot(N, L);
+    float wrap = clamp(ndl * 0.5 + 0.5, 0.0, 1.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Ramp: deep at the root (still in the rot) → body up the shaft, mottled.
+    float ang = vUv.x * 6.2831853;
+    vec2 ring = vec2(cos(ang), sin(ang));
+    float mottle = fbm3(vec3(ring * 1.3, vT * 6.0 + vSeed * 4.0)) * 0.5 + 0.5;
+    vec3 skin = mix(uDeep, uColor * 0.2, smoothstep(0.0, 0.5, vT) * (0.35 + 0.65 * mottle));
+    skin = mix(skin, uDeep, (1.0 - uFade) * 0.7);              // withering goes black
+    vec3 col = skin * (0.3 + 1.1 * wrap * wrap);
+
+    // Wet: a tight highlight and a lime rim.
+    vec3 H = normalize(L + V);
+    col += vec3(pow(clamp(dot(N, H), 0.0, 1.0), 42.0) * uSpecular) * mix(vec3(1.0), uCore, 0.3);
+    col += uColor * pow(1.0 - ndv, 4.0) * uRim;
+
+    // Veins, with toxin pulses running up them from the host's stain.
+    float vein = pow(1.0 - abs(snoise(vec3(ring * 1.8, vT * 7.0 + vSeed * 9.0))), 16.0);
+    float flow = pow(max(0.0, sin((vT * 3.0 - uTime * uVeinSpeed + vSeed) * 6.2831)), 6.0);
+    float veinLight = vein * (0.15 + 0.9 * flow + vPulse * 1.2) * uVeinGlow;
+    // Pustules ripen: a hot white core in a lime sac, beating.
+    float beat = 0.7 + 0.3 * sin(uTime * 4.0 + vSeed * 11.0 + vT * 9.0);
+    float sac = smoothstep(0.5, 0.95, vKnob);
+    vec3 glow = uColor * veinLight + mix(uColor, uCore, sac) * sac * beat * (1.0 + vPulse) * uPustuleGlow;
+    // The tip: a hooked barb glowing hot.
+    glow += uCore * smoothstep(0.93, 1.0, vT / max(0.05, front)) * 0.6 * uPustuleGlow;
+    glow += uCore * lip * 1.2 * step(vGrow, 0.995);
+    col += glow * uFade * uGlobalGlow;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+/**
+ * The tendrils: one material for every instance; pose and life ride in on
+ * `aPose` / `aLife`. Opaque, lit off the scene key (`uLightDir`), on
+ * `LAYER.SHAPED` because its shape is written in the vertex stage.
+ */
+export function createTendrilMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uRing: { value: 1.4 },
+      uHeight: { value: 2.6 },
+      uCurl: { value: 1.6 },
+      uLean: { value: 0.35 },
+      uThick: { value: 0.16 },
+      uWrithe: { value: 1 },
+      uFade: { value: 1 },
+      uVeinGlow: { value: 1 },
+      uPustuleGlow: { value: 1.4 },
+      uVeinSpeed: { value: 0.8 },
+      uSpecular: { value: 0.6 },
+      uRim: { value: 0.5 },
+      uColor: { value: new Color('#9be641') },
+      uCore: { value: new Color('#e4ff93') },
+      uDeep: { value: new Color('#0b1806') }
+    }),
+    vertexShader: TENDRIL_VERTEX,
+    fragmentShader: TENDRIL_FRAGMENT
+  });
+  /** @param {object} state { time, ring, height, curl, fade, reduced } */
+  material.userData.sync = (c, state) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time;
+    u.uRing.value = state.ring;
+    u.uHeight.value = state.height;
+    u.uCurl.value = state.curl;
+    u.uLean.value = c.tendrilLean ?? 0.35;
+    u.uThick.value = c.tendrilThick ?? 0.16;
+    u.uWrithe.value = state.reduced ? 0 : (c.tendrilWrithe ?? 1) * g.turbulence;
+    u.uFade.value = state.fade;
+    u.uVeinGlow.value = (c.tendrilVeinGlow ?? 1) * g.glow;
+    u.uPustuleGlow.value = (c.tendrilPustuleGlow ?? 1.4) * g.glow;
+    u.uVeinSpeed.value = c.tendrilVeinSpeed ?? 0.8;
+    u.uSpecular.value = c.tendrilSpecular ?? 0.6;
+    u.uRim.value = (c.tendrilRim ?? 0.5) * g.fresnel;
+    copyColor(u.uColor.value, c.toxinColor);
+    copyColor(u.uCore.value, c.coreColor);
+    copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The venom stream — travel, then a dried line on the floor            */
+/* -------------------------------------------------------------------- */
+
+const TRAIL_VERTEX = /* glsl */ `
+  uniform vec3  uFrom;
+  uniform vec3  uTo;
+  uniform float uHeight;   // flight height
+  uniform float uArc;      // lob at mid-flight
+  uniform float uSag;      // 0 in the air → 1 lying on the floor
+  uniform float uRadius;
+  uniform float uHead;     // 0..1 how far it has been drawn
+  uniform float uTime;
+  uniform float uFlow;
+  varying float vS;
+  varying vec2  vUv;
+  varying vec3  vNormalW;
+  varying vec3  vView;
+  varying float vBead;
+
+  void main() {
+    float s = position.x;
+    vec3 base = mix(uFrom, uTo, s);
+    float air = uHeight + sin(3.14159265 * s) * uArc;
+    base.y = mix(air, 0.04, uSag);
+    vec3 fwd = normalize(vec3(uTo.x - uFrom.x, 0.0, uTo.z - uFrom.z) + 1e-5);
+    vec3 side = normalize(cross(fwd, vec3(0.0, 1.0, 0.0)));
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    // Beads of venom running down the stream toward the host.
+    float bead = pow(max(0.0, sin((s * 14.0 - uTime * uFlow) * 6.2831)), 4.0);
+    // Thick behind the vessel, thinning toward the caster; flattens as it lands.
+    float body = uRadius * (0.35 + 0.65 * smoothstep(0.0, max(0.05, uHead), s)) * (1.0 + bead * 0.6);
+    vec3 off = (position.y * up * mix(1.0, 0.25, uSag) + position.z * side * mix(1.0, 2.2, uSag)) * body;
+    vec3 p = base + off;
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(position.y * up + position.z * side);
+    vView = cameraPosition - world.xyz;
+    vS = s;
+    vUv = uv;
+    vBead = bead;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const TRAIL_FRAGMENT = /* glsl */ `
+  uniform float uHead;
+  uniform float uTail;     // 0..1 eaten from the caster end as it dries
+  uniform float uFade;
+  uniform float uGlow;
+  uniform float uSag;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform vec3  uLightDir;
+  uniform vec3  uColor;
+  uniform vec3  uCore;
+  uniform vec3  uDeep;
+  varying float vS;
+  varying vec2  vUv;
+  varying vec3  vNormalW;
+  varying vec3  vView;
+  varying float vBead;
+
+  ${noiseGLSL}
+
+  void main() {
+    float n = snoise(vec3(vS * 18.0, vUv.y * 3.0, 1.7)) * 0.03;
+    if (vS > uHead + n || vS < uTail + n) discard;
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vView);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+    vec3 col = mix(uDeep, uColor * 0.5, wrap * wrap);
+    col += vec3(pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 36.0) * 0.5);
+    // A hot thread down the middle, beads of light running in it, hottest at the head.
+    float core = pow(ndv, 3.0);
+    float head = exp(-abs(uHead - vS) * 18.0);
+    vec3 glow = mix(uColor, uCore, clamp(vBead + head, 0.0, 1.0)) * (core * (0.4 + vBead) + head * 1.5);
+    col += glow * uGlow * uGlobalGlow * (1.0 - uSag * 0.75);
+    float alpha = uFade * (0.85 + 0.15 * core);
+    if (alpha < 0.01) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+export function createTrailMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: true,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uFrom: { value: new Vector3() },
+      uTo: { value: new Vector3() },
+      uHeight: { value: 0.7 },
+      uArc: { value: 1 },
+      uSag: { value: 0 },
+      uRadius: { value: 0.06 },
+      uHead: { value: 0 },
+      uTail: { value: 0 },
+      uFlow: { value: 1.5 },
+      uFade: { value: 1 },
+      uGlow: { value: 1.2 },
+      uColor: { value: new Color('#9be641') },
+      uCore: { value: new Color('#e4ff93') },
+      uDeep: { value: new Color('#0b1806') }
+    }),
+    vertexShader: TRAIL_VERTEX,
+    fragmentShader: TRAIL_FRAGMENT
+  });
+  /** @param {object} state { time, from, to, head, tail, sag, fade } */
+  material.userData.sync = (c, state) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time;
+    u.uFrom.value.copy(state.from);
+    u.uTo.value.copy(state.to);
+    u.uHeight.value = c.travelHeight;
+    u.uArc.value = c.travelArc ?? 0.6;
+    u.uSag.value = state.sag;
+    u.uRadius.value = (c.trailRadius ?? 0.07) * g.particleSize;
+    u.uHead.value = state.head;
+    u.uTail.value = state.tail;
+    u.uFlow.value = (c.trailFlow ?? 1.5) * g.noiseSpeed;
+    u.uFade.value = state.fade * g.opacity;
+    u.uGlow.value = (c.trailGlow ?? 1.2) * g.glow;
+    copyColor(u.uColor.value, c.toxinColor);
+    copyColor(u.uCore.value, c.coreColor);
+    copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
   };
   return material;
 }

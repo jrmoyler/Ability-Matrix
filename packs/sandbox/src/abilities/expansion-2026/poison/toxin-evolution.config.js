@@ -54,6 +54,7 @@ export default {
     toxinColor: '#9be641', // the body of the toxin
     coreColor: '#e4ff93', // its hot core, veins and growing tips
     stainColor: '#16260f', // the dark wet stain it leaves on the floor
+    deepColor: '#0b1806', // the deep stop: flesh in shadow, roots, the rind of the vessel
 
     /* ================================================================ */
     /* 1 · THE SEED VESSEL — travel                                      */
@@ -66,6 +67,11 @@ export default {
     travelDrips: 1.5, // venom drips shed in flight, × dripRate
     vesselScale: 1, // size of the per-stage satellite vessels
     vesselGlow: 1.4, // emissive gain of every vessel
+    trailRadius: 0.07, // metres, the venom stream drawn behind the vessel
+    trailGlow: 1.0, // its hot thread
+    trailFlow: 1.5, // beads running down it toward the host
+    trailSag: 0.35, // seconds it takes to fall to the floor once the vessel bursts
+    trailLinger: 1.8, // seconds it takes to dry away from the caster's end
 
     /* ================================================================ */
     /* 2 · THE MEMBRANE — grown over the host                            */
@@ -74,7 +80,7 @@ export default {
     membraneScale: 1.35, // girth of the membrane, × the host (the mass grown over it)
     membraneStageGrowth: 0.16, // extra girth per accepted generation
     dormantTime: 1.4, // no host in the circle: seconds the dormant colony gropes before it withers
-    membraneGlow: 1.3, // emissive gain
+    membraneGlow: 0.85, // emissive gain
     membraneFresnel: 1.6, // density at the silhouette
     veinScale: 1, // vein noise scale
     veinSharp: 6, // vein sharpness (threads vs wash)
@@ -83,6 +89,28 @@ export default {
     bloomTime: 0.55, // seconds that throb lasts
     releaseDuration: 0.55, // seconds the infection takes to wither when the host escapes
     softFade: 0.25, // metres over which it fades where it meets the host/floor
+    membraneOpacity: 0.62, // how dense the dark sac is (the host shows through as a shadow)
+
+    /* ================================================================ */
+    /* 2b · THE BLIGHT TENDRILS — the hero, at zone scale                */
+    /* ================================================================ */
+    tendrilCount: 6, // tendrils that erupt on arrival
+    tendrilPerStage: 2, // more erupt with every accepted generation (max 14 total)
+    tendrilRing: 0.4, // root ring radius, × zoneRadius (1.4 m at the default circle)
+    tendrilHeight: 2.6, // arc length, metres
+    tendrilStageGrowth: 0.1, // extra length per generation (× height)
+    tendrilThick: 0.21, // root radius, metres
+    tendrilCurl: 1.9, // radians each arc turns back over the host at full growth
+    tendrilClose: 0.3, // extra closing of the claw across the linger (× curl)
+    tendrilLean: 0.4, // radians the roots lean outward before curling in
+    tendrilGrowTime: 0.45, // seconds a tendril takes to erupt
+    tendrilStagger: 0.05, // seconds between neighbours erupting
+    tendrilWrithe: 1, // writhing through the linger (× global turbulence)
+    tendrilVeinGlow: 1.1, // emissive gain of the veins and their running pulses
+    tendrilVeinSpeed: 0.8, // pulses per second running up the veins
+    tendrilPustuleGlow: 1.6, // emissive gain of the ripening pustules and tips
+    tendrilSpecular: 0.6, // wet highlight
+    tendrilRim: 0.3, // lime rim light at the silhouette
 
     /* ================================================================ */
     /* 3 · THE COILS — one per generation                                */
@@ -96,14 +124,14 @@ export default {
     /* ================================================================ */
     /* 4 · THE CROWNS — the contact beat of each generation              */
     /* ================================================================ */
-    stageCueScale: 1, // crown size (0.25..3)
+    stageCueScale: 1.15, // crown size (0.25..3)
     stageCueDuration: 0.8, // seconds each crown takes to unfurl and decay
-    stageCueGlow: 0.8, // crown brightness and burst/decal intensity (0..2)
+    stageCueGlow: 1, // crown brightness and burst/decal intensity (0..2)
 
     /* ================================================================ */
     /* 5 · THE POOL — the stain on the floor                             */
     /* ================================================================ */
-    poolRadius: 1, // stain radius before any stage (× 1.25), metres
+    poolRadius: 1.3, // stain radius before any stage (× 1.25), metres
     poolGrowth: 0.2, // extra metres per stage
     poolSpreadTime: 0.6, // seconds it takes to creep out after arrival
     poolCells: 4, // cell density of the wet toxin
