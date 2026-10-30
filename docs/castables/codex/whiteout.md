@@ -32,3 +32,7 @@ Unchanged: same front speed, `fallTime`, `volleyTime`, `holdTime`, `lifetime`, `
 
 ## New settings (presentation)
 `colorSnowCrest`, `driftWind`, `blizzardHeight`, `blizzardWidth`, `blizzardDensity`, `blizzardScale`, `blizzardWind`, `blizzardGust`, `blizzardStreakGlow`, `blizzardOpacity`, `lingerHazeRate`, `colorBlizzardCore`, `colorBlizzardPale`, `colorBlizzardBody`, `colorBlizzardDeep` (15).
+
+## Fix 4 (navy, not washed out)
+Coordinator read: lane pale white-blue; cloud at the top edge. Changes: ice #2c5a91 / milk #5d8cc2 / glow #7fb6ea, trail 1.0, land 1.2, env 0.15; blizzard pale #5a81b2 / body #1e3d6c, density 2.0, streak glow 0.9; drift #45699a / troughs #0c1a33 / crests #9dbde0, edge glow 0.8; puffs, frozen bodies, volley burst (now ice-coloured, 0.9) and shock all darker; frost decals now `colorFrostDecal` #1f3c66 at `frostDecalIntensity` 0.25; snow streak A #b9d4f0. Cloud lowered 4.0 → 2.3 m, starts 6 m out, belly #14284a, plus a heaped upper shell (`cloudTower` 1.3 m, `cloudTowerShade`). 4 new keys, in the editor.
+After: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/fix-4/r4/codex__whiteout-sheet.jpg`. Honest 7.5–8: lane and ice read navy/saturated; the cloud still shows mostly as an arc at the top of the frame (the chase camera sits under it).

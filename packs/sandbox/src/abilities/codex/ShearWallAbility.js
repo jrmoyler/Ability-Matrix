@@ -560,8 +560,8 @@ export class ShearWallAbility extends Ability {
       radius: 0.4,
       endRadius: c.burstRadius * power,
       life: c.burstLife,
-      intensity: 1.5,
-      opacity: 0.8 * g.opacity,
+      intensity: c.burstIntensity,
+      opacity: c.burstOpacity * g.opacity,
       squash: 0.6,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
@@ -571,7 +571,7 @@ export class ShearWallAbility extends Ability {
       radius: c.shockRadius * power,
       life: c.shockLife,
       width: 0.06,
-      intensity: 1,
+      intensity: c.shockIntensity,
       colorA: getColor(c.colorShockA),
       colorB: getColor(c.colorShockB),
       height: 0.03
@@ -678,6 +678,9 @@ export function buildEditor(gui, c, Editor) {
   R(shape, c, 'wallBow', -2, 3, 0.01, 'ends trail (m)');
   R(shape, c, 'wallLean', -2, 2, 0.01, 'top leans (m)');
   R(shape, c, 'wallThickness', 0, 4, 0.01, 'thickness at foot (m)');
+  R(shape, c, 'wallCurl', 0, 4, 0.01, 'crest curls over (m)');
+  R(shape, c, 'pleatRowPhase', 0, 1, 0.01, 'row pleat flip');
+  R(shape, c, 'rowBlend', 0, 1, 0.01, 'smooth shear through rows');
 
   const shear = folder.addFolder('2 · The shear');
   R(shear, c, 'shearAmount', 0, 3, 0.01, 'row shove (m)');
@@ -706,6 +709,8 @@ export function buildEditor(gui, c, Editor) {
   R(bodyF, c, 'bodyDensity', 0, 1, 0.01, 'lumpiness');
   R(bodyF, c, 'bodyLight', 0, 1, 0.01, 'sun shaping');
   R(bodyF, c, 'bodyRim', 0, 3, 0.01, 'rim');
+  R(bodyF, c, 'bodyCrease', 0, 1, 0.01, 'upright creases');
+  R(bodyF, c, 'crestGlow', 0, 3, 0.01, 'crest edge');
   const lens = look.addFolder('Lens (distortion)');
   R(lens, c, 'lensWarp', 0, 3, 0.01, 'strength');
   R(lens, c, 'lensDepth', 0.2, 4, 0.01, 'depth (× pleats)');
@@ -763,6 +768,9 @@ export function buildEditor(gui, c, Editor) {
   beat.addColor(c, 'colorFlash').name('flash');
   R(beat, c, 'burstRadius', 0, 10, 0.05, 'air shell (m)');
   R(beat, c, 'burstLife', 0.05, 3, 0.01, 'shell life');
+  R(beat, c, 'burstIntensity', 0, 3, 0.01, 'shell glow');
+  R(beat, c, 'burstOpacity', 0, 1, 0.01, 'shell opacity');
+  R(beat, c, 'shockIntensity', 0, 2, 0.01, 'shock ring strength');
   beat.addColor(c, 'colorBurstA').name('shell, hot');
   beat.addColor(c, 'colorBurstB').name('shell, body');
   beat.addColor(c, 'colorBurstC').name('shell, deep');

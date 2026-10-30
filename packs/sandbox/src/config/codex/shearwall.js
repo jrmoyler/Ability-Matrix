@@ -48,7 +48,10 @@ export default {
     rows: 4, // layers stacked up the wall, alternate ones shoved opposite ways
     wallBow: 0.5, // metres the ends trail behind the middle
     wallLean: 0.35, // metres the top leans forward of the foot
-    wallThickness: 1.5, // metres of body along the line at the foot (thins to ~half at the top)
+    wallThickness: 1.9, // metres of body along the line at the foot (thins to ~half at the top)
+    wallCurl: 1.3, // metres the crest curls forward over the front, like a breaking wave
+    rowBlend: 0.85, // 0 = rows cut hard (stacked bands), 1 = the shear bends smoothly through one mass
+    pleatRowPhase: 0, // 0 = pleats run straight up through every row (one mass), 1 = alternate rows flipped (zig-zag bands)
 
     /* --- the shear --- */
     shearAmount: 0.7, // metres a row is shoved sideways
@@ -61,22 +64,24 @@ export default {
     /* ================================================================ */
     flowSpeed: 9, // metres/second the air streams sideways inside a row
     streakScale: 1.2, // streak features per metre
-    streakGlow: 1.3, // brightest streaks
-    bodyGlow: 0.2, // the body of the air
-    ridgeGlow: 0.6, // the fold ridges
-    seamGlow: 0.9, // the seams between rows
+    streakGlow: 0.4, // brightest streaks
+    bodyGlow: 0.05, // the body of the air
+    ridgeGlow: 0.15, // the fold ridges
+    seamGlow: 0.3, // the seams between rows
     topTear: 0.4, // share of the height the torn top edge eats
     footFade: 0.12, // share of the height feathered into the dust
     softFade: 0.4, // metres of soft fade where it meets geometry
-    wallOpacity: 1.0,
+    wallOpacity: 0.45,
     colorAirA: '#f0fffb', // brightest streaks and ridges
-    colorAirB: '#5fc9bb', // the air
-    colorAirC: '#1d5a62', // the air's depth
-    colorAirD: '#071f26', // the deep tone: the body's foot and gaps
-    bodyOpacity: 0.24, // opacity of each of the seven body slices
-    bodyDensity: 0.65, // 0 = even, 1 = packed lumps with gaps
+    colorAirB: '#185c5c', // the air
+    colorAirC: '#0e333a', // the air's depth
+    colorAirD: '#04141a', // the deep tone: the body's foot and gaps
+    bodyOpacity: 0.36, // opacity of each of the seven body slices
+    bodyDensity: 0.35, // 0 = even, 1 = packed lumps with gaps
     bodyLight: 0.75, // how much the sun shapes the folds of the body
-    bodyRim: 0.5, // grazing-angle brightening of the body
+    bodyRim: 0.15, // grazing-angle brightening of the body
+    bodyCrease: 0.75, // 0..1 how deep the upright pleat creases sink to the deep tone
+    crestGlow: 0.35, // the pale edge along the curling crest
     colorSeam: '#ffffff', // seams and tear edges
     lensWarp: 1.1, // how hard each row shoves the world sideways (distortion)
     lensDepth: 1.6, // the lens is this much deeper than the wall
@@ -150,13 +155,16 @@ export default {
     colorFlash: '#e1fff8',
     burstRadius: 3.4, // AIR shell where it tears, metres
     burstLife: 0.5,
-    colorBurstA: '#ffffff',
+    burstIntensity: 0.8, // the AIR shell's glow (kept low so the tear never blows out)
+    burstOpacity: 0.45,
+    shockIntensity: 0.55, // the shock ring decal
+    colorBurstA: '#7fd8cb',
     colorBurstB: '#9ff0e2',
     colorBurstC: '#2f7f86',
     shockRadius: 6.5, // metres
     shockLife: 0.6,
-    colorShockA: '#bdfcef',
-    colorShockB: '#ffffff',
+    colorShockA: '#4fa89c',
+    colorShockB: '#9fe8dc',
 
     /* ================================================================ */
     /* 7 · BODIES                                                        */

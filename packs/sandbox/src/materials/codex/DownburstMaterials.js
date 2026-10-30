@@ -69,9 +69,11 @@ const CLOUD_VERTEX = /* glsl */ `
   uniform float uSeed;
   uniform float uBoil;
   uniform float uTime;
+  uniform float uDome;        // metres the upper shell towers over the rim (0 = the underside)
 
   varying vec2 vDisc;         // unit-disc point in the cloud's own frame
   varying float vR;
+  varying float vUp;          // 0..1 how far up the tower this point sits
 
   ${noiseGLSL}
 
@@ -91,6 +93,13 @@ const CLOUD_VERTEX = /* glsl */ `
     float y = uHeight - sag + b * uBillow * (0.35 + 0.65 * (1.0 - r));
     // The rim curls up a little, like the lip of a shelf cloud.
     y += r * r * r * uBillow * 0.9;
+    // The upper shell: a heaped cumulus tower over the belly, lumpy with
+    // its own coarser billows, so from the play camera the cloud is a mass
+    // with height rather than a disc seen edge-on.
+    float dome = sqrt(max(0.0, 1.0 - r * r));
+    float lump = snoise(vec3(q * uBillowScale * 0.6, uSeed * 1.7 + uTime * uBoil * 0.6));
+    y += uDome * dome * (0.8 + 0.35 * lump) + (uDome > 0.0 ? sag * 0.85 : 0.0);
+    vUp = uDome > 0.0 ? dome : 0.0;
 
     vDisc = dir * r;
     vR = r;
@@ -127,9 +136,11 @@ const CLOUD_FRAGMENT = /* glsl */ `
   uniform vec3  uColorFlash;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
+  uniform float uShade;       // the upper shell's own darkening toward its foot
 
   varying vec2 vDisc;
   varying float vR;
+  varying float vUp;
 
   ${noiseGLSL}
 
@@ -166,18 +177,24 @@ const CLOUD_FRAGMENT = /* glsl */ `
     vec3 body = mix(uColorCore, uColorBody, smoothstep(0.0, 0.85, r + (d0 - 0.5) * 0.4));
     body = mix(body, uColorCore * 0.6, uDarkCore * exp(-r * r * 9.0));
     vec3 color = body * (0.55 + 0.6 * lit);
+    // Upper shell: deep at its foot and through its flanks, only its crown
+    // and sun-side lumps catching the light.
     color += uColorRim * pow(lit, 3.0) * uRimGlow * (0.35 + 0.65 * r) * uShaderIntensity;
     // The core lighting up from inside as the pressure builds.
     color += uColorRim * uCharge * uChargeGlow * exp(-r * r * 10.0) * (0.6 + 0.4 * d0);
     // Sheet lightning: patches of the cloud lit from within for a frame.
     float flashPatch = smoothstep(0.35, 0.85, snoise(vec3(vDisc * 2.6, floor(uTime * 7.0) + uSeed)));
     color += uColorFlash * uFlash * flashPatch * (0.4 + 0.6 * d0);
+    // Upper shell: deep at its foot and through its flanks, only its crown
+    // catching the light.
+    color *= mix(1.0, 0.3 + 0.6 * vUp, uShade);
 
     gl_FragColor = vec4(color * uGlobalGlow, clamp(alpha, 0.0, 1.0));
   }
 `;
 
-export function createStormCloudMaterial() {
+/** @param {boolean} [tower] the upper shell (heaped cumulus) rather than the belly */
+export function createStormCloudMaterial(tower = false) {
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -215,7 +232,9 @@ export function createStormCloudMaterial() {
       uColorCore: { value: new Color() },
       uColorBody: { value: new Color() },
       uColorRim: { value: new Color() },
-      uColorFlash: { value: new Color() }
+      uColorFlash: { value: new Color() },
+      uDome: { value: 0 },
+      uShade: { value: 0 }
     }),
     vertexShader: CLOUD_VERTEX,
     fragmentShader: CLOUD_FRAGMENT
@@ -256,6 +275,9 @@ export function createStormCloudMaterial() {
     u.uColorBody.value.copy(getColor(c.colorCloudBody));
     u.uColorRim.value.copy(getColor(c.colorCloudRim));
     u.uColorFlash.value.copy(getColor(c.colorCloudFlash));
+    u.uDome.value = tower ? Math.max(0, c.cloudTower) * (0.35 + 0.65 * state.form) : 0;
+    u.uShade.value = tower ? c.cloudTowerShade : 0;
+    if (tower) u.uOpacity.value = c.cloudOpacity * c.cloudTowerOpacity * g.opacity;
   };
 
   return material;

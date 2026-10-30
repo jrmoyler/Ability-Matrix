@@ -204,6 +204,13 @@ export class WhiteoutNeedleAbility extends Ability {
     this.cloud.renderOrder = 6;
     this.cloud.visible = false;
     this.group.add(this.cloud);
+    // The heaped upper shell rides with the belly (child: same transform).
+    this.cloudTopMaterial = createCloudMaterial(true);
+    this.cloudTop = new Mesh(this.cloudGeometry, this.cloudTopMaterial);
+    this.cloudTop.name = 'WhiteoutCloudTop';
+    this.cloudTop.frustumCulled = false;
+    this.cloudTop.renderOrder = 7;
+    this.cloud.add(this.cloudTop);
 
     /* ---- layer 4: the snowed floor, and cold air ---- */
     this.stripGeometry = createStripGeometry();
@@ -533,6 +540,8 @@ export class WhiteoutNeedleAbility extends Ability {
     this._flash = Math.max(0, this._flash - dt * 4);
     _cloudState.flash = this._flash;
     this.cloudMaterial.userData.sync(_cloudState);
+    this.cloudTopMaterial.userData.sync(_cloudState);
+    this.cloudTop.visible = c.cloudTower > 0.01;
     this.cloud.visible = fadeK < 0.999;
 
     /* the snowed floor */
@@ -726,9 +735,9 @@ export class WhiteoutNeedleAbility extends Ability {
       this.ctx.decals.spawn(DecalType.FROST, at, {
         radius: c.strikeDecalRadius * (r.kind === KIND_VOLLEY ? 1.6 : 1),
         life: this.impactDuration + this.fadeDuration,
-        intensity: 0.9,
-        colorA: getColor(c.colorSnow),
-        colorB: getColor(c.colorIceGlow),
+        intensity: c.frostDecalIntensity,
+        colorA: getColor(c.colorFrostDecal),
+        colorB: getColor(c.colorIce),
         height: 0.02
       });
     }
@@ -875,11 +884,11 @@ export class WhiteoutNeedleAbility extends Ability {
       radius: 0.3,
       endRadius: c.burstRadius * power,
       life: c.burstLife,
-      intensity: 1.3,
-      opacity: 0.8 * g.opacity,
+      intensity: 0.9,
+      opacity: 0.7 * g.opacity,
       squash: 0.5,
-      colorA: getColor(c.colorSnowA),
-      colorB: getColor(c.colorIceGlow),
+      colorA: getColor(c.colorIceGlow),
+      colorB: getColor(c.colorIce),
       colorC: getColor(c.colorSnowD)
     });
     this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
@@ -955,6 +964,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this.stripGeometry.dispose();
     this.icicleMaterial.dispose();
     this.cloudMaterial.dispose();
+    this.cloudTopMaterial.dispose();
     this.driftMaterial.dispose();
     this.coldMaterial.dispose();
     this.blizzardGeometry.dispose();
@@ -1019,6 +1029,8 @@ export function buildEditor(gui, c, Editor) {
   R(cl, c, 'cloudStart', -3, 10, 0.05, 'starts ahead of the caster (m)');
   R(cl, c, 'cloudLead', 0, 10, 0.05, 'runs ahead (m)');
   R(cl, c, 'cloudBillow', 0, 4, 0.05, 'billow (m)');
+  R(cl, c, 'cloudTower', 0, 6, 0.05, 'heaped top (m)');
+  R(cl, c, 'cloudTowerShade', 0, 1, 0.01, 'heaped top shade');
   R(cl, c, 'cloudScale', 0.05, 2, 0.01, 'billows / m');
   R(cl, c, 'cloudWind', 0, 8, 0.05, 'wind (m/s)');
   R(cl, c, 'cloudOpacity', 0, 1, 0.01, 'opacity');
@@ -1062,6 +1074,8 @@ export function buildEditor(gui, c, Editor) {
   R(st, c, 'chipGravity', -40, 0, 0.5, 'chip gravity');
   R(st, c, 'strikeDecalEvery', 1, 12, 1, 'frost decal every nth');
   R(st, c, 'strikeDecalRadius', 0.05, 2, 0.01, 'frost decal radius');
+  R(st, c, 'frostDecalIntensity', 0, 2, 0.01, 'frost decal strength');
+  st.addColor(c, 'colorFrostDecal').name('frost decal');
   R(st, c, 'hazeRate', 0, 300, 1, 'ground blizzard / s');
   Editor.gradient(st, c, 'colorPuff', 'puff colour');
 

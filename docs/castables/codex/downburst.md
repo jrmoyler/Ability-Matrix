@@ -30,3 +30,7 @@ white-hot #ffffff → pale ice #a9c9f5 / #cfe3ff → storm blue #3567a8 → deep
 
 ## Changed in the upgrade
 Cloud lowered 4.9 → 2.9 m and narrowed; gather 1.15 → 0.42 s, drop 0.2 → 0.14 s; column rebuilt premultiplied with a deep body; front only during the fall; beige dust → slate-navy ramp; scour two-tone and opaque; white ring dimmed onto a dark trough; air shell made faint. 11 new settings keys (colorColumnBody, colorColumnDeep, columnBodyOpacity, columnBodyLight, columnFrontDecay, colorScourLit, scourRidge, ringShadow, burstOpacity, burstIntensity, shockIntensity) all in the editor.
+
+## Fix 4 (cloud body in frame, dark shock ring)
+Coordinator read: cloud a thin sliver at the top of frame; shock ring bright white. Changes: a heaped upper shell (second mesh on the same cloud shader, `cloudTower` 2.2 m, dark at its foot via `cloudTowerShade`, `cloudTowerOpacity`) gives the cloud height; cloud lowered 2.9 → 2.4 m, sag 0.6, rim glow 0.6, tears over 1.7 s so it lingers. Shock ring storm blue #4f7fc0 (glow 0.6, trough 0.95), engine shock 0.3, air shell 0.12, column front 0.9 on #cfe3ff, scour ridges 0.4. 3 new keys, in the editor.
+After: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/fix-4/r3/codex__downburst-sheet.jpg`. Honest 8.

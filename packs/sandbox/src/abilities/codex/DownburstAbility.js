@@ -142,6 +142,9 @@ export class DownburstAbility extends Ability {
 
     this.cloudMaterial = createStormCloudMaterial();
     this.cloud = this._mesh(this.cloudGeometry, this.cloudMaterial, 14, LAYER.VFX);
+    // The heaped upper shell over the belly: gives the cloud height in frame.
+    this.cloudTopMaterial = createStormCloudMaterial(true);
+    this.cloudTop = this._mesh(this.cloudGeometry, this.cloudTopMaterial, 15, LAYER.VFX);
 
     this.funnelMaterial = createPressureFunnelMaterial();
     this.funnel = this._mesh(this.tubeGeometry, this.funnelMaterial, 0, LAYER.DISTORTION);
@@ -413,6 +416,8 @@ export class DownburstAbility extends Ability {
     cs.seed = this._seed;
     this.cloudMaterial.userData.sync(cs);
     this.cloud.visible = form > 0.001 && dissolve < 1;
+    this.cloudTopMaterial.userData.sync(cs);
+    this.cloudTop.visible = this.cloud.visible && c.cloudTower > 0.01 && c.cloudTowerOpacity > 0.001;
 
     /* ---- the funnel: reaching down, then punched by the slam ---- */
     const fs = this._funnelState;
@@ -842,6 +847,7 @@ export class DownburstAbility extends Ability {
     this._clock = -1;
     this._slammed = false;
     this.cloud.visible = false;
+    this.cloudTop.visible = false;
     this.column.visible = false;
     this.funnel.visible = false;
     this.ground.visible = false;
@@ -855,6 +861,7 @@ export class DownburstAbility extends Ability {
     }
     for (const material of [
       this.cloudMaterial,
+      this.cloudTopMaterial,
       this.columnMaterial,
       this.funnelMaterial,
       this.groundMaterial,
@@ -921,6 +928,9 @@ export function buildEditor(gui, c, Editor) {
   R(cloud, c, 'cloudChargeGlow', 0, 8, 0.05, 'charge glow');
   R(cloud, c, 'cloudFlash', 0, 8, 0.05, 'lightning');
   R(cloud, c, 'cloudFlashRate', 0, 20, 0.1, 'lightning / s');
+  R(cloud, c, 'cloudTower', 0, 6, 0.05, 'tower height (m)');
+  R(cloud, c, 'cloudTowerShade', 0, 1, 0.01, 'tower shade');
+  R(cloud, c, 'cloudTowerOpacity', 0, 1, 0.01, 'tower opacity');
   cloud.addColor(c, 'colorCloudCore').name('core');
   cloud.addColor(c, 'colorCloudBody').name('body');
   cloud.addColor(c, 'colorCloudRim').name('lit rim');

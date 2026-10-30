@@ -53,15 +53,15 @@ export default {
     holdTime: 0.7, // the column keeps pressing after it lands
     columnFadeTime: 0.5, // ... and is lifted off the floor over this
     waveTime: 0.95, // the shock ring running out to its full radius
-    cloudFadeTime: 1.1, // the cloud tearing apart after the column is spent
+    cloudFadeTime: 1.7, // the cloud tearing apart after the column is spent
     fadeTime: 1.0, // everything left settling away at the end
 
     /* ================================================================ */
     /* 1 · THE STORM CLOUD                                               */
     /* ================================================================ */
-    cloudHeight: 2.9, // metres its rim hangs at
+    cloudHeight: 2.4, // metres its rim hangs at
     cloudRadius: 1.12, // × zoneRadius
-    cloudSag: 1.0, // metres the heavy core hangs below the rim when fully gathered
+    cloudSag: 0.6, // metres the heavy core hangs below the rim when fully gathered
     cloudSagSlam: 0.5, // extra metres it lurches down on the drop
     cloudSagWidth: 0.42, // 0..1 of the radius the sag spans
     cloudBillow: 0.5, // metres of noise on the underside
@@ -73,15 +73,18 @@ export default {
     cloudArmAmount: 0.45, // 0..1 how much the arms show
     cloudScale: 2.6, // noise features across the cloud
     cloudBoil: 0.25, // how fast the cloud churns in place
-    cloudCover: 0.45, // density threshold — lower is more cloud
+    cloudCover: 0.4, // density threshold — lower is more cloud
     cloudEdge: 0.7, // where the rim starts to break up, 0..1 of the radius
     cloudEdgeNoise: 0.4, // how ragged the rim is
     cloudOpacity: 0.92,
     cloudDarkCore: 0.55, // how much darker the middle is
-    cloudRimGlow: 0.85, // light catching the sun-side of each billow
+    cloudRimGlow: 0.6, // light catching the sun-side of each billow
     cloudChargeGlow: 1.6, // the core lighting up from inside as pressure builds
     cloudFlash: 2.6, // sheet lightning inside it
     cloudFlashRate: 3.5, // flickers per second while gathering
+    cloudTower: 2.2, // metres the heaped upper shell towers over the rim — the cloud's mass in frame
+    cloudTowerShade: 0.85, // 0..1 how dark the tower's foot and flanks are (crown keeps the light)
+    cloudTowerOpacity: 1.0, // 0..1 of the cloud opacity
     colorCloudCore: '#070c16',
     colorCloudBody: '#24375a',
     colorCloudRim: '#9cc3f5',
@@ -121,12 +124,12 @@ export default {
     columnOpacity: 0.65, // streak highlight strength
     columnGlow: 1.3,
     columnRim: 1.4, // the walls, seen edge-on
-    columnFront: 1.6, // the hot leading front
+    columnFront: 0.9, // the hot leading front
     columnFrontWidth: 0.8, // metres
     columnFrontDecay: 9, // per second the hot front dies away once it has hit the floor
     columnSoftFade: 0.6, // soft intersection with the floor, metres
     colorColumn: '#a9c9f5', // ramp · pale tint: the lit streaks
-    colorColumnHot: '#ffffff', // ramp · white-hot: the leading front
+    colorColumnHot: '#cfe3ff', // ramp · white-hot: the leading front
     colorColumnBody: '#3567a8', // ramp · saturated body of the falling air
     colorColumnDeep: '#071226', // ramp · dark deep: what carries the column's mass
     columnBodyOpacity: 0.85, // 0..1 how solid the dark body of air is
@@ -137,7 +140,7 @@ export default {
     /* ================================================================ */
     blastRadius: 2.3, // × zoneRadius, how far the shock ring runs
     ringWidth: 0.3, // metres
-    ringGlow: 1.4,
+    ringGlow: 0.6,
     ringFadeStart: 0.45, // 0..1 of its run where the ring starts to dim
     scourStreaks: 90, // radial streaks combed into the dust
     scourOpacity: 0.85,
@@ -145,11 +148,11 @@ export default {
     imprintOpacity: 0.85, // the pressed, dark middle
     warnGlow: 0.9, // the telegraph while the cloud gathers
     groundErode: 0.7, // 0 = fades evenly, 1 = erodes on noise
-    colorRing: '#cfe3ff',
+    colorRing: '#4f7fc0',
     colorScour: '#0d1626', // the deep of the scoured floor
     colorScourLit: '#5f86bd', // the pale ridges the outflow combs up
-    scourRidge: 0.55, // 0..1 how bright the combed ridges are
-    ringShadow: 0.8, // 0..1 the dark trough dragged behind the shock ring
+    scourRidge: 0.4, // 0..1 how bright the combed ridges are
+    ringShadow: 0.95, // 0..1 the dark trough dragged behind the shock ring
     colorImprint: '#04070d',
     colorWarn: '#8fb8ff',
 
@@ -224,14 +227,14 @@ export default {
     colorFlash: '#b8d4ff',
     burstSize: 1.1, // × zoneRadius, the squashed shell of air
     burstLife: 0.4,
-    burstOpacity: 0.2, // the additive shell of air: kept faint so the dark column reads
+    burstOpacity: 0.12, // the additive shell of air: kept faint so the dark column reads
     burstIntensity: 0.7,
     burstSquash: 0.22,
     dustRingRadius: 1.7, // × zoneRadius
     dustRingLife: 2.2,
     shockRadius: 2.4, // × zoneRadius
     shockLife: 0.75,
-    shockIntensity: 0.75, // the engine shock ring decal
+    shockIntensity: 0.3, // the engine shock ring decal
 
     /* --- what it does to bodies --- */
     pressCore: 0.62, // 0..1 of the circle where bodies are pressed flat

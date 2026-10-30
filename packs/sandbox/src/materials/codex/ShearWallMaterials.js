@@ -56,6 +56,9 @@ const WALL_GLSL = /* glsl */ `
   uniform float uDepthScale;  // the lens is a deeper wall
   uniform float uThick;       // metres of body: the slice stack spans this along the line
   uniform float uLift;        // metres the torn halves have risen
+  uniform float uCurl;        // metres the crest curls forward over the front
+  uniform float uRowBlend;    // 0 = rows cut hard, 1 = the shear bends smoothly through one mass
+  uniform float uRowPhase;    // 0 = pleats run straight up every row (one mass), 1 = alternate rows flipped
 
   float tri(float x) { return abs(fract(x) - 0.5) * 4.0 - 1.0; }
 
@@ -65,13 +68,22 @@ const WALL_GLSL = /* glsl */ `
   vec3 wallPoint(float u, float v, float slice, out float fold, out float row) {
     row = rowOf(v);
     float sgn = rowSign(row);
-    float shift = uShift * sgn * (0.75 + 0.5 * fract(sin(row * 12.9898 + uSeed) * 43758.5453));
+    float hard = uShift * sgn * (0.75 + 0.5 * fract(sin(row * 12.9898 + uSeed) * 43758.5453));
+    // Smooth shear: the same alternate shove, but bending continuously from
+    // row to row, so the wall sways as one sheared slab instead of bands.
+    float smoothS = uShift * sin(v * max(uRows, 1.0) * 3.14159265);
+    float shift = mix(hard, smoothS, uRowBlend);
     float lateral = u * uWidth + shift + sign(u) * uSplit;
-    fold = tri(u * uSlabs + row * 0.5 + uShift * 0.25);
-    float along = fold * uFold * uDepthScale - uBow * 4.0 * u * u + uLean * v + slice * uThick;
+    fold = tri(u * uSlabs + row * 0.5 * uRowPhase + uShift * 0.25);
+    // The crest curls forward and over, like the lip of a breaking wave:
+    // the whole wall reads as one leaning, curling front with a back to it.
+    float cr = smoothstep(0.35, 1.0, v);
+    float along = fold * uFold * uDepthScale * (1.0 - 0.5 * cr) - uBow * 4.0 * u * u + uLean * v
+      + uCurl * cr * cr + slice * uThick;
     vec3 p = uCenter + uSide * lateral + uDir * along;
     // The body is thickest at the foot and thins towards the torn top.
-    p.y = v * uHeight + uLift * v * (0.5 + abs(u));
+    float droop = smoothstep(0.7, 1.0, v);
+    p.y = v * uHeight - uCurl * 0.45 * droop * droop + uLift * v * (0.5 + abs(u));
     return p;
   }
 `;
@@ -111,6 +123,7 @@ const WALL_FRAGMENT = /* glsl */ `
   uniform float uWidth;
   uniform float uHeight;
   uniform float uRows;
+  uniform float uRowBlend;
   uniform float uSeed;
   uniform float uSplit;
   uniform float uFlow;         // integrated lateral flow, metres
@@ -164,6 +177,7 @@ const WALL_FRAGMENT = /* glsl */ `
     float inRow = fract(vUv.y * rows);
     float seam = 1.0 - smoothstep(0.0, 0.06, min(inRow, 1.0 - inRow));
     seam *= step(0.5 / rows, vUv.y) * step(vUv.y, 1.0 - 0.5 / rows);
+    seam *= 1.0 - 0.85 * uRowBlend;
 
     vec3 col = mix(uColorC, uColorB, flow) * uBodyGlow;
     col += uColorA * pow(flow, 3.0) * uStreakGlow;
@@ -213,7 +227,10 @@ function wallShapeUniforms() {
     uSeed: { value: 0 },
     uDepthScale: { value: 1 },
     uThick: { value: 0 },
-    uLift: { value: 0 }
+    uLift: { value: 0 },
+    uCurl: { value: 0 },
+    uRowPhase: { value: 1 },
+    uRowBlend: { value: 0 }
   };
 }
 
@@ -235,6 +252,9 @@ function syncWallShape(u, st) {
   u.uSeed.value = st.seed;
   u.uThick.value = 0;
   u.uLift.value = st.lift || 0;
+  u.uCurl.value = c.wallCurl * st.grow;
+  u.uRowPhase.value = c.pleatRowPhase;
+  u.uRowBlend.value = c.rowBlend;
 }
 
 /** The pleated, sheared wall. Additive. */
@@ -308,6 +328,7 @@ const BODY_FRAGMENT = /* glsl */ `
   uniform float uWidth;
   uniform float uHeight;
   uniform float uRows;
+  uniform float uRowBlend;
   uniform float uSeed;
   uniform float uSplit;
   uniform float uFlow;
@@ -327,6 +348,8 @@ const BODY_FRAGMENT = /* glsl */ `
   uniform vec3  uColorC;       // dark
   uniform vec3  uColorD;       // deep
   uniform vec3  uLightDir;
+  uniform float uCrease;       // 0..1 how deep the upright creases sink
+  uniform float uLip;          // brightness of the curling crest's edge
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -366,6 +389,7 @@ const BODY_FRAGMENT = /* glsl */ `
     float inRow = fract(vUv.y * rows);
     float seam = 1.0 - smoothstep(0.0, 0.08, min(inRow, 1.0 - inRow));
     seam *= step(0.5 / rows, vUv.y) * step(vUv.y, 1.0 - 0.5 / rows);
+    seam *= 1.0 - 0.85 * uRowBlend;
 
     // Four-stop ramp: deep at the foot and in the gaps, body, pale on the lit folds.
     float h = vUv.y;
@@ -374,6 +398,13 @@ const BODY_FRAGMENT = /* glsl */ `
     col = mix(col, uColorB, smoothstep(0.25, 0.85, lit) * 0.9);
     col = mix(col, uColorA, smoothstep(0.8, 1.0, lit) * 0.5);
     col *= 0.6 + 0.4 * shade;
+    // Upright shear ribs: the pleats run straight up the mass, the creases
+    // sinking to the deep tone, so the wall has vertical structure.
+    float crease = 1.0 - smoothstep(0.0, 0.55, abs(vFold));
+    col = mix(col, uColorD, crease * uCrease);
+    // Only the curling lip of the crest catches a pale edge.
+    float lip = smoothstep(0.72, 0.9, h) * (1.0 - smoothstep(0.93, 1.0, h));
+    col += uColorA * lip * uLip * (0.4 + 0.6 * shade);
     col += uColorA * rim;
     col += uColorA * seam * uSeamGlow * (0.15 + uSeamFlash * 1.2);
 
@@ -430,7 +461,9 @@ export function createShearBodyMaterial() {
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() },
-      uColorD: { value: new Color() }
+      uColorD: { value: new Color() },
+      uCrease: { value: 0.5 },
+      uLip: { value: 0.3 }
     }),
     vertexShader: WALL_VERTEX,
     fragmentShader: BODY_FRAGMENT
@@ -458,6 +491,8 @@ export function createShearBodyMaterial() {
     u.uColorB.value.copy(getColor(c.colorAirB));
     u.uColorC.value.copy(getColor(c.colorAirC));
     u.uColorD.value.copy(getColor(c.colorAirD));
+    u.uCrease.value = c.bodyCrease;
+    u.uLip.value = c.crestGlow * g.glow;
   };
 
   return material;

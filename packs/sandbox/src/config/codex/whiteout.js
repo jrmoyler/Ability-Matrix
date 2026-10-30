@@ -59,14 +59,14 @@ export default {
     quiverAmp: 0.12, // radians it shudders when it lands
     quiverFreq: 26, // shudders per second (× 2π)
     quiverDamp: 7, // how fast the shudder dies
-    iceEnv: 0.3, // sky reflection
-    iceRimGlow: 0.8,
+    iceEnv: 0.15, // sky reflection
+    iceRimGlow: 0.5,
     iceCoreGlow: 0.25,
-    trailGlow: 5, // the burning root while it falls
-    landGlow: 3.5, // the flash as it strikes
-    colorIce: '#6fa6d6', // saturated body of the ice
-    colorIceMilk: '#a9cdeb', // pale tint at the milky root
-    colorIceGlow: '#a8dcff', // the hot stop (HDR only in glow terms)
+    trailGlow: 1.0, // the burning root while it falls
+    landGlow: 1.2, // the flash as it strikes
+    colorIce: '#2c5a91', // saturated body of the ice
+    colorIceMilk: '#5d8cc2', // pale tint at the milky root
+    colorIceGlow: '#7fb6ea', // the hot stop (HDR only in glow terms)
 
     /* the last volley at the end of the line */
     volleyCount: 18, // max 32
@@ -76,16 +76,18 @@ export default {
     /* ================================================================ */
     /* 2 · THE CLOUD                                                     */
     /* ================================================================ */
-    cloudHeight: 4.0, // metres off the floor (low enough to sit in the 8 m chase shot)
+    cloudHeight: 2.3, // metres off the floor (low enough to sit in the 8 m chase shot)
     cloudWidth: 5.5, // metres across
-    cloudStart: 3.5, // metres ahead of the caster it begins (behind them it blocks the camera)
+    cloudStart: 6, // metres ahead of the caster it begins (behind them it blocks the camera)
     cloudLead: 3, // metres it runs ahead of the front
-    cloudBillow: 1.4, // metres the belly hangs down
+    cloudBillow: 1.0, // metres the belly hangs down
+    cloudTower: 1.3, // metres the heaped upper shell rises over the belly — the cloud's body in frame
+    cloudTowerShade: 0.8, // 0..1 how dark the heaped shell's foot is (only its crests catch light)
     cloudScale: 0.35, // billows per metre
     cloudWind: 1.6, // metres/second the billows roll down the line
-    cloudOpacity: 0.85,
-    colorCloudBelly: '#0f1e38', // deep navy belly
-    colorCloudLit: '#7f9fc4', // steel-blue lit lobes
+    cloudOpacity: 1.0,
+    colorCloudBelly: '#14284a', // deep navy belly
+    colorCloudLit: '#6a8cb8', // steel-blue lit lobes
 
     /* ================================================================ */
     /* 3 · THE SNOW                                                      */
@@ -99,8 +101,8 @@ export default {
     flakeRate: 260, // slow flakes over the whole storm
     flakeSize: 0.05,
     flakeLifetime: 1.6,
-    colorSnowA: '#ffffff',
-    colorSnowB: '#cfe6fb',
+    colorSnowA: '#b9d4f0',
+    colorSnowB: '#9fc0e2',
     colorSnowC: '#5f8fc0',
     colorSnowD: '#16294a',
 
@@ -108,12 +110,12 @@ export default {
     /* 4 · THE SNOWED FLOOR                                              */
     /* ================================================================ */
     driftStreak: 1, // how hard the wind combs it
-    driftEdgeGlow: 1.6, // the powdery leading edge
-    driftSparkle: 2,
+    driftEdgeGlow: 0.8, // the powdery leading edge
+    driftSparkle: 1.2,
     driftOpacity: 0.85,
-    colorSnow: '#8fb4dc', // the drift's steel-blue body
-    colorSnowShade: '#1c3658', // deep navy troughs
-    colorSnowCrest: '#d6e9f8', // only the combed crests go pale
+    colorSnow: '#45699a', // the drift's steel-blue body
+    colorSnowShade: '#0c1a33', // deep navy troughs
+    colorSnowCrest: '#9dbde0', // only the combed crests go pale
     driftWind: 1.6, // metres/second the combed streaks keep running down the line
 
     /* ================================================================ */
@@ -131,10 +133,12 @@ export default {
     chipGravity: -14,
     strikeDecalEvery: 3, // a frost decal under every nth strike
     strikeDecalRadius: 0.45,
+    frostDecalIntensity: 0.25, // the frost decal under a strike: low, so the lane stays navy
+    colorFrostDecal: '#1f3c66', // the frost decal's body (its edge takes the ice colour)
     hazeRate: 18, // ground blizzard rolling with the front
-    colorPuffA: '#e8f4ff',
-    colorPuffB: '#9dbfe0',
-    colorPuffC: '#4a6f99',
+    colorPuffA: '#a9c6e6',
+    colorPuffB: '#5a80ad',
+    colorPuffC: '#29466f',
     colorPuffD: '#14274a',
     coldWarp: 0.12, // cold air shimmer over the lane (kept low: higher smears the icicles into a white sheet)
     coldScale: 1.2,
@@ -151,11 +155,11 @@ export default {
     pinStiffness: 0.9,
     pinNeedles: 3, // icicles per pinned body
     frostTint: 0.6,
-    colorBodyFrozen: '#bfe0f7',
+    colorBodyFrozen: '#6f98c8',
     colorBodyRim: '#e8f8ff',
-    bodyRimGlow: 1.4,
+    bodyRimGlow: 1.0,
     colorBodyEdge: '#ffffff',
-    bodyEdgeGlow: 2,
+    bodyEdgeGlow: 1.1,
 
     /* ================================================================ */
     /* 7 · THE BEAT                                                      */
@@ -169,7 +173,7 @@ export default {
     burstRadius: 2.4,
     burstLife: 0.6,
     colorShockA: '#4f86c0',
-    colorShockB: '#cfe8ff',
+    colorShockB: '#8fb8e6',
     shockRadius: 4,
     shockLife: 0.5,
 
@@ -178,16 +182,16 @@ export default {
     /* ================================================================ */
     blizzardHeight: 3.6, // metres the blowing snow stands off the floor
     blizzardWidth: 0.6, // metres either side beyond the lane
-    blizzardDensity: 1.6, // how thick it blows
+    blizzardDensity: 2.0, // how thick it blows
     blizzardScale: 0.75, // noise cells per metre
     blizzardWind: 5.5, // metres/second it rides down the line
     blizzardGust: 0.35, // slow thick pulses running down the line
-    blizzardStreakGlow: 1.6, // the white driving streaks inside it
+    blizzardStreakGlow: 0.9, // the white driving streaks inside it
     blizzardOpacity: 0.85,
     lingerHazeRate: 26, // puffs/second of ground blizzard over the whole lane while the field stands
     colorBlizzardCore: '#eef7ff', // driving streaks only
-    colorBlizzardPale: '#9fc1e2', // where it thins
-    colorBlizzardBody: '#3a6292', // steel-blue body
+    colorBlizzardPale: '#5a81b2', // where it thins
+    colorBlizzardBody: '#1e3d6c', // steel-blue body
     colorBlizzardDeep: '#0a1631' // thick and low: deep navy
   }
 };

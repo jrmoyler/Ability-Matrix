@@ -189,10 +189,12 @@ const CLOUD_VERTEX = /* glsl */ `
   uniform float uScale;
   uniform float uWind;
   uniform float uSeed;
+  uniform float uTower;       // metres the heaped upper shell rises over the belly (0 = the belly)
 
   varying vec3 vWorld;
   varying vec2 vP;            // metres along, metres across
   varying float vLobe;
+  varying float vUp;
 
   ${noiseGLSL}
 
@@ -206,6 +208,11 @@ const CLOUD_VERTEX = /* glsl */ `
     vLobe = lobe;
     vec3 pos = position;
     pos.y -= (lobe * uBillow + across * uBillow * 0.4) / max(1e-3, 1.0);
+    // Upper shell: heaped storm cumulus down the lane, so the cloud has a
+    // body with height in the chase shot instead of a sheet seen edge-on.
+    float heap = sqrt(max(0.0, across));
+    vUp = uTower > 0.0 ? heap * (0.4 + 0.6 * lobe) : 0.0;
+    if (uTower > 0.0) pos.y += (lobe * uBillow + across * uBillow * 0.4) * 0.9 + uTower * heap * (0.35 + 0.9 * lobe);
     vec4 world = modelMatrix * vec4(pos, 1.0);
     vWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -231,10 +238,12 @@ const CLOUD_FRAGMENT = /* glsl */ `
   uniform vec3  uColorBelly;
   uniform vec3  uColorLit;
   uniform vec3  uColorGlow;
+  uniform float uShade;       // the upper shell darkening toward its foot
 
   varying vec3 vWorld;
   varying vec2 vP;
   varying float vLobe;
+  varying float vUp;
 
   ${noiseGLSL}
 
@@ -253,6 +262,7 @@ const CLOUD_FRAGMENT = /* glsl */ `
     // A soft volume from below: lit lobes white, the belly slate.
     float lit = smoothstep(0.35, 0.9, vLobe) * 0.6 + wisps * 0.4;
     vec3 col = mix(uColorBelly, uColorLit, clamp(lit, 0.0, 1.0));
+    col *= mix(1.0, 0.35 + 0.75 * vUp, uShade);
     col += uColorGlow * uFlash * (0.5 + d) * uGlobalGlow;
     float a = density * uOpacity;
     if (a < 0.004) discard;
@@ -260,7 +270,8 @@ const CLOUD_FRAGMENT = /* glsl */ `
   }
 `;
 
-export function createCloudMaterial() {
+/** @param {boolean} [tower] the heaped upper shell rather than the belly */
+export function createCloudMaterial(tower = false) {
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -281,7 +292,9 @@ export function createCloudMaterial() {
       uFlash: { value: 0 },
       uColorBelly: { value: new Color() },
       uColorLit: { value: new Color() },
-      uColorGlow: { value: new Color() }
+      uColorGlow: { value: new Color() },
+      uTower: { value: 0 },
+      uShade: { value: 0 }
     }),
     vertexShader: CLOUD_VERTEX,
     fragmentShader: CLOUD_FRAGMENT
@@ -305,6 +318,8 @@ export function createCloudMaterial() {
     u.uColorBelly.value.copy(getColor(c.colorCloudBelly));
     u.uColorLit.value.copy(getColor(c.colorCloudLit));
     u.uColorGlow.value.copy(getColor(c.colorIceGlow));
+    u.uTower.value = tower ? Math.max(0, c.cloudTower) : 0;
+    u.uShade.value = tower ? c.cloudTowerShade : 0;
   };
 
   return material;
