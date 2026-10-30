@@ -130,6 +130,12 @@ const COIL_FRAGMENT = /* glsl */ `
   uniform vec3  uColorA;
   uniform vec3  uColorB;
   uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform float uBody;        // 0 the glow pass, 1 the solid body pass
+  uniform float uBodyOpacity;
+  uniform float uWindings;    // wires round each coil
+  uniform float uWindWidth;   // wire width, fraction of a winding
+  uniform float uWindGlow;
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -203,16 +209,41 @@ const COIL_FRAGMENT = /* glsl */ `
     float fl = hash11(floor(uTime * 26.0) + uSeed * 5.0);
     float flick = 1.0 - uFlicker * step(0.78, fl) * 0.85;
 
-    float energy = 1.0 + uCharge * uChargeGlow + uFlash * 1.5;
-    vec3 col = uColorDeep * 0.55
-             + uColorA * (0.3 + hexLine * 1.15 + cellLit * 0.35) * uShaderIntensity
-             + uColorB * (rim * 0.3 + segEdge * 0.7 + arc * 2.2 + leading * 3.0 + band * 0.25 + flare * 2.0);
-    col *= scan * energy;
+    /* windings: thin wires wrapped round the band — the only lit part */
+    float wPos = fract(ang * max(uWindings, 1.0));
+    float wire = exp(-pow((wPos - 0.5) / max(uWindWidth, 0.004), 2.0));
+
+    vec2 screenUV = gl_FragCoord.xy / uResolution;
+    if (uBody > 0.5) {
+      // The solid body: a dark lit steel-navy sleeve. Lambert from above,
+      // a cool glint, the hex lattice only as a faint etch in the plating.
+      vec3 Nf = dot(N, V) < 0.0 ? -N : N;
+      vec3 L = normalize(vec3(0.35, 0.85, 0.4));
+      float dif = max(dot(Nf, L), 0.0);
+      float spec = pow(max(dot(reflect(-L, Nf), V), 0.0), 24.0);
+      vec3 col = uColorBody * (0.3 + 0.95 * dif)
+               + uColorDeep * (0.05 + hexLine * 0.08)
+               + uColorA * (spec * 0.25 + rim * 0.06)
+               + uColorA * wire * 0.18 * (0.3 + uCharge)
+               + uColorB * (leading * 1.2 + flare * 0.25);
+      float alpha = uBodyOpacity * seg * drawn * keep * flick;
+      if (alpha < 0.004) discard;
+      alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
+      if (alpha < 0.004) discard;
+      gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+      return;
+    }
+
+    // The glow pass: the windings light up with the charge, arcs run along
+    // them, the hot draw-in edge and the derez flare — nothing fills the band.
+    float energy = 0.25 + uCharge * uChargeGlow + uFlash * 0.4;
+    float hot = wire * energy * uWindGlow;
+    vec3 col = uColorA * hot * scan * uShaderIntensity
+             + uColorB * (arc * wire * 2.0 + leading * 2.2 + flare * 0.4 + segEdge * 0.15 * energy);
 
     float alpha = uOpacity * seg * drawn * keep * flick
-                * (0.3 + 0.7 * hexLine + rim * 0.6 + arc + leading + flare);
+                * clamp(hot + arc * wire + leading + flare * 0.25 + segEdge * 0.1, 0.0, 1.5);
     if (alpha < 0.004) discard;
-    vec2 screenUV = gl_FragCoord.xy / uResolution;
     alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
     if (alpha < 0.004) discard;
 
@@ -220,13 +251,17 @@ const COIL_FRAGMENT = /* glsl */ `
   }
 `;
 
-/** One coil. The ability builds one per ring so each has its own clocks. */
-export function createRailCoilMaterial() {
+/**
+ * One coil. The ability builds one per ring so each has its own clocks.
+ * @param {boolean} body true = the solid dark lit body (normal-blended),
+ *   false = the glow on its windings (additive)
+ */
+export function createRailCoilMaterial(body = false) {
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: body ? NormalBlending : AdditiveBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -260,7 +295,13 @@ export function createRailCoilMaterial() {
       uSoftFade: { value: 0.15 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
-      uColorDeep: { value: new Color() }
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uBody: { value: body ? 1 : 0 },
+      uBodyOpacity: { value: 0.9 },
+      uWindings: { value: 40 },
+      uWindWidth: { value: 0.12 },
+      uWindGlow: { value: 1 }
     }),
     vertexShader: COIL_VERTEX,
     fragmentShader: COIL_FRAGMENT
@@ -305,6 +346,11 @@ export function createRailCoilMaterial() {
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorB));
     u.uColorDeep.value.copy(getColor(c.colorRingDeep));
+    u.uColorBody.value.copy(getColor(c.colorCoilBody));
+    u.uBodyOpacity.value = Math.min(1, Math.max(0, c.coilBodyOpacity * g.opacity));
+    u.uWindings.value = Math.max(1, Math.round(c.coilWindings));
+    u.uWindWidth.value = Math.max(0.004, c.coilWindingWidth);
+    u.uWindGlow.value = c.coilWindingGlow;
   };
 
   return material;
@@ -788,6 +834,9 @@ const SHOCK_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform vec3  uColorA;
   uniform vec3  uColorB;
+  uniform vec3  uColorDeep;
+  uniform float uBodyAlpha;
+  uniform float uRimAlpha;
   uniform float uGlobalGlow;
 
   varying vec2  vUv;
@@ -803,13 +852,17 @@ const SHOCK_FRAGMENT = /* glsl */ `
     // Tick marks standing just outside the ring.
     float a = atan(vUv.y, vUv.x) / 6.2831853 + vSeed;
     float tk = fract(a * max(uTicks, 1.0));
-    float tick = (1.0 - smoothstep(0.05, 0.1, abs(tk - 0.5))) * smoothstep(1.04, 1.06, r) * (1.0 - smoothstep(1.1, 1.14, r));
-    float haze = (1.0 - smoothstep(0.2, 1.0, r)) * 0.18;
+    float tick = (1.0 - smoothstep(0.05, 0.1, abs(tk - 0.5))) * smoothstep(1.04, 1.06, r) * (1.0 - smoothstep(1.1, 1.14, r)) * step(0.5, uTicks);
+    // A dark disc of compressed, ionised air — densest just inside the front —
+    // with only a thin hot line at the front itself. Normal-blended.
+    float body = smoothstep(0.15, 0.95, r) * (1.0 - smoothstep(0.97, 1.02, r));
     float life = pow(1.0 - vAge, 1.6);
-    vec3 col = uColorA * (ring + tick * 0.8) * uGlow + uColorB * haze * uGlow;
-    float alpha = (ring + tick * 0.7 + haze) * life * vStrength * uOpacity;
+    float hot = ring * (1.0 - vAge * 0.6);
+    vec3 dark = mix(uColorDeep * 0.25, uColorB * 0.18, smoothstep(0.5, 0.95, r));
+    vec3 col = mix(dark, uColorA * uGlow * uGlobalGlow, clamp(hot * 1.4 + tick * 0.5, 0.0, 1.0));
+    float alpha = (body * uBodyAlpha + hot * uRimAlpha + tick * 0.25 * uRimAlpha) * life * vStrength * uOpacity;
     if (alpha < 0.004) discard;
-    gl_FragColor = vec4(col * uGlobalGlow, clamp(alpha, 0.0, 1.0));
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
 `;
 
@@ -818,7 +871,7 @@ export function createRailShockMaterial() {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -833,7 +886,10 @@ export function createRailShockMaterial() {
       uTicks: { value: 12 },
       uOpacity: { value: 1 },
       uColorA: { value: new Color() },
-      uColorB: { value: new Color() }
+      uColorB: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uBodyAlpha: { value: 0.4 },
+      uRimAlpha: { value: 0.8 }
     }),
     vertexShader: SHOCK_VERTEX,
     fragmentShader: SHOCK_FRAGMENT
@@ -852,10 +908,13 @@ export function createRailShockMaterial() {
     u.uGrow.value = c.shockGrow;
     u.uWidthFrac.value = c.shockWidth / Math.max(0.02, c.shockRadius);
     u.uGlow.value = c.shockGlow * g.glow;
-    u.uTicks.value = Math.max(1, Math.round(c.shockTicks));
+    u.uTicks.value = Math.max(0, Math.round(c.shockTicks));
     u.uOpacity.value = g.opacity;
     u.uColorA.value.copy(getColor(c.colorShockA));
     u.uColorB.value.copy(getColor(c.colorShockB));
+    u.uColorDeep.value.copy(getColor(c.colorBeamDeep));
+    u.uBodyAlpha.value = Math.min(1, Math.max(0, c.shockBody));
+    u.uRimAlpha.value = Math.min(1, Math.max(0, c.shockRim));
   };
 
   return material;
@@ -1239,6 +1298,145 @@ export function createRailHelixMaterial() {
     u.uColorTint.value.copy(getColor(c.colorHelixTint));
     u.uColorBody.value.copy(getColor(c.colorHelixBody));
     u.uColorDeep.value.copy(getColor(c.colorHelixDeep));
+  };
+
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* 7 · The impact shell — a dark-bodied burst with a thin hot rim        */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Used on a unit sphere scaled by the ability. The body is a dark, smoky
+ * navy mass of blown-out air (normal-blended, so it *covers* the frame instead
+ * of whitening it); only a thin rim at the silhouette and a few torn seams run
+ * hot. As it ages the body tears open on noise from the inside out.
+ */
+const SHELL_VERTEX = /* glsl */ `
+  uniform float uSeed;
+  uniform float uAge;
+  uniform float uDisplace;
+
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying vec3  vLocal;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec3 np = normal * 1.8 + vec3(uSeed * 7.0, uAge * 1.5, 0.0);
+    float n = fbm3(np);
+    vec3 pos = position * (1.0 + n * uDisplace);
+    vec4 world = modelMatrix * vec4(pos, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vViewDir = cameraPosition - world.xyz;
+    vLocal = normal;
+    vec4 mv = viewMatrix * world;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const SHELL_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uAge;         // 0..1
+  uniform float uLevel;
+  uniform float uRimGlow;
+  uniform float uRimSharp;
+  uniform float uBodyAlpha;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorRim;
+  uniform vec3  uColorHot;
+
+  uniform vec2      uResolution;
+  uniform sampler2D uSceneDepth;
+  uniform float     uCameraNear;
+  uniform float     uCameraFar;
+  uniform float     uGlobalGlow;
+
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying vec3  vLocal;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    float ndv = abs(dot(N, V));
+    float sil = 1.0 - ndv;
+
+    // Tears open from the inside out as it ages.
+    float n = fbm3(vLocal * 2.6 + vec3(uSeed, uSeed * 0.7, uTime * 0.4)) * 0.5 + 0.5;
+    float thr = smoothstep(0.25, 1.0, uAge) * 1.1 - 0.05;
+    if (n < thr) discard;
+    float seam = 1.0 - smoothstep(thr, thr + 0.07, n);
+    if (uAge < 0.25) seam = 0.0;
+
+    float rim = pow(sil, max(uRimSharp, 1.0));
+    vec3 body = mix(uColorDeep, uColorBody, smoothstep(0.2, 0.8, sil) * 0.8 + n * 0.2);
+    vec3 hotCol = mix(uColorRim, uColorHot, rim * rim);
+    float hot = clamp(rim * 1.2 + seam * 0.7, 0.0, 1.0);
+    vec3 col = mix(body, hotCol * uRimGlow * uGlobalGlow, hot);
+
+    float alpha = (uBodyAlpha * (0.55 + 0.45 * smoothstep(0.0, 0.7, sil)) + hot * 0.6) * uLevel;
+    if (alpha < 0.004) discard;
+    vec2 screenUV = gl_FragCoord.xy / uResolution;
+    alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.3);
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createRailShellMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uAge: { value: 0 },
+      uDisplace: { value: 0.15 },
+      uLevel: { value: 1 },
+      uRimGlow: { value: 2.5 },
+      uRimSharp: { value: 6 },
+      uBodyAlpha: { value: 0.8 },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uColorRim: { value: new Color() },
+      uColorHot: { value: new Color() }
+    }),
+    vertexShader: SHELL_VERTEX,
+    fragmentShader: SHELL_FRAGMENT
+  });
+
+  /** @param {object} s { age 0..1, level, seed } */
+  material.userData.sync = (s) => {
+    const c = settings.railgun;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = s.seed;
+    u.uAge.value = s.age;
+    u.uDisplace.value = c.shellDisplace * g.turbulence;
+    u.uLevel.value = s.level * g.opacity;
+    u.uRimGlow.value = c.shellRimGlow * g.glow;
+    u.uRimSharp.value = c.shellRimSharp;
+    u.uBodyAlpha.value = Math.min(1, Math.max(0, c.shellOpacity));
+    u.uColorBody.value.copy(getColor(c.colorShellBody));
+    u.uColorDeep.value.copy(getColor(c.colorShellDeep));
+    u.uColorRim.value.copy(getColor(c.colorBurstB));
+    u.uColorHot.value.copy(getColor(c.colorBurstA));
   };
 
   return material;

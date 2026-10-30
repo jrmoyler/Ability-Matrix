@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { IcosahedronGeometry, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../Ability.js';
 import { createParamGrid, createShockRingGeometry, createHelixGeometry } from '../../assets/codex/RailgunLanceGeometry.js';
 import {
@@ -8,7 +8,8 @@ import {
   createRailWarpMaterial,
   createRailShockMaterial,
   createRailTrenchMaterial,
-  createRailHelixMaterial
+  createRailHelixMaterial,
+  createRailShellMaterial
 } from '../../materials/codex/RailgunLanceMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -30,6 +31,8 @@ const MAX_SHOCKS = 32;
 const MAX_HITS = 16;
 /** Strands of rifling the helix buffer carries. The editor clamps to this. */
 const MAX_STRANDS = 4;
+/** Dark impact shells alive at once (the impact + the end pulses). */
+const MAX_SHELLS = 6;
 const TAU = Math.PI * 2;
 
 const _emit = {};
@@ -136,12 +139,30 @@ export class RailgunLanceAbility extends Ability {
     this.coilGeometry = createParamGrid(128, 10);
     this.coils = [];
     this.coilMaterials = [];
+    this.coilBodies = [];
+    this.coilBodyMaterials = [];
     for (let i = 0; i < MAX_RINGS; i++) {
-      const material = createRailCoilMaterial();
+      const material = createRailCoilMaterial(false);
       const mesh = this._mesh(this.coilGeometry, material, 13, LAYER.VFX);
       mesh.name = `RailCoil${i}`;
       this.coilMaterials.push(material);
       this.coils.push(mesh);
+      // The solid dark lit body the glowing windings sit on.
+      const bodyMaterial = createRailCoilMaterial(true);
+      const body = this._mesh(this.coilGeometry, bodyMaterial, 9, LAYER.VFX);
+      body.name = `RailCoilBody${i}`;
+      this.coilBodyMaterials.push(bodyMaterial);
+      this.coilBodies.push(body);
+    }
+
+    /* ---- the impact: dark-bodied shells with a thin hot rim ---- */
+    this.shellGeometry = new IcosahedronGeometry(1, 4);
+    this.shells = [];
+    for (let i = 0; i < MAX_SHELLS; i++) {
+      const material = createRailShellMaterial();
+      const mesh = this._mesh(this.shellGeometry, material, 11, LAYER.VFX);
+      mesh.name = `RailShell${i}`;
+      this.shells.push({ mesh, material, age: 0, life: 1, r0: 0, r1: 1, level: 0, active: false, state: { age: 0, level: 0, seed: 0 } });
     }
 
     /* ---- the slug ---- */
@@ -482,6 +503,12 @@ export class RailgunLanceAbility extends Ability {
       r.pixels.reset();
       this.coils[i].rotation.set(0, yaw, 0);
       this.coils[i].visible = i < this._count;
+      this.coilBodies[i].rotation.set(0, yaw, 0);
+      this.coilBodies[i].visible = false;
+    }
+    for (let i = 0; i < MAX_SHELLS; i++) {
+      this.shells[i].active = false;
+      this.shells[i].mesh.visible = false;
     }
     this.slug.rotation.set(0, yaw, 0);
     this.beam.rotation.set(0, yaw, 0);
@@ -633,6 +660,7 @@ export class RailgunLanceAbility extends Ability {
       const mesh = this.coils[i];
       if (i >= n) {
         mesh.visible = false;
+        this.coilBodies[i].visible = false;
         continue;
       }
       const r = this.rings[i];
@@ -654,9 +682,13 @@ export class RailgunLanceAbility extends Ability {
       s.arcPhase = this._arcPhase + i * 3.1;
       s.seed = r.seed;
       this.coilMaterials[i].userData.sync(s);
+      this.coilBodyMaterials[i].userData.sync(s);
       mesh.visible = build > 0 && s.derez < 1;
       _pos.copy(this.origin).addScaledVector(this.direction, this._ringAlong(i, kick)).setY(c.ringHeight);
       mesh.position.copy(_pos);
+      const body = this.coilBodies[i];
+      body.visible = mesh.visible && c.coilBodyOpacity > 0;
+      body.position.copy(_pos);
     }
 
     /* ---- the slug ---- */
@@ -1157,16 +1189,19 @@ export class RailgunLanceAbility extends Ability {
     if (this._endPulseT > 0 || c.endPulseRate <= 0) return;
     this._endPulseT += 1 / Math.max(0.1, c.endPulseRate);
     if (this._endPulseT < 0) this._endPulseT = 0;
+    // Pressure pulses: small dark shells with a thin hot rim, not bright bursts.
+    this._spawnShell(c.endPulseSize * 0.25, c.endPulseSize * power * (0.6 + 0.4 * fall), 0.34, 0.75 * (0.4 + 0.6 * fall));
+    // ...with a few faint hot filaments over it as detail.
     this.ctx.bursts.spawn(BurstMode.STORM, _end, {
-      radius: c.endPulseSize * 0.2,
-      endRadius: c.endPulseSize * power * (0.6 + 0.4 * fall),
-      life: 0.32,
-      intensity: c.burstIntensity * 0.45,
-      opacity: 0.32 * g.opacity,
+      radius: c.endPulseSize * 0.15,
+      endRadius: c.endPulseSize * power * 0.5,
+      life: 0.25,
+      intensity: c.burstIntensity * c.burstFilament * 0.5,
+      opacity: 0.25 * g.opacity,
       fresnel: 2.4 * g.fresnel,
       displace: 0.25,
       turbulence: g.turbulence,
-      colorA: getColor(c.colorBurstA),
+      colorA: getColor(c.colorBurstB),
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
     });
@@ -1175,12 +1210,56 @@ export class RailgunLanceAbility extends Ability {
       radius: c.endRingRadius * power,
       life: 0.5,
       width: 0.06,
-      intensity: 0.8 * fall + 0.2,
+      intensity: (0.8 * fall + 0.2) * c.floorRingGlow,
       colorA: getColor(c.colorShockA),
       colorB: getColor(c.colorBeamDeep)
     });
     this.ctx.shake.add(c.impactShake * 0.15 * fall * g.cameraShake, 10, 22);
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * 1.4 * fall);
+  }
+
+  /** Start a dark impact shell at the end of the line (pooled; oldest reused). */
+  _spawnShell(r0, r1, life, level) {
+    let pick = this.shells[0];
+    for (let i = 0; i < MAX_SHELLS; i++) {
+      const sh = this.shells[i];
+      if (!sh.active) { pick = sh; break; }
+      if (sh.age / sh.life > pick.age / pick.life) pick = sh;
+    }
+    pick.active = true;
+    pick.age = 0;
+    pick.life = Math.max(0.05, life);
+    pick.r0 = r0;
+    pick.r1 = Math.max(r0, r1);
+    pick.level = level;
+    pick.state.seed = Math.random() * 40;
+    _end.copy(this.origin).addScaledVector(this.direction, this.length).setY(settings.railgun.ringHeight);
+    pick.mesh.position.copy(_end);
+    this._syncShell(pick);
+  }
+
+  _syncShell(sh) {
+    const k = saturate(sh.age / sh.life);
+    const r = lerp(sh.r0, sh.r1, Easing.outCubic(k));
+    sh.mesh.scale.set(r, r * 0.85, r);
+    sh.state.age = k;
+    sh.state.level = sh.level * (1 - smoothstep(0.55, 1, k)) * smoothstep(0, 0.06, k + 0.02);
+    sh.material.userData.sync(sh.state);
+    sh.mesh.visible = sh.state.level > 0.003;
+  }
+
+  _shellFx(dt) {
+    for (let i = 0; i < MAX_SHELLS; i++) {
+      const sh = this.shells[i];
+      if (!sh.active) continue;
+      sh.age += dt;
+      if (sh.age >= sh.life) {
+        sh.active = false;
+        sh.mesh.visible = false;
+        continue;
+      }
+      this._syncShell(sh);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -1277,12 +1356,15 @@ export class RailgunLanceAbility extends Ability {
     _floor.copy(_end).setY(0);
     this.position.copy(_end);
 
+    // The body of the impact: a dark shell of blown-out air, thin hot rim.
+    this._spawnShell(c.burstSize * 0.12, c.burstSize * power, Math.max(0.05, c.burstLife), 1);
+    // Hot filaments racing over it — detail only, kept small and dim.
     this.ctx.bursts.spawn(BurstMode.STORM, _end, {
-      radius: c.burstSize * 0.12,
-      endRadius: c.burstSize * power,
-      life: Math.max(0.05, c.burstLife),
-      intensity: c.burstIntensity,
-      opacity: 0.85 * g.opacity,
+      radius: c.burstSize * 0.1,
+      endRadius: c.burstSize * power * 0.7,
+      life: Math.max(0.05, c.burstLife * 0.6),
+      intensity: c.burstIntensity * c.burstFilament,
+      opacity: 0.5 * g.opacity,
       fresnel: 2.2 * g.fresnel,
       displace: 0.3,
       turbulence: g.turbulence,
@@ -1294,7 +1376,7 @@ export class RailgunLanceAbility extends Ability {
       radius: c.shockRadius3d * power,
       life: 0.6,
       width: 0.05,
-      intensity: 1,
+      intensity: c.floorRingGlow * 1.25,
       colorA: getColor(c.colorShockA),
       colorB: getColor(c.colorBurstA)
     });
@@ -1347,6 +1429,7 @@ export class RailgunLanceAbility extends Ability {
     this._slagFx(dt);
     this._lingerFx(dt);
     this._endFx(dt);
+    this._shellFx(dt);
     this._burn(dt);
     // The light settles on the end of the line, dimming with the trail.
     _end.copy(this.origin).addScaledVector(this.direction, this.length).setY(settings.railgun.ringHeight);
@@ -1358,7 +1441,14 @@ export class RailgunLanceAbility extends Ability {
   /* ------------------------------------------------------------------ */
 
   onDestroy() {
-    for (let i = 0; i < MAX_RINGS; i++) this.coils[i].visible = false;
+    for (let i = 0; i < MAX_RINGS; i++) {
+      this.coils[i].visible = false;
+      this.coilBodies[i].visible = false;
+    }
+    for (let i = 0; i < MAX_SHELLS; i++) {
+      this.shells[i].active = false;
+      this.shells[i].mesh.visible = false;
+    }
     this.slug.visible = false;
     this.beam.visible = false;
     this.halo.visible = false;
@@ -1382,6 +1472,9 @@ export class RailgunLanceAbility extends Ability {
     this.helixMaterial.dispose();
     this.sheathMaterial.dispose();
     for (const m of this.coilMaterials) m.dispose();
+    for (const m of this.coilBodyMaterials) m.dispose();
+    this.shellGeometry.dispose();
+    for (const sh of this.shells) sh.material.dispose();
     this.slugMaterial.dispose();
     this.beamMaterial.dispose();
     this.haloMaterial.dispose();
@@ -1449,6 +1542,12 @@ export function buildEditor(gui, c, Editor) {
   R(holo, c, 'holoOpacity', 0, 1, 0.01, 'opacity');
   R(holo, c, 'rimGlow', 0, 6, 0.01, 'edge-on glow');
   R(holo, c, 'chargeGlow', 0, 8, 0.05, 'charge glow');
+  const body = coils.addFolder('Body + windings');
+  R(body, c, 'coilBodyOpacity', 0, 1, 0.01, 'solid body opacity');
+  body.addColor(c, 'colorCoilBody').name('body');
+  R(body, c, 'coilWindings', 1, 160, 1, 'windings / coil');
+  R(body, c, 'coilWindingWidth', 0.01, 0.5, 0.005, 'winding width');
+  R(body, c, 'coilWindingGlow', 0, 6, 0.05, 'winding glow');
   R(holo, c, 'arcCrawl', 0, 5, 0.01, 'arcs crawling');
   R(holo, c, 'arcSpeed', 0, 40, 0.1, 'arc speed');
   R(holo, c, 'flicker', 0, 1, 0.01, 'dropout flicker');
@@ -1558,6 +1657,8 @@ export function buildEditor(gui, c, Editor) {
   R(shock, c, 'shockLife', 0.05, 3, 0.01, 'lifetime');
   R(shock, c, 'shockGlow', 0, 10, 0.05, 'glow');
   R(shock, c, 'shockTicks', 0, 48, 1, 'tick marks');
+  R(shock, c, 'shockBody', 0, 1, 0.01, 'dark body opacity');
+  R(shock, c, 'shockRim', 0, 1, 0.01, 'hot rim opacity');
   shock.addColor(c, 'colorShockA').name('ring');
   shock.addColor(c, 'colorShockB').name('haze');
 
@@ -1597,6 +1698,14 @@ export function buildEditor(gui, c, Editor) {
   R(impact, c, 'burstSize', 0, 10, 0.05, 'flash shell (m)');
   R(impact, c, 'burstIntensity', 0, 5, 0.01, 'shell brightness');
   R(impact, c, 'burstLife', 0.05, 3, 0.01, 'shell lasts (s)');
+  R(impact, c, 'burstFilament', 0, 2, 0.01, 'hot filaments (× brightness)');
+  R(impact, c, 'shellOpacity', 0, 1, 0.01, 'dark shell body');
+  R(impact, c, 'shellRimGlow', 0, 10, 0.05, 'shell rim glow');
+  R(impact, c, 'shellRimSharp', 1, 16, 0.1, 'shell rim thinness');
+  R(impact, c, 'shellDisplace', 0, 1, 0.01, 'shell billow');
+  impact.addColor(c, 'colorShellBody').name('shell body');
+  impact.addColor(c, 'colorShellDeep').name('shell deep');
+  R(impact, c, 'floorRingGlow', 0, 2, 0.01, 'floor rings brightness');
   R(impact, c, 'endHold', 0, 1.5, 0.01, 'end keeps pulsing (× beam life)');
   R(impact, c, 'endPulseRate', 0, 12, 0.05, 'end pulses / s');
   R(impact, c, 'endPulseSize', 0, 8, 0.05, 'pressure shell (m)');

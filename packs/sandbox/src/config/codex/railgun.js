@@ -53,10 +53,10 @@ export default {
     ringHeight: 1.35, // height of the firing axis — the whole line flies at this
     ringRadius: 0.42, // radius of the first coil
     ringTaper: -0.06, // radius added per coil down the line (negative = a funnel)
-    ringTube: 0.032, // radial thickness of the band
-    ringDepth: 3.2, // axial depth of the band, × the tube — a flat hard-light hoop
+    ringTube: 0.06, // radial thickness of the band
+    ringDepth: 4, // axial depth of the band, × the tube — the coils nearly close into one barrel
     ringSegments: 6, // segments round each coil
-    segmentGap: 0.16, // gap between segments, fraction of a segment
+    segmentGap: 0.05, // gap between segments, fraction of a segment
 
     /* --- spin --- */
     ringSpin: 1.5, // rad/s while idle
@@ -74,7 +74,7 @@ export default {
     scanlines: 34, // scanlines per metre, in world height
     scanSpeed: 2.5, // metres/second the scanlines climb
     scanDepth: 0.5, // 0..1 how dark the gaps between scanlines are
-    holoGlow: 1.25, // brightness of the band (bloom > 1)
+    holoGlow: 1.1, // brightness of the windings' glow (bloom > 1)
     holoOpacity: 0.8,
     rimGlow: 1.1, // edge-on glow
     chargeGlow: 1.3, // extra glow at full charge
@@ -84,12 +84,18 @@ export default {
     glitch: 0.35, // 0..1 slice glitches across the band
     softFade: 0.15, // soft intersection with geometry, metres
     colorRingDeep: "#155cff", // the dark of the band between the hex lines
+    /* --- the solid body + its windings (the only lit part) --- */
+    coilBodyOpacity: 0.94, // the dark lit sleeve under the glow
+    colorCoilBody: "#16203a", // steel-navy, lit from above
+    coilWindings: 36, // wires wound round each coil
+    coilWindingWidth: 0.07, // width of a wire, fraction of a winding
+    coilWindingGlow: 0.8, // how hot the windings run (× the charge)
 
     /* --- derez — the coils come apart into pixels after the shot --- */
     derezDelay: 0.12, // seconds after the shot before they start to go
     derezTime: 0.55, // seconds they take to come apart
     pixelSize: 0.03, // metres per pixel cell of the derez
-    pixelCount: 60, // pixel particles shed per coil
+    pixelCount: 24, // pixel particles shed per coil
     pixelSize3d: 0.05, // size of those particles
     pixelSpeed: 1.1, // m/s they drift off
     pixelLife: 0.8,
@@ -104,7 +110,7 @@ export default {
     chargeTime: 0.5, // seconds from the first coil to the shot
     chargeCurve: 1.7, // >1 = the charge builds late
     humShake: 0.12, // camera hum at full charge
-    sparkRate: 300, // sparks crawling the coils, per second, at full charge
+    sparkRate: 170, // sparks crawling the coils, per second, at full charge
     sparkSize: 0.028,
     sparkSpeed: 3.2, // m/s, tangential to the coil
     sparkLife: 0.22,
@@ -202,11 +208,13 @@ export default {
     /* ================================================================ */
     shockSpacing: 2.4, // a ring punched out every this many metres
     shockRadius: 0.45, // starting radius
-    shockGrow: 2.4, // end radius, × start
-    shockWidth: 0.05, // line width, metres
-    shockLife: 0.45,
-    shockGlow: 0.6,
-    shockTicks: 12, // tick marks round each ring
+    shockGrow: 1.7, // end radius, × start
+    shockWidth: 0.03, // line width, metres
+    shockLife: 0.22,
+    shockGlow: 0.5,
+    shockBody: 0.3, // dark compressed-air disc behind the front
+    shockRim: 0.15, // the thin hot line at the front
+    shockTicks: 0, // tick marks round each ring
     colorShockA: "#6fe8ff", // the ring
     colorShockB: "#2f8dff", // the haze inside it
 
@@ -256,6 +264,14 @@ export default {
     burstSize: 3.6, // the hard-light flash shell at the end, metres
     burstIntensity: 0.85,
     burstLife: 0.7, // seconds the shell takes to open and go
+    burstFilament: 0.15, // the STORM filaments over the dark shell, × burstIntensity
+    shellOpacity: 0.9, // the dark body of the impact shell
+    shellRimGlow: 2.2, // its thin hot rim
+    shellRimSharp: 7, // higher = thinner rim
+    shellDisplace: 0.18, // how much it billows
+    colorShellBody: "#14244a",
+    colorShellDeep: "#050a18",
+    floorRingGlow: 0.3, // brightness of the floor shock rings
     shockRadius3d: 5.5, // the ground shockwave at the end, metres
     scorchRadius: 2.4,
     debrisCount: 70,
