@@ -26,7 +26,7 @@ export default {
     range: 26, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
     speed: 160, // how fast the slug flies once fired, metres/second
-    lifetime: 1.6, // seconds the trail, the shock rings and the slag linger after the impact
+    lifetime: 2.2, // seconds the trail, the shock rings and the slag linger after the impact
     cooldown: 0.8, // seconds before the ability can be armed again
     castAnim: "cast1", // which clip in `CAST_ANIMATIONS` the body throws
 
@@ -101,7 +101,7 @@ export default {
     /* ================================================================ */
     /* 2 · THE CHARGE                                                    */
     /* ================================================================ */
-    chargeTime: 0.8, // seconds from the first coil to the shot
+    chargeTime: 0.5, // seconds from the first coil to the shot
     chargeCurve: 1.7, // >1 = the charge builds late
     humShake: 0.12, // camera hum at full charge
     sparkRate: 300, // sparks crawling the coils, per second, at full charge
@@ -137,13 +137,19 @@ export default {
     /* ================================================================ */
     /* 4 · THE BEAM TRAIL                                                */
     /* ================================================================ */
-    beamWidth: 0.075, // radius of the bright core, metres
-    beamHalo: 0.38, // radius of the outer glow, metres
-    beamGlow: 5, // core brightness
-    haloGlow: 0.9, // halo brightness
-    beamCoreSharp: 3.2, // how tight the core of the tube is
-    beamLife: 1.25, // seconds the trail takes to thin to nothing
-    beamThinCurve: 1.5, // >1 = it holds, then thins late
+    beamWidth: 0.13, // radius of the bright core, metres
+    beamHalo: 0.85, // radius of the outer glow, metres
+    beamGlow: 3.6, // core brightness
+    haloGlow: 0.3, // halo brightness
+    beamCoreSharp: 2.6, // how tight the core of the tube is
+    beamLife: 1.7, // seconds the trail takes to thin to nothing
+    beamThinCurve: 2.4, // >1 = it holds, then thins late
+    sheathRadius: 0.42, // the rim-weighted sheath between core and halo, metres
+    sheathGlow: 1.0, // sheath brightness
+    beamFlare: 1.6, // the bell at the far end opens to (1 + this) × the radius
+    beamFlareLength: 2.2, // metres of line the bell opens over
+    beamWobble: 0.12, // 0..1 the column breathes along its length
+    beamWobbleSpeed: 9, // how fast the breathing runs down the line
     beamPulseScale: 0.9, // energy pulses per metre
     beamPulseSpeed: 26, // pulses per second running down the line
     beamFlicker: 0.15,
@@ -151,9 +157,39 @@ export default {
     beamBreakScale: 1.4, // dashes per metre
     beamSoftFade: 0.25,
     colorBeamCore: "#ffffff",
-    colorBeamEdge: "#7ff0ff",
-    colorBeamHalo: "#1f7dff",
+    colorBeamEdge: "#4fd8ff",
+    colorBeamHalo: "#1458ff",
+    colorBeamDeep: "#0a1f8f", // the deep stop: the sheath's skin and the ion haze
 
+    /* --- the rifling: hard-light strands braided round the beam --- */
+    helixStrands: 2, // strands (max 4); neighbours wind opposite ways
+    helixRadius: 0.36, // metres from the axis at birth
+    helixSpread: 1.5, // how far they unwind outward over their life (× radius)
+    helixTurns: 0.55, // turns per metre
+    helixRoll: 5, // rad/s the braid rolls
+    helixTube: 0.07, // strand thickness, metres
+    helixGlow: 0.85,
+    helixLife: 2.1, // seconds from the shot until the strands are gone
+    helixHold: 0.4, // fraction of that life they stay whole before unwinding to light
+    helixBreakScale: 1.3, // noise cells per metre they break up on
+    helixPulseScale: 0.45, // pulses per metre running down the strands
+    helixPulseSpeed: 9, // pulses per second
+    helixShed: 260, // motes/s shed off the strands while they come apart
+    colorHelixCore: "#ffffff",
+    colorHelixTint: "#7fe6ff",
+    colorHelixBody: "#1a8cff",
+    colorHelixDeep: "#0b2a9e",
+
+    /* --- ionised haze hanging along the line (normal-blended, dark) --- */
+    ionRate: 150, // haze puffs/second along the beam while it burns
+    ionSize: 0.75,
+    ionLife: 1.8,
+    ionRise: 0.35, // m/s
+    ionOpacity: 0.8,
+    colorIonA: "#3c5f8c",
+    colorIonB: "#1d3156",
+    colorIonC: "#0f1a33",
+    colorIonD: "#070b16",
     /* --- the heat bend along the trail (LAYER.DISTORTION) --- */
     warpStrength: 0.9,
     warpWidth: 0.42, // radius, metres
@@ -165,9 +201,9 @@ export default {
     /* 5 · SHOCK RINGS                                                   */
     /* ================================================================ */
     shockSpacing: 2.4, // a ring punched out every this many metres
-    shockRadius: 0.3, // starting radius
+    shockRadius: 0.45, // starting radius
     shockGrow: 2.4, // end radius, × start
-    shockWidth: 0.03, // line width, metres
+    shockWidth: 0.05, // line width, metres
     shockLife: 0.45,
     shockGlow: 1.8,
     shockTicks: 12, // tick marks round each ring
@@ -178,12 +214,22 @@ export default {
     /* 6 · THE SLAG TRENCH                                               */
     /* ================================================================ */
     trenchStart: 1.4, // metres in front of the caster the trench begins
-    trenchCore: 0.13, // half-width of the molten line, metres
-    trenchScorch: 0.65, // half-width of the scorched band, metres
+    trenchCore: 0.24, // half-width of the molten line, metres
+    trenchScorch: 1.15, // half-width of the scorched band, metres
     trenchGlow: 4.5, // molten brightness
-    trenchCool: 0.9, // seconds for a point to cool from white-hot to slag
-    trenchEmber: 0.35, // how much the cracks keep glowing once it has cooled
-    trenchCells: 9, // crust cells per metre
+    trenchCool: 1.1, // seconds for a point to cool from white-hot to slag
+    trenchEmber: 0.6, // how much the cracks keep glowing once it has cooled
+    trenchCells: 6, // crust cells per metre
+    trenchCrawl: 1.1, // the heat wave crawling down the cooling seams, cycles/s
+    trenchGlass: 0.8, // the thin cyan seam of fused hard light down the middle
+    emberRate: 160, // embers/second lifting off the hot slag (fades as it cools)
+    emberSize: 0.05,
+    emberLife: 1.1,
+    emberRise: 1.4, // m/s
+    colorEmberA: "#fff3c4",
+    colorEmberB: "#ffb04a",
+    colorEmberC: "#e2480e",
+    colorEmberD: "#3a0b02",
     trenchWander: 0.035, // metres the line wanders
     trenchDark: 0.75, // opacity of the scorch
     trenchErode: 0.7, // 0..1 how raggedly it fades
@@ -191,11 +237,11 @@ export default {
     colorSlagWarm: "#ff9a3a",
     colorSlagCool: "#7a1806",
     colorScorch: "#07090c",
-    smokeRate: 70, // smoke off the slag, per second
-    smokeSize: 0.45,
+    smokeRate: 150, // smoke off the slag, per second
+    smokeSize: 0.7,
     smokeRise: 0.9, // m/s
     smokeLife: 1.6,
-    smokeOpacity: 0.32,
+    smokeOpacity: 0.5,
     colorSmokeA: "#7d8890",
     colorSmokeB: "#5b646b",
     colorSmokeC: "#3c4247",
@@ -207,19 +253,26 @@ export default {
     fireShake: 0.32, // the kick at the hand
     muzzleFlash: 0.18,
     muzzleSparks: 50,
-    burstSize: 2.0, // the hard-light flash shell at the end, metres
-    burstIntensity: 1.1,
+    burstSize: 3.6, // the hard-light flash shell at the end, metres
+    burstIntensity: 1.05,
+    burstLife: 0.7, // seconds the shell takes to open and go
     shockRadius3d: 5.5, // the ground shockwave at the end, metres
-    scorchRadius: 1.6,
+    scorchRadius: 2.4,
     debrisCount: 70,
     debrisSpeed: 9,
     debrisSize: 0.08,
     debrisLife: 1.2,
     debrisGravity: -14,
-    impactSparks: 110,
+    impactSparks: 220,
+    /* --- the end of the line keeps taking the beam while it burns --- */
+    endHold: 0.75, // fraction of the beam's life the end keeps pulsing
+    endPulseRate: 3.2, // pressure shells + floor rings per second at the end
+    endPulseSize: 2.2, // metres, each pressure shell
+    endRingRadius: 3.2, // metres, each floor ring
+    endSparkRate: 260, // sparks/s splashing back off the end
     impactShake: 0.45,
     shakeDuration: 0.35,
-    impactFlash: 0.3,
+    impactFlash: 0.16,
     colorBurstA: "#d8fdff",
     colorBurstB: "#7ff0ff",
     colorBurstC: "#1d5cff",

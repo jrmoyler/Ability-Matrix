@@ -1,13 +1,14 @@
 import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../Ability.js';
-import { createParamGrid, createShockRingGeometry } from '../../assets/codex/RailgunLanceGeometry.js';
+import { createParamGrid, createShockRingGeometry, createHelixGeometry } from '../../assets/codex/RailgunLanceGeometry.js';
 import {
   createRailCoilMaterial,
   createRailSlugMaterial,
   createRailBeamMaterial,
   createRailWarpMaterial,
   createRailShockMaterial,
-  createRailTrenchMaterial
+  createRailTrenchMaterial,
+  createRailHelixMaterial
 } from '../../materials/codex/RailgunLanceMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -27,6 +28,8 @@ const MAX_RINGS = 5;
 const MAX_SHOCKS = 32;
 /** Bodies one shot can be tracked burning through. */
 const MAX_HITS = 16;
+/** Strands of rifling the helix buffer carries. The editor clamps to this. */
+const MAX_STRANDS = 4;
 const TAU = Math.PI * 2;
 
 const _emit = {};
@@ -59,10 +62,19 @@ const _up = new Vector3(0, 1, 0);
  *      body it crosses is killed and thrown hard down the line, stained by the
  *      hard light it was burnt through with.
  *   3. **THE AFTERMATH** — at the end of the line: a flash, an ionised shell,
- *      a scorch, a shockwave, debris and sparks. Behind it the beam holds, then
- *      thins and breaks into dashes; the coils derez into pixels; the trench
- *      cools muzzle-first through orange to dull red slag, smoking, its crust
- *      seams glowing longest, and erodes away.
+ *      a scorch, a shockwave, debris and sparks. The beam is a held *column*:
+ *      a white braided core inside a rim-weighted deep-blue sheath and a wide
+ *      halo, opening into a bell where it meets the floor at the far end, and
+ *      that end keeps taking the shot — pressure shells, floor rings and a
+ *      splash of sparks thrown back up the line, several times a second. Two
+ *      strands of hard-light **rifling** braid round the column (neighbours
+ *      wind opposite ways), roll, then unwind outward and tear into light.
+ *      Dark ionised haze hangs along the line. Behind it the beam thins and
+ *      breaks into dashes; the coils derez into pixels; the trench — a molten
+ *      line half a metre wide in a two-metre band of scorch, a thin cyan seam
+ *      of fused hard light down its middle — cools muzzle-first through orange
+ *      to dull red slag while a wave of heat crawls down its seams, smoking
+ *      and spitting embers, and erodes away last of all.
  *
  * ## Layers
  *
@@ -71,16 +83,22 @@ const _up = new Vector3(0, 1, 0);
  *     world-space pixel derez. One material per coil, so each has its clocks.
  *   - **slug** (`createRailSlugMaterial`) — a hard-light teardrop.
  *   - **beam trail** (`createRailBeamMaterial`) — a cylinder with an `|N·V|^k`
- *     core, drawn twice: a tight white core and a wide blue halo.
+ *     core, drawn three times: a tight braided white core, a rim-weighted
+ *     sheath (deep #0a1f8f skin → cyan silhouette) and a wide blue halo, all
+ *     opening into one bell at the far end (`beamFlare`) and breathing.
+ *   - **rifling** (`createRailHelixMaterial`) — counter-wound hard-light
+ *     strands (`createHelixGeometry`), four-stop ramp, unwinding and tearing.
  *   - **heat bend** (`createRailWarpMaterial`) — the tube again, on
  *     `LAYER.DISTORTION`.
  *   - **shock rings** (`createRailShockMaterial`) — instanced, stood up across
  *     the line.
  *   - **slag trench** (`createRailTrenchMaterial`) — the ground treatment.
  *   - **particles** — coil sparks and impact sparks (STREAK), slug streaks
- *     (STREAK), charge motes and derez pixels (SOFT), slag smoke (SMOKE),
- *     impact debris (CHIP).
- *   - **impact** — a STORM burst, SCORCH + SHOCKWAVE decals, flash, shake.
+ *     (STREAK), charge motes, derez pixels and rifling motes (SOFT), slag
+ *     smoke (SMOKE), dark ionised haze along the line (SMOKE, normal blend),
+ *     slag embers (SOFT), impact debris (CHIP).
+ *   - **impact** — a STORM burst, SCORCH + SHOCKWAVE decals, flash, shake;
+ *     then the end pulses (bursts + floor rings + splash) through the hold.
  *
  * ## The editor rule
  *
@@ -137,8 +155,16 @@ export class RailgunLanceAbility extends Ability {
     this.beam = this._mesh(this.tubeGeometry, this.beamMaterial, 12, LAYER.VFX);
     this.haloMaterial = createRailBeamMaterial(true);
     this.halo = this._mesh(this.tubeGeometry, this.haloMaterial, 11, LAYER.VFX);
+    this.sheathMaterial = createRailBeamMaterial(2);
+    this.sheath = this._mesh(this.tubeGeometry, this.sheathMaterial, 10, LAYER.VFX);
     this.warpMaterial = createRailWarpMaterial();
     this.warp = this._mesh(this.tubeGeometry, this.warpMaterial, 0, LAYER.DISTORTION);
+
+    /* ---- the rifling ---- */
+    this.helixGeometry = createHelixGeometry(MAX_STRANDS, 6, 520);
+    this.helixMaterial = createRailHelixMaterial();
+    this.helix = this._mesh(this.helixGeometry, this.helixMaterial, 13, LAYER.VFX);
+    this._helixState = { length: 1, head: 0, spread: 0, roll: 0, dissolve: 0, level: 0, pulse: 0, seed: 0 };
 
     /* ---- shock rings ---- */
     this.shockGeometry = createShockRingGeometry(MAX_SHOCKS);
@@ -176,7 +202,7 @@ export class RailgunLanceAbility extends Ability {
     this._hitCount = 0;
 
     this._slugState = { length: 1, width: 0.1, level: 0, flow: 0, seed: 0 };
-    this._beamState = { length: 1, head: 0, tail: 0, thin: 1, breakT: 0, level: 0, pulsePhase: 0, seed: 0 };
+    this._beamState = { length: 1, head: 0, tail: 0, thin: 1, breakT: 0, level: 0, pulsePhase: 0, wobblePhase: 0, seed: 0 };
     this._warpState = { length: 1, head: 0, tail: 0, strength: 0, seed: 0 };
     this._shockState = { start: new Vector3(), dir: new Vector3(), side: new Vector3() };
     this._trenchState = {
@@ -189,6 +215,7 @@ export class RailgunLanceAbility extends Ability {
       offset: 0,
       speed: 100,
       fadeT: 0,
+      crawl: 0,
       seed: 0
     };
 
@@ -204,6 +231,11 @@ export class RailgunLanceAbility extends Ability {
     this._pulsePhase = 0;
     this._slugFlow = 0;
     this._pierced = 0;
+    this._wobblePhase = 0;
+    this._helixRoll = 0;
+    this._helixPulse = 0;
+    this._crawl = 0;
+    this._endPulseT = 0;
 
     this._found = [];
     this._force = { impulse: 0, lift: 0, spin: 0 };
@@ -293,9 +325,39 @@ export class RailgunLanceAbility extends Ability {
     this.debris.uniforms.uEndSize.value = 0.8;
     this.debris.uniforms.uDrag.value = 0.4;
 
+    /* dark ionised haze hanging along the line — the deep stop in the air */
+    this.ion = particles.get('railgun.ion', {
+      capacity: 900,
+      shape: ParticleShape.SMOKE,
+      additive: false,
+      softFade: 0.8
+    });
+    this.ion.uniforms.uSizeIn.value = 0.3;
+    this.ion.uniforms.uFadeIn.value = 0.2;
+    this.ion.uniforms.uFadeOut.value = 0.55;
+    this.ion.uniforms.uEndSize.value = 2.2;
+    this.ion.uniforms.uDrag.value = 1.2;
+
+    /* embers lifting off the hot slag */
+    this.embers = particles.get('railgun.embers', {
+      capacity: 900,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      softFade: 0.15
+    });
+    this.embers.uniforms.uSizeIn.value = 0.1;
+    this.embers.uniforms.uFadeIn.value = 0.05;
+    this.embers.uniforms.uFadeOut.value = 0.5;
+    this.embers.uniforms.uEndSize.value = 0.35;
+    this.embers.uniforms.uDrag.value = 0.8;
+
     this.moteEmitter = new RateEmitter();
     this.streakEmitter = new RateEmitter();
     this.smokeEmitter = new RateEmitter();
+    this.ionEmitter = new RateEmitter();
+    this.emberEmitter = new RateEmitter();
+    this.endSparkEmitter = new RateEmitter();
+    this.helixEmitter = new RateEmitter();
   }
 
   /* ------------------------------------------------------------------ */
@@ -429,6 +491,19 @@ export class RailgunLanceAbility extends Ability {
     this.moteEmitter.reset();
     this.streakEmitter.reset();
     this.smokeEmitter.reset();
+    this.ionEmitter.reset();
+    this.emberEmitter.reset();
+    this.endSparkEmitter.reset();
+    this.helixEmitter.reset();
+    this._wobblePhase = 0;
+    this._helixRoll = Math.random() * TAU;
+    this._helixPulse = 0;
+    this._crawl = 0;
+    this._endPulseT = 0;
+    this.sheath.rotation.set(0, yaw, 0);
+    this.helix.rotation.set(0, yaw, 0);
+    this.sheath.visible = false;
+    this.helix.visible = false;
 
     this.slug.visible = true;
     this.beam.visible = false;
@@ -469,6 +544,8 @@ export class RailgunLanceAbility extends Ability {
 
     this.beam.visible = true;
     this.halo.visible = true;
+    this.sheath.visible = true;
+    this.helix.visible = true;
     this.warp.visible = true;
     this.shocks.visible = true;
     this.trench.visible = true;
@@ -516,6 +593,10 @@ export class RailgunLanceAbility extends Ability {
     this._arcPhase += c.arcSpeed * (0.3 + charge) * dt * g.noiseSpeed;
     this._pulsePhase += c.beamPulseSpeed * dt * g.noiseSpeed;
     this._slugFlow += 6 * dt * g.noiseSpeed;
+    this._wobblePhase += c.beamWobbleSpeed * dt * g.noiseSpeed;
+    this._helixPulse += c.helixPulseSpeed * dt * g.noiseSpeed;
+    this._crawl += c.trenchCrawl * dt * g.noiseSpeed;
+    if (this._fired) this._helixRoll += c.helixRoll * dt * g.animationSpeed;
     const n = this._count;
     for (let i = 0; i < n; i++) {
       const rate = lerp(c.ringSpin, c.ringSpinCharged, charge) * (i % 2 === 1 ? c.ringAlternate : 1);
@@ -616,14 +697,34 @@ export class RailgunLanceAbility extends Ability {
     bs.breakT = smoothstep(0.3, 1, life);
     bs.level = (1 - smoothstep(0.85, 1, life)) * (1 - exit) * (1 + flash * 0.8);
     bs.pulsePhase = this._pulsePhase;
+    bs.wobblePhase = this._wobblePhase;
     this.beamMaterial.userData.sync(bs);
     this.haloMaterial.userData.sync(bs);
+    this.sheathMaterial.userData.sync(bs);
     this.beam.visible = bs.level > 0.002 && bs.thin > 0.002;
     this.halo.visible = this.beam.visible;
+    this.sheath.visible = this.beam.visible;
     _pos.copy(this.origin).addScaledVector(this.direction, this._lineStart).setY(c.ringHeight);
     this.beam.position.copy(_pos);
     this.halo.position.copy(_pos);
+    this.sheath.position.copy(_pos);
+    this.helix.position.copy(_pos);
     this.warp.position.copy(_pos);
+
+    /* ---- the rifling: braided, rolling, then unwinding into light ---- */
+    const hs = this._helixState;
+    const hLife = saturate(this._fireAge / Math.max(0.05, c.helixLife * g.lifetime));
+    const hold = Math.min(0.95, Math.max(0, c.helixHold));
+    hs.seed = this._seed;
+    hs.length = bs.length;
+    hs.head = bs.head;
+    hs.spread = c.helixSpread * Easing.outCubic(smoothstep(hold * 0.5, 1, hLife));
+    hs.roll = this._helixRoll;
+    hs.dissolve = smoothstep(hold, 1, hLife);
+    hs.level = (1 - smoothstep(0.9, 1, hLife)) * (1 - exit * exit) * (1 + flash * 0.6);
+    hs.pulse = this._helixPulse;
+    this.helixMaterial.userData.sync(hs);
+    this.helix.visible = hs.level > 0.002 && hs.dissolve < 1;
 
     const ws = this._warpState;
     ws.seed = this._seed;
@@ -664,7 +765,8 @@ export class RailgunLanceAbility extends Ability {
     ts.fireAge = this._fireAge;
     ts.offset = start - this._lineStart;
     ts.speed = Math.max(1, c.speed * g.speed);
-    ts.fadeT = smoothstep(0.35, 1, exit);
+    ts.fadeT = smoothstep(0.45, 1, exit);
+    ts.crawl = this._crawl;
     ts.seed = this._seed;
     this.trenchMaterial.userData.sync(ts);
   }
@@ -713,6 +815,25 @@ export class RailgunLanceAbility extends Ability {
     sm.uGravity.value.set(0, c.smokeRise * 0.4, 0);
 
     this.debris.setGradient(getColor(c.colorDebrisA), getColor(c.colorDebrisB), getColor(c.colorDebrisC), getColor(c.colorDebrisD));
+    this.ion.setGradient(getColor(c.colorIonA), getColor(c.colorIonB), getColor(c.colorIonC), getColor(c.colorIonD));
+    const io = this.ion.uniforms;
+    io.uSizeScale.value = g.particleSize;
+    io.uLifeScale.value = g.particleLifetime;
+    io.uSpeedScale.value = g.particleSpeed;
+    io.uOpacity.value = c.ionOpacity * g.opacity;
+    io.uTurbulence.value = 0.8 * g.turbulence;
+    io.uGravity.value.set(0, c.ionRise * 0.3, 0);
+
+    this.embers.setGradient(getColor(c.colorEmberA), getColor(c.colorEmberB), getColor(c.colorEmberC), getColor(c.colorEmberD));
+    const em = this.embers.uniforms;
+    em.uSizeScale.value = g.particleSize;
+    em.uLifeScale.value = g.particleLifetime;
+    em.uSpeedScale.value = g.particleSpeed;
+    em.uOpacity.value = g.opacity;
+    em.uGlow.value = c.sparkGlow * 0.9 * g.glow;
+    em.uTurbulence.value = 0.6 * g.turbulence;
+    em.uGravity.value.set(0, 0.6, 0);
+
     const de = this.debris.uniforms;
     de.uSizeScale.value = g.particleSize;
     de.uLifeScale.value = g.particleLifetime;
@@ -745,6 +866,7 @@ export class RailgunLanceAbility extends Ability {
     this._pierce();
     this._ringFx(dt);
     this._slagFx(dt);
+    this._lingerFx(dt);
     this._burn(dt);
   }
 
@@ -914,6 +1036,153 @@ export class RailgunLanceAbility extends Ability {
     }
   }
 
+  /** Haze, embers and the rifling's light: everything that keeps moving. */
+  _lingerFx(dt) {
+    const c = settings.railgun;
+    const g = settings.global;
+    const time = frame.uTime.value;
+    const exit = this._exit();
+    const lineEnd = Math.max(this._lineStart, this.front);
+
+    /* dark ionised haze along the burning line */
+    const level = this._beamState.level * this._beamState.thin;
+    let n = Math.round(this.ionEmitter.tick(dt, c.ionRate * level) * g.particleCount);
+    if (n > 0) {
+      this._resetEmit(time);
+      _emit.size = c.ionSize;
+      _emit.sizeVariance = 0.5;
+      _emit.life = c.ionLife;
+      _emit.lifeVariance = 0.4;
+      _emit.spin = 0.4;
+      _emit.speedVariance = 0.5;
+      for (let p = 0; p < n; p++) {
+        const along = lerp(this._lineStart, lineEnd, Math.random());
+        const a = Math.random() * TAU;
+        const rr = c.beamHalo * (0.3 + 0.7 * Math.random());
+        _dir.copy(_right).multiplyScalar(Math.cos(a)).addScaledVector(_up, Math.sin(a) * 0.6 + 0.4);
+        _pos.copy(this.origin).addScaledVector(this.direction, along).setY(c.ringHeight).addScaledVector(_dir, rr);
+        _emit.position = _pos;
+        _emit.direction = _dir.normalize();
+        _emit.speed = c.ionRise;
+        this.ion.emit(1, _emit);
+      }
+    }
+
+    /* embers spat off the hot slag */
+    const start = Math.min(Math.max(0, c.trenchStart), this.length - 0.2);
+    const reach = this.front - start;
+    if (reach > 0) {
+      const heat = Math.exp(-this._fireAge / Math.max(0.05, c.trenchCool * g.lifetime * 2.5));
+      n = Math.round(this.emberEmitter.tick(dt, c.emberRate * heat * (1 - exit)) * g.particleCount);
+      if (n > 0) {
+        this._resetEmit(time);
+        _emit.size = c.emberSize;
+        _emit.sizeVariance = 0.5;
+        _emit.life = c.emberLife;
+        _emit.lifeVariance = 0.4;
+        _emit.speedVariance = 0.5;
+        _emit.spread = 0.5;
+        _emit.direction = _up;
+        _emit.speed = c.emberRise;
+        for (let p = 0; p < n; p++) {
+          const along = start + Math.random() * reach;
+          _pos.copy(this.origin).addScaledVector(this.direction, along).setY(0.05)
+            .addScaledVector(_right, (Math.random() - 0.5) * c.trenchCore * 2.2);
+          _emit.position = _pos;
+          this.embers.emit(1, _emit);
+        }
+      }
+    }
+
+    /* motes torn off the rifling as it unwinds */
+    const hs = this._helixState;
+    if (hs.dissolve > 0 && hs.dissolve < 1 && hs.level > 0.01) {
+      n = Math.round(this.helixEmitter.tick(dt, c.helixShed * hs.level) * g.particleCount);
+      if (n > 0) {
+        const strands = Math.max(1, Math.min(MAX_STRANDS, Math.round(c.helixStrands)));
+        const twist = TAU * c.helixTurns;
+        const L = hs.length;
+        this._resetEmit(time);
+        _emit.size = c.moteSize * 1.4;
+        _emit.life = c.pixelLife;
+        _emit.speedVariance = 0.5;
+        _emit.spread = 0.4;
+        for (let p = 0; p < n; p++) {
+          const along = Math.random() * hs.head;
+          const s = (Math.random() * strands) | 0;
+          const dirS = s % 2 === 0 ? 1 : -1;
+          const bell = smoothstep(L - Math.max(0.05, c.beamFlareLength), L, along);
+          const R = c.helixRadius * (1 + Math.max(0, c.beamFlare) * 0.7 * bell * bell) * (1 + hs.spread) * smoothstep(0, 0.6, along);
+          const phi = dirS * (along * twist + hs.roll) + (s * TAU) / strands;
+          const ca = Math.cos(phi);
+          const sa = Math.sin(phi);
+          _pos.copy(this.origin).addScaledVector(this.direction, this._lineStart + along).setY(c.ringHeight)
+            .addScaledVector(_right, ca * R).addScaledVector(_up, sa * R);
+          _dir.copy(_right).multiplyScalar(ca).addScaledVector(_up, sa + 0.3).normalize();
+          _emit.position = _pos;
+          _emit.direction = _dir;
+          _emit.speed = c.pixelSpeed * 1.3;
+          this.motes.emit(1, _emit);
+        }
+      }
+    }
+  }
+
+  /** The end of the line keeps taking the beam: shells, floor rings, splash. */
+  _endFx(dt) {
+    const c = settings.railgun;
+    const g = settings.global;
+    const holdFor = Math.max(0, c.endHold) * this._beamLife();
+    if (this._fireAge > holdFor) return;
+    const power = g.explosionIntensity;
+    const time = frame.uTime.value;
+    const fall = 1 - this._fireAge / Math.max(0.05, holdFor);
+    _end.copy(this.origin).addScaledVector(this.direction, this.length).setY(c.ringHeight);
+
+    const n = Math.round(this.endSparkEmitter.tick(dt, c.endSparkRate * fall) * g.particleCount);
+    if (n > 0) {
+      this._resetEmit(time);
+      _emit.position = _end;
+      _emit.radius = c.beamHalo * 0.5;
+      _emit.direction = _dir.copy(this.direction).multiplyScalar(-0.5).setY(0.55).normalize();
+      _emit.speed = c.sparkSpeed * 3;
+      _emit.speedVariance = 0.6;
+      _emit.spread = 1.0;
+      _emit.size = c.sparkSize * 1.3;
+      _emit.life = c.sparkLife * 2;
+      this.sparks.emit(n, _emit);
+    }
+
+    this._endPulseT -= dt;
+    if (this._endPulseT > 0 || c.endPulseRate <= 0) return;
+    this._endPulseT += 1 / Math.max(0.1, c.endPulseRate);
+    if (this._endPulseT < 0) this._endPulseT = 0;
+    this.ctx.bursts.spawn(BurstMode.STORM, _end, {
+      radius: c.endPulseSize * 0.2,
+      endRadius: c.endPulseSize * power * (0.6 + 0.4 * fall),
+      life: 0.32,
+      intensity: c.burstIntensity * 0.7,
+      opacity: 0.6 * g.opacity,
+      fresnel: 2.4 * g.fresnel,
+      displace: 0.25,
+      turbulence: g.turbulence,
+      colorA: getColor(c.colorBurstA),
+      colorB: getColor(c.colorBurstB),
+      colorC: getColor(c.colorBurstC)
+    });
+    _floor.copy(_end).setY(0);
+    this.ctx.decals.spawn(DecalType.SHOCKWAVE, _floor, {
+      radius: c.endRingRadius * power,
+      life: 0.5,
+      width: 0.06,
+      intensity: 0.8 * fall + 0.2,
+      colorA: getColor(c.colorShockA),
+      colorB: getColor(c.colorBeamDeep)
+    });
+    this.ctx.shake.add(c.impactShake * 0.15 * fall * g.cameraShake, 10, 22);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * 1.4 * fall);
+  }
+
   /* ------------------------------------------------------------------ */
   /* The pierce                                                          */
   /* ------------------------------------------------------------------ */
@@ -1011,7 +1280,7 @@ export class RailgunLanceAbility extends Ability {
     this.ctx.bursts.spawn(BurstMode.STORM, _end, {
       radius: c.burstSize * 0.12,
       endRadius: c.burstSize * power,
-      life: 0.45,
+      life: Math.max(0.05, c.burstLife),
       intensity: c.burstIntensity,
       opacity: 0.85 * g.opacity,
       fresnel: 2.2 * g.fresnel,
@@ -1067,6 +1336,7 @@ export class RailgunLanceAbility extends Ability {
     this.ctx.shake.add(c.impactShake * power * g.cameraShake, 1 / Math.max(0.05, c.shakeDuration), 20);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.impactFlash * power);
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.fireLight * power);
+    this._endPulseT = 1 / Math.max(0.1, c.endPulseRate);
   }
 
   onFade(dt) {
@@ -1075,6 +1345,8 @@ export class RailgunLanceAbility extends Ability {
     this._sync(dt);
     this._ringFx(dt);
     this._slagFx(dt);
+    this._lingerFx(dt);
+    this._endFx(dt);
     this._burn(dt);
     // The light settles on the end of the line, dimming with the trail.
     _end.copy(this.origin).addScaledVector(this.direction, this.length).setY(settings.railgun.ringHeight);
@@ -1090,6 +1362,8 @@ export class RailgunLanceAbility extends Ability {
     this.slug.visible = false;
     this.beam.visible = false;
     this.halo.visible = false;
+    this.sheath.visible = false;
+    this.helix.visible = false;
     this.warp.visible = false;
     this.shocks.visible = false;
     this.trench.visible = false;
@@ -1104,6 +1378,9 @@ export class RailgunLanceAbility extends Ability {
     this.tubeGeometry.dispose();
     this.shockGeometry.dispose();
     this.trenchGeometry.dispose();
+    this.helixGeometry.dispose();
+    this.helixMaterial.dispose();
+    this.sheathMaterial.dispose();
     for (const m of this.coilMaterials) m.dispose();
     this.slugMaterial.dispose();
     this.beamMaterial.dispose();
@@ -1234,6 +1511,38 @@ export function buildEditor(gui, c, Editor) {
   beam.addColor(c, 'colorBeamCore').name('core');
   beam.addColor(c, 'colorBeamEdge').name('edge');
   beam.addColor(c, 'colorBeamHalo').name('halo');
+  beam.addColor(c, 'colorBeamDeep').name('deep (sheath skin)');
+  R(beam, c, 'sheathRadius', 0.02, 2, 0.005, 'sheath radius (m)');
+  R(beam, c, 'sheathGlow', 0, 6, 0.01, 'sheath glow');
+  R(beam, c, 'beamFlare', 0, 6, 0.01, 'bell at the far end (×)');
+  R(beam, c, 'beamFlareLength', 0.1, 8, 0.05, 'bell opens over (m)');
+  R(beam, c, 'beamWobble', 0, 0.6, 0.005, 'breathing');
+  R(beam, c, 'beamWobbleSpeed', 0, 40, 0.1, 'breathing speed');
+  const rifle = beam.addFolder('Rifling');
+  R(rifle, c, 'helixStrands', 1, MAX_STRANDS, 1, 'strands');
+  R(rifle, c, 'helixRadius', 0.02, 2, 0.005, 'radius at birth (m)');
+  R(rifle, c, 'helixSpread', 0, 6, 0.01, 'unwinds out to (× radius)');
+  R(rifle, c, 'helixTurns', 0, 4, 0.01, 'turns / m');
+  R(rifle, c, 'helixRoll', -30, 30, 0.1, 'roll (rad/s)');
+  R(rifle, c, 'helixTube', 0.003, 0.3, 0.001, 'strand thickness (m)');
+  R(rifle, c, 'helixGlow', 0, 10, 0.05, 'glow');
+  R(rifle, c, 'helixLife', 0.1, 6, 0.05, 'lasts (s)');
+  R(rifle, c, 'helixHold', 0, 0.95, 0.01, 'whole for (fraction)');
+  R(rifle, c, 'helixBreakScale', 0.1, 8, 0.05, 'tears on (cells / m)');
+  R(rifle, c, 'helixPulseScale', 0, 4, 0.01, 'pulses / m');
+  R(rifle, c, 'helixPulseSpeed', -40, 40, 0.1, 'pulse speed');
+  R(rifle, c, 'helixShed', 0, 1200, 1, 'motes shed / s');
+  rifle.addColor(c, 'colorHelixCore').name('core');
+  rifle.addColor(c, 'colorHelixTint').name('tint');
+  rifle.addColor(c, 'colorHelixBody').name('body');
+  rifle.addColor(c, 'colorHelixDeep').name('deep');
+  const ion = beam.addFolder('Ionised haze');
+  R(ion, c, 'ionRate', 0, 800, 1, 'puffs / s');
+  R(ion, c, 'ionSize', 0.05, 3, 0.01, 'size');
+  R(ion, c, 'ionLife', 0.1, 6, 0.05, 'lifetime');
+  R(ion, c, 'ionRise', 0, 4, 0.01, 'rise (m/s)');
+  R(ion, c, 'ionOpacity', 0, 1, 0.01, 'opacity');
+  Editor.gradient(ion, c, 'colorIon', 'haze gradient');
   const warp = beam.addFolder('Heat bend');
   R(warp, c, 'warpStrength', 0, 4, 0.01, 'strength');
   R(warp, c, 'warpWidth', 0.02, 2, 0.005, 'radius (m)');
@@ -1267,6 +1576,13 @@ export function buildEditor(gui, c, Editor) {
   trench.addColor(c, 'colorSlagWarm').name('molten');
   trench.addColor(c, 'colorSlagCool').name('slag');
   trench.addColor(c, 'colorScorch').name('scorch');
+  R(trench, c, 'trenchCrawl', 0, 6, 0.01, 'heat crawl (cycles/s)');
+  R(trench, c, 'trenchGlass', 0, 3, 0.01, 'fused cyan seam');
+  R(trench, c, 'emberRate', 0, 800, 1, 'embers / s');
+  R(trench, c, 'emberSize', 0.005, 0.3, 0.001, 'ember size');
+  R(trench, c, 'emberLife', 0.1, 4, 0.05, 'ember lifetime');
+  R(trench, c, 'emberRise', 0, 6, 0.01, 'ember rise (m/s)');
+  Editor.gradient(trench, c, 'colorEmber', 'ember gradient');
   R(trench, c, 'smokeRate', 0, 400, 1, 'smoke / s');
   R(trench, c, 'smokeSize', 0.05, 3, 0.01, 'smoke size');
   R(trench, c, 'smokeRise', 0, 5, 0.01, 'smoke rise (m/s)');
@@ -1280,6 +1596,12 @@ export function buildEditor(gui, c, Editor) {
   R(impact, c, 'muzzleSparks', 0, 300, 1, 'muzzle sparks');
   R(impact, c, 'burstSize', 0, 10, 0.05, 'flash shell (m)');
   R(impact, c, 'burstIntensity', 0, 5, 0.01, 'shell brightness');
+  R(impact, c, 'burstLife', 0.05, 3, 0.01, 'shell lasts (s)');
+  R(impact, c, 'endHold', 0, 1.5, 0.01, 'end keeps pulsing (× beam life)');
+  R(impact, c, 'endPulseRate', 0, 12, 0.05, 'end pulses / s');
+  R(impact, c, 'endPulseSize', 0, 8, 0.05, 'pressure shell (m)');
+  R(impact, c, 'endRingRadius', 0, 12, 0.05, 'floor ring (m)');
+  R(impact, c, 'endSparkRate', 0, 1500, 1, 'splash sparks / s');
   R(impact, c, 'shockRadius3d', 0, 16, 0.05, 'ground shockwave (m)');
   R(impact, c, 'scorchRadius', 0, 6, 0.05, 'scorch (m)');
   R(impact, c, 'debrisCount', 0, 300, 1, 'debris');

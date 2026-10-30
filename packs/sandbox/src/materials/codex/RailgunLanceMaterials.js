@@ -450,6 +450,10 @@ const TUBE_VERTEX = /* glsl */ `
   uniform float uLength;
   uniform float uRadius;
   uniform float uTaper;      // metres at each end over which the tube closes
+  uniform float uFlare;      // × the radius the bell opens to at the far end
+  uniform float uFlareLen;   // metres of line the bell opens over
+  uniform float uWobble;     // 0..1 the column's breathing
+  uniform float uWobblePhase;// integrated
 
   varying vec2  vTube;       // x: around 0..1, y: metres along
   varying vec3  vNormalW;
@@ -461,7 +465,9 @@ const TUBE_VERTEX = /* glsl */ `
     float a = position.x * 6.2831853;
     float along = position.y * uLength;
     float close = smoothstep(0.0, max(uTaper, 1e-3), along) * smoothstep(0.0, max(uTaper, 1e-3), uLength - along);
-    float r = uRadius * mix(0.35, 1.0, close);
+    float bell = smoothstep(uLength - max(uFlareLen, 1e-3), uLength, along);
+    float breathe = 1.0 + uWobble * sin(along * 2.3 - uWobblePhase) * (0.6 + 0.4 * sin(along * 0.71 + uWobblePhase * 0.37));
+    float r = uRadius * mix(0.35, 1.0, close) * (1.0 + uFlare * bell * bell) * breathe;
     vec3 n = vec3(cos(a), sin(a), 0.0);
     vec3 p = n * r + vec3(0.0, 0.0, along);
 
@@ -491,11 +497,14 @@ const BEAM_FRAGMENT = /* glsl */ `
   uniform float uBreak;       // 0 whole .. 1 gone
   uniform float uBreakScale;
   uniform float uLevel;
-  uniform float uHalo;        // 0 the core, 1 the halo
+  uniform float uHalo;        // 0 the core, 1 the halo, 2 the sheath
   uniform float uSoftFade;
   uniform vec3  uColorCore;
   uniform vec3  uColorEdge;
   uniform vec3  uColorHalo;
+  uniform vec3  uColorDeep;
+  uniform float uFlareLen;
+  uniform float uLength;
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -516,6 +525,7 @@ const BEAM_FRAGMENT = /* glsl */ `
   void main() {
     float along = vTube.y;
     if (along > uHead || along < uTail) discard;
+    float bellZone = smoothstep(uLength - max(uFlareLen, 1e-3), uLength, along);
 
     vec3 N = normalize(vNormalW);
     vec3 V = normalize(vViewDir);
@@ -538,9 +548,22 @@ const BEAM_FRAGMENT = /* glsl */ `
     vec3 col;
     float alpha;
     if (uHalo < 0.5) {
+      // The living core: a white rod whose brightness braids along the flow.
+      float braid = snoise(vec3(along * 3.1 - uPulsePhase * 0.6, vTube.x * 6.2831853, uSeed + 4.0)) * 0.5 + 0.5;
       float core = pow(ndv, max(uCoreSharp, 0.2));
-      col = mix(uColorEdge, uColorCore, core * core) * (core * (1.0 + pulse * 0.9 * uShaderIntensity) + ripple * 0.15);
+      col = mix(uColorEdge, uColorCore, core * core) * (core * (1.0 + pulse * 0.9 * uShaderIntensity + braid * 0.45) + ripple * 0.15);
       alpha = core;
+    } else if (uHalo > 1.5) {
+      // The sheath: rim-weighted, hollow, deep blue at the skin, cyan at the
+      // silhouette — the outside of the rod that the core fills.
+      float rim = pow(1.0 - ndv, 1.7);
+      float fill = 0.22 + 0.18 * ripple;
+      float skin = rim + fill;
+      vec3 ramp = mix(uColorDeep, uColorHalo, smoothstep(0.0, 0.5, rim));
+      ramp = mix(ramp, uColorEdge, smoothstep(0.55, 1.0, rim));
+      // Normal-blended: this is the dark body the bright passes sit in.
+      col = ramp * (0.55 + rim * 0.9 + pulse * 0.5 * uShaderIntensity) * (1.0 + bellZone * 0.5);
+      alpha = clamp(skin * 0.85, 0.0, 0.9);
     } else {
       float soft = pow(ndv, 1.4);
       col = uColorHalo * soft * (0.7 + 0.5 * ripple + pulse * 0.6 * uShaderIntensity);
@@ -555,13 +578,17 @@ const BEAM_FRAGMENT = /* glsl */ `
   }
 `;
 
-/** @param {boolean} halo the wide soft outer glow instead of the core */
+/**
+ * @param {boolean|number} halo false/0 the core, true/1 the wide soft halo,
+ *   2 the rim-weighted sheath between them
+ */
 export function createRailBeamMaterial(halo = false) {
+  const mode = halo === true ? 1 : halo === false ? 0 : halo;
   const material = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: mode === 2 ? NormalBlending : AdditiveBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -579,28 +606,42 @@ export function createRailBeamMaterial(halo = false) {
       uBreak: { value: 0 },
       uBreakScale: { value: 1.4 },
       uLevel: { value: 1 },
-      uHalo: { value: halo ? 1 : 0 },
+      uHalo: { value: mode },
       uSoftFade: { value: 0.25 },
+      uFlare: { value: 0 },
+      uFlareLen: { value: 1 },
+      uWobble: { value: 0 },
+      uWobblePhase: { value: 0 },
       uColorCore: { value: new Color() },
       uColorEdge: { value: new Color() },
-      uColorHalo: { value: new Color() }
+      uColorHalo: { value: new Color() },
+      uColorDeep: { value: new Color() }
     }),
     vertexShader: TUBE_VERTEX,
     fragmentShader: BEAM_FRAGMENT
   });
 
-  /** @param {object} s { length, head, tail, thin (0..1 of width left), breakT, level, pulsePhase, seed } */
+  /**
+   * @param {object} s { length, head, tail, thin (0..1 of width left), breakT,
+   *   level, pulsePhase, wobblePhase, seed }
+   */
   material.userData.sync = (s) => {
     const c = settings.railgun;
     const g = settings.global;
     const u = material.uniforms;
+    const radius = mode === 1 ? c.beamHalo : mode === 2 ? c.sheathRadius : c.beamWidth;
+    const glow = mode === 1 ? c.haloGlow : mode === 2 ? c.sheathGlow : c.beamGlow;
     u.uSeed.value = s.seed;
     u.uLength.value = Math.max(0.1, s.length);
-    u.uRadius.value = Math.max(0.001, (halo ? c.beamHalo : c.beamWidth) * s.thin);
-    u.uTaper.value = halo ? 0.6 : 0.25;
+    u.uRadius.value = Math.max(0.001, radius * s.thin);
+    u.uTaper.value = mode === 0 ? 0.25 : 0.6;
+    u.uFlare.value = Math.max(0, c.beamFlare) * (mode === 0 ? 0.6 : 1);
+    u.uFlareLen.value = Math.max(0.05, c.beamFlareLength);
+    u.uWobble.value = c.beamWobble * g.noiseStrength;
+    u.uWobblePhase.value = s.wobblePhase;
     u.uHead.value = s.head;
     u.uTail.value = s.tail;
-    u.uGlow.value = (halo ? c.haloGlow : c.beamGlow) * g.glow;
+    u.uGlow.value = glow * g.glow;
     u.uCoreSharp.value = c.beamCoreSharp;
     u.uPulseScale.value = c.beamPulseScale * g.noiseFrequency;
     u.uPulsePhase.value = s.pulsePhase;
@@ -612,6 +653,7 @@ export function createRailBeamMaterial(halo = false) {
     u.uColorCore.value.copy(getColor(c.colorBeamCore));
     u.uColorEdge.value.copy(getColor(c.colorBeamEdge));
     u.uColorHalo.value.copy(getColor(c.colorBeamHalo));
+    u.uColorDeep.value.copy(getColor(c.colorBeamDeep));
   };
 
   return material;
@@ -670,6 +712,10 @@ export function createRailWarpMaterial() {
       uLength: { value: 10 },
       uRadius: { value: 0.4 },
       uTaper: { value: 0.6 },
+      uFlare: { value: 0 },
+      uFlareLen: { value: 1 },
+      uWobble: { value: 0 },
+      uWobblePhase: { value: 0 },
       uHead: { value: 0 },
       uTail: { value: 0 },
       uStrength: { value: 1 },
@@ -855,11 +901,14 @@ const TRENCH_FRAGMENT = /* glsl */ `
   uniform float uDark;
   uniform float uErode;
   uniform float uFadeT;
+  uniform float uCrawl;       // integrated: the cooling glow crawling down the seams
   uniform float uOpacity;
   uniform vec3  uColorHot;
   uniform vec3  uColorWarm;
   uniform vec3  uColorCool;
   uniform vec3  uColorScorch;
+  uniform vec3  uColorGlass;
+  uniform float uGlass;
   uniform float uGlobalGlow;
 
   varying vec2 vFlat;
@@ -901,13 +950,20 @@ const TRENCH_FRAGMENT = /* glsl */ `
     // the seams stay lit.
     float molten = core * mix(crack * 0.75 + 0.25, 1.0, heat);
     float h = heat * (0.75 + 0.25 * (1.0 - crack));
-    float ember = core * crack * uEmber * (1.0 - uFadeT);
+    // The seams do not just fade: a slow wave of heat crawls down them, and
+    // the crust breathes, so the scar keeps moving while it cools.
+    float crawl = snoise(vec3(along * 0.45 - uCrawl, dx * 3.0, uSeed * 1.3)) * 0.5 + 0.5;
+    float breath = 0.75 + 0.25 * sin(uCrawl * 2.7 + along * 1.9 + vor.y * 6.2831853);
+    float ember = core * crack * uEmber * (1.0 - uFadeT) * (0.35 + 1.3 * crawl * crawl) * breath;
+    // A thin glassed seam of hard-light residue down the middle, cyan, last to go.
+    float glass = (1.0 - smoothstep(0.0, uCore * 0.22, ad)) * (1.0 - uFadeT) * uGlass * (0.5 + 0.5 * crawl);
     vec3 glow = heatRamp(h) * uGlow * (molten * heat + ember * 0.6);
     // A heat bloom over the scorched band right behind the slug.
     glow += uColorWarm * scorch * heat * heat * heat * 0.08 * uGlow;
 
+    glow += uColorGlass * glass * uGlow * 0.6;
     vec3 col = uColorScorch * crust + glow * uGlobalGlow;
-    float a = max(scorch * uDark, molten * max(heat, uEmber));
+    float a = max(max(scorch * uDark, molten * max(heat, uEmber)), glass);
 
     float n = snoise(vec3(x * 3.0, along * 0.9, uSeed * 5.0)) * 0.5 + 0.5;
     float thr = uFadeT * 1.25 - 0.12;
@@ -951,6 +1007,9 @@ export function createRailTrenchMaterial() {
       uDark: { value: 0.75 },
       uErode: { value: 0.7 },
       uFadeT: { value: 0 },
+      uCrawl: { value: 0 },
+      uGlass: { value: 0 },
+      uColorGlass: { value: new Color() },
       uOpacity: { value: 1 },
       uColorHot: { value: new Color() },
       uColorWarm: { value: new Color() },
@@ -963,7 +1022,7 @@ export function createRailTrenchMaterial() {
 
   /**
    * @param {object} s { start, dir, side, length, reach, fireAge, offset,
-   *   speed, fadeT, seed }
+   *   speed, fadeT, crawl, seed }
    */
   material.userData.sync = (s) => {
     const c = settings.railgun;
@@ -989,11 +1048,196 @@ export function createRailTrenchMaterial() {
     u.uDark.value = c.trenchDark;
     u.uErode.value = c.trenchErode;
     u.uFadeT.value = s.fadeT;
+    u.uCrawl.value = s.crawl;
+    u.uGlass.value = c.trenchGlass;
+    u.uColorGlass.value.copy(getColor(c.colorBeamEdge));
     u.uOpacity.value = g.opacity;
     u.uColorHot.value.copy(getColor(c.colorSlagHot));
     u.uColorWarm.value.copy(getColor(c.colorSlagWarm));
     u.uColorCool.value.copy(getColor(c.colorSlagCool));
     u.uColorScorch.value.copy(getColor(c.colorScorch));
+  };
+
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* 6 · The rifling — hard-light strands wound round the beam            */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Local frame as the beam: the mesh sits at the line's start, local +Z down
+ * the line. `position.x` wraps round a strand's tube, `position.y` runs 0..1
+ * along `uLength`, `position.z` is the strand. Each strand is a helix round
+ * the axis whose radius follows the beam's bell and *spreads* as the shot
+ * ages — the rifling unwinding off the column — while the whole twist rolls.
+ */
+const HELIX_VERTEX = /* glsl */ `
+  uniform float uLength;
+  uniform float uRadius;      // helix radius at birth, metres
+  uniform float uSpread;      // 0.. added × radius as it unwinds
+  uniform float uTube;        // strand thickness, metres
+  uniform float uTurns;       // turns per metre
+  uniform float uRoll;        // integrated, radians
+  uniform float uStrands;
+  uniform float uFlare;
+  uniform float uFlareLen;
+  uniform float uHead;
+
+  varying vec3  vH;           // x: round the strand 0..1, y: metres along, z: strand
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  void main() {
+    float along = position.y * uLength;
+    float b = position.x * 6.2831853;
+    float strand = position.z;
+    float bell = smoothstep(uLength - max(uFlareLen, 1e-3), uLength, along);
+    // Born tight at the muzzle, and tight again where the slug is now.
+    float open = smoothstep(0.0, 0.6, along) * mix(0.25, 1.0, smoothstep(0.0, 1.2, uHead - along));
+    float R = uRadius * (1.0 + uFlare * bell * bell) * (1.0 + uSpread) * open;
+    float twist = 6.2831853 * uTurns;
+    // Neighbouring strands wind opposite ways: a braid, not a screw.
+    float dirS = mod(strand, 2.0) < 0.5 ? 1.0 : -1.0;
+    float phi = dirS * (along * twist + uRoll) + strand * 6.2831853 / max(uStrands, 1.0);
+    vec3 radial = vec3(cos(phi), sin(phi), 0.0);
+    vec3 tang = vec3(-sin(phi), cos(phi), 0.0) * dirS;
+    vec3 T = normalize(vec3(0.0, 0.0, 1.0) + tang * twist * R);
+    vec3 B = normalize(cross(T, radial));
+    vec3 n = radial * cos(b) + B * sin(b);
+    vec3 p = radial * R + vec3(0.0, 0.0, along) + n * uTube * (0.6 + 0.4 * open);
+
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vViewDir = cameraPosition - world.xyz;
+    vH = vec3(position.x, along, strand);
+    vec4 mv = viewMatrix * world;
+    vViewZ = mv.z;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const HELIX_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uHead;
+  uniform float uStrands;
+  uniform float uGlow;
+  uniform float uLevel;
+  uniform float uDissolve;    // 0 whole .. 1 gone
+  uniform float uBreakScale;
+  uniform float uPulse;       // integrated
+  uniform float uPulseScale;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+
+  varying vec3  vH;
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+  varying float vViewZ;
+
+  ${noiseGLSL}
+
+  void main() {
+    if (vH.z >= uStrands - 0.5) discard;
+    float along = vH.y;
+    if (along > uHead) discard;
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(vViewDir);
+    float ndv = abs(dot(N, V));
+    float core = pow(ndv, 1.4);
+
+    // Unwinding into light: the strand breaks up from the noise, its torn
+    // ends flaring before they go.
+    float n = snoise(vec3(along * uBreakScale, vH.z * 7.3 + uSeed, uTime * 0.7)) * 0.5 + 0.5;
+    float thr = uDissolve * 1.25 - 0.15;
+    if (uDissolve > 0.0 && n < thr) discard;
+    float torn = uDissolve > 0.0 ? 1.0 - smoothstep(thr, thr + 0.08, n) : 0.0;
+
+    float p = fract(along * uPulseScale - uPulse + vH.z * 0.37);
+    float pulse = smoothstep(0.0, 0.05, p) * (1.0 - smoothstep(0.05, 0.3, p));
+    float head = exp(-max(uHead - along, 0.0) * 0.8);
+
+    // Four-stop ramp across the strand: deep at the skin, body, tint, white core.
+    float k = clamp(core * (0.55 + 0.5 * pulse * uShaderIntensity) + torn * 0.5 + head * 0.35, 0.0, 1.0);
+    vec3 col = mix(uColorDeep, uColorBody, smoothstep(0.0, 0.35, k));
+    col = mix(col, uColorTint, smoothstep(0.35, 0.75, k));
+    col = mix(col, uColorCore * 1.6, smoothstep(0.8, 1.0, k));
+    float alpha = (0.45 + 0.55 * core + torn) * uLevel;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow * (0.8 + pulse * 0.8), clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createRailHelixMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uLength: { value: 10 },
+      uRadius: { value: 0.3 },
+      uSpread: { value: 0 },
+      uTube: { value: 0.04 },
+      uTurns: { value: 0.8 },
+      uRoll: { value: 0 },
+      uStrands: { value: 2 },
+      uFlare: { value: 0 },
+      uFlareLen: { value: 1 },
+      uHead: { value: 0 },
+      uGlow: { value: 2 },
+      uLevel: { value: 1 },
+      uDissolve: { value: 0 },
+      uBreakScale: { value: 1.2 },
+      uPulse: { value: 0 },
+      uPulseScale: { value: 0.5 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: HELIX_VERTEX,
+    fragmentShader: HELIX_FRAGMENT
+  });
+
+  /** @param {object} s { length, head, spread, roll, dissolve, level, pulse, seed } */
+  material.userData.sync = (s) => {
+    const c = settings.railgun;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = s.seed;
+    u.uLength.value = Math.max(0.1, s.length);
+    u.uRadius.value = Math.max(0.01, c.helixRadius);
+    u.uSpread.value = s.spread;
+    u.uTube.value = Math.max(0.003, c.helixTube);
+    u.uTurns.value = c.helixTurns;
+    u.uRoll.value = s.roll;
+    u.uStrands.value = Math.max(1, Math.min(4, Math.round(c.helixStrands)));
+    u.uFlare.value = Math.max(0, c.beamFlare) * 0.7;
+    u.uFlareLen.value = Math.max(0.05, c.beamFlareLength);
+    u.uHead.value = s.head;
+    u.uGlow.value = c.helixGlow * g.glow;
+    u.uLevel.value = s.level * g.opacity;
+    u.uDissolve.value = s.dissolve;
+    u.uBreakScale.value = c.helixBreakScale * g.noiseFrequency;
+    u.uPulse.value = s.pulse;
+    u.uPulseScale.value = c.helixPulseScale;
+    u.uColorCore.value.copy(getColor(c.colorHelixCore));
+    u.uColorTint.value.copy(getColor(c.colorHelixTint));
+    u.uColorBody.value.copy(getColor(c.colorHelixBody));
+    u.uColorDeep.value.copy(getColor(c.colorHelixDeep));
   };
 
   return material;
