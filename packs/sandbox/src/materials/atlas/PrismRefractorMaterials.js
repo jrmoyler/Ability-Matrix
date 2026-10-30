@@ -532,6 +532,11 @@ export function createRefractorBeamMaterial() {
 /**
  * Where a beam lands: a refraction seal and its shock ring in one quad.
  *
+ * Normal-blended: the seal is a disc of **deep glass** (`uColorDeep`, a dark
+ * indigo) burned into the floor with the lines glowing in the beam's hue over
+ * it, so the mark carries the ramp's dark stop instead of reading as flat
+ * white rings.
+ *
  * The seal is a triangle inscribed in a circle (the prism, seen from above)
  * with three short rays out of its corners and a dotted outer ring, turning
  * slowly, in the beam's hue. It **stamps** in — overshooting its size and
@@ -562,6 +567,8 @@ const SIGIL_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform vec3  uColor;
   uniform vec3  uColorHot;
+  uniform vec3  uColorDeep;
+  uniform float uFill;
 
   varying vec2 vUv;
 
@@ -602,12 +609,23 @@ const SIGIL_FRAGMENT = /* glsl */ `
 
     // Out through a wipe from the middle.
     float wipe = smoothstep(uLife - 0.1, uLife, R);
-    float hot = clamp(2.0 - uStamp * 1.4, 0.0, 1.0);
+    // White only while the seal is stamping in; at rest it is the beam's hue.
+    float hot = clamp(abs(uStamp - 1.0) * 5.0, 0.0, 1.0) * 0.85;
 
-    vec3 color = mix(uColor, uColorHot, hot) * seal * wipe + uColorHot * ring * 2.0;
-    float alpha = clamp(seal * wipe + ring, 0.0, 1.0) * uOpacity;
+    // Four-stop ramp: white-hot ring → hot lines → beam hue → deep glass
+    // fill. The fill is *dark* (normal blending), so the seal is burned into
+    // the floor rather than painted on it.
+    float fillMask = (1.0 - smoothstep(0.78, 0.97, R)) * wipe * step(0.001, uStamp);
+    float etch = 0.5 + 0.5 * sin(R * 40.0 - a * 3.0);
+    vec3 deep = uColorDeep * (0.7 + 0.6 * etch * smoothstep(0.2, 0.9, R));
+    vec3 lineCol = mix(uColor, uColorHot, hot + (1.0 - hot) * 0.35 * band(r - 0.62, uLine * 0.25));
+    float alphaE = clamp(seal * wipe + ring, 0.0, 1.0);
+    vec3 emissive = (lineCol * seal * wipe + uColorHot * ring * 2.0) * uIntensity * uGlobalGlow;
+    float fill = fillMask * uFill;
+    float alpha = clamp(max(fill, alphaE), 0.0, 1.0) * uOpacity;
     if (alpha < 0.003) discard;
-    gl_FragColor = vec4(color * uIntensity * uGlobalGlow, alpha);
+    vec3 color = (deep * fill + emissive * alphaE) / max(alpha, 1e-3);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -616,13 +634,15 @@ export function createRefractorSigilMaterial() {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
     uniforms: sharedUniforms({
+      uColorDeep: { value: new Color(0.03, 0.04, 0.16) },
+      uFill: { value: 0.6 },
       uStamp: { value: 1 },
       uRing: { value: 0 },
       uRingWidth: { value: 0.12 },
@@ -651,8 +671,10 @@ export function createRefractorSigilMaterial() {
     u.uLine.value = c.sigilLine;
     u.uIntensity.value = c.sigilIntensity * g.glow;
     u.uOpacity.value = g.opacity;
-    u.uColor.value.copy(s.color).lerp(getColor(c.colorSigil), 0.5);
+    u.uColor.value.copy(s.color).lerp(getColor(c.colorSigil), c.sigilTint);
     u.uColorHot.value.copy(getColor(c.colorSigilHot));
+    u.uColorDeep.value.copy(getColor(c.colorSigilDeep));
+    u.uFill.value = c.sigilFill;
   };
 
   return material;
@@ -765,6 +787,290 @@ export function createRefractorWarpMaterial(mode = 'lance') {
     u.uStrength.value = s.strength * g.distortion;
     u.uScale.value = c.warpScale * g.noiseFrequency;
     u.uSpeed.value = c.warpSpeed * g.noiseSpeed;
+  };
+
+  return material;
+}
+
+/* ====================================================================== */
+/* 6 · The light path                                                      */
+/* ====================================================================== */
+
+/**
+ * The lance's travel, made to stay: the line of light it leaves between the
+ * hand and the prism, in two forms from one shader.
+ *
+ *   - **air** (`uFlat` 0) — a camera-facing filament from the hand to the
+ *     lance's head, dashes sliding toward the prism. After the strike it holds
+ *     hand → prism and then **drains** into the prism (`uFade` wipes from the
+ *     caster's end).
+ *   - **floor** (`uFlat` 1) — the same path written flat on the floor under
+ *     the flight: a glowing rune-line scar in the deep blue, white dashes
+ *     running down it, that outlives the air path.
+ *
+ * `uReach` 0..1 is how far along the path is drawn; `uLevel` its energy.
+ */
+const PATH_VERTEX = /* glsl */ `
+  attribute vec2 aParam;
+
+  uniform vec3  uFrom;
+  uniform vec3  uTo;
+  uniform float uWidth;
+  uniform float uFlat;
+
+  varying vec2  vParam;
+  varying float vLength;
+
+  void main() {
+    float t = aParam.x;
+    vec3 p = mix(uFrom, uTo, t);
+    vec3 d = uTo - uFrom;
+    float len = max(length(d), 1e-4);
+    vec3 tangent = d / len;
+    vec3 across;
+    if (uFlat > 0.5) {
+      across = normalize(cross(tangent, vec3(0.0, 1.0, 0.0)) + vec3(1e-5));
+    } else {
+      across = cross(tangent, normalize(cameraPosition - p));
+      float l = length(across);
+      across = l > 1e-4 ? across / l : vec3(0.0, 1.0, 0.0);
+    }
+    float taper = smoothstep(0.0, 0.06, t) * smoothstep(0.0, 0.03, 1.0 - t);
+    p += across * aParam.y * uWidth * max(taper, 0.2);
+    vParam = aParam;
+    vLength = len;
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const PATH_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+
+  uniform float uReach;
+  uniform float uLevel;
+  uniform float uFade;
+  uniform float uFlat;
+  uniform float uIntensity;
+  uniform float uOpacity;
+  uniform float uDashes;
+  uniform float uDashSpeed;
+  uniform float uSeed;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorGlow;
+  uniform vec3  uColorDeep;
+
+  varying vec2  vParam;
+  varying float vLength;
+
+  ${noiseGLSL}
+
+  void main() {
+    float t = vParam.x;
+    if (t > uReach || t < uFade) discard;
+    float across = abs(vParam.y);
+
+    float core = 1.0 - smoothstep(0.1, 0.28, across);
+    float glow = pow(clamp(1.0 - across, 0.0, 1.0), 2.2);
+    float d = t * vLength;
+    float dash = pow(0.5 + 0.5 * sin((d * uDashes - uTime * uDashSpeed) * 6.28318), 6.0);
+    float n = snoise(vec3(d * 2.2 - uTime * 5.0, across * 2.0, uSeed));
+    float head = smoothstep(uReach - 0.05, uReach, t) * step(uReach, 0.999);
+    float feather = smoothstep(uFade, uFade + 0.1, t);
+
+    // Floor scar: rune ticks across the line, and the glow sits deeper.
+    float ticks = uFlat * step(0.82, fract(d * 1.6 + 0.5 * n)) * (1.0 - smoothstep(0.55, 0.9, across));
+    vec3 tint = mix(uColorDeep, uColorGlow, smoothstep(0.05, 0.75 + uFlat * 0.2, glow));
+    vec3 color = tint * glow * (0.75 + 0.35 * n * uShaderIntensity) * (1.0 + dash)
+               + uColorCore * (core * (0.4 + dash * 1.4) + head * 2.5 + ticks * 0.8);
+    float energy = uLevel * feather;
+    float alpha = clamp(max(glow * 0.85, core) * energy, 0.0, 1.0) * uOpacity;
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(color * energy * uIntensity * uGlobalGlow * uOpacity, alpha);
+  }
+`;
+
+/** @param {'air'|'floor'} mode */
+export function createRefractorPathMaterial(mode = 'air') {
+  const flat = mode === 'floor';
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: flat,
+    polygonOffsetFactor: flat ? -2 : 0,
+    polygonOffsetUnits: flat ? -2 : 0,
+    uniforms: sharedUniforms({
+      uFrom: { value: new Vector3() },
+      uTo: { value: new Vector3(0, 0, 1) },
+      uWidth: { value: 0.1 },
+      uFlat: { value: flat ? 1 : 0 },
+      uReach: { value: 0 },
+      uLevel: { value: 0 },
+      uFade: { value: 0 },
+      uIntensity: { value: 3 },
+      uOpacity: { value: 1 },
+      uDashes: { value: 1.2 },
+      uDashSpeed: { value: 6 },
+      uSeed: { value: Math.random() * 10 },
+      uColorCore: { value: new Color(1, 1, 1) },
+      uColorGlow: { value: new Color(0.4, 0.9, 1) },
+      uColorDeep: { value: new Color(0.05, 0.1, 0.5) }
+    }),
+    vertexShader: PATH_VERTEX,
+    fragmentShader: PATH_FRAGMENT
+  });
+
+  /** @param {object} s { from, to, reach, level, fade } */
+  material.userData.sync = (s) => {
+    const c = settings.refractor;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uFrom.value.copy(s.from);
+    u.uTo.value.copy(s.to);
+    u.uReach.value = s.reach;
+    u.uLevel.value = s.level;
+    u.uFade.value = s.fade;
+    u.uWidth.value = flat ? c.scarWidth : c.pathWidth;
+    u.uIntensity.value = (flat ? c.scarIntensity : c.pathIntensity) * g.glow;
+    u.uOpacity.value = g.opacity;
+    u.uDashes.value = c.pathDashes;
+    u.uDashSpeed.value = c.pathDashSpeed * g.animationSpeed;
+    u.uColorCore.value.copy(getColor(c.colorLanceCore));
+    u.uColorGlow.value.copy(getColor(c.colorLanceGlow));
+    u.uColorDeep.value.copy(getColor(c.colorPathDeep));
+  };
+
+  return material;
+}
+
+/* ====================================================================== */
+/* 7 · The caustic pool                                                    */
+/* ====================================================================== */
+
+/**
+ * The floor under the prism: the light it bends, thrown down as a pool.
+ *
+ * A disc of deep indigo glass-shadow (normal-blended, so it darkens the
+ * floor — the ramp's deep stop) crossed by a moving **caustic web** (two
+ * ridged noise fields) and three **spectral lobes** in the three beam hues
+ * that turn with the prism, inside a bright rim. `uLevel` follows the prism:
+ * scans in as it forms, flares on the strike, holds, and goes with the shatter.
+ */
+const POOL_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = position.xz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const POOL_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+
+  uniform float uLevel;
+  uniform float uFlare;
+  uniform float uSpin;
+  uniform float uScale;
+  uniform float uFill;
+  uniform float uIntensity;
+  uniform float uOpacity;
+  uniform vec3  uColorA;
+  uniform vec3  uColorB;
+  uniform vec3  uColorC;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorDeep;
+
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+
+  void main() {
+    float R = length(vUv);
+    if (R > 1.0 || uLevel <= 0.001) discard;
+    float a = atan(vUv.y, vUv.x) + uSpin;
+
+    float n1 = snoise(vec3(vUv * uScale, uTime * 0.7));
+    float n2 = snoise(vec3(vUv * uScale * 1.9 + 5.3, -uTime * 0.9));
+    float web = pow(1.0 - abs(n1), 9.0) + pow(1.0 - abs(n2), 12.0) * 0.7;
+    web *= uShaderIntensity;
+
+    float wa = pow(0.5 + 0.5 * cos(a), 5.0);
+    float wb = pow(0.5 + 0.5 * cos(a - 2.0943951), 5.0);
+    float wc = pow(0.5 + 0.5 * cos(a + 2.0943951), 5.0);
+    vec3 spec = (uColorA * wa + uColorB * wb + uColorC * wc) / max(wa + wb + wc, 1e-3);
+    float lobes = (wa + wb + wc) * 0.5;
+
+    float fall = 1.0 - smoothstep(0.3, 1.0, R);
+    float rim = (1.0 - smoothstep(0.0, 0.03, abs(R - 0.9))) * (0.6 + 0.4 * sin(a * 12.0 - uTime * 3.0));
+    float light = (web * (0.8 + uFlare) * fall + lobes * 0.45 * fall + rim * 0.7) * uLevel;
+
+    vec3 emissive = (spec * light + uColorHot * pow(web, 3.0) * fall * (0.4 + uFlare) * uLevel) * uIntensity * uGlobalGlow;
+    float alphaE = clamp(light, 0.0, 1.0);
+    float fill = uFill * (1.0 - smoothstep(0.55, 1.0, R)) * uLevel;
+    float alpha = clamp(max(fill, alphaE), 0.0, 1.0) * uOpacity;
+    if (alpha < 0.003) discard;
+    vec3 color = (uColorDeep * fill + emissive * alphaE) / max(alpha, 1e-3);
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createRefractorPoolMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+    uniforms: sharedUniforms({
+      uLevel: { value: 0 },
+      uFlare: { value: 0 },
+      uSpin: { value: 0 },
+      uScale: { value: 2.2 },
+      uFill: { value: 0.55 },
+      uIntensity: { value: 2 },
+      uOpacity: { value: 1 },
+      uColorA: { value: new Color() },
+      uColorB: { value: new Color() },
+      uColorC: { value: new Color() },
+      uColorHot: { value: new Color(1, 1, 1) },
+      uColorDeep: { value: new Color(0.02, 0.03, 0.12) }
+    }),
+    vertexShader: POOL_VERTEX,
+    fragmentShader: POOL_FRAGMENT
+  });
+
+  /** @param {object} s { level, flare, spin } */
+  material.userData.sync = (s) => {
+    const c = settings.refractor;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uLevel.value = s.level;
+    u.uFlare.value = s.flare;
+    u.uSpin.value = s.spin;
+    u.uScale.value = c.poolScale * g.noiseFrequency;
+    u.uFill.value = c.poolFill;
+    u.uIntensity.value = c.poolIntensity * g.glow;
+    u.uOpacity.value = g.opacity;
+    u.uColorA.value.copy(getColor(c.colorBeamA));
+    u.uColorB.value.copy(getColor(c.colorBeamB));
+    u.uColorC.value.copy(getColor(c.colorBeamC));
+    u.uColorHot.value.copy(getColor(c.colorSigilHot));
+    u.uColorDeep.value.copy(getColor(c.colorPoolDeep));
   };
 
   return material;

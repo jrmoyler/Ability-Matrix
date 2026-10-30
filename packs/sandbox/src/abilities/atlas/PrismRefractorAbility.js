@@ -11,7 +11,9 @@ import {
   createRefractorCrystalMaterial,
   createRefractorBeamMaterial,
   createRefractorSigilMaterial,
-  createRefractorWarpMaterial
+  createRefractorWarpMaterial,
+  createRefractorPathMaterial,
+  createRefractorPoolMaterial
 } from '../../materials/atlas/PrismRefractorMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -98,6 +100,13 @@ const _white = new Color(1, 1, 1);
  *      round the struck prism.
  *   7. **FEEDBACK** — flash, shake and light punch on the strike and on every
  *      landing, the light riding the newest beam's target.
+ *   8. **LIGHT PATH** (`createRefractorPathMaterial`) — the travel made to
+ *      stay: a filament from the hand to the lance's head that holds hand →
+ *      prism after the strike and drains into the prism, plus the same path
+ *      burned flat on the floor as a deep-blue rune scar that outlives it.
+ *   9. **CAUSTIC POOL** (`createRefractorPoolMaterial`) — the floor under the
+ *      prism: a deep-indigo glass shadow crossed by a moving caustic web and
+ *      three spectral lobes in the beam hues, turning with the crystal.
  *
  * ## Decisions
  *
@@ -184,6 +193,35 @@ export class PrismRefractorAbility extends Ability {
         sigilState: { stamp: 1, ring: 0, life: 0, spin: 0, color: null }
       });
     }
+
+    /* ---- layer 8: the light path (air + floor scar) ---- */
+    this.pathMaterial = createRefractorPathMaterial('air');
+    this.path = new Mesh(this.ribbonGeometry, this.pathMaterial);
+    this.path.name = 'RefractorPath';
+    this.scarMaterial = createRefractorPathMaterial('floor');
+    this.scar = new Mesh(this.ribbonGeometry, this.scarMaterial);
+    this.scar.name = 'RefractorPathScar';
+    this.path.renderOrder = 13;
+    this.scar.renderOrder = 4;
+    for (const mesh of [this.path, this.scar]) {
+      mesh.layers.set(LAYER.VFX);
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      this.group.add(mesh);
+    }
+    this._pathState = { from: new Vector3(), to: new Vector3(), reach: 0, level: 0, fade: 0 };
+    this._scarState = { from: new Vector3(), to: new Vector3(), reach: 0, level: 0, fade: 0 };
+
+    /* ---- layer 9: the caustic pool under the prism ---- */
+    this.poolMaterial = createRefractorPoolMaterial();
+    this.pool = new Mesh(this.floorGeometry, this.poolMaterial);
+    this.pool.name = 'RefractorPool';
+    this.pool.layers.set(LAYER.VFX);
+    this.pool.frustumCulled = false;
+    this.pool.renderOrder = 2;
+    this.pool.visible = false;
+    this.group.add(this.pool);
+    this._poolState = { level: 0, flare: 0, spin: 0 };
 
     /* ---- layer 6: warps ---- */
     this.wakeMaterial = createRefractorWarpMaterial('lance');
@@ -366,6 +404,10 @@ export class PrismRefractorAbility extends Ability {
     this.position.copy(this._hand);
     this.lance.visible = true;
     this.prism.visible = false;
+    this.path.visible = false;
+    this.scar.visible = false;
+    this.pool.visible = false;
+    this._flightAge = 0;
     this.wake.visible = false;
     this.lens.visible = false;
 
@@ -402,10 +444,10 @@ export class PrismRefractorAbility extends Ability {
 
     this.ctx.bursts.spawn(BurstMode.AIR, this._prismPoint, {
       radius: c.prismRadius * 0.6,
-      endRadius: c.impactBurst * 1.4 * g.explosionIntensity,
+      endRadius: c.impactBurst * c.strikeShellSize * g.explosionIntensity,
       life: 0.35,
-      intensity: 2.6,
-      opacity: 0.55,
+      intensity: c.strikeShell,
+      opacity: 0.4,
       fresnel: 2.8,
       displace: 0.2,
       colorA: getColor(c.colorBurstA),
@@ -722,6 +764,77 @@ export class PrismRefractorAbility extends Ability {
     this.wake.visible = ws.strength > 0.004;
   }
 
+  /**
+   * The light path: the lance's travel, kept. In flight it runs from the hand
+   * to the head; after the strike it holds hand → prism, then drains into the
+   * prism from the caster's end over `pathLinger`. The floor scar is the same
+   * line burned flat, and it lasts `scarLife`.
+   */
+  _updatePath(dt) {
+    const c = settings.refractor;
+    const g = settings.global;
+    const ps = this._pathState;
+    const ss = this._scarState;
+    this._handPoint(this._hand);
+    if (this._stage === Stage.CHARGE) {
+      this.path.visible = false;
+      this.scar.visible = false;
+      return;
+    }
+    ps.from.copy(this._hand);
+    if (this._stage === Stage.FLIGHT) {
+      this._flightAge += dt;
+      ps.to.copy(this._head);
+      ps.reach = 1;
+      ps.level = saturate(this._flightAge / 0.06);
+      ps.fade = 0;
+      ss.reach = 1;
+      ss.level = ps.level;
+      ss.fade = 0;
+      ss.to.set(this._head.x, 0.03, this._head.z);
+    } else {
+      this._prismCentre(_to);
+      ps.to.copy(_to);
+      const lingerA = Math.max(0.05, c.pathLinger * g.lifetime);
+      const k = saturate(this._strikeAge / lingerA);
+      ps.reach = 1;
+      ps.level = (1 - Easing.inQuad(k)) * (1 + 1.5 * Math.exp(-8 * this._strikeAge));
+      ps.fade = Easing.inQuad(k);
+      const lingerS = Math.max(0.05, c.scarLife * g.lifetime);
+      const ks = saturate(this._strikeAge / lingerS);
+      ss.reach = 1;
+      ss.level = 1 - Easing.inQuad(ks);
+      ss.fade = Easing.inCubic(ks);
+      ss.to.set(_to.x, 0.03, _to.z);
+    }
+    ss.from.set(this._hand.x, 0.03, this._hand.z);
+    this.pathMaterial.userData.sync(ps);
+    this.scarMaterial.userData.sync(ss);
+    this.path.visible = ps.level > 0.003 && ps.fade < 0.999;
+    this.scar.visible = ss.level > 0.003 && ss.fade < 0.999;
+  }
+
+  /** The caustic pool under the prism: follows the crystal's life. */
+  _updatePool(dt) {
+    const c = settings.refractor;
+    const g = settings.global;
+    if (!this.prism.visible && this._crystalState.shatter <= 0) {
+      this.pool.visible = false;
+      return;
+    }
+    const cs = this._crystalState;
+    const st = this._poolState;
+    const struck = this._stage === Stage.SPLIT || this._stage === Stage.SPENT;
+    st.flare = struck ? Math.exp(-4 * this._strikeAge) * 2.0 : 0;
+    st.level = cs.form * (1 - cs.shatter * cs.shatter) * (struck ? 1 : 0.55);
+    st.spin = this._spin;
+    this.poolMaterial.userData.sync(st);
+    this.pool.position.set(this._prismPoint.x, 0.025, this._prismPoint.z);
+    const r = Math.max(0.1, c.poolRadius);
+    this.pool.scale.set(r, 1, r);
+    this.pool.visible = st.level > 0.003;
+  }
+
   /** The crystal: forms, spins, flares, cracks, shatters. */
   _updatePrism(dt) {
     const c = settings.refractor;
@@ -844,7 +957,9 @@ export class PrismRefractorAbility extends Ability {
     if (this._stage === Stage.SPLIT || this._stage === Stage.SPENT) this._strikeAge += dt;
 
     this._updateLance(dt);
+    this._updatePath(dt);
     this._updatePrism(dt);
+    this._updatePool(dt);
     this._updateBeams(dt);
 
     if (this._stage === Stage.SPLIT && this._beamsLanded >= this._beamCount()) this._stage = Stage.SPENT;
@@ -866,6 +981,9 @@ export class PrismRefractorAbility extends Ability {
   onDestroy() {
     this.lance.visible = false;
     this.prism.visible = false;
+    this.path.visible = false;
+    this.scar.visible = false;
+    this.pool.visible = false;
     this.wake.visible = false;
     this.lens.visible = false;
     for (const beam of this.beams) {
@@ -892,6 +1010,9 @@ export class PrismRefractorAbility extends Ability {
     }
     this.wakeMaterial.dispose();
     this.lensMaterial.dispose();
+    this.pathMaterial.dispose();
+    this.scarMaterial.dispose();
+    this.poolMaterial.dispose();
     super.dispose();
   }
 }
@@ -944,6 +1065,16 @@ export function buildEditor(gui, c, Editor) {
   lance.addColor(c, 'colorLanceCore').name('core');
   lance.addColor(c, 'colorLanceGlow').name('glow');
   lance.addColor(c, 'colorLanceEdge').name('edge');
+  const path = lance.addFolder('Light path');
+  R(path, c, 'pathWidth', 0.01, 0.6, 0.005, 'filament half-width (m)');
+  R(path, c, 'pathIntensity', 0, 10, 0.05, 'filament intensity');
+  R(path, c, 'pathLinger', 0.05, 3, 0.01, 'drains into prism over (s)');
+  R(path, c, 'pathDashes', 0, 6, 0.05, 'dashes per metre');
+  R(path, c, 'pathDashSpeed', -20, 20, 0.1, 'dash speed');
+  R(path, c, 'scarWidth', 0.02, 1, 0.005, 'floor scar half-width (m)');
+  R(path, c, 'scarIntensity', 0, 10, 0.05, 'floor scar intensity');
+  R(path, c, 'scarLife', 0.1, 6, 0.05, 'floor scar lasts (s)');
+  path.addColor(c, 'colorPathDeep').name('deep');
 
   /* ---- layer 2 ---- */
   const prism = folder.addFolder('2 · Prism');
@@ -975,6 +1106,12 @@ export function buildEditor(gui, c, Editor) {
   glass.addColor(c, 'colorGlassDeep').name('deep');
   glass.addColor(c, 'colorGlassEdge').name('edges');
   glass.addColor(c, 'colorCrack').name('cracks');
+  const pool = prism.addFolder('Caustic pool');
+  R(pool, c, 'poolRadius', 0.2, 6, 0.05, 'radius (m)');
+  R(pool, c, 'poolIntensity', 0, 8, 0.05, 'intensity');
+  R(pool, c, 'poolFill', 0, 1, 0.01, 'glass shadow');
+  R(pool, c, 'poolScale', 0.2, 8, 0.05, 'caustic scale');
+  pool.addColor(c, 'colorPoolDeep').name('deep');
 
   /* ---- layer 3 ---- */
   const beams = folder.addFolder('3 · Beams');
@@ -1005,6 +1142,9 @@ export function buildEditor(gui, c, Editor) {
   R(sigil, c, 'ringWidth', 0.01, 0.5, 0.005, 'shock ring width');
   sigil.addColor(c, 'colorSigil').name('colour');
   sigil.addColor(c, 'colorSigilHot').name('hot');
+  sigil.addColor(c, 'colorSigilDeep').name('deep fill');
+  R(sigil, c, 'sigilFill', 0, 1, 0.01, 'deep fill');
+  R(sigil, c, 'sigilTint', 0, 1, 0.01, 'beam hue ↔ sigil colour');
   R(sigil, c, 'shockRadius', 0, 10, 0.05, 'shockwave decal (m)');
   R(sigil, c, 'scorchRadius', 0, 4, 0.05, 'scorch decal (m)');
   R(sigil, c, 'scorchLife', 0.1, 8, 0.05, 'scorch life');
@@ -1050,6 +1190,8 @@ export function buildEditor(gui, c, Editor) {
   R(fb, c, 'lightRadius', 0.5, 30, 0.1, 'light radius');
   R(fb, c, 'strikeLight', 0, 80, 0.5, 'light punch on strike');
   R(fb, c, 'beamLight', 0, 60, 0.5, 'light punch per landing');
+  R(fb, c, 'strikeShell', 0, 5, 0.05, 'light shell on strike');
+  R(fb, c, 'strikeShellSize', 0.2, 3, 0.01, 'strike shell size (× light shell)');
   R(fb, c, 'strikeShake', 0, 1, 0.01, 'shake on strike');
   R(fb, c, 'strikeFlash', 0, 1, 0.01, 'flash on strike');
   R(fb, c, 'beamShake', 0, 1, 0.01, 'shake per landing');
