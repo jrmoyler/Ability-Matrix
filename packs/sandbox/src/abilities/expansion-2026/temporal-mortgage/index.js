@@ -50,7 +50,7 @@ const _up = new Vector3(0, 1, 0);
 /** Reused emit bag (ParticleSystem.emit destructures, never retains). */
 const _emit = { position: _pos, direction: _dir, radius: 0, speed: 1, spread: 0.5, size: 0.1, life: 0.5, spin: 2, time: 0 };
 /** Reused spring parameters for `writeSpring`. */
-const _spring = { r0: 0.4, rOut: 1, phi: 20, psi: 0, height: 1, thick: 0.1, wave: 0, wavePhase: 0, hookCurl: 0.5, hookShare: 0.05, taper: 0 };
+const _spring = { r0: 0.4, rOut: 1, phi: 20, psi: 0, height: 1, thick: 0.1, wave: 0, wavePhase: 0, hookCurl: 0.5, hookShare: 0.05, taper: 0, ribbon: 0 };
 
 /**
  * TEMPORAL MORTGAGE — Time, zone cast. *Borrowed speed with recovery debt.*
@@ -691,6 +691,9 @@ export class Ability extends BaseAbility {
     _spring.hookCurl = c.hookCurl;
     _spring.hookShare = c.hookShare;
     _spring.taper = Math.max(0, Math.min(0.9, c.bandTaper));
+    // One coiled band, not concentric walls: the foot lifts toward the arbor
+    // so the coil climbs as a conical helix (0 = every coil stands on the floor).
+    _spring.ribbon = c.bandRibbon > 0 ? c.bandRibbon * H : 0;
     writeSpring(this.springGeom, _spring);
     this.steel.color.copy(getColor(c.steelColor));
     this.steel.emissive.copy(getColor(c.steelEmissive));
@@ -788,7 +791,7 @@ export class Ability extends BaseAbility {
       const n = this._sparkEmitter.tick(dt, c.sparkRate);
       if (n) {
         const rTip = _spring.rOut;
-        _pos.set(this.position.x + Math.cos(tipAngle) * rTip, H * 0.85, this.position.z + Math.sin(tipAngle) * rTip);
+        _pos.set(this.position.x + Math.cos(tipAngle) * rTip, H * (1 - _spring.taper) * 0.85, this.position.z + Math.sin(tipAngle) * rTip);
         _dir.set(-Math.sin(tipAngle), 0.35, Math.cos(tipAngle)).normalize();
         this._emitTo(this.sparks, n, 0.15, c.sparkSpeed, 0.35, c.sparkSize, c.sparkLife);
       }
@@ -896,6 +899,7 @@ export function buildEditor(gui, c, Editor) {
   R(spring, c, 'bandHeight', 0.1, 1, 0.01, 'band height (× radius)');
   R(spring, c, 'bandThickness', 0.02, 0.4, 0.005, 'band thickness (m)');
   R(spring, c, 'bandTaper', 0, 0.9, 0.01, 'outer coils stand lower by');
+  R(spring, c, 'bandRibbon', 0, 1, 0.01, 'band width (× height; < 1 lifts the inner coils into a helix)');
   R(spring, c, 'arborShare', 0.04, 0.3, 0.005, 'inner end (× radius)');
   R(spring, c, 'tightOuter', 0.15, 0.6, 0.01, 'wound outer radius (× radius)');
   R(spring, c, 'openOuter', 0.5, 1.2, 0.01, 'let-go outer radius (× radius)');
@@ -925,6 +929,8 @@ export function buildEditor(gui, c, Editor) {
   R(stress, c, 'edgeGlow', 0, 6, 0.05, 'hot top edge');
   R(stress, c, 'edgeWidth', 0.01, 0.6, 0.005, 'edge line width (share of height)');
   R(stress, c, 'edgeTop', 0, 1, 0.01, 'edge light on the flat top');
+  R(stress, c, 'edgeInner', 0, 1, 0.01, 'edge line left on the inner coils');
+  R(stress, c, 'tipGlow', 0, 6, 0.05, 'free end glow');
   R(stress, c, 'stressFill', 0, 1, 0.01, 'stress wash over the face');
   R(stress, c, 'stressRim', 0, 1, 0.01, 'fresnel rim');
   R(stress, c, 'stressSharp', 1, 160, 1, 'stress line sharpness');

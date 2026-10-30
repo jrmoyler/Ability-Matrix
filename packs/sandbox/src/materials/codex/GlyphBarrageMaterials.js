@@ -675,6 +675,7 @@ const PILLAR_FRAGMENT = /* glsl */ `
   uniform float uCover;
   uniform float uCoreReach;   // share of the height the white axis climbs before it gives way
   uniform float uTopDeep;     // how hard the upper column falls to the deep stop
+  uniform float uAxisHeat;    // how far the axis pushes the ramp toward its pale stops (caps the pale share of the column)
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -717,7 +718,7 @@ const PILLAR_FRAGMENT = /* glsl */ `
     float coreZone = 1.0 - smoothstep(uCoreReach * 0.6, uCoreReach, y);
     float axis = pow(facing, uCoreWidth);
     float upper = smoothstep(0.25, 0.95, y) * uTopDeep;
-    float heat = clamp(axis * (0.25 + 0.55 * coreZone) + streak * 0.14 + hotFoot * 0.2 - y * 0.3 - upper * 0.45, 0.0, 1.0);
+    float heat = clamp((axis * (0.25 + 0.55 * coreZone) + hotFoot * 0.2) * uAxisHeat + streak * 0.14 - y * 0.3 - upper * 0.45, 0.0, 1.0);
     vec3 col = gradient4(uColorCore, uColorA, uColorB, uColorDeep, 1.0 - heat);
     float dim = 1.0 - 0.6 * upper;
     vec3 color = col * dim * (0.22 + fres * 0.75 + streak * (0.25 + fres) * uShaderIntensity)
@@ -770,7 +771,8 @@ export function createGlyphPillarMaterial() {
       uCoreWidth: { value: 10 },
       uCover: { value: 0.5 },
       uCoreReach: { value: 0.55 },
-      uTopDeep: { value: 1 }
+      uTopDeep: { value: 1 },
+      uAxisHeat: { value: 1 }
     }),
     vertexShader: PILLAR_VERTEX,
     fragmentShader: PILLAR_FRAGMENT
@@ -801,6 +803,7 @@ export function createGlyphPillarMaterial() {
     u.uCover.value = c.pillarCover;
     u.uCoreReach.value = c.pillarCoreReach;
     u.uTopDeep.value = c.pillarTopDeep;
+    u.uAxisHeat.value = c.pillarAxisHeat ?? 1;
   };
 
   return material;

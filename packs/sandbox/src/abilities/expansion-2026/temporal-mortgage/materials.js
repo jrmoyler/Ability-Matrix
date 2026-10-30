@@ -135,6 +135,8 @@ const STRESS_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uGlow;
   uniform float uEdge;
+  uniform float uEdgeInner;   // share of the edge line left on the inner coils (the outer limb carries it)
+  uniform float uTip;         // the free outer end lit hot
   uniform float uEdgeWidth;   // share of the band height the hot edge line covers
   uniform float uEdgeTop;     // how much of the edge light spills onto the flat top face
   uniform float uFill;        // base stress wash over the whole face (kept low: the steel is the read)
@@ -166,7 +168,13 @@ const STRESS_FRAGMENT = /* glsl */ `
     float pulse = pow(0.5 + 0.5 * sin((s * uPulses - uFlow) * 6.2831853), uSharp);
     float rim = fresnelTerm(vViewDir, vNormalW, uFresnelPow, uFresnel) * (1.0 - top);
     float edgeLine = smoothstep(1.0 - uEdgeWidth, 1.0, v);
-    float edge = mix(edgeLine, uEdgeTop, top) * uEdge;
+    // Only the outer limb carries the hot edge; the inner coils keep a trace,
+    // so the coil reads as one band and not a stack of glowing rims.
+    float limb = mix(uEdgeInner, 1.0, smoothstep(0.35, 0.95, s));
+    float edge = mix(edgeLine, uEdgeTop, top) * uEdge * limb;
+    // The free end: a hot tip on the last few centimetres of the band.
+    float tip = exp(-(1.0 - s) * 90.0) * uTip;
+    edge += tip;
     float line = stress * pulse * (1.0 - top);
     float heat = line * 1.6 * uShaderIntensity + edge * (0.35 + 0.65 * uDebt) + uFlash * 0.6;
     vec3 col = gradient4(uDeep, uBody, uTint, uCore, clamp(heat * 0.8, 0.0, 1.0)) * (0.6 + heat);
@@ -188,6 +196,8 @@ export function createStressMaterial() {
       uFade: { value: 1 },
       uGlow: { value: 1.6 },
       uEdge: { value: 2.2 },
+      uEdgeInner: { value: 1 },
+      uTip: { value: 0 },
       uEdgeWidth: { value: 0.1 },
       uEdgeTop: { value: 0.2 },
       uFill: { value: 0.03 },
@@ -216,6 +226,8 @@ export function createStressMaterial() {
     u.uFade.value = s.fade * g.opacity;
     u.uGlow.value = c.stressGlow * g.glow;
     u.uEdge.value = c.edgeGlow;
+    u.uEdgeInner.value = c.edgeInner ?? 1;
+    u.uTip.value = c.tipGlow ?? 0;
     u.uEdgeWidth.value = c.edgeWidth;
     u.uEdgeTop.value = c.edgeTop;
     u.uFill.value = c.stressFill;

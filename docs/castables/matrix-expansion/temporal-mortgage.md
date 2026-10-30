@@ -48,3 +48,10 @@ Coordinator's read: the spring read as tiers but pale blue-white, like a stepped
 - Ledger rim line and the lit groove under the band are now keys (`ledgerRim` 0.2, `ledgerCoil` 0.6), toned down.
 - New keys (13): temperColor, temperStrength, temperHeight, temperInner, temperSheen, sheenColor, edgeWidth, edgeTop, stressFill, stressRim, stressSharp, ledgerRim, ledgerCoil.
 After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-G/r3/matrix-expansion__temporal-mortgage-sheet.jpg` — a dark blued-steel coil with thin cyan edge lines and stress slashes. Honest 8. Still short: from the play camera the stepped coils can still read as concentric walls between lashes; the spiral is clearest while the outer limb is lashing (f40).
+
+## Fix-2 (third pass, 2026-10-30) — one coiled band
+Coordinator's read of up-G/r3: steel dark, but at 8 m the spring read as a small stack of glowing concentric walls.
+- The band is now a ribbon (`bandRibbon` 0.17 × height ≈ 0.42 m wide) whose foot lifts toward the arbor (`writeSpring` takes an optional `ribbon`), so the coil climbs as one conical helix: ~2.45 m at the arbor (`bandHeight` 0.72) down to its free end resting on the floor (`bandTaper` 0.84), with open air between turns — a visible pitch instead of nested walls. Fewer turns (1.8 wound / 1.55 let go), thicker steel (0.15 m), longer hook, taller arbor (0.78 × R) so the key stays above the top coil.
+- Glowing edges only on the outer limb (`edgeInner` 0.15, `edgeGlow` 1.1, `edgeTop` 0.25) plus a hot free end (`tipGlow` 1.2); floor groove toned down (`ledgerCoil` 0.3), cast light 6 → 4 so the inner faces stay steel, smear lowered to the outer limb (`smearHeight` 0.3), tip sparks follow the low free end.
+- New keys (3): bandRibbon, edgeInner, tipGlow. Lash timing, radius, hits unchanged.
+After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/fix-2/r4/matrix-expansion__temporal-mortgage-sheet.jpg`.

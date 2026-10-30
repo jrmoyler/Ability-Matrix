@@ -57,11 +57,11 @@ export default {
     /* ================================================================ */
     glyphRadius: 1.1, // metres, outer ring
     lineWidth: 0.022, // metres, the white-hot strokes
-    haloWidth: 0.06, // metres, the coloured glow round them
-    lineGlow: 1.2, // brightness of the strokes (bloom > 1) — detail on the ink, not the whole read
-    lineHot: 0.3, // 0 = strokes in the tint, 1 = white-hot strokes (HDR kept to a few lines)
-    haloGlow: 0.22, // brightness of the glow
-    fillGlow: 0.25, // faint wash inside the circle
+    haloWidth: 0.035, // metres, the coloured glow round them
+    lineGlow: 1.0, // brightness of the strokes (bloom > 1) — detail on the ink, not the whole read
+    lineHot: 0.18, // 0 = strokes in the tint, 1 = white-hot strokes (HDR kept to a few lines)
+    haloGlow: 0.08, // brightness of the glow
+    fillGlow: 0.12, // faint wash inside the circle
     runeCount: 18, // runes round the band
     runeBand: 0.17, // band width, × radius
     tickCount: 72, // radial ticks on the tick ring
@@ -70,22 +70,22 @@ export default {
     spinOuter: 0.25, // rad/s the rune band turns
     spinStar: -0.6, // rad/s the inner star turns
     spinCore: 1.1, // rad/s the inner square turns
-    chargePulse: 1.6, // how hard the chain throbs while it charges
+    chargePulse: 0.55, // how hard the chain throbs while it charges
     chargeRate: 9, // throbs per second (rad/s)
     spentDim: 0.35, // how bright a detonated glyph stays
     fadeSoftness: 0.18, // how soft each ring's fade is
     glyphLift: 0.016, // metres off the floor
     colorLine: '#f4f2ff', // white-hot strokes
-    colorGlyph: '#7c8cff', // blue-violet glow
-    colorDeep: '#2a1288', // the deeper violet of the wash and the runes
+    colorGlyph: '#6c4cff', // blue-violet glow
+    colorDeep: '#170a52', // the deeper violet of the wash and the runes
     colorRune: '#b49cff', // the rune band
     /* --- the inked plate under the strokes: a filled seal impression --- */
-    plateCover: 0.88, // how far the plate darkens the floor, 0..1 (the deep stop)
-    plateInk: 0.5, // arcane ink swirling in the plate (the body stop)
-    inkFill: 0.85, // solid ink fills: rune band, star points, eye, tick band (saturated body)
-    colorInk: '#4a1fd0', // the saturated body ink of the fills
+    plateCover: 0.94, // how far the plate darkens the floor, 0..1 (the deep stop)
+    plateInk: 0.35, // arcane ink swirling in the plate (the body stop)
+    inkFill: 0.9, // solid ink fills: rune band, star points, eye, tick band (saturated body)
+    colorInk: '#2c1280', // the saturated body ink of the fills
     plateInkScale: 2.4, // swirls across the plate
-    colorPlate: '#0d0628', // the plate itself
+    colorPlate: '#07031a', // the plate itself
     /* --- the stamp's 3D beat --- */
     stampChips: 16, // obsidian chips kicked up by each slam
     stampChipSpeed: 3.6, // m/s
@@ -121,7 +121,7 @@ export default {
     colorSeal: '#1c1530', // obsidian
     colorSealRune: '#8f7bff', // engraving
     /* --- the binding shaft: rune-rain from each hovering seal to its print --- */
-    bindStrength: 0.65, // 0 = none
+    bindStrength: 0.5, // 0 = none
     bindGlow: 1.0,
     bindFoot: 0.8, // × glyph radius at the floor
     bindStreaks: 14, // streams of rune-rain round it
@@ -136,7 +136,7 @@ export default {
     runeHeight: 0.9, // metres they float at
     runeOrbit: 0.6, // rad/s they circle
     runeBob: 0.12, // metres they bob
-    runeGlow: 1.6,
+    runeGlow: 1.1,
     runeRise: 4.5, // m/s they are flung up the pillar
     colorRuneFrag: '#c9b8ff',
 
@@ -145,22 +145,23 @@ export default {
     /* ================================================================ */
     pillarRadius: 0.55, // metres
     pillarHeight: 5, // metres — capped so a pillar near the camera stays in frame
-    pillarFlare: 0.9, // how much wider the base flares
+    pillarFlare: 0.45, // how much wider the base flares
     pillarTime: 0.9, // seconds each pillar stands
     pillarRise: 0.1, // seconds it takes to shoot to full height
-    pillarGlow: 0.65, // brightness
-    pillarCore: 0.3, // white-hot core strength (the thin axis only)
+    pillarGlow: 0.5, // brightness
+    pillarCore: 0.22, // white-hot core strength (the thin axis only)
     pillarCoreReach: 0.5, // share of the height the white axis climbs; above it the column falls tint → body → deep
     pillarTopDeep: 1, // how hard the upper column falls to the deep stop
-    pillarCoreTight: 16, // how thin the white axis is (higher = thinner)
+    pillarAxisHeat: 0.45, // how far the axis pulls the ramp to its pale stops — low keeps a violet column with a thin core, not a lavender bloom
+    pillarCoreTight: 22, // how thin the white axis is (higher = thinner)
     pillarStreaks: 10, // light streaks round it
     pillarStreakSpeed: 6, // how fast they race up
     pillarFresnel: 2.2, // edge brightening
     pillarSoftFade: 0.5, // soft contact with the floor, metres
-    pillarCover: 0.55, // how much the deep walls cover what is behind (premultiplied, not additive)
+    pillarCover: 0.72, // how much the deep walls cover what is behind (premultiplied, not additive)
     colorPillarCore: '#ffffff',
-    colorPillarA: '#a58cff',
-    colorPillarB: '#6a3dff',
+    colorPillarA: '#8a62ff',
+    colorPillarB: '#4f24d8',
     colorPillarDeep: '#1a0a4a', // the deep stop at the walls and the top
 
     /* ================================================================ */
@@ -176,15 +177,15 @@ export default {
     /* ================================================================ */
     shockReach: 2.4, // × glyph radius the ring travels
     shockTime: 0.45, // seconds it takes
-    shockWidth: 0.08, // metres
-    shockGlow: 2,
-    decalShock: 1, // strength of the engine shockwave decal
-    burstSize: 1.6, // metres — the ionised shell at each eruption
-    burstIntensity: 0.8,
-    colorShock: '#a594ff',
-    colorBurstA: '#cbbfff',
-    colorBurstB: '#7c8cff',
-    colorBurstC: '#3a1aa8',
+    shockWidth: 0.05, // metres
+    shockGlow: 0.55,
+    decalShock: 0.3, // strength of the engine shockwave decal
+    burstSize: 0.9, // metres — the ionised shell at each eruption
+    burstIntensity: 0.35,
+    colorShock: '#7a58ff',
+    colorBurstA: '#8e6cff',
+    colorBurstB: '#5230d0',
+    colorBurstC: '#1e0c66',
     /* the floor keeps the chain: each stamp leaves a dark imprint, each
        eruption a wider burn, both outliving the glyphs */
     imprintDark: 0.75, // strength of the imprint under a stamped glyph
@@ -203,8 +204,8 @@ export default {
     shardSpeed: 9,
     shardLifetime: 1.1,
     shardGravity: 9,
-    shardGlow: 2.2,
-    colorShardA: '#ffffff',
+    shardGlow: 1.4,
+    colorShardA: '#d8ccff',
     colorShardB: '#b49cff',
     colorShardC: '#7c8cff',
     colorShardD: '#2a1470',
@@ -224,19 +225,19 @@ export default {
     streakSpeed: 16,
     streakLifetime: 0.5,
     streakStretch: 0.6,
-    streakGlow: 1.5,
-    colorStreakA: '#e6e0ff',
-    colorStreakB: '#c4b6ff',
+    streakGlow: 1.1,
+    colorStreakA: '#b49cff',
+    colorStreakB: '#8a6cff',
     colorStreakC: '#7c8cff',
     colorStreakD: '#3a1aa8',
     /* --- halo rings climbing each pillar --- */
-    ringCount: 3, // per eruption
-    ringSize: 3.2, // × pillar radius
+    ringCount: 2, // per eruption
+    ringSize: 2.4, // × pillar radius
     ringRise: 6, // m/s they climb
     ringLifetime: 0.45,
-    ringGlow: 1.2,
-    colorRingA: '#d8ceff',
-    colorRingB: '#9aa6ff',
+    ringGlow: 0.55,
+    colorRingA: '#9a7cff',
+    colorRingB: '#6a48e0',
     colorRingC: '#6a3dff',
     colorRingD: '#1a0c50',
 

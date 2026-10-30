@@ -60,16 +60,17 @@ export default {
     landTime: 0.12, // s the spring takes to grow to full size on landing
 
     /* --- 1 · the mainspring (solid blued steel) --- */
-    bandHeight: 0.34, // band height at the arbor (× zone radius) → ~1.15 m, stepping down to ~0.35 m at the outer end
-    bandThickness: 0.075,
-    bandTaper: 0.7, // the band steps down toward its outer end, so every coil shows above the one outside it // band thickness (m)
+    bandHeight: 0.72, // top of the band at the arbor (× zone radius) → ~2.45 m, falling to ~0.4 m at the free outer end
+    bandRibbon: 0.17, // the band's own width (× bandHeight ≈ 0.42 m): its foot lifts toward the arbor, so the coil climbs as one conical helix
+    bandThickness: 0.15,
+    bandTaper: 0.84, // the band steps down toward its outer end, so every coil shows above the one outside it // band thickness (m)
     arborShare: 0.12, // inner end of the band (× radius)
     tightOuter: 0.5, // outer radius when fully wound (× radius)
     openOuter: 0.97, // outer radius when fully let go (× radius)
-    tightTurns: 2.1, // coils when wound — few enough that the gaps between them stay open
-    openTurns: 2, // coils when let go
-    hookCurl: 0.5, // the outer end curls back into a hook (rad)
-    hookShare: 0.05, // length of the hook (fraction of the band)
+    tightTurns: 1.8, // coils when wound — few enough that the gaps between them stay open
+    openTurns: 1.55, // coils when let go — few, so the climb between turns reads as pitch
+    hookCurl: 0.9, // the outer end curls back into a hook (rad)
+    hookShare: 0.07, // length of the hook (fraction of the band)
     bandWave: 0.06, // the band ripples in height as it lashes (× height)
     steelColor: '#1d3560', // blued steel (upper band) — dark: the band is metal, not light
     steelMetalness: 0.3, // moderate: a mirror band reflects the sky as vertical streaks
@@ -89,16 +90,18 @@ export default {
     stressFresnel: 2.4, // rim sharpness
     stressPulses: 7, // pulses along the band
     stressSpeed: 3, // pulses run at (× the cast's clock)
-    edgeGlow: 1.4, // the hot top edge of the band
+    edgeGlow: 1.1, // the hot top edge of the band
     edgeWidth: 0.08, // the hot edge is a thin line along the top of the side faces (share of height)
-    edgeTop: 0.4, // edge light allowed onto the flat top face (low: it read as a white basin rim)
+    edgeTop: 0.25,
+    edgeInner: 0.15, // edge line left on the inner coils — the outer limb carries it
+    tipGlow: 1.2, // the free outer end lit hot // edge light allowed onto the flat top face (low: it read as a white basin rim)
     stressFill: 0.03, // stress wash over the whole face — kept near zero, the glow is in lines
     stressRim: 0.12, // fresnel rim share
     stressSharp: 90, // stress-line sharpness (higher = thinner slashes)
     stressInflate: 0.012, // the light skin floats this far off the steel (m) — no z-fighting
 
     /* --- 3 · the arbor, ratchet, pawl and key (solid) --- */
-    arborHeight: 0.5, // arbor post height (× radius)
+    arborHeight: 0.78, // arbor post height (× radius)
     arborWidth: 1, // arbor thickness scale
     ratchetTeeth: 24, // teeth on the ratchet (rebuilt on change)
     ratchetSize: 0.2, // ratchet radius (× radius)
@@ -118,7 +121,7 @@ export default {
     debtInk: 0.8, // dark ink that creeps back as the debt is repaid
     floorGrain: 1, // fbm grain in the ledger
     ledgerRim: 0.2, // the ledger's outer rim line (kept low: a bright rim read as a fountain basin)
-    ledgerCoil: 0.6, // the lit spiral groove under the steel
+    ledgerCoil: 0.3, // the lit spiral groove under the steel
     floorFlow: 1, // grooves run at (× the cast's clock)
     dissolveTime: 0.8, // fraction of the exit spent dissolving
 
@@ -126,7 +129,7 @@ export default {
     smearGlow: 0.8,
     smearOpacity: 0.45,
     smearLength: 2.2, // rad behind the tip at full borrowed speed
-    smearHeight: 1.1, // × band height
+    smearHeight: 0.3, // × band height (the outer limb is the low end of the helix)
     smearStreaks: 18, // vertical streaks in the smear
 
     /* --- 6 · particles --- */
@@ -184,7 +187,7 @@ export default {
 
     /* --- light --- */
     lightColor: '#7fd0ff',
-    lightIntensity: 6,
+    lightIntensity: 4,
     lightRadius: 10,
     lightHeight: 1.2, // m above the floor (inside the coil)
 

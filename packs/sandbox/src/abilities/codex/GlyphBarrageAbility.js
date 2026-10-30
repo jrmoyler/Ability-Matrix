@@ -592,7 +592,7 @@ export class GlyphBarrageAbility extends Ability {
       // Lands oversized and is pressed down into the floor.
       s.scale = 1 + c.stampOvershoot * (1 - Easing.outCubic(st));
       s.stamp = Easing.outCubic(saturate(sa / Math.max(0.01, c.stampTime * 1.6)));
-      s.bright = (1 + 2.2 * Math.exp(-sa / 0.12)) * (1 + throb) + (e >= 0 ? 3.5 * Math.exp(-e / 0.1) : 0);
+      s.bright = (1 + 1.2 * Math.exp(-sa / 0.12)) * (1 + throb) + (e >= 0 ? 1.4 * Math.exp(-e / 0.1) : 0);
       s.spent = e >= 0 ? lerp(1, c.spentDim, smoothstep(0, 0.35, e)) : 1;
       s.fade = fadeT;
       if (e >= 0) {
@@ -652,7 +652,10 @@ export class GlyphBarrageAbility extends Ability {
       bs.top = rec.sealR * 0.92;
       bs.height = Math.max(0.05, rec.sealY);
       bs.seed = rec.seed;
-      bs.intensity = c.bindStrength * rec.sealLift * (0.55 + 0.9 * rec.charge) * (1 - fadeT);
+      // Once its glyph erupts the shaft is cut: it must not stretch up after
+      // the flung seal as a pale cone laid over the violet pillar.
+      const cut = rec.eruptAt >= 0 ? Math.exp(-(this.age - rec.eruptAt) / 0.06) : 1;
+      bs.intensity = c.bindStrength * rec.sealLift * (0.55 + 0.9 * rec.charge) * (1 - fadeT) * cut;
       rec.bindMaterial.userData.sync(bs);
       rec.bind.position.set(rec.x, 0, rec.z);
     }
@@ -912,7 +915,8 @@ export class GlyphBarrageAbility extends Ability {
       width: 0.07,
       intensity: c.decalShock,
       colorA: getColor(c.colorShock),
-      colorB: getColor(c.colorLine)
+      // violet, not white: the floor ring stays in the ramp's body stop
+      colorB: getColor(c.colorPillarB)
     });
     _pos.set(rec.x, 0.9, rec.z);
     this.ctx.bursts.spawn(BurstMode.STORM, _pos, {
@@ -1341,6 +1345,7 @@ export function buildEditor(gui, c, Editor) {
   R(pillar, c, 'pillarCoreTight', 1, 40, 0.5, 'axis thinness');
   R(pillar, c, 'pillarCoreReach', 0.05, 1, 0.01, 'white axis climbs (share of height)');
   R(pillar, c, 'pillarTopDeep', 0, 2, 0.01, 'upper column falls to deep');
+  R(pillar, c, 'pillarAxisHeat', 0, 2, 0.01, 'pale share of the column (caps the lavender bloom)');
 
   const warp = folder.addFolder('4 · Distortion');
   R(warp, c, 'warpStrength', 0, 4, 0.01, 'strength');
