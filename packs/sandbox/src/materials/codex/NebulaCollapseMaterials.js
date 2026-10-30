@@ -64,6 +64,7 @@ const NEBULA_PLACE_GLSL = /* glsl */ `
   uniform float uCoreRadius;  // metres it collapses into
   uniform float uBlast;       // 0..1 blown out
   uniform float uBlastRadius; // metres
+  uniform float uThickKeep;   // share of the half-thickness the falling cloud keeps
 
   /** Where this instance is, and how collapsed (x) and blown out (y) it is. */
   vec3 placeDice(out vec2 state) {
@@ -77,7 +78,7 @@ const NEBULA_PLACE_GLSL = /* glsl */ `
     float spin = uAngle * (1.0 + aSeed.z * 0.2) * mix(1.0, 1.0 / (0.3 + rad), uShear);
     float ang = aDice.x + spin + uWind * k * (1.0 - rad * 0.5);
     float r = mix(rad * uRadius, rad * uCoreRadius, k);
-    float y = aDice.z * mix(uThick, uCoreRadius * 0.3, k);
+    float y = aDice.z * mix(uThick, max(uCoreRadius * 0.3, uThick * uThickKeep), k);
     float outR = uBlastRadius * (0.35 + 0.65 * rad) * (0.8 + 0.4 * aSeed.x);
     r = mix(r, outR, b);
     y = mix(y, aDice.z * uThick * 1.4, b);
@@ -97,7 +98,8 @@ function placeUniforms() {
     uWind: { value: 2 },
     uCoreRadius: { value: 0.5 },
     uBlast: { value: 0 },
-    uBlastRadius: { value: 10 }
+    uBlastRadius: { value: 10 },
+    uThickKeep: { value: 0.4 }
   };
 }
 
@@ -115,6 +117,7 @@ function syncPlace(u, state) {
   u.uCoreRadius.value = c.coreRadius * c.collapseTo;
   u.uBlast.value = state.blast;
   u.uBlastRadius.value = state.blastRadius;
+  u.uThickKeep.value = c.collapseThickKeep;
 }
 
 /* -------------------------------------------------------------------- */
@@ -288,10 +291,10 @@ export function createNebulaGasMaterial(lane = false) {
     u.uAccent.value = Math.min(1, Math.max(0, c.gasAccent));
     u.uLane.value = c.laneDensity * g.opacity;
     u.uLaneLift.value = c.laneLift;
-    u.uCollapseThin.value = lane ? c.collapseThin * 0.5 : c.collapseThin;
+    u.uCollapseThin.value = lane ? c.collapseThin * 0.2 : c.collapseThin;
     u.uColorDeep.value.copy(getColor(c.colorDeep));
     u.uSizeJitter.value = c.puffSizeJitter * g.randomness;
-    u.uCoreSize.value = c.puffCoreSize;
+    u.uCoreSize.value = lane ? Math.max(c.puffCoreSize, c.laneCoreSize) : c.puffCoreSize;
     u.uBlastSize.value = c.puffBlastSize;
     u.uFlow.value = state.flow;
     u.uNoiseScale.value = c.gasNoiseScale * g.noiseFrequency;
@@ -444,6 +447,8 @@ const CORE_FRAGMENT = /* glsl */ `
   uniform vec3  uColorHot;
   uniform vec3  uColorCore;
   uniform vec3  uColorLimb;
+  uniform float uHeatCap;     // most of the way to white-gold the body may go
+  uniform float uBloomCap;    // brightest any channel may get
   uniform float uGlobalGlow;
 
   varying vec3 vNormalW;
@@ -461,11 +466,17 @@ const CORE_FRAGMENT = /* glsl */ `
     float lanes = smoothstep(0.05, 0.45, cell.x);
     float boil = fbm3(vObj * uGranScale * 0.6 + vec3(0.0, 0.0, uBoil));
     float surf = 0.65 + 0.35 * (1.0 - lanes) + 0.25 * boil;
-    vec3 col = mix(uColorCore, uColorHot, clamp(ndv * ndv * 0.8 + uHeat * 0.6, 0.0, 1.0));
+    // White-gold never takes the whole disc: capped, so the star keeps its
+    // orange body and dark granulation lanes instead of blooming to a blot.
+    vec3 col = mix(uColorCore, uColorHot, clamp(ndv * ndv * 0.6 + uHeat * 0.4, 0.0, uHeatCap));
+    col *= mix(0.45, 1.0, 1.0 - lanes * 0.6);
     // Limb: a thin hot rim where the corona starts.
     float limb = pow(1.0 - ndv, 3.0) * uLimb;
     col = col * surf + uColorLimb * limb;
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow, uFade);
+    col *= uGlow * uGlobalGlow;
+    float m = max(max(col.r, col.g), col.b);
+    col *= uBloomCap / max(uBloomCap, m);
+    gl_FragColor = vec4(col, uFade);
   }
 `;
 
@@ -486,7 +497,9 @@ export function createProtostarMaterial() {
       uFade: { value: 1 },
       uColorHot: { value: new Color() },
       uColorCore: { value: new Color() },
-      uColorLimb: { value: new Color() }
+      uColorLimb: { value: new Color() },
+      uHeatCap: { value: 0.55 },
+      uBloomCap: { value: 1.4 }
     }),
     vertexShader: CORE_VERTEX,
     fragmentShader: CORE_FRAGMENT
@@ -506,6 +519,8 @@ export function createProtostarMaterial() {
     u.uColorHot.value.copy(getColor(c.colorHot));
     u.uColorCore.value.copy(getColor(c.colorCore));
     u.uColorLimb.value.copy(getColor(c.colorB));
+    u.uHeatCap.value = c.coreHeatCap;
+    u.uBloomCap.value = c.coreBloomCap;
   };
 
   return material;
@@ -541,6 +556,7 @@ const CORONA_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform vec3  uColorHot;
   uniform vec3  uColorRay;
+  uniform float uBloomCap;
   uniform float uGlobalGlow;
 
   varying vec2 vUv;
@@ -561,9 +577,15 @@ const CORONA_FRAGMENT = /* glsl */ `
     float glow = exp(-beyond / max(uFalloff, 0.01));
     float edge = 1.0 - smoothstep(0.8, 1.0, r);
     // White-gold only right at the limb; the glow cools to the tint as it spreads.
-    vec3 col = mix(uColorRay, uColorHot, glow * glow) * glow * 0.9 + uColorRay * rays * 1.3;
-    float level = (glow + rays) * edge * uFade;
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(level, 0.0, 1.0));
+    vec3 col = mix(uColorRay, uColorHot, pow(glow, 4.0) * 0.7) * glow * 0.9 + uColorRay * rays * 1.3;
+    col *= uGlow * uGlobalGlow;
+    float m = max(max(col.r, col.g), col.b);
+    col *= uBloomCap / max(uBloomCap, m);
+    // Hollow over the star's own disc: the corona starts at the limb, so it
+    // never stacks on the star's face into a white blot.
+    float hollow = smoothstep(uCore * 0.75, uCore * 1.05, r);
+    float level = (glow + rays) * edge * uFade * hollow;
+    gl_FragColor = vec4(col, clamp(level, 0.0, 1.0));
   }
 `;
 
@@ -585,7 +607,8 @@ export function createCoronaMaterial() {
       uGlow: { value: 2 },
       uFade: { value: 1 },
       uColorHot: { value: new Color() },
-      uColorRay: { value: new Color() }
+      uColorRay: { value: new Color() },
+      uBloomCap: { value: 0.8 }
     }),
     vertexShader: BILLBOARD_VERTEX,
     fragmentShader: CORONA_FRAGMENT
@@ -606,6 +629,7 @@ export function createCoronaMaterial() {
     u.uFade.value = state.fade * g.opacity;
     u.uColorHot.value.copy(getColor(c.colorHot));
     u.uColorRay.value.copy(getColor(c.colorB));
+    u.uBloomCap.value = c.coronaBloomCap;
   };
 
   return material;
@@ -683,7 +707,7 @@ const DISK_FRAGMENT = /* glsl */ `
 
     // Ramp: white-gold only at the inner lip, pale tint, then violet body,
     // with the dust between the arms falling to the deep tone.
-    vec3 col = mix(uColorHot, uColorMid, smoothstep(0.0, 0.07, t));
+    vec3 col = mix(mix(uColorMid, uColorHot, 0.5), uColorMid, smoothstep(0.0, 0.07, t));
     col = mix(col, uColorOut, smoothstep(0.07, 0.25, t));
     col = mix(col, uColorDeep, smoothstep(0.55, 1.0, t) * 0.7);
     col = mix(uColorDeep, col, 0.25 + 0.75 * lanes);
@@ -696,7 +720,7 @@ const DISK_FRAGMENT = /* glsl */ `
     level *= 1.0 + uDoppler * toward;
     level *= uFade;
     if (level < 0.003) discard;
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * (1.0 + pow(1.0 - t, 6.0) * 1.5), clamp(level, 0.0, 1.0));
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow * uShaderIntensity * (1.0 + pow(1.0 - t, 6.0) * 0.6), clamp(level, 0.0, 1.0));
   }
 `;
 
@@ -997,9 +1021,13 @@ const GROUND_FRAGMENT = /* glsl */ `
 
     // 2 · gravity ripples running inward, sharper as they near the middle.
     float ph = r * uRingsPerM + uInflowPhase;
-    float ripple = pow(0.5 + 0.5 * cos(6.2831853 * ph), 10.0);
+    // Broken up along the well's spiral and by noise, so they read as dust
+    // being dragged in, not a stack of concentric outline rings.
+    float aR = atan(dir.y, dir.x);
+    float ripple = pow(0.5 + 0.5 * cos(6.2831853 * ph + aR * 2.0), 3.0);
+    ripple *= smoothstep(0.1, 0.7, fbm3(vec3(p * 0.8, uInflowPhase * 0.2 + uSeed)) * 0.5 + 0.5);
     float inMask = (1.0 - smoothstep(zone * 0.7, zone * 1.2, r)) * smoothstep(0.0, zone * 0.25, r);
-    col += mix(uColorB, uColorHot, 1.0 - r / (zone * 1.2)) * ripple * inMask * uInflow;
+    col += mix(uColorA, uColorB, 0.35) * ripple * inMask * uInflow;
 
     // 3 · the shock front, its colours split, and the starburst behind it.
     float w = max(uShockWidth, 0.02);
@@ -1106,6 +1134,7 @@ const WELL_FRAGMENT = /* glsl */ `
   uniform float uPhase;       // integrated, rad
   uniform float uRim;
   uniform float uOpacity;
+  uniform float uArmLight;    // how lit the dust arms are against the deep field
   uniform vec3  uColorA;
   uniform vec3  uColorB;
   uniform vec3  uDeep;
@@ -1124,14 +1153,16 @@ const WELL_FRAGMENT = /* glsl */ `
     // Log-spiral arms of dust; turning the phase winds them in toward the heart.
     float sp = a * uArms + uTwist * log(q + 0.08) * uArms * 0.5 + uPhase;
     float n = snoise(vec3(p * 0.9, uSeed + uPhase * 0.15));
-    float arm = pow(0.5 + 0.5 * sin(sp + n * 1.4), 3.0);
+    float arm = pow(0.5 + 0.5 * sin(sp + n * 1.4), 1.6);
     float disc = 1.0 - smoothstep(0.75, 1.05, q);
-    // The heart sinks toward the deep tone; the arms are dim violet dust on it.
-    float sink = uDepth * disc * (0.55 + 0.45 * (1.0 - q));
-    float rim = exp(-pow((q - 1.0) / 0.07, 2.0)) * uRim;
-    vec3 col = mix(uDeep, uColorA * 0.9, arm * (0.35 + 0.65 * q) * disc);
-    col = mix(col, uColorB, rim * 0.6);
-    float alpha = (sink * (0.8 + 0.2 * arm) + arm * disc * 0.35 + rim * 0.5) * uStrength * uOpacity;
+    // A filled field of dragged dust: mottled deep body everywhere inside,
+    // broad violet arms winding through it, the heart sinking to near-black.
+    float mott = fbm3(vec3(p * 1.3, uSeed * 1.7 + uPhase * 0.1)) * 0.5 + 0.5;
+    float sink = uDepth * disc * (0.7 + 0.3 * (1.0 - q));
+    float rim = exp(-pow((q - 1.0) / 0.12, 2.0)) * uRim * (0.5 + 0.5 * mott);
+    vec3 col = mix(uDeep * (0.7 + 0.6 * mott), uColorA * (0.45 + 0.35 * mott), arm * smoothstep(0.1, 0.6, q) * disc * uArmLight);
+    col = mix(col, uColorA * 0.8, rim * 0.5);
+    float alpha = (sink * (0.85 + 0.15 * arm) + rim * 0.3) * uStrength * uOpacity;
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.95));
   }
@@ -1162,6 +1193,7 @@ export function createNebulaWellMaterial() {
       uPhase: { value: 0 },
       uRim: { value: 1 },
       uOpacity: { value: 1 },
+      uArmLight: { value: 0.8 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uDeep: { value: new Color() }
@@ -1186,6 +1218,7 @@ export function createNebulaWellMaterial() {
     u.uPhase.value = state.phase;
     u.uRim.value = c.wellRim * g.glow;
     u.uOpacity.value = g.opacity;
+    u.uArmLight.value = c.wellArmLight;
     u.uColorA.value.copy(getColor(c.colorA));
     u.uColorB.value.copy(getColor(c.colorB));
     u.uDeep.value.copy(getColor(c.colorDeep));

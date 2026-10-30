@@ -1114,6 +1114,7 @@ export function buildEditor(gui, c, Editor) {
   R(shape, c, 'cloudHeightPerZone', 0.1, 2, 0.01, 'height (× circle)');
   R(shape, c, 'cloudHeight', -3, 8, 0.05, 'height, extra (m)');
   R(shape, c, 'cloudThickness', 0.05, 5, 0.01, 'half-thickness (m)');
+  R(shape, c, 'collapseThickKeep', 0, 1, 0.01, 'thickness kept as it falls');
   R(shape, c, 'cloudSpin', -3, 3, 0.01, 'spin (rad/s)');
   R(shape, c, 'spinUp', 0, 20, 0.05, 'spins up as it falls');
   R(shape, c, 'cloudShear', 0, 1, 0.01, 'spiral shear');
@@ -1135,6 +1136,7 @@ export function buildEditor(gui, c, Editor) {
   R(gasF, c, 'collapseThin', 0, 1, 0.01, 'collapsed gas thins away');
   R(gasF, c, 'laneDensity', 0, 1, 0.01, 'dark lanes');
   R(gasF, c, 'laneSize', 0.5, 2, 0.01, 'lane size (× puff)');
+  R(gasF, c, 'laneCoreSize', 0.05, 1.5, 0.01, 'lane size collapsed (× size)');
   R(gasF, c, 'laneLift', 0, 1, 0.01, 'lane violet glow');
   gasF.addColor(c, 'colorDeep').name('deep (lanes, well)');
   R(gasF, c, 'gasSoftFade', 0.01, 4, 0.01, 'soft intersection (m)');
@@ -1166,6 +1168,8 @@ export function buildEditor(gui, c, Editor) {
   R(star, c, 'coreBoilSpeed', 0, 8, 0.05, 'boil speed');
   R(star, c, 'coreLimb', 0, 8, 0.05, 'hot rim');
   R(star, c, 'coreGlow', 0, 12, 0.05, 'glow');
+  R(star, c, 'coreHeatCap', 0, 1, 0.01, 'white-gold cap');
+  R(star, c, 'coreBloomCap', 0.2, 6, 0.05, 'bloom cap');
   R(star, c, 'corePulse', 0, 0.5, 0.005, 'throb');
   R(star, c, 'implodeShare', 0, 1, 0.01, 'implodes over (share of hold)');
   R(star, c, 'implodeScale', 0.05, 1, 0.01, 'implodes to (× radius)');
@@ -1177,6 +1181,7 @@ export function buildEditor(gui, c, Editor) {
   R(corona, c, 'coronaRayLength', 0.02, 1, 0.01, 'streamer length');
   R(corona, c, 'coronaFalloff', 0.01, 1, 0.01, 'glow falloff');
   R(corona, c, 'coronaGlow', 0, 8, 0.05, 'glow');
+  R(corona, c, 'coronaBloomCap', 0.1, 6, 0.05, 'bloom cap');
   const disk = star.addFolder('Accretion disk');
   R(disk, c, 'diskInner', 1, 6, 0.01, 'inner (× core)');
   R(disk, c, 'diskOuter', 1.2, 14, 0.05, 'outer (× core)');
@@ -1237,6 +1242,7 @@ export function buildEditor(gui, c, Editor) {
   R(ground, c, 'wellTwist', -8, 8, 0.05, 'arm winding');
   R(ground, c, 'wellSpeed', -6, 6, 0.05, 'arms wind in (rad/s)');
   R(ground, c, 'wellRim', 0, 3, 0.01, 'well lip glow');
+  R(ground, c, 'wellArmLight', 0, 2, 0.01, 'well dust arms light');
   R(ground, c, 'wellScar', 0, 1, 0.01, 'scar after the blast');
   R(ground, c, 'debrisRate', 0, 300, 1, 'chips dragged in / s');
   R(ground, c, 'debrisSize', 0.01, 0.4, 0.005, 'chip size');

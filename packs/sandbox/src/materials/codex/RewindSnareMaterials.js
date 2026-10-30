@@ -154,6 +154,9 @@ const FILM_FRAGMENT = /* glsl */ `
   uniform vec3  uCore;
   uniform float uShade;       // 0..1 how much the standing cocoon is lit by the sun
   uniform float uRimLight;    // its silhouette rim
+  uniform float uCoilDark;    // 0..1 how far the wound film falls to the deep stock
+  uniform float uCoilFrame;   // the frames' light left in the wound film
+  uniform float uCoilLine;    // amber on its frame lines and edges
   uniform vec3  uLightDir;
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -223,6 +226,18 @@ const FILM_FRAGMENT = /* glsl */ `
     float rim = smoothstep(halfW * 0.9, halfW, x);
     col += uEdge * rim * uEdgeGlow * 0.55;
 
+    // Wound up in the cocoon the film is a solid, shaded thing: dark sepia
+    // stock carries the mass, the ghost images glimmer dimly in it, and amber
+    // lives only on the frame lines, the sprocket lip and the edges.
+    // (A full replace, not a blend: even a tenth of the bright frame colour
+    // left underneath reads as an amber block once it blooms.)
+    float coilK = vCoil;
+    vec3 coilCol = mix(uFilmDark * mix(1.6, 0.25, uCoilDark), uFilm * uCoilFrame, inFrame * smoothstep(0.55, 1.0, img));
+    coilCol = mix(coilCol, uFilmDark * 0.6, edgeBand * 0.6);
+    float coilLines = frameLine * (1.0 - edgeBand) + rim;
+    coilCol += uEdge * coilLines * uCoilLine;
+    col = mix(col, coilCol, coilK);
+
     // Standing in the cocoon the film is a lit surface: sun, shadow side, rim.
     vec3 N = normalize(vNrm);
     vec3 V = normalize(vViewDir);
@@ -234,10 +249,12 @@ const FILM_FRAGMENT = /* glsl */ `
 
     // The leading end of the unspooling film, and the lock's flare.
     if (uMode > 0.5) col += uCore * exp(-(uOut - vL) * 2.0) * uEdgeGlow * 1.2;
-    col += uEdge * uLock * (0.4 + vCoil) * 0.8;
+    col += uEdge * uLock * mix(1.4, 0.25 + 0.9 * coilLines, coilK) * 0.8;
     col += uCore * burnEdge * 5.0;
 
     float a = uOpacity * mix(0.75, 1.0, edgeBand + frameLine);
+    // Wound film is dense: what is bound inside does not glow through it.
+    a = mix(a, max(a, 0.97), coilK);
     vec2 suv = gl_FragCoord.xy / uResolution;
     a *= softFade(uSceneDepth, suv, vViewZ, uCameraNear, uCameraFar, 0.05);
     if (a < 0.004) discard;
@@ -290,7 +307,10 @@ export function createFilmMaterial() {
       uEdge: { value: new Color() },
       uCore: { value: new Color() },
       uShade: { value: 0.8 },
-      uRimLight: { value: 1 }
+      uRimLight: { value: 1 },
+      uCoilDark: { value: 0.85 },
+      uCoilFrame: { value: 0.3 },
+      uCoilLine: { value: 1.2 }
     }),
     vertexShader: FILM_VERTEX,
     fragmentShader: FILM_FRAGMENT
@@ -341,6 +361,9 @@ export function createFilmMaterial() {
     u.uCore.value.copy(getColor(c.colorCore));
     u.uShade.value = c.coilShade;
     u.uRimLight.value = c.coilRim * g.fresnel;
+    u.uCoilDark.value = c.coilDark;
+    u.uCoilFrame.value = c.coilFrameGlow * g.glow;
+    u.uCoilLine.value = c.coilLineGlow * g.glow;
   };
 
   return material;

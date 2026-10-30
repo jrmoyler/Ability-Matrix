@@ -53,7 +53,8 @@ export default {
     cloudRadiusPerZone: 1.1, // × zoneRadius
     cloudRadius: 0, // extra metres on the derived radius
     cloudHeight: 0.15, // extra metres on the derived height
-    cloudThickness: 0.55, // half-thickness, metres — a flattened disc
+    cloudThickness: 0.85, // half-thickness, metres — a flattened disc
+    collapseThickKeep: 0.55, // share of that half-thickness the cloud keeps as it falls in (a fat globule, not a sliver)
     cloudSpin: 0.35, // rad/s it turns while it gathers
     spinUp: 5, // how much faster it turns once it is collapsing (angular momentum)
     cloudShear: 0.55, // 0..1 how much faster the inside turns — spiral shear
@@ -71,7 +72,7 @@ export default {
     gasDensity: 0.65,
     gasGlow: 0.55, // brightness (bloom > 1) — the deep lanes carry the body
     gasAccent: 0.35,
-    collapseThin: 0.8, // 0..1 how much fully collapsed gas thins away into the star // share of puffs tinted teal / magenta; the rest are violet
+    collapseThin: 0.93, // 0..1 how much fully collapsed gas thins away into the star // share of puffs tinted teal / magenta; the rest are violet
     gasSoftFade: 1.2, // soft intersection, metres
     // Four-stop cosmic ramp: white-gold heat → pale lilac tint → violet body → deep.
     colorA: '#6f2ee6', // violet gas — the body
@@ -81,9 +82,10 @@ export default {
     colorDeep: '#14062e', // the dark dust lanes and the gravity well
 
     /* --- dark dust lanes: the cloud's body against the floor --- */
-    laneDensity: 0.6, // how much the lanes darken what is behind them
-    laneSize: 1.15, // × puff size
-    laneLift: 0.35, // the lanes' own violet glow, so they read as dust not holes
+    laneDensity: 0.82, // how much the lanes darken what is behind them
+    laneSize: 1.25, // × puff size
+    laneCoreSize: 0.8, // the dust lanes' size once collapsed, × size — the dark body round the forming star
+    laneLift: 0.5, // the lanes' own violet glow, so they read as dust not holes
 
     /* --- stars sprinkled through it --- */
     starCount: 70, // (max 120)
@@ -103,7 +105,9 @@ export default {
     coreGranulation: 5, // boiling cells across it
     coreBoilSpeed: 1.6,
     coreLimb: 2.2, // hot rim
-    coreGlow: 0.95,
+    coreGlow: 0.65,
+    coreHeatCap: 0.4, // 0..1 most of the way to white-gold the star's body goes
+    coreBloomCap: 0.8, // brightest the star may get (caps the bloom)
     corePulse: 0.08, // how much it throbs
     implodeShare: 0.3, // share of the hold it spends imploding before it blows
     implodeScale: 0.45, // how small it gets, × radius
@@ -114,7 +118,8 @@ export default {
     coronaRays: 9, // streamers round it
     coronaRayLength: 0.35, // share of the corona
     coronaFalloff: 0.12, // glow falloff, share of the corona
-    coronaGlow: 0.6,
+    coronaGlow: 0.45,
+    coronaBloomCap: 0.45, // brightest the corona may get
 
     diskInner: 1.4, // × core radius
     diskOuter: 3.6, // × core radius
@@ -123,7 +128,7 @@ export default {
     diskArms: 3,
     diskTwist: 3.2, // how tightly the arms wind
     diskDoppler: 0.55, // brighter on the side turning toward you
-    diskGlow: 0.9,
+    diskGlow: 0.65,
 
     /* --- the lens (distortion) --- */
     lensPinch: 0.4, // the mass pulling the image in
@@ -170,7 +175,7 @@ export default {
 
     /* --- the ground under the circle --- */
     groundGlow: 0.45, // the cloud's light on the floor
-    groundRipples: 0.12, // gravity ripples running inward
+    groundRipples: 0.08, // gravity ripples running inward
     groundRippleDensity: 0.75, // rings per metre
     groundRippleSpeed: 0.9, // rings per second
     groundShock: 1.4, // the shock front
@@ -186,7 +191,8 @@ export default {
     wellArms: 4, // spiral arms of dust dragged in
     wellTwist: 2.6, // how tightly the arms wind
     wellSpeed: 1.4, // rad/s the arms turn inward (× the collapse)
-    wellRim: 0.5, // the violet lip at the well's edge
+    wellRim: 0.35,
+    wellArmLight: 0.8, // 0..1 how lit the dragged dust arms are against the deep well // the violet lip at the well's edge
     wellScar: 0.45, // how much of the well stays as a scar after the blast
     debrisRate: 70, // floor chips dragged in per second while it collapses
     debrisSize: 0.09,

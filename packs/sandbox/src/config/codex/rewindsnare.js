@@ -58,7 +58,10 @@ export default {
     colorFilmDark: '#2a1005', // deep: sepia base stock and frame lines
     colorEdge: '#ffb84a',
     coilShade: 0.85, // 0..1 the standing cocoon is lit by the sun (shadow side)
-    coilRim: 1.1, // its silhouette rim
+    coilRim: 0.7, // its silhouette rim
+    coilDark: 0.95, // 0..1 how far the wound film falls to dark sepia stock (the cocoon's mass)
+    coilFrameGlow: 0.09, // the frames' light left in the wound film
+    coilLineGlow: 0.42, // amber on the wound film's frame lines and edges
 
     /* ================================================================ */
     /* 2 · THE SPIRAL                                                    */
@@ -90,7 +93,7 @@ export default {
     lockHold: 0.9, // seconds it holds them, locked, before it burns away
     lockSpin: 0.7, // rad/s the locked cocoon keeps turning backward while it holds and burns
     claspWidth: 0.16, // the lock rings, metres
-    claspGlow: 3.5,
+    claspGlow: 1.3,
     colorClasp: '#ffcf6e',
 
     /* ================================================================ */

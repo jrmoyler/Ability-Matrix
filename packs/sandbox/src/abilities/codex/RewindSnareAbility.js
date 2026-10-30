@@ -860,6 +860,9 @@ export function buildEditor(gui, c, Editor) {
   R(coil, c, 'lockSpin', -4, 4, 0.01, 'keeps turning back (rad/s)');
   R(coil, c, 'coilShade', 0, 1, 0.01, 'sun shading');
   R(coil, c, 'coilRim', 0, 6, 0.05, 'rim light');
+  R(coil, c, 'coilDark', 0, 1, 0.01, 'wound film darkness');
+  R(coil, c, 'coilFrameGlow', 0, 3, 0.01, 'wound frames glow');
+  R(coil, c, 'coilLineGlow', 0, 6, 0.05, 'wound edge/line amber');
   R(coil, c, 'claspWidth', 0.01, 0.6, 0.005, 'clasp width (m)');
   R(coil, c, 'claspGlow', 0, 15, 0.05, 'clasp glow');
   coil.addColor(c, 'colorClasp').name('clasps');
