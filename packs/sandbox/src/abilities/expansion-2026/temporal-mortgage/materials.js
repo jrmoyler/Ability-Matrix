@@ -58,12 +58,15 @@ const QUAD_VERTEX = /* glsl */ `
 /* -------------------------------------------------------------------- */
 
 const STRESS_VERTEX = /* glsl */ `
+  uniform float uInflate;     // metres the light skin floats off the steel
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
   void main() {
     vUv = uv;
-    vec4 world = modelMatrix * vec4(position, 1.0);
+    // A hair off the steel: the light is drawn in the VFX pass, the steel in
+    // the world pass, and coplanar skins in two passes z-fight into streaks.
+    vec4 world = modelMatrix * vec4(position + normal * uInflate, 1.0);
     vNormalW = normalize(mat3(modelMatrix) * normal);
     vViewDir = cameraPosition - world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -109,9 +112,10 @@ const STRESS_FRAGMENT = /* glsl */ `
 /** The light that runs along the steel. Draw it on the band's own geometry. */
 export function createStressMaterial() {
   const material = new ShaderMaterial({
-    ...additive({ depthFunc: LessEqualDepth }),
+    ...additive({ depthFunc: LessEqualDepth, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }),
     uniforms: sharedUniforms({
       uDebt: { value: 0 },
+      uInflate: { value: 0.012 },
       uFlow: { value: 0 },
       uPulses: { value: 7 },
       uFade: { value: 1 },
@@ -134,6 +138,7 @@ export function createStressMaterial() {
     const g = settings.global;
     const u = material.uniforms;
     u.uDebt.value = s.debt;
+    u.uInflate.value = c.stressInflate;
     u.uFlow.value = s.flow;
     u.uPulses.value = c.stressPulses;
     u.uFade.value = s.fade * g.opacity;

@@ -104,10 +104,11 @@ export function createSpringGeometry() {
  * angle θ maps to (cos θ, sin θ) on (x, z)).
  *
  * @param {BufferGeometry} g
- * @param {object} p { r0, rOut, phi, psi, height, thick, wave, wavePhase, hookCurl, hookShare }
+ * @param {object} p { r0, rOut, phi, psi, height, thick, wave, wavePhase, hookCurl, hookShare, taper }
  *   r0/rOut: inner / outer radius (m); phi: total turn (rad); psi: angle of the
  *   inner end; height (m); thick (m); wave: height ripple (fraction);
- *   hookCurl (rad) and hookShare (fraction of the band) shape the outer hook.
+ *   hookCurl (rad) and hookShare (fraction of the band) shape the outer hook;
+ *   taper: how much lower the outer end stands than the inner (fraction).
  */
 export function writeSpring(g, p) {
   const S = SPRING_SEGMENTS;
@@ -127,7 +128,9 @@ export function writeSpring(g, p) {
     _cx[i] = Math.cos(theta) * r;
     _cz[i] = Math.sin(theta) * r;
     // Height ripples travel along the band; the inner coils stay quiet.
-    _h[i] = p.height * (1 + p.wave * s * Math.sin(s * 23 - p.wavePhase));
+    // The band steps down toward its outer end (`taper`), so from a low camera
+    // every inner coil shows above the one outside it and the spiral reads.
+    _h[i] = p.height * (1 - (p.taper ?? 0) * s) * (1 + p.wave * s * Math.sin(s * 23 - p.wavePhase));
   }
   // 2 · in-plane normals from the centre line (outward = tangent turned −90°)
   for (let i = 0; i <= S; i++) {

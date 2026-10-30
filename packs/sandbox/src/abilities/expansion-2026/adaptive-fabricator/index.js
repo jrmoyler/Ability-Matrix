@@ -67,6 +67,7 @@ const _aim = new Vector3();
 const _pos = new Vector3();
 const _dir = new Vector3();
 const _emit = {};
+const _muzzle = new Vector3();
 /** Scratch query point: the scope reads it immediately and never retains it. */
 const _queryPos = [0, 0, 0];
 
@@ -305,6 +306,15 @@ export class Ability extends BaseAbility {
     this.beam.frustumCulled = false;
     this.root.add(this.beam);
 
+    // The lock-on: a thin laser sight from the head to the body the next shot
+    // will take, drawn for `lockTime` before each shot. Same crossed ribbon,
+    // its own material instance in the lock colour.
+    this.lockMat = own(createBeamMaterial());
+    this.lock = new Mesh(this.beam.geometry, this.lockMat);
+    this.lock.visible = false;
+    this.lock.frustumCulled = false;
+    this.root.add(this.lock);
+
     this.impactMaterial = own(createRingMaterial(8));
     const reticle = own(createReticleGeometry());
     this.impactGroup = new Group();
@@ -340,6 +350,9 @@ export class Ability extends BaseAbility {
     /* ---- per-cast state (reset in onSpawn) ---- */
     this._point = new Vector3();
     this._targetPoint = new Vector3();
+    this._lockPoint = new Vector3();
+    this._locked = false;
+    this._hasLock = false;
     this._fxPoint = new Vector3();
     this._hasTarget = false;
     this._lastElement = null;
@@ -363,7 +376,8 @@ export class Ability extends BaseAbility {
     this._coreState = { build: 0, baseY: 0, height: BUILD_HEIGHT, flare: 0 };
     this._floorState = { fade: 1, telegraph: 1, opacity: 1, sweep: 0, rings: 0 };
     this._padState = { fade: 1, build: 0, heat: 0 };
-    this._beamState = { fade: 0, color: config.settings.beamColor };
+    this._beamState = { fade: 0, color: config.settings.beamColor, arc: 0 };
+    this._lockState = { fade: 0, color: config.settings.lockColor, arc: 0 };
     this._haloState = { fade: 1, color: config.settings.beamColor, glow: 1.6 };
     this._ringState = { fade: 0, color: config.settings.beamColor, glow: 2 };
     this._seedState = { fade: 1 };
@@ -392,6 +406,8 @@ export class Ability extends BaseAbility {
     this._beamAge = 999;
     this._hasTarget = false;
     this._lastElement = null;
+    this._locked = false;
+    this._hasLock = false;
     this._buildAge = 0;
     this._headYaw = Math.atan2(this.direction.x, this.direction.z);
     this._vanePhase = 0;
@@ -415,6 +431,7 @@ export class Ability extends BaseAbility {
     this.root.visible = true;
     this.seed.visible = true;
     this.beam.visible = false;
+    this.lock.visible = false;
     this.impactGroup.visible = false;
     this._sync();
   }
@@ -444,6 +461,17 @@ export class Ability extends BaseAbility {
       while (this._timer >= this.config.shotInterval && n++ < 4) {
         this._timer -= this.config.shotInterval;
         this._fire();
+      }
+      // Presentation only: the lock-on reads the same target choice a beat
+      // early. It never emits and never changes when the shot fires.
+      const lockTime = this._lockWindow();
+      if (lockTime > 0 && !this._locked && this._timer >= this.config.shotInterval - lockTime) {
+        this._locked = true;
+        const target = this._nearest();
+        if (target) {
+          this._lockPoint.fromArray(target.position);
+          this._hasLock = true;
+        }
       }
       this._emitMotes(dt);
     }
@@ -523,17 +551,22 @@ export class Ability extends BaseAbility {
   /* The shot (combat-bound)                                             */
   /* ------------------------------------------------------------------ */
 
-  _fire() {
+  /**
+   * The nearest unobstructed live enemy inside the scan, or null. Shared by
+   * the shot and the lock-on telegraph so both always agree on the target.
+   * Sets `failure` on a refused query (the shot's own semantics).
+   */
+  _nearest() {
     const c = this.config;
     const s = this._scope;
-    if (!s) return;
+    if (!s) return null;
     _queryPos[0] = this._point.x;
     _queryPos[1] = 0;
     _queryPos[2] = this._point.z;
     const near = s.queryActors({ position: _queryPos, radius: c.zoneRadius, relation: 'enemy' });
     if (!near?.ok) {
       this.failure = near?.reason ?? 'target query refused';
-      return;
+      return null;
     }
     // Query order is stable by actor ID, not proximity. Keep that order only
     // as the tie-breaker while selecting the nearest unobstructed live actor.
@@ -550,6 +583,16 @@ export class Ability extends BaseAbility {
       target = actor;
       bestDistance = distance;
     }
+    return target;
+  }
+
+  _fire() {
+    const c = this.config;
+    const s = this._scope;
+    if (!s) return;
+    const target = this._nearest();
+    this._locked = false;
+    this._hasLock = false;
     if (!target) return;
     const detail = s.getActor(target.id);
     if (!detail?.ok) {
@@ -631,10 +674,7 @@ export class Ability extends BaseAbility {
       });
     }
     if (c.muzzleSize > 0) {
-      const scale = Math.max(0.05, c.housingScale);
-      _pos.copy(this._point).setY((HEAD_Y + 0.2) * scale);
-      _dir.copy(this._targetPoint).sub(this._point).setY(0);
-      if (_dir.lengthSq() > 1e-6) _pos.addScaledVector(_dir.normalize(), 0.6 * scale);
+      _pos.copy(this._muzzleLocal(_muzzle, this._targetPoint, 0)).add(this._point);
       this.ctx.bursts?.spawn(BurstMode.STORM, _pos, {
         radius: 0.05,
         endRadius: c.muzzleSize,
@@ -652,6 +692,30 @@ export class Ability extends BaseAbility {
     // Scaled like the deploy beat: strike power drives knock, flash and light.
     this.lightBoost = c.shotLight * g.explosionIntensity;
     expansionImpact(this.ctx, color, c.impactShake * g.explosionIntensity, c.impactFlash * g.explosionIntensity);
+  }
+
+  /**
+   * Where the bolt leaves the sentry, in root-local metres: out on the
+   * emitter ring on the side facing `target` and up at the emitter tips, so
+   * the bolt always clears the mast — a body standing against the plinth
+   * still gets a long, plunging bolt that reads instead of one hidden inside
+   * the housing.
+   */
+  _muzzleLocal(out, target, recoil) {
+    const c = this.config;
+    const scale = Math.max(0.05, c.housingScale);
+    out.copy(target).sub(this._point).setY(0);
+    if (out.lengthSq() < 1e-8) out.copy(this.direction).setY(0);
+    if (out.lengthSq() < 1e-8) out.set(0, 0, 1);
+    out.normalize().multiplyScalar(c.muzzleReach * scale);
+    out.y = (HEAD_Y + c.muzzleHeight - recoil * c.recoilDepth) * scale;
+    return out;
+  }
+
+  /** Seconds the lock-on is drawn before a shot; never more than most of the interval. */
+  _lockWindow() {
+    const c = this.config;
+    return Math.min(Math.max(0, c.lockTime), c.shotInterval * 0.8);
   }
 
   _counterColor() {
@@ -767,7 +831,11 @@ export class Ability extends BaseAbility {
     for (let i = 0; i < this._shaped.length; i++) this._shaped[i].castShadow = shadows;
 
     // Track the last target for a beat after a shot, otherwise keep scanning.
-    if (this._hasTarget && this._beamAge < recoilTime * 2) {
+    if (this._hasLock && this.phase === AbilityPhase.IMPACT) {
+      // Slew onto the locked body before the shot.
+      const want = Math.atan2(this._lockPoint.x - this._point.x, this._lockPoint.z - this._point.z);
+      this._headYaw += angleDelta(this._headYaw, want) * Math.min(1, dt * 12);
+    } else if (this._hasTarget && this._beamAge < recoilTime * 2) {
       const want = Math.atan2(this._targetPoint.x - this._point.x, this._targetPoint.z - this._point.z);
       this._headYaw += angleDelta(this._headYaw, want) * Math.min(1, dt * 18);
     } else {
@@ -808,18 +876,42 @@ export class Ability extends BaseAbility {
     const beamTime = Math.max(0.01, c.beamTime);
     this.beam.visible = this._hasTarget && this._beamAge < beamTime;
     if (this.beam.visible) {
-      const headY = (HEAD_Y - recoil * c.recoilDepth) * scale;
-      _aim.copy(this._targetPoint).sub(this._point).setY(BODY_Y - headY);
+      this._muzzleLocal(_muzzle, this._targetPoint, recoil);
+      _aim.copy(this._targetPoint).sub(this._point).setY(BODY_Y).sub(_muzzle);
       const length = _aim.length();
       if (length > 1e-5) {
-        this.beam.position.set(0, headY, 0);
+        this.beam.position.copy(_muzzle);
         this.beam.quaternion.setFromUnitVectors(_up, _aim.multiplyScalar(1 / length));
         this.beam.scale.set(c.beamWidth, length, c.beamWidth);
       }
       const bs = this._beamState;
       bs.fade = (1 - this._beamAge / beamTime) * fade;
       bs.color = color;
+      bs.arc = c.beamArc;
       this.beamMat.userData.sync(bs);
+    }
+
+    /* ---- the lock-on sight: head → the body the next shot takes ---- */
+    const lockTime = this._lockWindow();
+    this.lock.visible = this._hasLock && lockTime > 0 && this.phase === AbilityPhase.IMPACT && c.lockOpacity > 0;
+    if (this.lock.visible) {
+      const k = saturate((this._timer - (c.shotInterval - lockTime)) / lockTime);
+      this._muzzleLocal(_muzzle, this._lockPoint, recoil);
+      _aim.copy(this._lockPoint).sub(this._point).setY(BODY_Y).sub(_muzzle);
+      const length = _aim.length();
+      if (length > 1e-5) {
+        this.lock.position.copy(_muzzle);
+        this.lock.quaternion.setFromUnitVectors(_up, _aim.multiplyScalar(1 / length));
+        // Starts wide and faint, tightens and brightens as the shot comes due.
+        this.lock.scale.set(c.lockWidth * (1.8 - 0.8 * k), length, c.lockWidth * (1.8 - 0.8 * k));
+      }
+      const ls = this._lockState;
+      // A stutter while acquiring, steady once locked.
+      const blink = k < 0.6 ? 0.55 + 0.45 * Math.sign(Math.sin(this.age * 60)) : 1;
+      ls.fade = c.lockOpacity * (0.35 + 0.65 * k) * blink * fade;
+      ls.color = c.lockColor;
+      ls.arc = c.lockArc;
+      this.lockMat.userData.sync(ls);
     }
 
     /* ---- the warp above the emitters ---- */
@@ -838,6 +930,9 @@ export class Ability extends BaseAbility {
     this.seed.visible = false;
     this._heat = 0;
     this.beam.visible = false;
+    this.lock.visible = false;
+    this._locked = false;
+    this._hasLock = false;
     this.impactGroup.visible = false;
     this.warp.visible = false;
     this._scope = null;
@@ -906,6 +1001,7 @@ export function buildEditor(gui, c, Editor) {
   R(floor, c, 'telegraphOpacity', 0, 1, 0.01, 'landing telegraph');
   R(floor, c, 'floorOpacity', 0, 2, 0.01, 'opacity');
   R(floor, c, 'floorGlow', 0, 6, 0.05, 'glow');
+  floor.addColor(c, 'floorColor').name('field colour');
   R(floor, c, 'gridScale', 0.5, 10, 0.05, 'hex grid density');
   R(floor, c, 'gridOpacity', 0, 1, 0.01, 'hex grid weight');
   R(floor, c, 'spokes', 1, 12, 1, 'spokes');
@@ -959,8 +1055,15 @@ export function buildEditor(gui, c, Editor) {
   beam.addColor(c, 'fireColor').name('vs chilled → fire');
   R(beam, c, 'beamTime', 0.02, 1, 0.01, 'beam time (s)');
   R(beam, c, 'beamWidth', 0.01, 0.4, 0.005, 'beam width (m)');
+  R(beam, c, 'beamArc', 0, 4, 0.05, 'bolt arcs up by (m)');
   R(beam, c, 'beamGlow', 0, 8, 0.05, 'beam glow');
   R(beam, c, 'beamNoise', 0, 2, 0.01, 'beam noise');
+  const lock = subFolder(shot, 'Lock-on sight');
+  lock.addColor(c, 'lockColor').name('sight colour');
+  R(lock, c, 'lockTime', 0, 1, 0.01, 'drawn before a shot (s)');
+  R(lock, c, 'lockWidth', 0.005, 0.2, 0.005, 'width (m)');
+  R(lock, c, 'lockArc', 0, 4, 0.05, 'sight arcs up by (m)');
+  R(lock, c, 'lockOpacity', 0, 1.5, 0.01, 'brightness');
   const arrival = subFolder(shot, 'Arrival');
   R(arrival, c, 'impactRadius', 0.2, 3, 0.05, 'reticle size (m)');
   R(arrival, c, 'impactDuration', 0.1, 1, 0.05, 'reticle time (s)');
@@ -969,6 +1072,8 @@ export function buildEditor(gui, c, Editor) {
   R(arrival, c, 'hitDecalRadius', 0, 4, 0.05, 'arc decal (m)');
   R(arrival, c, 'hitDecalLife', 0.1, 3, 0.05, 'arc decal life');
   R(arrival, c, 'muzzleSize', 0, 3, 0.05, 'muzzle flash (m)');
+  R(arrival, c, 'muzzleHeight', -1, 1.5, 0.01, 'bolt leaves at (m above head × scale)');
+  R(arrival, c, 'muzzleReach', 0, 1.5, 0.01, 'bolt leaves at (m out × scale)');
   R(arrival, c, 'muzzleLife', 0.02, 1, 0.01, 'muzzle flash life');
   R(arrival, c, 'shotBurst', 0, 4, 0.05, 'impact shell (m)');
   R(arrival, c, 'shotBurstLife', 0.05, 1.5, 0.01, 'impact shell life');

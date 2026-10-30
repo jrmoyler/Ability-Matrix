@@ -29,7 +29,7 @@ export default {
     /* --- the cast --- */
     range: 16, // max cast distance (m)
     minRange: 2,
-    speed: 26, // the wound spring flies to the target at (m/s)
+    speed: 15, // the wound spring flies to the target at (m/s) — slow enough that the throw reads
     cooldown: 4,
     castAnim: 'cast2',
     zoneRadius: 3.4, // the lash's reach = strike radius (m)
@@ -47,41 +47,47 @@ export default {
     debtStatus: 1, // 1: struck enemies carry the 'delayed' status for the repayment (combat on)
 
     /* --- anticipation & the throw --- */
-    chargeTime: 0.22, // the spring winds tight in the hand before it leaves (s, × lifetime)
+    chargeTime: 0.3, // the spring winds tight in the hand before it leaves (s, × lifetime)
     handHeight: 1.3, // hand height (m)
     handForward: 0.55, // hand ahead of the caster (m)
-    travelScale: 0.14, // spring size in flight (× full size)
-    travelArc: 1.3, // extra height at the top of the throw (m)
+    travelScale: 0.36, // spring size in flight (× full size)
+    travelArc: 2.1, // extra height at the top of the throw (m)
     travelSpin: 14, // rad/s it spins in flight
-    trailCount: 3, // sparks shed every 30 ms of the flight
+    trailCount: 5, // sparks shed every 30 ms of the flight
+    trailGlow: 3, // soft time motes shed every 30 ms of the flight (the visible path)
+    trailGlowSize: 0.22, // size of those motes (m)
+    chargeLight: 5, // light at the hand while the spring winds
     landTime: 0.12, // s the spring takes to grow to full size on landing
 
     /* --- 1 · the mainspring (solid blued steel) --- */
-    bandHeight: 0.4, // band height (× zone radius) → ~1.4 m standing
-    bandThickness: 0.1, // band thickness (m)
+    bandHeight: 0.34, // band height at the arbor (× zone radius) → ~1.15 m, stepping down to ~0.35 m at the outer end
+    bandThickness: 0.075,
+    bandTaper: 0.7, // the band steps down toward its outer end, so every coil shows above the one outside it // band thickness (m)
     arborShare: 0.12, // inner end of the band (× radius)
-    tightOuter: 0.3, // outer radius when fully wound (× radius)
+    tightOuter: 0.5, // outer radius when fully wound (× radius)
     openOuter: 0.97, // outer radius when fully let go (× radius)
-    tightTurns: 4.6, // coils when wound
-    openTurns: 1.6, // coils when let go
+    tightTurns: 2.1, // coils when wound — few enough that the gaps between them stay open
+    openTurns: 2, // coils when let go
     hookCurl: 0.5, // the outer end curls back into a hook (rad)
     hookShare: 0.05, // length of the hook (fraction of the band)
     bandWave: 0.06, // the band ripples in height as it lashes (× height)
-    steelColor: '#2b4f86', // blued steel
-    steelMetalness: 0.9,
-    steelRoughness: 0.28,
+    steelColor: '#2a4f8c', // blued steel
+    steelMetalness: 0.25, // kept low: a mirror band reflects the sky as vertical streaks
+    steelEnv: 0.12, // environment reflection strength on the steel
+    steelRoughness: 0.5,
     steelEmissive: '#0d3a70',
-    steelGlow: 0.2, // emissive under stress (× debt)
+    steelGlow: 0.3, // emissive under stress (× debt)
 
     /* --- 2 · the stress glow (shader over the band) --- */
-    stressGlow: 0.55, // brightness of the stress light running along the band
+    stressGlow: 0.45, // brightness of the stress light running along the band
     stressFresnel: 2.4, // rim sharpness
-    stressPulses: 7, // pulses along the band
+    stressPulses: 4, // pulses along the band
     stressSpeed: 3, // pulses run at (× the cast's clock)
     edgeGlow: 0.9, // the hot top edge of the band
+    stressInflate: 0.012, // the light skin floats this far off the steel (m) — no z-fighting
 
     /* --- 3 · the arbor, ratchet, pawl and key (solid) --- */
-    arborHeight: 0.55, // arbor post height (× radius)
+    arborHeight: 0.5, // arbor post height (× radius)
     arborWidth: 1, // arbor thickness scale
     ratchetTeeth: 24, // teeth on the ratchet (rebuilt on change)
     ratchetSize: 0.2, // ratchet radius (× radius)
@@ -160,8 +166,8 @@ export default {
     sinkDepth: 0.9, // sinks this far (× band height)
 
     /* --- 9 · the lens --- */
-    lensStrength: 0.7, // time-shear swirl, signed by the clock's rate (× global distortion)
-    lensShock: 0.8, // pressure ring on landing
+    lensStrength: 0.22, // time-shear swirl, signed by the clock's rate (× global distortion)
+    lensShock: 0.6, // pressure ring on landing
 
     /* --- light --- */
     lightColor: '#7fd0ff',

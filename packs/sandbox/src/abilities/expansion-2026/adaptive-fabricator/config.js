@@ -27,7 +27,7 @@ export default {
     /* --- the cast itself --- */
     range: 18, // maximum throw distance, metres
     minRange: 1, // closer than this and the cast is refused
-    speed: 30, // how fast the fabrication seed flies, metres/second
+    speed: 18, // how fast the fabrication seed flies, metres/second — slow enough that the lob reads
     cooldown: 8, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 6, // scan radius around the sentry, metres
@@ -53,13 +53,13 @@ export default {
     /* ================================================================ */
     /* 1 · FABRICATION SEED (travel)                                     */
     /* ================================================================ */
-    seedSize: 0.42, // half-height of the faceted seed, metres
+    seedSize: 0.5, // half-height of the faceted seed, metres
     seedSpin: 9, // radians/second it tumbles in flight
-    seedArc: 1.4, // apex of its flight arc, metres
-    seedGlow: 2.2, // emissive strength of the seed shell
-    trailRate: 150, // trail streaks per second
-    trailSize: 0.1,
-    trailLife: 0.35,
+    seedArc: 2.6, // apex of its flight arc, metres
+    seedGlow: 2.6, // emissive strength of the seed shell
+    trailRate: 190, // trail streaks per second
+    trailSize: 0.13,
+    trailLife: 0.5,
     trailSpeed: 1.2,
     trailColor: '#a5efff', // tint over the shared streak gradient
 
@@ -68,7 +68,8 @@ export default {
     /* ================================================================ */
     telegraphOpacity: 0.35, // how bright the landing circle is during travel
     floorOpacity: 0.75, // multiplier on the deployed scan disc
-    floorGlow: 0.7, // emissive strength of the disc — kept low: the sentry is the read, not the decal
+    floorGlow: 0.85, // emissive strength of the disc — kept low: the sentry is the read, not the decal
+    floorColor: '#1c8fd0', // the scan field's body tone (saturated, not the pale core)
     gridScale: 3.2, // hex cells per metre-ish across the disc
     gridOpacity: 0.14, // weight of the hex grid
     spokes: 6, // radial spokes (one per emitter vane)
@@ -78,28 +79,28 @@ export default {
     /* the pad: a normal-blended deep-tone footing under the sentry — the
        floor it was fabricated on, darkened, with heat seams that stay */
     deepColor: '#04121c', // the deep stop of the ramp
-    padReach: 0.42, // pad radius (× scan radius)
-    padDarkness: 0.78, // how dark the pad is
+    padReach: 0.55, // pad radius (× scan radius)
+    padDarkness: 0.85, // how dark the pad is
     padSeams: 1, // plate seams across the pad (× hex grid)
     padSeamGlow: 1.6, // heat glow in the seams on deploy and each shot
-    padScorch: 0.5, // the scan disc darkens by this much past the pad
+    padScorch: 0.6, // the scan disc darkens by this much past the pad
 
     /* ================================================================ */
     /* 3 · THE SENTRY (housing)                                          */
     /* ================================================================ */
-    housingScale: 1.75, // overall scale of the sentry (1 = 2.25 m to the emitter tips)
+    housingScale: 1.9, // overall scale of the sentry (1 = 2.25 m to the emitter tips)
     buildTime: 0.55, // seconds from the seed landing to fully assembled
     buildEdge: 0.09, // height of the glowing fabrication edge (× sentry)
     buildNoise: 0.18, // raggedness of that edge
     buildGlow: 3, // how hot the edge burns
-    metalColor: '#2c3742', // housing plate colour
-    trimColor: '#7fd6ff', // panel seams and rim light
+    metalColor: '#454a52', // housing plate colour — neutral gunmetal; the cyan lives in the energy, not the steel
+    trimColor: '#2a8fd0', // panel seams and rim light (saturated body stop, used sparingly)
     panelScale: 3.2, // panel seams per metre
-    panelGlow: 0.22, // how bright the seams glow
+    panelGlow: 0.14, // how bright the seams glow
     rimPower: 2.5, // fresnel falloff on the housing
-    rimStrength: 0.28, // fresnel weight on the housing
-    shine: 1.1, // specular strength
-    grime: 0.35, // fbm grime darkening the plates
+    rimStrength: 0.1, // fresnel weight on the housing
+    shine: 1.5, // specular strength
+    grime: 0.45, // fbm grime darkening the plates
 
     /* --- the head --- */
     headSpin: 0.6, // radians/second the head turns while scanning
@@ -123,15 +124,21 @@ export default {
     stormColor: '#c4b7ff', // beam colour when countering a wet target
     frostColor: '#b9f2ff', // … a burning target
     fireColor: '#ffb05c', // … a chilled or frozen target
-    beamTime: 0.3, // seconds the beam stays drawn
-    beamWidth: 0.16, // beam half-width, metres
-    beamGlow: 2.2, // beam brightness (white only in the core; edges fall to the deep tone)
+    beamTime: 0.45, // seconds the beam stays drawn
+    beamWidth: 0.26, // beam half-width, metres
+    beamArc: 2.8, // the bolt bows up this far at mid-span, metres — it arcs over the head, never hidden behind the mast
+    beamGlow: 3, // beam brightness (white only in the core; edges fall to the deep tone)
     beamNoise: 1, // noise flowing down the beam
+    lockColor: '#ff4a2e', // the lock-on sight drawn before each shot (a warm read against the cyan)
+    lockTime: 0.4, // seconds the sight is drawn before a shot (≤ 0.8 × shotInterval)
+    lockWidth: 0.035, // sight half-width, metres
+    lockArc: 2.8, // the sight traces the same arc the bolt will take, metres
+    lockOpacity: 0.8, // sight brightness
     impactRadius: 1.4, // arrival ring size at the struck target, metres
     impactDuration: 0.45, // seconds the arrival rings live
     impactShake: 0.12, // camera knock per shot
     impactFlash: 0.08, // screen flash per shot
-    sparkCount: 24, // sparks thrown off the struck target
+    sparkCount: 34, // sparks thrown off the struck target
     sparkSize: 0.06,
     sparkLife: 0.35,
     sparkSpeed: 5,
@@ -145,9 +152,11 @@ export default {
     colorSparkD: '#164673',
     hitDecalRadius: 0.9, // scorch-arc decal under the struck target
     hitDecalLife: 0.6,
-    muzzleSize: 1.4, // flash shell at the emitter on each shot, metres
-    muzzleLife: 0.16,
-    shotBurst: 2.1, // ionised shell at the struck body, metres
+    muzzleSize: 0.6, // flash shell at the emitter on each shot, metres
+    muzzleLife: 0.12,
+    muzzleHeight: 0.8, // the bolt leaves from the emitter tips: metres above the head (× housingScale)
+    muzzleReach: 0.7, // … and this far out on the side facing the target (× housingScale)
+    shotBurst: 1.3, // ionised shell at the struck body, metres
     shotBurstLife: 0.3,
     scorchRadius: 0.85, // scorch left under each struck body, metres (stays)
     scorchLife: 4,
