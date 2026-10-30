@@ -25,7 +25,7 @@ export default {
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
     speed: 15, // how fast the wall ploughs down the line, metres/second
-    lifetime: 0.8, // seconds the torn halves take to dissolve
+    lifetime: 2.0, // seconds the torn halves take to dissolve (the linger)
     cooldown: 0.6, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
 
@@ -48,6 +48,7 @@ export default {
     rows: 4, // layers stacked up the wall, alternate ones shoved opposite ways
     wallBow: 0.5, // metres the ends trail behind the middle
     wallLean: 0.35, // metres the top leans forward of the foot
+    wallThickness: 1.5, // metres of body along the line at the foot (thins to ~half at the top)
 
     /* --- the shear --- */
     shearAmount: 0.7, // metres a row is shoved sideways
@@ -60,17 +61,22 @@ export default {
     /* ================================================================ */
     flowSpeed: 9, // metres/second the air streams sideways inside a row
     streakScale: 1.2, // streak features per metre
-    streakGlow: 2.6, // brightest streaks
-    bodyGlow: 0.25, // the body of the air
-    ridgeGlow: 1.6, // the fold ridges
-    seamGlow: 1.6, // the seams between rows
+    streakGlow: 1.3, // brightest streaks
+    bodyGlow: 0.2, // the body of the air
+    ridgeGlow: 0.6, // the fold ridges
+    seamGlow: 0.9, // the seams between rows
     topTear: 0.4, // share of the height the torn top edge eats
     footFade: 0.12, // share of the height feathered into the dust
     softFade: 0.4, // metres of soft fade where it meets geometry
     wallOpacity: 1.0,
     colorAirA: '#f0fffb', // brightest streaks and ridges
-    colorAirB: '#7fe8d6', // the air
+    colorAirB: '#5fc9bb', // the air
     colorAirC: '#1d5a62', // the air's depth
+    colorAirD: '#071f26', // the deep tone: the body's foot and gaps
+    bodyOpacity: 0.24, // opacity of each of the seven body slices
+    bodyDensity: 0.65, // 0 = even, 1 = packed lumps with gaps
+    bodyLight: 0.75, // how much the sun shapes the folds of the body
+    bodyRim: 0.5, // grazing-angle brightening of the body
     colorSeam: '#ffffff', // seams and tear edges
     lensWarp: 1.1, // how hard each row shoves the world sideways (distortion)
     lensDepth: 1.6, // the lens is this much deeper than the wall
@@ -80,27 +86,38 @@ export default {
     /* ================================================================ */
     tearTime: 0.45, // seconds the halves take to slide apart
     tearDistance: 3.5, // metres each half slides
+    lingerSnap: 0.5, // 0..1 strength of the snaps that carry on while the halves linger
+    lingerSnapSlow: 2.2, // linger snaps come this many times slower
+    lingerSpread: 0.6, // the halves keep drifting apart by this share of tearDistance
+    lingerRise: 1.6, // metres the torn halves peel up off the floor as they dissolve
 
     /* ================================================================ */
     /* 4 · DRAG MARKS                                                    */
     /* ================================================================ */
     groundStep: 0.35, // metres the grooves jump sideways at every snap
     grooveDensity: 2.6, // grooves per metre
-    grooveGlow: 0.7, // fresh grooves glow
-    groundScour: 0.4, // darkening of the dragged floor
+    grooveGlow: 0.5, // fresh grooves glow
+    groundScour: 0.82, // opacity of the scoured band
     freshLength: 2.5, // metres of fresh glow behind the wall
-    groundFade: 0.6, // seconds the marks take to erode
-    colorScour: '#0b1214',
-    colorGroove: '#5d7672',
+    groundFade: 0.9, // seconds the marks take to erode (after the halves are gone)
+    groundWidth: 1.15, // band width, × wall width (berms included)
+    bermAmount: 0.85, // the dust heaped at both edges of the band
+    driftSpeed: 1.2, // m/s the loose dust keeps drifting sideways over the band
+    driftGlow: 0.45, // brightness of the drifting dust
+    lingerDustRate: 70, // dust / second lifting off the band through the linger
+    colorScourDeep: '#04090b', // the bare, scoured floor
+    colorScour: '#162224', // the dust combed flat on it
+    colorGroove: '#4f6764',
+    colorBerm: '#71847f', // dust heaped at the edges
 
     /* ================================================================ */
     /* 5 · PARTICLES                                                     */
     /* ================================================================ */
-    dustRate: 45, // dust / second rolled up at the wall's foot
+    dustRate: 70, // dust / second rolled up at the wall's foot
     dustSize: 0.45,
     dustSpeed: 2.2,
     dustLife: 0.8,
-    dustOpacity: 0.28,
+    dustOpacity: 0.34,
     colorDustA: '#cbd8d4',
     colorDustB: '#97aaa6',
     colorDustC: '#5f706e',
