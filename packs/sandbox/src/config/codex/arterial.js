@@ -41,7 +41,7 @@ export default {
     handSide: 0.25, // metres to the right
     handHeight: 1.5, // metres off the floor
     woundSize: 0.5, // radius of the bloom round the wrist, metres
-    woundGlow: 1.6,
+    woundGlow: 0.8,
     woundOpen: 0.12, // seconds the wrist takes to open
     colorWoundCore: '#ffd8dc',
     colorWoundHalo: '#e0102c',
@@ -49,11 +49,11 @@ export default {
     /* ================================================================ */
     /* 2 · THE VESSEL — shape                                            */
     /* ================================================================ */
-    rootRadius: 0.15, // thickness at the wrist, metres
-    tipRadius: 0.035, // thickness at the tip, metres
+    rootRadius: 0.26, // thickness at the wrist, metres
+    tipRadius: 0.09, // thickness at the tip, metres
     taper: 0.9,
     segmentLength: 0.34, // metres per bead
-    pinch: 0.45, // how hard the joints between beads pinch in
+    pinch: 0.2, // how hard the joints between beads pinch in
     tipHeight: 1.1, // metres off the floor the tip runs at while it pays out
     arch: 3.2, // metres the vessel arches up over the caster's head
     waveAmp: 0.45, // metres of the vertical wave rolling down it
@@ -66,13 +66,13 @@ export default {
     /* ================================================================ */
     pulseRate: 2.6, // pulses per second pumped hand → tip
     pulseSpacing: 2.4, // metres between pulses
-    pulseSwell: 0.55, // how far a pulse swells the beads
-    pulseGlow: 1.15, // blood glowing through the wall as a pulse passes (bloom > 1)
+    pulseSwell: 0.4, // how far a pulse swells the beads
+    pulseGlow: 0.85, // blood glowing through the wall as a pulse passes (bloom > 1)
     wallGlow: 0.06, // resting glow through the wall
     capillaryScale: 3.2,
     capillaries: 0.7,
     wetness: 1.6, // wet specular
-    rimGlow: 0.3,
+    rimGlow: 0.18,
     dissolveEdge: 0.06,
     colorVesselDeep: '#140105',
     colorVesselBody: '#460712',
@@ -98,13 +98,13 @@ export default {
     colorFlash: '#ff3a50',
 
     /* --- the linger: it lies there alive --- */
-    writheAmp: 0.42, // metres of sideways serpentine while it lies
-    writheLength: 2.6, // metres per serpentine wave
+    writheAmp: 0.3, // metres of sideways serpentine while it lies
+    writheLength: 3.4, // metres per serpentine wave
     writheSpeed: 6.5, // radians/second the serpentine crawls hand -> tip
     writheIn: 0.22, // seconds after the slam it comes alive
-    lieThicken: 1.22, // × its radius while it lies, swollen with pooled blood
-    rearHeight: 1.35, // metres the torn head rears off the floor
-    rearFrom: 0.62, // share of the length from which the head rears
+    lieThicken: 1.45, // × its radius while it lies, swollen with pooled blood
+    rearHeight: 2.1, // metres the torn head rears off the floor
+    rearFrom: 0.5, // share of the length from which the head rears
     rearRate: 0.95, // strikes per second
     restrikeDrops: 55, // blood thrown by each strike of the head
     restrikeRing: 1.7, // metres, the ring each strike throws (0 = none)
@@ -129,20 +129,20 @@ export default {
     /* ================================================================ */
     /* 6 · SPLATTER                                                      */
     /* ================================================================ */
-    strokeWidth: 0.24, // half-width of the smear the vessel leaves, metres
+    strokeWidth: 0.7, // half-width of the smear the vessel leaves, metres
     spatterSpread: 1.6, // metres the spatter is flung either side
     spatterScale: 0.32, // spatter cell size, metres
-    spatterDensity: 0.62,
+    spatterDensity: 0.42,
     spatterFling: 2.2, // how stretched the far drops are
     splatterGloss: 1.2,
-    splatterSheen: 0.8,
+    splatterSheen: 0.3,
     splatterOpacity: 0.95,
     splatterMist: 18, // mist puffs per second off the drying spatter
-    poolGrow: 1.3, // the smear spreads to × (1 + this) its width while wet
+    poolGrow: 1.5, // the smear spreads to × (1 + this) its width while wet
     poolTime: 1.1, // seconds the pool takes to spread
     poolFlow: 0.45, // m/s the wet sheen runs down the line
-    poolPulse: 0.7, // fresh blood welling in the pool with each beat
-    colorSplatterFresh: '#9a0c1e',
+    poolPulse: 0.35, // fresh blood welling in the pool with each beat
+    colorSplatterFresh: '#7a0816',
     colorSplatterDark: '#2a0208',
     colorSplatterDry: '#2e1610',
 

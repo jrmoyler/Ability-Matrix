@@ -396,10 +396,13 @@ const SPLATTER_FRAGMENT = /* glsl */ `
     float spread = 1.0 - exp(-uAge / max(uPoolTime, 0.05));
     float grow = 1.0 + uPoolGrow * spread * (0.6 + 0.4 * snoise(vec3(along * 0.7, uSeed + 5.0, 0.0)));
     float wig = snoise(vec3(along * 0.4, uSeed, 0.0)) * uStroke * 0.8;
-    float w = uStroke * (0.55 + 0.45 * snoise(vec3(along * 1.3, uSeed + 2.0, 0.0))) * grow;
-    float stroke = 1.0 - smoothstep(w * 0.55, w, abs(x - wig));
-    // the smear breaks up where the vessel's joints struck
-    stroke *= 0.7 + 0.3 * smoothstep(-0.3, 0.4, snoise(vec3(along * 3.0, x * 4.0, uSeed)));
+    // One continuous pool down the line: the width wanders but never pinches
+    // off, and its edge is ragged rather than its middle.
+    float w = uStroke * (0.8 + 0.2 * snoise(vec3(along * 1.3, uSeed + 2.0, 0.0))) * grow;
+    float edgeN = snoise(vec3(along * 2.2, x * 2.5, uSeed + 11.0)) * 0.18;
+    float stroke = 1.0 - smoothstep(w * (0.6 + edgeN), w * (1.0 + edgeN), abs(x - wig));
+    // a faint grain where the vessel's joints struck — the pool stays whole
+    stroke *= 0.88 + 0.12 * smoothstep(-0.3, 0.4, snoise(vec3(along * 3.0, x * 4.0, uSeed)));
     float dots = spatter(vFlat, mix(1.0, grow, 0.45));
     float m = max(stroke, dots);
     m *= smoothstep(0.0, 0.5, along) * (1.0 - smoothstep(uReveal - 0.3, uReveal, along) * 0.0);
@@ -412,7 +415,7 @@ const SPLATTER_FRAGMENT = /* glsl */ `
     float well = pow(0.5 + 0.5 * sin(6.2831853 * (along / max(uPulseSpacing, 0.1) - uPulse)), 6.0) * uPoolPulse * (1.0 - uDry);
     // dark at the rim of the pool, fresh in its middle
     float body = stroke * (0.35 + 0.65 * smoothstep(0.0, w * 0.6, w - abs(x - wig)));
-    vec3 col = mix(uColorDark, uColorFresh, body * 0.6 + dots * 0.25);
+    vec3 col = mix(uColorDark, uColorFresh, body * 0.42 + dots * 0.22);
     col += uColorFresh * uSheen * (1.0 - uDry) * uGlobalGlow * stroke * (0.3 + well);
     col += vec3(spec * 0.6);
     col = mix(col, uColorDry, uDry);

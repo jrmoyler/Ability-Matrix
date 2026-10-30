@@ -137,18 +137,18 @@ export default {
     /* ================================================================ */
     /* 4 · THE BEAM TRAIL                                                */
     /* ================================================================ */
-    beamWidth: 0.13, // radius of the bright core, metres
+    beamWidth: 0.11, // radius of the bright core, metres
     beamHalo: 0.85, // radius of the outer glow, metres
-    beamGlow: 3.6, // core brightness
-    haloGlow: 0.3, // halo brightness
-    beamCoreSharp: 2.6, // how tight the core of the tube is
+    beamGlow: 6, // core brightness
+    haloGlow: 0.08, // halo brightness
+    beamCoreSharp: 3.2, // how tight the core of the tube is
     beamLife: 1.7, // seconds the trail takes to thin to nothing
     beamThinCurve: 2.4, // >1 = it holds, then thins late
-    sheathRadius: 0.42, // the rim-weighted sheath between core and halo, metres
-    sheathGlow: 1.0, // sheath brightness
-    beamFlare: 1.6, // the bell at the far end opens to (1 + this) × the radius
+    sheathRadius: 0.5, // the rim-weighted sheath between core and halo, metres
+    sheathGlow: 0.4, // sheath brightness
+    beamFlare: 0.7, // the bell at the far end opens to (1 + this) × the radius
     beamFlareLength: 2.2, // metres of line the bell opens over
-    beamWobble: 0.12, // 0..1 the column breathes along its length
+    beamWobble: 0.05, // 0..1 the column breathes along its length
     beamWobbleSpeed: 9, // how fast the breathing runs down the line
     beamPulseScale: 0.9, // energy pulses per metre
     beamPulseSpeed: 26, // pulses per second running down the line
@@ -164,11 +164,11 @@ export default {
     /* --- the rifling: hard-light strands braided round the beam --- */
     helixStrands: 2, // strands (max 4); neighbours wind opposite ways
     helixRadius: 0.36, // metres from the axis at birth
-    helixSpread: 1.5, // how far they unwind outward over their life (× radius)
-    helixTurns: 0.55, // turns per metre
+    helixSpread: 0.8, // how far they unwind outward over their life (× radius)
+    helixTurns: 0.28, // turns per metre
     helixRoll: 5, // rad/s the braid rolls
-    helixTube: 0.07, // strand thickness, metres
-    helixGlow: 0.85,
+    helixTube: 0.032, // strand thickness, metres
+    helixGlow: 0.1,
     helixLife: 2.1, // seconds from the shot until the strands are gone
     helixHold: 0.4, // fraction of that life they stay whole before unwinding to light
     helixBreakScale: 1.3, // noise cells per metre they break up on
@@ -205,7 +205,7 @@ export default {
     shockGrow: 2.4, // end radius, × start
     shockWidth: 0.05, // line width, metres
     shockLife: 0.45,
-    shockGlow: 1.8,
+    shockGlow: 0.6,
     shockTicks: 12, // tick marks round each ring
     colorShockA: "#6fe8ff", // the ring
     colorShockB: "#2f8dff", // the haze inside it
@@ -254,7 +254,7 @@ export default {
     muzzleFlash: 0.18,
     muzzleSparks: 50,
     burstSize: 3.6, // the hard-light flash shell at the end, metres
-    burstIntensity: 1.05,
+    burstIntensity: 0.85,
     burstLife: 0.7, // seconds the shell takes to open and go
     shockRadius3d: 5.5, // the ground shockwave at the end, metres
     scorchRadius: 2.4,
@@ -267,7 +267,7 @@ export default {
     /* --- the end of the line keeps taking the beam while it burns --- */
     endHold: 0.75, // fraction of the beam's life the end keeps pulsing
     endPulseRate: 3.2, // pressure shells + floor rings per second at the end
-    endPulseSize: 2.2, // metres, each pressure shell
+    endPulseSize: 1.4, // metres, each pressure shell
     endRingRadius: 3.2, // metres, each floor ring
     endSparkRate: 260, // sparks/s splashing back off the end
     impactShake: 0.45,

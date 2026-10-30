@@ -554,16 +554,17 @@ const BEAM_FRAGMENT = /* glsl */ `
       col = mix(uColorEdge, uColorCore, core * core) * (core * (1.0 + pulse * 0.9 * uShaderIntensity + braid * 0.45) + ripple * 0.15);
       alpha = core;
     } else if (uHalo > 1.5) {
-      // The sheath: rim-weighted, hollow, deep blue at the skin, cyan at the
-      // silhouette — the outside of the rod that the core fills.
+      // The sheath: ONE solid dark column. Deep navy over most of its face,
+      // a body blue only toward the silhouette and a thin cyan line right at
+      // the edge — the hot core (drawn after it) is the only bright thing
+      // inside. Read end-on it is a dark rod, not a stack of outlines.
       float rim = pow(1.0 - ndv, 1.7);
-      float fill = 0.22 + 0.18 * ripple;
-      float skin = rim + fill;
-      vec3 ramp = mix(uColorDeep, uColorHalo, smoothstep(0.0, 0.5, rim));
-      ramp = mix(ramp, uColorEdge, smoothstep(0.55, 1.0, rim));
+      float ramp0 = smoothstep(0.35, 0.85, rim);
+      vec3 ramp = mix(uColorDeep * (0.3 + 0.2 * ripple), uColorHalo * 0.45, ramp0);
+      ramp = mix(ramp, uColorEdge * 0.9, smoothstep(0.9, 1.0, rim) * 0.75);
       // Normal-blended: this is the dark body the bright passes sit in.
-      col = ramp * (0.55 + rim * 0.9 + pulse * 0.5 * uShaderIntensity) * (1.0 + bellZone * 0.5);
-      alpha = clamp(skin * 0.85, 0.0, 0.9);
+      col = ramp * (0.6 + pulse * 0.3 * uShaderIntensity) * (1.0 + bellZone * 0.2);
+      alpha = mix(0.62, 0.95, smoothstep(0.0, 0.6, rim));
     } else {
       float soft = pow(ndv, 1.4);
       col = uColorHalo * soft * (0.7 + 0.5 * ripple + pulse * 0.6 * uShaderIntensity);
