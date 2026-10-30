@@ -965,9 +965,13 @@ export function buildEditor(gui, c, Editor) {
   R(petal, c, 'petalDiffuse', 0, 2, 0.01, 'diffuse');
   R(petal, c, 'petalDeep', 0, 1, 0.01, 'shade falls to deep');
   petal.addColor(c, 'colorPetalDeep').name('deep');
-  petal.addColor(c, 'colorPetalHeart').name('heart');
-  petal.addColor(c, 'colorPetalMid').name('blush');
-  petal.addColor(c, 'colorPetalTip').name('tip');
+  R(petal, c, 'petalEdgeStart', 0, 1, 0.01, 'pink margin from (across)');
+  R(petal, c, 'petalTipStart', 0, 1, 0.01, 'pink tip from (along)');
+  R(petal, c, 'petalEdgeTint', 0, 1, 0.01, 'pink margin/tip amount');
+  petal.addColor(c, 'colorPetalHeart').name('heart glow');
+  petal.addColor(c, 'colorPetalBase').name('base (wine)');
+  petal.addColor(c, 'colorPetalMid').name('body');
+  petal.addColor(c, 'colorPetalTip').name('tip / margin');
   petal.addColor(c, 'colorPetalVein').name('veins');
   petal.addColor(c, 'colorPetalRim').name('rim');
   petal.addColor(c, 'colorCharge').name('charge');

@@ -74,13 +74,18 @@ export default {
 
     /* --- palette --- */
     barkColor: '#365423', // wood, pod husk, lashing vines
-    leafColor: '#3f8f2b', // leaves, falling leaves
+    leafColor: '#18440f', // leaves (lit body), falling leaves
     leafRim: '#d1ff82', // leaf rim and veins, pod glow, pollen
     rootColor: '#a9eb6a', // root snare, sap, vine veins
 
     /* --- leaves --- */
     leafFlutter: 1, // how much the leaves flutter
     leafVariegation: 0.5, // blotching across each leaf
+    leafDeep: '#061104', // near-black green: undersides and the stem end of each leaf
+    leafDeepFloor: 0.7, // even the lit face keeps this much of the deep stop
+    leafDeepAmount: 0.85, // how far the underside / stem fall to the deep stop
+    leafEdgeStart: 0.86, // |across| where the lit margin starts
+    leafEdgeGlow: 1, // the lit margin (leafRim)
     leafBristle: 1, // how hard they curl when the trap wakes
     leafSpeed: 0.55, // metres/second the falling leaves drift
     leafLifetime: 1.7, // seconds a falling leaf lives
@@ -107,7 +112,7 @@ export default {
     /* ================================================================ */
     /* 0 · THE MAW — the pitcher that hangs under the crown and bites    */
     /* ================================================================ */
-    mawScale: 0.9, // metres of bulb; the jaws hang about as far again
+    mawScale: 1.15, // metres of bulb; the jaws hang about as far again
     mawOffset: 1.3, // metres out from the trunk it hangs, on the caster's side
     stalkLength: 0.3, // metres it hangs below the crown
     stalkWidth: 0.11, // stalk radius, metres
@@ -115,15 +120,21 @@ export default {
     mawBite: 0.5, // metres off the floor the jaw tips close at
     mawLunge: 0.14, // seconds the lunge onto the body takes
     mawRetract: 0.8, // seconds it takes to haul itself back up after the bind
-    mawLean: 0.35, // radians it leans into the lunge
+    mawLean: 0.55, // radians it leans into the lunge
+    mawWindReach: 0.12, // how far it swings toward the body during the windup (the lunge covers the rest)
+    mawRear: 1.1, // metres it rears back toward the caster (and up) through the windup, so the lunge is a long plunge
+    mawRearLift: 0.25, // × mawRear, how far up it rears
+    mawPop: 0.3, // swells this much as the jaws slam shut (visual only)
+    mawPopTime: 0.25, // seconds the swell takes to settle after the lunge
     mawGlow: 1.5, // gullet glow
-    mawColor: '#b3d75a', // waxy outer skin
-    mawCore: '#f4ffd8', // white-hot core of the gullet ramp
+    mawColor: '#5a7a22', // waxy outer skin (veins and shade fall to the deep stop)
+    mawGullet: '#d8304e', // the blood-red gullet and the fresnel rim of the maw
+    mawCore: '#ffc070', // hot core of the gullet ramp
 
     /* ================================================================ */
     /* 2 · THE SNARE — the root sigil and the dappled shade              */
     /* ================================================================ */
-    rootGlow: 1, // emissive gain of the snare
+    rootGlow: 0.55, // emissive gain of the snare
     rootCount: 12, // root lobes round the snare
     shadeOpacity: 0.45, // how dark the leaf shadow is
     shadeScale: 1, // leaf-shadow fleck size

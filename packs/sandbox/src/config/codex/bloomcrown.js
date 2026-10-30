@@ -87,36 +87,40 @@ export default {
     petalFlutter: 0.12,
     petalVeins: 9,
     veinStrength: 0.55,
-    petalSSS: 0.55, // light through the thin petal
-    petalRimGlow: 0.7,
+    petalSSS: 0.3, // light through the thin petal (tinted by the petal, never white)
+    petalRimGlow: 0.45,
     heartGlow: 1.6, // the gold heart of an open blossom
     chargeGlow: 5, // white-hot as the crown gathers (bloom > 1)
-    petalAmbient: 0.3,
+    petalAmbient: 0.17,
     petalDeep: 0.75, // the shaded side falls to the deep stop, not to grey
-    petalDiffuse: 0.85,
-    colorPetalHeart: '#ffe37a',
-    colorPetalMid: '#ff8fc2',
-    colorPetalTip: '#c22a78',
-    colorPetalVein: '#6e0e46',
-    colorPetalRim: '#ffc8e4',
-    colorPetalDeep: '#2e0620',
+    petalDiffuse: 0.75,
+    colorPetalHeart: '#ffd060', // the gold glow tight at the heart only
+    colorPetalBase: '#1c020e', // wine-black at the petal's base
+    colorPetalMid: '#7c0a3c', // the saturated body of the petal
+    colorPetalTip: '#ff5ca6', // pink, only on the tip and the margins
+    petalEdgeStart: 0.7, // |across| where the pink margin starts
+    petalTipStart: 0.74, // along the petal where the pink tip starts
+    petalEdgeTint: 0.8, // how far the margins/tips go to pink
+    colorPetalVein: '#3a0420',
+    colorPetalRim: '#ff6aae',
+    colorPetalDeep: '#14020a',
     colorCharge: '#fff4d6',
 
     /* ================================================================ */
     /* 3 · HEARTS & THE SEED                                             */
     /* ================================================================ */
-    heartSize: 0.17, // metres
+    heartSize: 0.12, // metres
     heartLift: 0.05, // metres along the blossom's axis
-    heartCoreGlow: 2.2,
+    heartCoreGlow: 1.5,
     seedSize: 0.36, // metres
     seedElongation: 1.45, // the seed is an almond, longer than wide
     seedStretch: 0.9, // how far it stretches as it falls
     seedSink: 0.35, // seconds it takes to sink into the floor
-    seedGlow: 3.2,
+    seedGlow: 2.4,
     seedRim: 3.5,
     seedVeins: 1.5,
     colorSeedCore: '#d6ff9a',
-    colorSeedShell: '#fff6c8',
+    colorSeedShell: '#ffe08a',
     colorSeedVein: '#7dffa0',
 
     /* ================================================================ */
@@ -135,7 +139,7 @@ export default {
     /* 5 · THE SIGIL & THE GREEN WAVE                                    */
     /* ================================================================ */
     sigilLit: 0.9, // how bright the mandala is under the turning crown
-    sigilGlow: 2.4,
+    sigilGlow: 2,
     sigilLine: 0.1, // metres
     sigilFill: 0.3, // the rose's petals washed in between its lines
     sigilSpin: 0.3, // turns with the crown, × its spin
@@ -148,8 +152,8 @@ export default {
     warpSpeed: 11, // metres/second it runs out
     warpWidth: 0.5,
     colorSigil: '#ff4fa8',
-    colorSigilHot: '#fff2c8',
-    colorWave: '#9dff7a',
+    colorSigilHot: '#ff8ac4',
+    colorWave: '#4ad84a',
     colorGreen: '#2f8a30',
 
     /* ================================================================ */
@@ -187,7 +191,7 @@ export default {
     gardenTurn: 0.25, // radians/second the whole ring turns
     gardenBreathe: 0.12, // ± open, breathing
     gardenBreatheRate: 3.2,
-    gardenFlash: 0.6, // white-hot as it breaks the soil
+    gardenFlash: 0.25, // white-hot as it breaks the soil
     gardenFlashDecay: 5,
 
     /* ================================================================ */
@@ -195,14 +199,14 @@ export default {
     /* ================================================================ */
     slamShake: 0.6,
     slamShakeTime: 0.35,
-    slamFlash: 0.35,
+    slamFlash: 0.18,
     slamLight: 3, // light punch, × lightIntensity
     burstRadius: 2.4, // the EARTH burst, metres
     shockScale: 1.5, // the shockwave, × zoneRadius
     craterRadius: 1.4, // the crack the seed leaves, metres
-    colorFlash: '#fff0f8',
-    colorBurstA: '#fff2c8',
-    colorBurstB: '#a88a5a',
+    colorFlash: '#ff7ab8',
+    colorBurstA: '#8a6a44',
+    colorBurstB: '#6a5236',
     colorBurstC: '#3a2a18',
 
     /* ================================================================ */
@@ -216,10 +220,10 @@ export default {
     shedGlow: 1.1,
     burstPetals: 160, // petals burst out by the slam
     burstPetalSpeed: 7,
-    colorShedA: '#fff0f6',
-    colorShedB: '#ffb2d4',
-    colorShedC: '#e0569a',
-    colorShedD: '#7a1a4a',
+    colorShedA: '#ff6aae',
+    colorShedB: '#c8186c',
+    colorShedC: '#7a0a3e',
+    colorShedD: '#2a0416',
     pollenRate: 160, // per second off the blossoms
     pollenSpeed: 0.35,
     pollenSize: 0.045,

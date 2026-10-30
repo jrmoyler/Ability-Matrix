@@ -31,10 +31,17 @@ All in `packs/sandbox/src/abilities/codex/BloomCrownAbility.js`, `materials/code
 The crown is struck into the earth as a seed and grows back out of it as a garden.
 
 ## Palette
-Petals: core `#fff4d6` (charge) → tint `#ff8fc2` → body `#c22a78` → deep `#2e0620`. Floor: moss `#1d5a22` / veins `#8af06a` / deep `#12050d`.
+Petals (fix-1): deep `#14020a` (shaded side) → base `#1c020e` wine-black at the petal root → body `#7c0a3c` saturated crimson through the middle → pink `#ff5ca6` only on the tip and outer margins (`petalTipStart` 0.74, `petalEdgeStart` 0.7, `petalEdgeTint` 0.8); a tight gold heart glow `#ffd060` (smaller hearts, 0.12 m). Translucency is tinted by the petal, never mixed to white. Charge `#fff4d6` only while the crown gathers. Slam: flash `#ff7ab8` at 0.18, sigil flare `#ff8ac4`, ring `#4ad84a`, earth burst brown (`#8a6a44`), shed petals crimson→wine — no white blow-out. Floor: moss `#1d5a22` / veins `#8af06a` / deep `#12050d`.
 
 ## Gameplay
 `handlesOwnHits`: nothing while the crown turns; at the slam every body within `hitReach × zoneRadius` is thrown outward from the centre, harder near it.
 
 ## What the capture shows (after upgrade)
 f8 wreath of buds in flight at the cluster; f20 crown widening over the pink mandala; f40 open blossoms low among the dummies, mandala filled; f70 slam: bodies airborne, green ring, crater, garden breaking the soil. Extra frames (f100) show the full garden on moss.
+
+## Fix pass (fix-1)
+Coordinator read at 7: flowers pale candy-pink with little deep tone. The petal
+ramp is re-ordered so the mass is wine/crimson and pink lives only on tips and
+margins (new keys `colorPetalBase`, `petalEdgeStart`, `petalTipStart`,
+`petalEdgeTint`); slam flash, sigil flare, burst and shed particles pulled off
+white. After sheet: `scratchpad/fix-1/bc3/codex__bloomcrown-sheet.jpg`.

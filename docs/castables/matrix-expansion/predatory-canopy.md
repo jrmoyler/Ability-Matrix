@@ -35,7 +35,7 @@ A tree that eats: it grows up out of the snare, waits, then cages, whips,
 binds and swallows exactly one body.
 
 ## Palette
-core #f4ffd8 / #d1ff82 (rim), body #55a837→#3f8f2b (leaf) and #a9eb6a (sap), deep #365423 (bark) → #0d1608 (shade)
+leaves (fix-1): deep `#061104` near-black green on the underside, stem end and ≥ 70 % of the lit face (`leafDeepFloor`) → body `#18440f` → lit margin `#d1ff82` (`leafEdgeStart` 0.86, `leafEdgeGlow` 1). Maw: skin `#5a7a22` with deep veins, blood-red gullet/rim `#d8304e`, hot core `#ffc070`. Bark `#365423`, sap `#a9eb6a` (snare `rootGlow` 0.55), shade `#0d1608`.
 
 ## Gameplay
 `handlesOwnHits`: after `armDelay` the nearest living sandbox dummy within
@@ -43,3 +43,14 @@ core #f4ffd8 / #d1ff82 (rim), body #55a837→#3f8f2b (leaf) and #a9eb6a (sap), d
 generation, still inside, dummies still on) is struck once through
 `dummies.kill` with `hitImpulse/hitLift/hitSpin` toward the trunk. One strike
 per cast. `settings.global.lifetime` scales the staged clock.
+
+## Fix pass (fix-1)
+Coordinator read at 7: leaves flat bright lime, the snap at the body compact.
+Leaves now shade to a near-black green (underside, stem, most of the lit face)
+with only their margins lit. The maw is bigger (`mawScale` 1.15) with a
+red gullet. Through the windup it rears back toward the caster and up
+(`mawRear` 1.1 m, `mawRearLift`), swinging only 12 % of the way toward the
+body (`mawWindReach`). The lunge is then one long plunge onto the body, and it
+swells 30 % as the jaws slam shut (`mawPop`, `mawPopTime`). Hit timing,
+`mawLunge` and every gameplay key are unchanged. After sheet:
+`scratchpad/fix-1/pc4/matrix-expansion__predatory-canopy-sheet.jpg` (f42 reared, f47 plunge).

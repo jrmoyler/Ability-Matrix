@@ -826,18 +826,29 @@ export class PredatoryCanopyAbility extends Ability {
     const idleOpen = 0.22 + (this.reduceMotion ? 0 : 0.1 * Math.sin(time * 1.6));
     const gape = c.mawOpen ?? 1.15;
     const shut = -0.12;
+    // How far it swings toward the body during the windup — kept short so
+    // the lunge itself covers most of the distance and reads as a strike.
+    const windReach = clamp01(c.mawWindReach ?? 0.3);
+    let pop = 1;
+    let rear = 0;
     let reach;
     let open;
     let hunger;
     if (this._strikeAt < 0) {
       const w = ease(wind) * this._presence;
-      reach = w * 0.3;
+      reach = w * windReach;
+      rear = w;
       open = idleOpen + (gape - idleOpen) * w;
       hunger = 0.15 + 0.85 * w;
     } else {
       const k = clamp01((elapsed - this._strikeAt) / Math.max(0.03, c.mawLunge ?? 0.14));
       const r = clamp01((elapsed - this._strikeAt - Math.max(0, c.bindHold ?? 0.45)) / Math.max(0.1, c.mawRetract ?? 0.8));
-      reach = (0.3 + 0.7 * ease(k)) * (1 - smooth(r));
+      reach = (windReach + (1 - windReach) * ease(k)) * (1 - smooth(r));
+      rear = 1 - ease(k);
+      // Swells as it lunges and slams shut, then settles: the bite reads at
+      // the play camera's distance. Purely visual; the hit already landed.
+      const q = clamp01((elapsed - this._strikeAt) / Math.max(0.05, (c.mawLunge ?? 0.14) + (c.mawPopTime ?? 0.25)));
+      pop = 1 + (c.mawPop ?? 0) * Math.sin(Math.PI * q) * (1 - smooth(r));
       if (k < 1) open = gape + (shut - gape) * smooth((k - 0.35) / 0.65);
       else if (r <= 0) open = shut + (this.reduceMotion ? 0 : 0.14 * Math.abs(Math.sin(time * 9)));
       else open = shut + (idleOpen - shut) * smooth(r);
@@ -846,8 +857,24 @@ export class PredatoryCanopyAbility extends Ability {
     // Withering: the jaws go limp and fall open.
     open += closing * 0.6;
     this._mawPos.lerpVectors(this._mawRest, this._mawBite, reach);
+    // Rears back (away from the body, toward the caster) and up through the
+    // windup, so the lunge is a long plunge, not a short twitch.
+    {
+      const rx = this._mawBite.x - this._mawRest.x;
+      const rz = this._mawBite.z - this._mawRest.z;
+      const rl = Math.hypot(rx, rz);
+      const back = (c.mawRear ?? 0) * rear * Math.max(0.05, Math.min(1, this.root.scale.x));
+      if (rl > 1e-4) {
+        this._mawPos.x -= (rx / rl) * back;
+        this._mawPos.z -= (rz / rl) * back;
+      } else {
+        this._mawPos.x += this.direction.x * -back;
+        this._mawPos.z += this.direction.z * -back;
+      }
+      this._mawPos.y += back * (c.mawRearLift ?? 0.3);
+    }
     this.maw.position.copy(this._mawPos);
-    this.maw.scale.setScalar(scale * Math.max(0.05, Math.min(1, this.root.scale.x)));
+    this.maw.scale.setScalar(scale * pop * Math.max(0.05, Math.min(1, this.root.scale.x)));
     // Swing toward the bite: the free end leads.
     const dx = this._mawBite.x - this._mawRest.x;
     const dz = this._mawBite.z - this._mawRest.z;
@@ -1021,6 +1048,11 @@ export function buildEditor(gui, c, Editor) {
   R(leaves, c, 'leafBristle', 0, 3, 0.05, 'bristle on trigger');
   C(leaves, c, 'leafColor', 'leaf');
   C(leaves, c, 'leafRim', 'rim and veins');
+  R(leaves, c, 'leafDeepAmount', 0, 1, 0.01, 'underside / stem to deep');
+  R(leaves, c, 'leafDeepFloor', 0, 1, 0.01, 'deep even on the lit face');
+  R(leaves, c, 'leafEdgeStart', 0, 1, 0.01, 'lit margin from (across)');
+  R(leaves, c, 'leafEdgeGlow', 0, 3, 0.05, 'lit margin glow');
+  C(leaves, c, 'leafDeep', 'deep (underside)');
   const bark = sub(canopy, 'Bark');
   R(bark, c, 'barkRidge', 0.2, 4, 0.05, 'furrow scale');
   R(bark, c, 'barkMoss', 0, 1, 0.01, 'moss');
@@ -1037,6 +1069,12 @@ export function buildEditor(gui, c, Editor) {
   R(maw, c, 'mawLunge', 0.03, 0.6, 0.01, 'lunge time (s)');
   R(maw, c, 'mawRetract', 0.1, 3, 0.05, 'retract time (s)');
   R(maw, c, 'mawLean', 0, 1.2, 0.01, 'lean into the lunge (rad)');
+  R(maw, c, 'mawWindReach', 0, 1, 0.01, 'swing toward the body in the windup');
+  R(maw, c, 'mawRear', 0, 3, 0.05, 'rears back before the lunge (m)');
+  R(maw, c, 'mawRearLift', 0, 1.5, 0.05, 'rear lift, × rear');
+  R(maw, c, 'mawPop', 0, 1, 0.01, 'swell on the bite');
+  R(maw, c, 'mawPopTime', 0.05, 1, 0.01, 'swell time after the lunge (s)');
+  C(maw, c, 'mawGullet', 'gullet');
   R(maw, c, 'mawGlow', 0, 4, 0.05, 'gullet glow');
   C(maw, c, 'mawColor', 'skin');
   C(maw, c, 'mawCore', 'gullet core');

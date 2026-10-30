@@ -125,6 +125,10 @@ const PETAL_FRAGMENT = /* glsl */ `
   uniform vec3  uColorRim;
   uniform vec3  uColorCharge;
   uniform vec3  uColorDeep;
+  uniform vec3  uColorBase;
+  uniform float uEdgeStart;
+  uniform float uTipStart;
+  uniform float uEdgeTint;
   uniform float uDeep;
   uniform float uVeins;
   uniform float uVeinStrength;
@@ -150,8 +154,12 @@ const PETAL_FRAGMENT = /* glsl */ `
     float frill = snoise(vec3(s * 8.0, u * 2.0, vPetal.y * 11.0)) * 0.06;
     if (au > 1.0 - smoothstep(0.85, 1.0, s) * 0.35 + frill) discard;
 
-    vec3 base = mix(uColorHeart, uColorMid, smoothstep(0.0, 0.4, s));
-    base = mix(base, uColorTip, smoothstep(0.45, 1.0, s) * (0.7 + 0.3 * au));
+    // Wine-black at the base, a saturated body through the middle, the pink
+    // only on the tip and the outer margins — the mass carries the deep tone.
+    vec3 base = mix(uColorBase, uColorMid, smoothstep(0.06, 0.5, s));
+    float edge = smoothstep(uEdgeStart, 1.0, au) * smoothstep(0.25, 0.75, s);
+    float tip = smoothstep(uTipStart, 1.0, s);
+    base = mix(base, uColorTip, clamp(max(edge, tip), 0.0, 1.0) * uEdgeTint);
     float rib = exp(-pow(u / 0.07, 2.0));
     float fan = abs(fract(u / (s + 0.2) * uVeins * 0.5 + 0.5) - 0.5) * 2.0;
     float vein = max(rib, (1.0 - smoothstep(0.0, 0.14, fan)) * 0.7) * smoothstep(0.05, 0.25, s) * uVeinStrength;
@@ -173,9 +181,9 @@ const PETAL_FRAGMENT = /* glsl */ `
     float shade = uAmbient + uDiffuse * wrap;
     vec3 color = mix(uColorDeep, albedo * shade, mix(1.0, smoothstep(0.05, 0.8, shade), uDeep));
     color = mix(color, uColorDeep, uDeep * 0.45 * smoothstep(0.55, 0.0, s) * (1.0 - vPetal.x * 0.6) * step(0.5, 1.0 - vPetal.z));
-    color += mix(albedo, vec3(1.0), 0.2) * sss;
+    color += albedo * sss;
     color += uColorRim * rim * (0.4 + 0.6 * s);
-    color += uColorHeart * uHeartGlow * exp(-s * 5.0) * vPetal.x;
+    color += uColorHeart * uHeartGlow * exp(-s * 11.0) * vPetal.x;
     // The charge: white-hot from the heart out as the crown gathers to strike.
     float charge = vPetal.z;
     color += uColorCharge * charge * uChargeGlow * (0.4 + 0.6 * smoothstep(1.0, 0.0, s - charge * 0.6));
@@ -223,6 +231,10 @@ export function createBloomPetalMaterial() {
       uColorRim: { value: new Color() },
       uColorCharge: { value: new Color() },
       uColorDeep: { value: new Color() },
+      uColorBase: { value: new Color() },
+      uEdgeStart: { value: 0.72 },
+      uTipStart: { value: 0.72 },
+      uEdgeTint: { value: 0.85 },
       uDeep: { value: 0.7 },
       uVeins: { value: 9 },
       uVeinStrength: { value: 0.6 },
@@ -264,6 +276,10 @@ export function createBloomPetalMaterial() {
     u.uColorRim.value.copy(getColor(c.colorPetalRim));
     u.uColorCharge.value.copy(getColor(c.colorCharge));
     u.uColorDeep.value.copy(getColor(c.colorPetalDeep));
+    u.uColorBase.value.copy(getColor(c.colorPetalBase));
+    u.uEdgeStart.value = c.petalEdgeStart;
+    u.uTipStart.value = c.petalTipStart;
+    u.uEdgeTint.value = c.petalEdgeTint;
     u.uDeep.value = c.petalDeep;
     u.uVeins.value = c.petalVeins;
     u.uVeinStrength.value = c.veinStrength;

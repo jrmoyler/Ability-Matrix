@@ -159,6 +159,11 @@ const LEAF_FRAGMENT = /* glsl */ `
   uniform float uVariegate;
   uniform vec3  uColor;
   uniform vec3  uRim;
+  uniform vec3  uDeepColor;
+  uniform float uDeepAmount;
+  uniform float uDeepFloor;
+  uniform float uEdgeStart;
+  uniform float uEdgeGlow;
   uniform vec3  uLightDir;
   uniform float uGlobalGlow;
   varying vec2 vUv;
@@ -173,13 +178,22 @@ const LEAF_FRAGMENT = /* glsl */ `
     float mid = 1.0 - smoothstep(0.0, 0.035, abs(vUv.x - 0.5));
     float veins = pow(max(0.0, cos((vUv.y + abs(vUv.x - 0.5) * 0.65) * 55.0)), 18.0) * 0.25;
     vec3 n = normalize(vNormalW);
-    // Thin leaves: light through the back face as well as off the front.
-    float lit = abs(dot(n, normalize(uLightDir)));
+    if (!gl_FrontFacing) n = -n;
+    vec3 L = normalize(uLightDir);
+    // The face toward the light is the lit body; the face away (the
+    // underside) and the stem end fall to a near-black green — the deep stop
+    // carries the mass of the crown, the light lives on the margins.
+    float ndl = dot(n, L);
+    float lit = clamp(ndl * 0.7 + 0.3, 0.0, 1.0);
+    float under = 1.0 - smoothstep(-0.15, 0.35, ndl);
     float rim = fresnelTerm(vViewW, n, 2.0, uFresnel);
     float blotch = fbm3(vec3(vUv * vec2(3.0, 6.0), 0.0) + vWorld * 0.3);
-    // Ramp down the blade: deep at the stem, body in the middle, a paler tip.
-    vec3 col = uColor * (0.28 + 0.3 * vUv.y + 0.32 * lit) * (1.0 - uVariegate * 0.35 * blotch);
-    col += uRim * (0.14 * mid + veins * 0.7 + 0.18 * rim) * uGlobalGlow;
+    float across = abs(vUv.x - 0.5) * 2.0;
+    float edge = smoothstep(uEdgeStart, 0.99, across) * smoothstep(0.04, 0.2, vUv.y);
+    vec3 body = uColor * (0.35 + 0.65 * lit) * (1.0 - uVariegate * 0.35 * blotch);
+    float deep = clamp(max(uDeepFloor, under * 0.85 + (1.0 - smoothstep(0.0, 0.45, vUv.y)) * 0.55 + (1.0 - lit) * 0.35) * (1.0 - edge * 0.6), 0.0, 1.0) * uDeepAmount;
+    vec3 col = mix(body, uDeepColor, deep);
+    col += uRim * (0.08 * mid + veins * 0.3 + 0.12 * rim + edge * uEdgeGlow * (0.45 + 0.55 * lit)) * uGlobalGlow;
     // Withering eats each leaf from its tip with a pale burn edge.
     float burn = 0.0;
     if (uDissolve > 0.0) {
@@ -207,7 +221,12 @@ export function createLeafMaterial() {
       uFresnel: { value: 1 },
       uVariegate: { value: 0.5 },
       uColor: { value: new Color('#55a837') },
-      uRim: { value: new Color('#d1ff82') }
+      uRim: { value: new Color('#d1ff82') },
+      uDeepColor: { value: new Color('#071205') },
+      uDeepAmount: { value: 0.85 },
+      uDeepFloor: { value: 0.45 },
+      uEdgeStart: { value: 0.72 },
+      uEdgeGlow: { value: 0.9 }
     }),
     vertexShader: LEAF_VERTEX,
     fragmentShader: LEAF_FRAGMENT
@@ -216,6 +235,11 @@ export function createLeafMaterial() {
     const u = material.uniforms;
     u.uColor.value.set(c.leafColor);
     u.uRim.value.set(c.leafRim);
+    u.uDeepColor.value.set(c.leafDeep ?? '#071205');
+    u.uDeepAmount.value = c.leafDeepAmount ?? 0.85;
+    u.uDeepFloor.value = c.leafDeepFloor ?? 0.45;
+    u.uEdgeStart.value = c.leafEdgeStart ?? 0.72;
+    u.uEdgeGlow.value = c.leafEdgeGlow ?? 0.9;
     u.uFlutter.value = (c.leafFlutter ?? 1) * g().noiseStrength;
     u.uVariegate.value = c.leafVariegation ?? 0.5;
     u.uFresnel.value = g().fresnel;
@@ -587,7 +611,7 @@ export function createMawMaterial(inside = 1) {
     const u = material.uniforms;
     u.uSkin.value.set(c.mawColor ?? c.leafColor);
     u.uDeep.value.set(c.shadeColor ?? '#0d1608');
-    u.uGullet.value.set(c.rootColor);
+    u.uGullet.value.set(c.mawGullet ?? c.rootColor);
     u.uCore.value.set(c.mawCore ?? '#f4ffd8');
     u.uGlowGain.value = c.mawGlow ?? 1;
     u.uBreath.value = g().noiseStrength;
