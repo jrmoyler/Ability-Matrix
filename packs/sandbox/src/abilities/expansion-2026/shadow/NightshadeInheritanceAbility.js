@@ -1,4 +1,4 @@
-import { Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Group, InstancedMesh, Mesh, Object3D, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -6,6 +6,7 @@ import { CAST_ANIMATIONS, settings } from '../../../config/settings.js';
 import { ParticleShape } from '../../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../../particles/ParticleEngine.js';
 import { getColor } from '../../../utils/color.js';
+import { Easing } from '../../../utils/math.js';
 import { impactForce } from '../AuthoredImpactForce.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion } from '../ExpansionAtmosphere.js';
@@ -14,7 +15,9 @@ import {
   shadeWingGeometry,
   inheritanceRibbonGeometry,
   nightshadeBlossomGeometry,
-  nightshadeSigilGeometry
+  nightshadeSigilGeometry,
+  nightshadePetalGeometry,
+  nightshadeStripGeometry
 } from './NightshadeGeometry.js';
 import {
   createShadeWingMaterial,
@@ -23,7 +26,11 @@ import {
   createInheritanceRibbonMaterial,
   createBlossomMaterial,
   createShadeSigilMaterial,
-  createShadeWarpMaterial
+  createShadeWarpMaterial,
+  createNightshadePetalMaterial,
+  createBlightMaterial,
+  createRootMaterial,
+  syncShadeRamp
 } from './NightshadeMaterials.js';
 
 export { shadeWingGeometry, inheritanceRibbonGeometry } from './NightshadeGeometry.js';
@@ -41,6 +48,10 @@ const BLOSSOMS = 24;
 const RIBBONS = 3;
 /** The binding never allows more than three inheritances per cast. */
 const MAX_TRANSFERS = 3;
+/** Bell petals allocated per pool member (`bellPetals` is clamped to this). */
+const MAX_PETALS = 8;
+/** Roots reaching toward would-be heirs. */
+const MAX_TENDRILS = 2;
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
@@ -48,6 +59,8 @@ const _emit = {};
 const _pos = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _back = new Vector3();
+const _obj = new Object3D();
+_obj.rotation.order = 'YXZ';
 /** Shadow-smoke puff on each mark (module constant: the beat allocates no options). */
 const MARK_BURST = { radius: 0.5, speed: 0.6, size: 0.12, life: 1, spread: 0.8 };
 /** Seconds the flying shade takes to shrink away at the circle on a miss. */
@@ -238,6 +251,63 @@ export class NightshadeInheritanceAbility extends Ability {
     this.warp.visible = false;
     this.shade.add(this.warp);
 
+    /* ---- 6 · the nightshade bell: lit, shadowing petals round the host ---- */
+    this.bloom = new Group();
+    this.bloom.visible = false;
+    this.group.add(this.bloom);
+    this.petalMat = m(createNightshadePetalMaterial());
+    this.petals = new InstancedMesh(g(nightshadePetalGeometry()), this.petalMat, MAX_PETALS);
+    this.petals.castShadow = true;
+    this.petals.receiveShadow = true;
+    this.petals.frustumCulled = false;
+    this.petals.count = 0;
+    this.petals.layers.set(LAYER.WORLD);
+    this.bloom.add(this.petals);
+
+    /* ---- 7 · the blight: the zone-sized floor the shade lands in ---- */
+    this.blightMat = m(createBlightMaterial());
+    this.blight = new Mesh(g(new PlaneGeometry(2, 2)), this.blightMat);
+    this.blight.rotation.x = -Math.PI / 2;
+    this.blight.position.y = 0.028;
+    this.blight.renderOrder = -2;
+    this.blight.layers.set(LAYER.VFX);
+    this.blight.frustumCulled = false;
+    this.blight.visible = false;
+    this.group.add(this.blight);
+
+    /* ---- 8 · roots: the wake behind the flying shade, and the reach to the heirs ---- */
+    const strip = g(nightshadeStripGeometry());
+    this.wakeMat = m(createRootMaterial());
+    this.wake = new Mesh(strip, this.wakeMat);
+    this.wake.position.y = 0.04;
+    this.wake.renderOrder = 3;
+    this.wake.layers.set(LAYER.VFX);
+    this.wake.frustumCulled = false;
+    this.wake.visible = false;
+    this.group.add(this.wake);
+    this.tendrils = [];
+    this.tendrilMats = [];
+    this.tendrilTargets = [];
+    for (let i = 0; i < MAX_TENDRILS; i++) {
+      const material = m(createRootMaterial());
+      const mesh = new Mesh(strip, material);
+      mesh.position.y = 0.05;
+      mesh.renderOrder = 3;
+      mesh.layers.set(LAYER.VFX);
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      this.group.add(mesh);
+      this.tendrils.push(mesh);
+      this.tendrilMats.push(material);
+      this.tendrilTargets.push(new Vector3());
+    }
+    this.tendrilCount = 0;
+    this.tendrilAt = 0;
+    this.landing = new Vector3();
+    this.landed = false;
+    this.bloomAt = 0;
+    this.bellYaw = 0;
+
     /** Pre-bound so spawning a cast never allocates its listener. */
     this._onHit = (event) => this.onCommittedHit(event);
 
@@ -308,6 +378,19 @@ export class NightshadeInheritanceAbility extends Ability {
     this.visited.clear();
     this.transfers = 0;
     this.failure = null;
+    this.landed = false;
+    this.bloom.visible = false;
+    this.petals.count = 0;
+    this.blight.visible = false;
+    this.tendrilCount = 0;
+    for (const t of this.tendrils) t.visible = false;
+    this.bellYaw = Math.random() * TAU;
+    // The wake runs the whole cast line; its vein races out with the shade.
+    this.wake.visible = true;
+    this.wake.position.set(this.origin.x, 0.04, this.origin.z);
+    this.wake.rotation.y = -Math.atan2(this.direction.z, this.direction.x);
+    this.wake.scale.set(this.length, 1, this.config.wakeWidth ?? 0.7);
+    this._syncRoot(this.wakeMat, 0, 0, this.length, 0);
     this.scope = bindExpansionCombat(this.ctx, UID);
     if (!this.scope) {
       this.failure = 'combat bridge unavailable';
@@ -391,6 +474,7 @@ export class NightshadeInheritanceAbility extends Ability {
     this.travelShade.rotation.y = t * (c.travelSpin ?? 0.8);
     this.travelShade.scale.setScalar(c.travelScale ?? 1);
     this._syncWings(t, 1, 0);
+    this._syncRoot(this.wakeMat, t, this.u, this.length, 1);
     for (let i = 0; i < this.travelWings.length; i++) {
       this.travelWings[i].rotation.z = 0.5 + 0.2 * Math.sin(t * (c.travelFlap ?? 5) + i);
     }
@@ -451,6 +535,7 @@ export class NightshadeInheritanceAbility extends Ability {
   }
 
   onImpact() {
+    this._arrive();
     if (!this.scope) {
       this.travelShade.visible = false;
       return;
@@ -479,6 +564,8 @@ export class NightshadeInheritanceAbility extends Ability {
     this.visited.add(actor.id);
     this.shade.visible = true;
     this.shade.position.fromArray(actor.position);
+    this.bloomAt = this.markAt;
+    this._reachHeirs(actor.position[0], actor.position[2]);
     this.onFade(0, 0);
     this._markBeat();
   }
@@ -491,6 +578,146 @@ export class NightshadeInheritanceAbility extends Ability {
     this.ctx.shake?.add?.((c.markShake ?? 0.06) * settings.global.explosionIntensity, 3, 12);
     this.atmosphere.burst(this.shade.position, 10, MARK_BURST);
     this._emitUmbra(this.shade.position, Math.round(10 * settings.global.particleCount), 0.6);
+  }
+
+  /**
+   * The shade lands — host or not. The blight spreads from the circle with a
+   * shock ring, the bell tears up (over a host if one is found, else over
+   * the empty circle, where it withers after `missHold`), a knock and a
+   * breath of light. No shared bursts or decals: those cues belong to the
+   * inheritance alone.
+   */
+  _arrive() {
+    const c = this.config;
+    const g = settings.global;
+    this.landed = true;
+    this.landing.copy(this.position).setY(0);
+    this.bloomAt = 0;
+    this.bloom.visible = true;
+    this.bloom.position.copy(this.landing);
+    this.blight.visible = true;
+    this.blight.position.set(this.landing.x, 0.028, this.landing.z);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * (c.arrivalLight ?? 1.2) * g.explosionIntensity);
+    if (this.reduceMotion) return;
+    this.ctx.shake?.add?.((c.arrivalShake ?? 0.14) * g.explosionIntensity, 4, 14);
+    this._emitUmbra(this.landing, Math.round(18 * g.particleCount), c.zoneRadius * 0.45);
+  }
+
+  /** Roots reach from the host toward the (up to two) enemies that would inherit it. */
+  _reachHeirs(px, pz) {
+    const c = this.config;
+    this.tendrilCount = 0;
+    const want = Math.min(MAX_TENDRILS, Math.max(0, Math.floor(c.tendrils ?? 2)));
+    if (!want || !this.scope) return;
+    const query = this.scope.queryActors({ position: [px, 0, pz], radius: c.inheritRadius, relation: 'enemy' });
+    if (!query?.ok) return;
+    const first = this._nearest(query.actors, px, pz, true);
+    if (!first) return;
+    this.tendrilTargets[0].fromArray(first.position);
+    this.tendrilCount = 1;
+    if (want > 1) {
+      this.visited.add(first.id);
+      const second = this._nearest(query.actors, px, pz, true);
+      this.visited.delete(first.id);
+      if (second) {
+        this.tendrilTargets[1].fromArray(second.position);
+        this.tendrilCount = 2;
+      }
+    }
+    this.tendrilAt = this.stagedTime;
+  }
+
+  _syncRoot(material, clock, reveal, length, fade) {
+    const c = this.config;
+    const u = material.uniforms;
+    u.uClock.value = clock;
+    u.uReveal.value = reveal;
+    u.uLength.value = Math.max(0.1, length);
+    u.uFade.value = fade;
+    u.uGlow.value = (c.tendrilGlow ?? 1.6) * settings.global.glow;
+    syncShadeRamp(u, c.colorShadeA ?? '#f3eaff', c.colorShadeB ?? '#c7a7ff', c.colorShadeC ?? '#7b45c9', c.colorShadeD ?? '#0b0612', getColor);
+  }
+
+  /** The bell, the blight, the wake and the roots, every frame after the landing. */
+  _updateBloom(visualTime, fade, exitFade, hunger) {
+    if (!this.landed) return;
+    const c = this.config;
+    const gl = settings.global;
+    const staged = this.stagedTime;
+
+    /* bell */
+    const hosted = this.markAt >= 0;
+    const grow = this.reduceMotion ? 1 : Easing.outBack(Math.min(1, Math.max(0, (staged - this.bloomAt) / Math.max(0.05, c.bellRise ?? 0.4))));
+    const missWither = hosted ? 0 : clamp01((staged - (c.missHold ?? 1.1)) / Math.max(0.05, c.bellWither ?? 0.7));
+    const wither = Math.max(1 - fade, missWither);
+    if (hosted) this.bloom.position.set(this.shade.position.x, 0, this.shade.position.z);
+    const n = Math.min(MAX_PETALS, Math.max(0, Math.round(c.bellPetals ?? 6)));
+    const H = c.bellHeight ?? 3.1;
+    const seat = c.bellSeat ?? 1.35;
+    const width = c.petalWidth ?? 1.55;
+    const beat = clamp01(hunger / Math.max(0.05, c.markGlow ?? 0.8));
+    const sway = this.reduceMotion ? 0 : c.bellSway ?? 0.04;
+    for (let i = 0; i < n; i++) {
+      const a = this.bellYaw + (i / Math.max(1, n)) * TAU + visualTime * (c.bellSpin ?? 0.12);
+      // Petals arrive splayed open and close as they rise; they breathe on
+      // the hunger beat and peel open as they wither.
+      const open = (c.bellOpen ?? 0.1) + beat * (c.bellBreath ?? 0.2) + (1 - Math.min(1, grow)) * 0.7 + wither * 1.1
+        + sway * Math.sin(visualTime * 1.6 + i * 2.1);
+      _obj.position.set(Math.cos(a) * seat * (1 + wither * 0.3), -wither * 0.45 * H, Math.sin(a) * seat * (1 + wither * 0.3));
+      _obj.rotation.set(open, Math.atan2(Math.cos(a), Math.sin(a)), 0);
+      _obj.scale.set(width * (0.5 + 0.5 * Math.min(1, grow)), Math.max(0.001, H * grow), seat);
+      _obj.updateMatrix();
+      this.petals.setMatrixAt(i, _obj.matrix);
+    }
+    this.petals.count = n;
+    this.petals.instanceMatrix.needsUpdate = true;
+    this.bloom.visible = n > 0 && wither < 1;
+    const pu = this.petalMat.userData.petal;
+    pu.uPetalClock.value = visualTime;
+    pu.uPetalHunger.value = hosted ? beat : 0.3;
+    pu.uPetalWither.value = wither;
+    pu.uPetalGlow.value = (c.bellGlow ?? 1.6) * gl.glow * gl.shaderIntensity;
+    pu.uPetalGrow.value = grow;
+    syncShadeRamp(pu, c.colorShadeA ?? '#f3eaff', c.colorShadeB ?? '#c7a7ff', c.colorShadeC ?? '#7b45c9', c.colorShadeD ?? '#0b0612', getColor);
+    this.petalMat.color.copy(getColor(c.petalColor ?? '#1b1027'));
+    this.petalMat.roughness = c.petalRoughness ?? 0.32;
+
+    /* blight: stays at the landing until the cast exits */
+    const b = this.blightMat.uniforms;
+    b.uClock.value = visualTime;
+    b.uFade.value = exitFade;
+    b.uSpread.value = this.reduceMotion ? 1 : Easing.outCubic(clamp01(staged / Math.max(0.05, c.blightSpread ?? 0.55)));
+    b.uShock.value = clamp01(staged / Math.max(0.05, c.shockTime ?? 0.45));
+    b.uHunger.value = beat;
+    b.uGlow.value = (c.blightGlow ?? 1.4) * gl.glow;
+    b.uDarkness.value = (c.blightDarkness ?? 0.82) * gl.opacity;
+    syncShadeRamp(b, c.colorShadeA ?? '#f3eaff', c.colorShadeB ?? '#c7a7ff', c.colorShadeC ?? '#7b45c9', c.colorShadeD ?? '#0b0612', getColor);
+    const rb = c.zoneRadius * (c.blightScale ?? 1);
+    this.blight.scale.set(rb, rb, 1);
+    this.blight.visible = exitFade > 0;
+
+    /* wake: lingers, then sinks away */
+    const wakeFade = 1 - clamp01(staged / Math.max(0.1, c.wakeLife ?? 1.6));
+    this.wake.visible = wakeFade > 0;
+    this.wake.scale.z = c.wakeWidth ?? 0.7;
+    this._syncRoot(this.wakeMat, visualTime, 1, this.length, wakeFade * exitFade);
+
+    /* roots toward the heirs */
+    const reveal = this.reduceMotion ? 1 : clamp01((staged - this.tendrilAt) / Math.max(0.05, c.tendrilCrawl ?? 0.9));
+    for (let i = 0; i < MAX_TENDRILS; i++) {
+      const t = this.tendrils[i];
+      const on = i < this.tendrilCount && this.targetId !== null;
+      t.visible = on;
+      if (!on) continue;
+      const to = this.tendrilTargets[i];
+      const dx = to.x - this.shade.position.x;
+      const dz = to.z - this.shade.position.z;
+      const len = Math.hypot(dx, dz);
+      t.position.set(this.shade.position.x, 0.05, this.shade.position.z);
+      t.rotation.y = -Math.atan2(dz, dx);
+      t.scale.set(Math.max(0.1, len), 1, c.tendrilWidth ?? 0.55);
+      this._syncRoot(this.tendrilMats[i], visualTime, reveal, len, fade);
+    }
   }
 
   /** Combat on: the binding delivered a committed hit; did it fell our host? */
@@ -563,12 +790,15 @@ export class NightshadeInheritanceAbility extends Ability {
     this.visited.add(next.id);
     this.transfers++;
     this.shade.position.fromArray(next.position);
+    this.bloomAt = this.markAt;
+    this._reachHeirs(next.position[0], next.position[2]);
     this._transferBeat(next.position);
   }
 
   /** The shade has nowhere to go: drop the host and retract. */
   _release() {
     this.targetId = null;
+    this.tendrilCount = 0;
     this.releaseAt = this.stagedTime;
   }
 
@@ -738,6 +968,9 @@ export class NightshadeInheritanceAbility extends Ability {
       const count = this.umbraEmitter.tick(dt, Math.max(0, (c.umbraRate ?? 16) * markEntry) * gl.particleCount);
       if (count > 0) this._emitUmbra(this.shade.position, count, (c.poolRadius ?? 1.35) * 0.6);
     }
+
+    /* --- 6–8 · bell, blight, wake and roots --- */
+    this._updateBloom(visualTime, fade, t <= 1 ? 1 : 1 - clamp01(t - 1), hunger);
   }
 
   /** The light rides the shade (and so the host), not the fixed aim point. */
@@ -760,6 +993,12 @@ export class NightshadeInheritanceAbility extends Ability {
     for (const ribbon of this.ribbons) ribbon.visible = false;
     this.travelShade.visible = false;
     this.missed = false;
+    this.landed = false;
+    this.bloom.visible = false;
+    this.blight.visible = false;
+    this.wake.visible = false;
+    for (const t of this.tendrils) t.visible = false;
+    this.tendrilCount = 0;
     this.sealEffects.reset();
     this.targetId = null;
     this.scope = null;
@@ -879,6 +1118,40 @@ export function buildEditor(gui, c, Editor) {
   R(motes, 'umbraLife', 0.1, 5, 0.05, 'umbral life (s)');
   R(motes, 'umbraRise', 0, 3, 0.05, 'umbral rise (m/s)');
   G(motes, 'colorUmbra', 'umbral gradient');
+
+  const bell = sub(folder, '6 · Nightshade bell');
+  R(bell, 'bellPetals', 0, 8, 1, 'petals');
+  R(bell, 'bellHeight', 0.5, 6, 0.05, 'height (m)');
+  R(bell, 'bellSeat', 0.3, 4, 0.05, 'seat radius (m)');
+  R(bell, 'petalWidth', 0.2, 3, 0.05, 'petal width (m)');
+  R(bell, 'bellRise', 0.05, 2, 0.01, 'tears up over (s)');
+  R(bell, 'bellOpen', -0.5, 1.5, 0.01, 'rest lean (rad)');
+  R(bell, 'bellBreath', 0, 1, 0.01, 'opens on the beat (rad)');
+  R(bell, 'bellSpin', -2, 2, 0.01, 'turn (rad/s)');
+  R(bell, 'bellSway', 0, 0.3, 0.005, 'sway (rad)');
+  R(bell, 'bellGlow', 0, 6, 0.05, 'vein glow');
+  R(bell, 'bellWither', 0.05, 3, 0.05, 'withers over (s)');
+  R(bell, 'missHold', 0, 4, 0.05, 'stands at an empty circle (s)');
+  R(bell, 'petalRoughness', 0, 1, 0.01, 'petal roughness');
+  C(bell, 'petalColor', 'petal');
+
+  const blight = sub(folder, '7 · Blight');
+  R(blight, 'blightScale', 0.2, 2, 0.01, 'radius (× zone)');
+  R(blight, 'blightSpread', 0.05, 3, 0.01, 'creeps out over (s)');
+  R(blight, 'blightDarkness', 0, 1, 0.01, 'darkness');
+  R(blight, 'blightGlow', 0, 5, 0.05, 'root glow');
+  R(blight, 'shockTime', 0.05, 2, 0.01, 'arrival ring (s)');
+  R(blight, 'arrivalShake', 0, 1, 0.01, 'arrival knock');
+  R(blight, 'arrivalLight', 0, 4, 0.05, 'arrival light (× intensity)');
+
+  const roots = sub(folder, '8 · Roots');
+  R(roots, 'wakeWidth', 0, 3, 0.05, 'wake width (m)');
+  R(roots, 'wakeLife', 0.1, 5, 0.05, 'wake lingers (s)');
+  R(roots, 'tendrils', 0, 2, 1, 'reach toward heirs');
+  R(roots, 'tendrilWidth', 0.05, 2, 0.01, 'root width (m)');
+  R(roots, 'tendrilCrawl', 0.05, 3, 0.05, 'crawls over (s)');
+  R(roots, 'tendrilGlow', 0, 5, 0.05, 'root glow');
+  G(roots, 'colorShade', 'shade ramp');
 
   return folder;
 }

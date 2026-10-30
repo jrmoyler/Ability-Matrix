@@ -4,7 +4,9 @@
  * The cast is a zone that never really "lands": the base front runs out to the
  * aimed point in a blink and the whole spell lives in the fade phase, where an
  * ash copy of the caster walks the caster's own recent path `delay` seconds
- * behind them and scorches whatever stands near it every `pulseInterval`.
+ * behind them and scorches whatever stands near it every `pulseInterval` —
+ * and, `brandAt` seconds in, repeats your cast: it throws a coal to the aimed
+ * point, which tears the floor open and raises a crown of ash-basalt spires.
  *
  * Grouped by layer, in the order the editor shows them. Gameplay keys (the
  * first group) are the ones tests and the combat adapter rely on; every other
@@ -27,7 +29,7 @@ export const CONFIG = Object.freeze({
   },
   settings: {
     /* --- the cast ------------------------------------------------------ */
-    range: 18, // max aim distance (m) — the echo ignores it, it follows you
+    range: 18, // max aim distance (m) — where the echo's thrown coal lands
     minRange: 0,
     speed: 45, // the base front: effectively instant, the spell is the fade
     lifetime: 5, // nominal; the live length is `duration`
@@ -55,14 +57,14 @@ export const CONFIG = Object.freeze({
     },
 
     /* --- 1 · the echo body (ember-crust shader) -------------------------- */
-    echoOpacity: 0.84, // overall opacity of the echo
+    echoOpacity: 1, // overall opacity of the echo (1 = solid ash; below 0.99 it blends)
     formTime: 0.45, // condenses out of ash over (s)
     burnOutTime: 0.9, // crumbles top-down over the last (s)
     fissureScale: 21, // density of the glowing cracks
     fissureSpeed: 2, // how fast heat crawls through them
     crustGrain: 18, // char grain size
-    fissureGlow: 1.3, // crack brightness
-    rimGlow: 0.42, // silhouette glow
+    fissureGlow: 2, // crack brightness
+    rimGlow: 0.55, // silhouette ember rim
     preheat: 0.25, // seconds before a pulse the body starts to flare
     heatFlare: 1, // extra crack glow at the pulse
     wobble: 0.025, // heat-shimmer sway of the fallback figure (m)
@@ -72,9 +74,10 @@ export const CONFIG = Object.freeze({
     colorFissure: '#ff3005', // crack glow
     colorRim: '#ff7a2a', // silhouette rim
     colorBurnEdge: '#ffc070', // forming / crumbling edge
-    rigEmissive: 1.4, // emissive strength on the cloned caster rig
-    colorRigBody: '#24100a', // cloned rig base colour
-    colorRigEmissive: '#b52805', // cloned rig emissive
+    rigEmissive: 0.3, // base emissive on the cloned caster rig (the cracks and rim glow on top)
+    colorRigBody: '#3a2c26', // cloned rig base colour: charcoal ash, lit by the sun
+    colorRigEmissive: '#4a0e02', // cloned rig emissive (a low smoulder)
+    colorRigAsh: '#6b5d55', // pale cooled-ash flecks on the rig
 
     /* --- 2 · ground sigil and pulse ring -------------------------------- */
     sigilOpacity: 0.32, // standing ash circle
@@ -147,7 +150,7 @@ export const CONFIG = Object.freeze({
     pulseLight: 0.6, // light punch per pulse (× lightIntensity)
     hitFlash: 0.12, // screen flash on a strike
     colorFlash: '#ff8a3a',
-    scorchDecal: 0.55, // scorch mark radius (× pulseRadius) left by a pulse
+    scorchDecal: 0.4, // scorch mark radius (× pulseRadius) left by a pulse
     scorchDecalLife: 2.2,
     shockLife: 0.45, // pulse shockwave decal life
     colorShockA: '#ff5a1c',
@@ -158,6 +161,69 @@ export const CONFIG = Object.freeze({
     colorBurstB: '#ff7a1e',
     colorBurstC: '#3a0a02',
     collapseAsh: 40, // ash thrown when the echo crumbles
-    collapseEmbers: 60 // embers thrown when the echo crumbles
+    collapseEmbers: 60, // embers thrown when the echo crumbles
+
+    /* --- 8 · the echo stands at your shoulder --------------------------- */
+    echoSide: 1, // the ash figure stands this far to the caster's right of its path point (m)
+    echoBack: 0.35, // ... and this far behind it (m); pulses centre on the figure
+
+    /* --- 9 · the echo repeats your cast: the brand ---------------------- */
+    // `brandAt` seconds after the cast the echo throws what you threw: a coal
+    // flies from its hand to the aimed point and tears the floor open there.
+    brandAt: 0.5, // seconds after the cast the echo throws (gameplay)
+    brandCharge: 0.3, // seconds the coal gathers in the echo's hand before it flies
+    brandFlight: 0.5, // seconds in the air (gameplay: the landing is the hit)
+    brandArc: 1.8, // height of the throw's arc (m)
+    brandSize: 0.55, // coal diameter (m)
+    brandSpin: 7, // tumble of the coal (rad/s)
+    brandGlow: 2.4, // brightness of its seams
+    brandTail: 1.8, // flame tail length (m)
+    brandTrailRate: 140, // embers shed per second of flight
+    brandSmokeRate: 36, // ash puffs per second of flight
+    brandRadius: 2.8, // metres the landing scorches (gameplay)
+    brandForce: 3.2, // knock-back on a struck body
+    brandLift: 2.4, // upward kick on a struck body
+    brandTumble: 1, // tumble on a struck body
+    brandShake: 0.32, // camera knock at the landing
+    brandFlash: 0.3, // screen flash at the landing
+    brandLight: 2.6, // light punch at the landing (× lightIntensity)
+    brandBurst: 0.95, // fire shell at the landing (× brandRadius)
+    brandSparks: 110, // sparks thrown at the landing
+
+    /* --- 10 · the cinder crown (lit ash-basalt spires) ------------------ */
+    spireCount: 10, // spires torn up round the landing (≤ 12)
+    spireRing: 0.62, // seat of the ring, × brandRadius
+    spireHeight: 3.2, // tallest spire (m)
+    spireWidth: 1.35, // girth (× a 0.7 m foot)
+    spireLean: 0.3, // outward lean at the eruption (rad)
+    spireRise: 0.3, // seconds to tear up out of the floor
+    spireSettle: 0.45, // metres they sink over the linger
+    spireTilt: 0.22, // extra outward lean over the linger (rad)
+    spireSway: 0.035, // heat sway while they stand (rad)
+    crownLife: 2.3, // seconds the crown stands after the landing
+    crownCrumble: 0.9, // seconds it crumbles crown-down at the end
+    spireCool: 1.6, // seconds for the stone's heat to halve
+    spireVeinGlow: 2.2, // vein brightness
+    spireVeinScale: 5.5, // vein density
+    spireRoughness: 0.92,
+    colorSpireRock: '#2b211d', // the stone (lit by the sun)
+    colorSpireAsh: '#7a6a60', // pale ash settling on it as it cools
+    crownEmbers: 46, // embers rising off the crown per second (fades with its heat)
+    crownSmoke: 12, // ash puffs off the crown per second
+    crownHaze: 0.8, // heat-haze strength over the crown
+
+    /* --- 11 · the cinder field (the torn floor that stays) -------------- */
+    fieldScale: 1.25, // radius, × brandRadius
+    fieldReveal: 0.28, // seconds the tear runs out from the centre
+    fieldOpacity: 0.94,
+    fieldGlow: 2.2,
+    fieldCool: 2.4, // seconds for the cracks' heat to halve
+    fieldCrackScale: 1.6, // plate density
+
+    /* the four-stop cinder ramp every layer of the echo's cast is coloured from */
+    colorCinderA: '#fff3cc', // white-hot core
+    colorCinderB: '#ffb347', // pale gold
+    colorCinderC: '#ff3d0a', // saturated ember
+    colorCinderD: '#1c0703' // dark char
   }
 });

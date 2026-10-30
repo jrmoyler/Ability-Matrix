@@ -1,4 +1,4 @@
-import { Box3, Group, Mesh, Points, Quaternion, Vector3 } from 'three';
+import { Box3, Group, InstancedMesh, Mesh, Object3D, Points, Quaternion, Vector3 } from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
@@ -9,12 +9,15 @@ import { RateEmitter } from '../../../particles/ParticleEngine.js';
 import { DecalType } from '../../../effects/GroundDecals.js';
 import { BurstMode } from '../../../effects/BurstSphere.js';
 import { getColor } from '../../../utils/color.js';
-import { saturate } from '../../../utils/math.js';
+import { Easing, saturate } from '../../../utils/math.js';
 import { prefersReducedMotion } from '../ExpansionAtmosphere.js';
 import { ID, UID, CONFIG } from './AshenDoppelgangerConfig.js';
 import {
   FUSE_POINTS,
+  createBrandGeometry,
+  createBrandTailGeometry,
   createEmberColumnGeometry,
+  createSpireGeometry,
   createFuseGeometry,
   createGroundQuad,
   createHazeQuad,
@@ -23,7 +26,11 @@ import {
   createTorsoGeometry
 } from './AshenDoppelgangerGeometry.js';
 import {
+  createBrandMaterial,
+  createBrandTailMaterial,
+  createCinderFieldMaterial,
   createEchoSkinMaterial,
+  createSpireMaterial,
   createEmberColumnMaterial,
   createFuseMaterial,
   createHeatHazeMaterial,
@@ -41,6 +48,11 @@ const SAMPLE_STEP = 0.05;
 const MAX_BONES = 128;
 /** Floats per bone per sample: quaternion xyzw + position xyz. */
 const BONE_STRIDE = 7;
+/** Spires the cinder crown can raise (`spireCount` is clamped to this). */
+const MAX_SPIRES = 12;
+/** Dice per spire: bearing, seat, height, lean. */
+const SPIRE_DICE = 4;
+const TAU = Math.PI * 2;
 
 const _emit = {};
 const _pos = new Vector3();
@@ -50,65 +62,96 @@ const _b = new Vector3();
 const _side = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _box = new Box3();
+const _obj = new Object3D();
+_obj.rotation.order = 'YXZ';
+const _q = new Quaternion();
+const _vel = new Vector3();
 
 /**
  * ASHEN DOPPELGANGER — Fire, zone cast (matrix-expansion candidate).
  *
  * The caster leaves a copy of themselves made of cooling ash. It condenses at
- * the spot they cast from and then *walks their path* — the same footsteps,
- * the same facing and, when the host has given us the caster's rig, the same
- * pose — `delay` seconds behind them. Every `pulseInterval` it flares and
- * scorches everything within `pulseRadius`. When its time is up it crumbles
- * crown-first into ash and embers.
+ * their shoulder and then *walks their path* — the same footsteps, the same
+ * facing and, when the host has given us the caster's rig, the same pose —
+ * `delay` seconds behind them. Every `pulseInterval` it flares and scorches
+ * everything within `pulseRadius`. And because it is *you, a moment late*, it
+ * also repeats your cast: `brandAt` seconds in, it throws a coal from its hand
+ * to the point you aimed at, where the floor tears open into a field of
+ * smouldering cracks and a crown of ash-basalt spires heaves up out of it.
+ * When its time is up it crumbles crown-first into ash and embers.
  *
- * The read is *a fuse burning towards you*: a smouldering path runs from the
- * echo's feet to the caster, white-hot where they have just stepped and
- * cooling to ash where the echo is about to tread, so the player can always
- * see where their own past is going to hurt someone next.
+ * The read is *your own past, still burning*: a dark ash figure at your
+ * shoulder with fissures of fire in it, a smouldering fuse from its feet to
+ * yours, and — out where you aimed — a crown of charred stone it raised.
  *
  * ## Beats
  *
- *   - **anticipation** — the echo condenses feet-first out of ash over
- *     `formTime` while it waits `delay` for the caster to move off.
- *   - **travel** — it walks the recorded path; the fuse, ember column, motes,
- *     ash flakes and heat haze ride with it.
- *   - **pulse** — `preheat` seconds before each pulse the crust's fissures and
- *     the sigil's cracks brighten; on the pulse a ring runs out across the
- *     sigil, a shockwave and scorch decal mark the floor, sparks fly, the
- *     light punches and the camera knocks lightly. A pulse that fells a body
- *     adds a fire shell on it, a flash and a harder knock, and chars the body
- *     (`Dummy.corrode` with `scorchLook`) so the stain travels with it.
- *   - **exit** — over the last `burnOutTime` the echo crumbles from the crown
- *     down behind a white-hot edge, shedding ash and embers; every layer
- *     fades with it. Nothing pops.
+ *   - **anticipation** (0 → `brandAt`) — the echo condenses feet-first out of
+ *     ash over `formTime`; for the last `brandCharge` seconds a coal gathers
+ *     and swells in its hand, the light rising with it.
+ *   - **travel** (`brandFlight`) — the coal flies an arc (`brandArc`) to the
+ *     aimed point, tumbling, its seams boiling, a flame tail streaming back
+ *     along the flight and a wake of embers and ash smoke behind it.
+ *   - **impact** (one frame) — the landing: everything inside `brandRadius`
+ *     is struck and charred, a fire shell and shockwave, sparks, a flash, a
+ *     camera knock and a light punch; the cinder field tears open from the
+ *     centre (white-hot front) and `spireCount` spires tear up out of it,
+ *     leaning outward, sized from `brandRadius` so the crown always fills the
+ *     zone.
+ *   - **linger** (`crownLife`) — the crown is alive: the stone cools
+ *     (`spireCool`, veins sliding white → gold → ember → char, pale ash
+ *     settling on the crowns), the spires settle into the floor and lean
+ *     further out, sway in their own heat, embers and ash rise off them,
+ *     the field's cracks breathe and cool, a haze rises — and every pulse of
+ *     the echo re-flares the stone. Meanwhile the echo keeps walking your path
+ *     and pulsing: a shockwave and scorch on the floor, sparks, a knock; a
+ *     pulse that fells a body shells it in fire and chars it (`Dummy.corrode`
+ *     with `scorchLook`) so the stain travels with it.
+ *   - **exit** — the crown crumbles from the top down behind a white-hot
+ *     edge (`crownCrumble`) with a sigh of ash; over the last `burnOutTime`
+ *     the echo does the same; the field fades with the cast. Nothing pops.
  *
  * ## Layers (each a folder in the editor)
  *
- *   1. **the echo body** — the caster's own rig cloned with the ash crust
- *      patched into its material, or (until a rig exists) an authored, eroded
- *      fallback figure with the bespoke ember-crust ShaderMaterial.
+ *   1. **the echo body** — the caster's own rig cloned with an ash crust
+ *      patched into a lit `MeshStandardMaterial` (charcoal grain, pale ash
+ *      flecks, crawling fissures, ember rim, condense/crumble fronts), or
+ *      (until a rig exists) an authored, eroded fallback figure with the
+ *      bespoke ember-crust ShaderMaterial. It stands `echoSide`/`echoBack`
+ *      off its path point so it never hides inside the caster.
  *   2. **the sigil** — ground circle, cracks and pulse ring (additive shader).
  *   3. **the fuse** — the smouldering path ribbon, rewritten in place each frame
  *      from the recorded history (fixed `FUSE_POINTS`).
  *   4. **the ember column** — baked points in an updraft round the body.
- *   5. **heat haze** — a `LAYER.DISTORTION` billboard over the echo.
- *   6. **particles** — embers shed (`.motes`), ash flakes (`.ash`), pulse
- *      sparks (`.sparks`), all shared `ctx.particles` systems.
+ *   5. **heat haze** — `LAYER.DISTORTION` billboards over the echo and crown.
+ *   6. **particles** — embers (`.motes`), ash smoke (`.ash`), sparks
+ *      (`.sparks`), all shared `ctx.particles` systems.
  *   7. **beats** — SHOCKWAVE + SCORCH decals, FIRE bursts, flash, shake, light.
+ *   8. **the brand** — the thrown coal (eroded lathe, opaque sun-lit char with
+ *      boiling seams) and its additive flame-cone tail.
+ *   9. **the cinder crown** — instanced, faceted ash-basalt spires
+ *      (`MeshStandardMaterial` patch: lit, shadowing, `LAYER.WORLD`).
+ *  10. **the cinder field** — the torn floor: charred plates over a warped
+ *      crack network, normal-blended so the deep tone grounds the cast.
+ *  Every glowing layer of the echo's cast reads one four-stop ramp,
+ *  `colorCinderA..D` (white-hot → gold → ember → char).
  *
  * ## Hits (`handlesOwnHits`)
  *
- * Unchanged from the gameplay contract: each pulse calls `findTargets` round
- * the echo and `kill`s each body with a force pointing away from it; only a
- * body that actually fell is stained. Pulses are clocked off `age`, not
- * frames, so a long frame catches up (capped at four per frame).
+ * Each pulse calls `findTargets` round the echo figure and `kill`s each body
+ * with a force pointing away from it; the brand's landing does the same once
+ * round the aimed point with `brandForce`. Only a body that actually fell is
+ * stained. Pulses are clocked off `age`, not frames, so a long frame catches
+ * up (capped at four per frame); the landing fires once per cast.
  *
  * ## The editor rule
  *
- * A cast keeps its history, its pulse clock and a few integrated phases;
- * every size, colour, rate and glow is read from `settings[ID]` every frame.
- * Reduced motion holds every ambient animation (crust crawl, column drift,
- * haze, shake) — the gameplay timing is untouched.
+ * A cast keeps its history, its pulse clock, its landing time, per-spire dice
+ * and a few integrated phases; every size, colour, rate and glow is read from
+ * `settings[ID]` every frame (the crown's seat and heights from `brandRadius`
+ * and `spireHeight`, so dragging them reshapes a standing crown). Reduced
+ * motion holds every ambient animation (crust crawl, column drift, haze,
+ * sway, shake) — the gameplay timing is untouched.
  */
 export class AshenDoppelgangerAbility extends Ability {
   constructor(ctx) {
@@ -167,14 +210,20 @@ export class AshenDoppelgangerAbility extends Ability {
     // ~1.47 m, the head sits on the neck. Parts are authored at a generous
     // size and proportioned here, so the editor-free silhouette reads as a
     // person rather than a stack of capsules.
+    // The figure stands beside its path point (`echoSide`/`echoBack`).
+    this.figure = new Group();
+    this.figure.name = 'AshEchoFigure';
+    this.echo.add(this.figure);
+    this.figurePos = new Vector3();
+
     this.body = new Mesh(this.bodyGeo, this.skin);
     this.body.position.y = 0.74;
     this.body.scale.set(0.62, 0.72, 0.62);
-    this.echo.add(this.body);
+    this.figure.add(this.body);
     this.head = new Mesh(this.headGeo, this.skin);
     this.head.position.y = 1.52;
     this.head.scale.setScalar(0.6);
-    this.echo.add(this.head);
+    this.figure.add(this.head);
     this.limbs = [];
     // [x, y, length scale, girth scale]: arms hang from the shoulders, legs
     // from the hips. The limb geometry is built pointing up; the pivot's
@@ -191,14 +240,14 @@ export class AshenDoppelgangerAbility extends Ability {
       part.rotation.z = Math.PI;
       part.scale.set(girth, len, girth);
       pivot.add(part);
-      this.echo.add(pivot);
+      this.figure.add(pivot);
       this.limbs.push(pivot);
     }
 
     // The ember column rides the echo too.
     this.spark = new Points(this.sparkGeo, this.sparkMat);
     this.spark.frustumCulled = false;
-    this.echo.add(this.spark);
+    this.figure.add(this.spark);
 
     // The sigil and the fuse are on the floor in world space.
     this.ground = new Mesh(this.groundGeo, this.groundMat);
@@ -215,6 +264,60 @@ export class AshenDoppelgangerAbility extends Ability {
     this.haze = new Mesh(this.hazeGeo, this.hazeMat);
     this.haze.frustumCulled = false;
     this.group.add(this.haze);
+
+    // 8 · the brand: the coal and its flame tail (world space).
+    this.brandMat = createBrandMaterial();
+    this.brandGeo = createBrandGeometry();
+    this.brand = new Mesh(this.brandGeo, this.brandMat);
+    this.brand.frustumCulled = false;
+    this.brand.castShadow = true;
+    this.brand.visible = false;
+    this.group.add(this.brand);
+    this.tailMat = createBrandTailMaterial();
+    this.tailGeo = createBrandTailGeometry();
+    this.tail = new Mesh(this.tailGeo, this.tailMat);
+    this.tail.frustumCulled = false;
+    this.tail.visible = false;
+    this.group.add(this.tail);
+
+    // 9 · the cinder crown: instanced, lit, shadowing spires.
+    this.spireMat = createSpireMaterial();
+    this.spireGeo = createSpireGeometry();
+    this.spires = new InstancedMesh(this.spireGeo, this.spireMat, MAX_SPIRES);
+    this.spires.castShadow = true;
+    this.spires.receiveShadow = true;
+    this.spires.frustumCulled = false;
+    this.spires.count = 0;
+    this.spires.visible = false;
+    this.group.add(this.spires);
+    this.spireDice = new Float32Array(MAX_SPIRES * SPIRE_DICE);
+
+    // 10 · the cinder field, and a second haze over the crown.
+    this.fieldMat = createCinderFieldMaterial();
+    this.field = new Mesh(this.groundGeo, this.fieldMat);
+    this.field.rotation.x = -Math.PI / 2;
+    this.field.position.y = 0.03;
+    this.field.renderOrder = 1;
+    this.field.visible = false;
+    this.group.add(this.field);
+    this.crownHazeMat = createHeatHazeMaterial();
+    this.crownHaze = new Mesh(this.hazeGeo, this.crownHazeMat);
+    this.crownHaze.frustumCulled = false;
+    this.crownHaze.visible = false;
+    this.group.add(this.crownHaze);
+
+    this.aim = new Vector3();
+    this.launchFrom = new Vector3();
+    this.hand = new Vector3();
+    this._brandPrev = new Vector3();
+    this._launched = false;
+    this._landed = false;
+    this._landAt = -1;
+    this._crownCollapsed = false;
+    this._brandState = { clock: 0, heat: 0, power: 0 };
+    this._spireState = { clock: 0, heat: 1, pulse: 0, crumble: 0 };
+    this._fieldState = { clock: 0, opacity: 0, reveal: 0, heat: 1, pulse: 0 };
+    this._crownHazeState = { clock: 0, heat: 0, power: 0 };
 
     // Bounded ring-buffer history: position, time, facing, and (with a rig)
     // every bone's local pose. Nothing here grows after construction.
@@ -236,6 +339,7 @@ export class AshenDoppelgangerAbility extends Ability {
     this.poseCopies = [];
     this.poseHistory = null;
     this.rigMaterial = null;
+    this.rigMeshes = [];
     this._rigHeight = 1.8;
 
     // Per-cast state handed to the material syncs (same objects every frame).
@@ -255,12 +359,21 @@ export class AshenDoppelgangerAbility extends Ability {
     this.ground.layers.set(LAYER.VFX);
     this.fuse.layers.set(LAYER.VFX);
     this.haze.layers.set(LAYER.DISTORTION);
+    this.brand.layers.set(LAYER.WORLD);
+    this.tail.layers.set(LAYER.VFX);
+    this.spires.layers.set(LAYER.WORLD);
+    this.field.layers.set(LAYER.VFX);
+    this.crownHaze.layers.set(LAYER.DISTORTION);
   }
 
   createParticles() {
     const particles = this.ctx.particles;
     this.moteEmitter = new RateEmitter();
     this.ashEmitter = new RateEmitter();
+    this.brandEmitter = new RateEmitter();
+    this.brandSmokeEmitter = new RateEmitter();
+    this.crownEmitter = new RateEmitter();
+    this.crownSmokeEmitter = new RateEmitter();
     if (!particles?.get) {
       this.motes = this.ash = this.sparks = null;
       return;
@@ -326,6 +439,27 @@ export class AshenDoppelgangerAbility extends Ability {
     this._collapsed = false;
     this.moteEmitter.reset();
     this.ashEmitter.reset();
+    this.brandEmitter.reset();
+    this.brandSmokeEmitter.reset();
+    this.crownEmitter.reset();
+    this.crownSmokeEmitter.reset();
+    // The echo's own cast: where you aimed, and fresh dice for its crown.
+    this.pointAt(1, this.aim);
+    this.aim.y = 0;
+    this._launched = false;
+    this._landed = false;
+    this._landAt = -1;
+    this._crownCollapsed = false;
+    this._crownYaw = Math.random() * TAU;
+    for (let i = 0; i < this.spireDice.length; i++) this.spireDice[i] = Math.random();
+    this.brand.visible = false;
+    this.tail.visible = false;
+    this.spires.visible = false;
+    this.spires.count = 0;
+    this.field.visible = false;
+    this.crownHaze.visible = false;
+    this.figure.position.set(-c.echoSide, 0, -c.echoBack);
+    this.figurePos.set(this.origin.x - c.echoSide, 0, this.origin.z - c.echoBack);
     this.last.copy(this.origin);
     this.echo.position.copy(this.origin);
     this.echo.rotation.y = 0;
@@ -360,18 +494,21 @@ export class AshenDoppelgangerAbility extends Ability {
     if (!originals.length || originals.length !== clones.length || originals.length > MAX_BONES) return;
     this.rigMaterial = createRigMaterial();
     this.rigMaterial.opacity = this.config.echoOpacity;
+    this.rigMeshes = [];
     copy.traverse((node) => {
       if (node.isMesh) {
+        this.rigMeshes.push(node);
         node.material = this.rigMaterial;
-        node.castShadow = false;
+        // Solid ash: lit by the sun and casting its own shadow.
+        node.castShadow = true;
       }
-      node.layers?.set(LAYER.VFX);
+      node.layers?.set(LAYER.WORLD);
     });
     // The crust's dissolve needs the body's height; measure it once.
     _box.setFromObject(source);
     const height = _box.max.y - _box.min.y;
     this._rigHeight = Number.isFinite(height) && height > 0.2 && height < 6 ? height : 1.8;
-    this.echo.add(copy);
+    this.figure.add(copy);
     this.echoRig = copy;
     this.poseSources = originals;
     this.poseCopies = clones;
@@ -458,12 +595,24 @@ export class AshenDoppelgangerAbility extends Ability {
     const stride = Math.min(1, (Math.hypot(dx, dz) / Math.max(dt, 0.001)) * 0.2);
     for (let i = 0; i < 4; i++) this.limbs[i].rotation.x = Math.sin(this.age * 8 + i * Math.PI) * stride * 0.5;
 
-    this.ground.position.set(this.echo.position.x, 0.035, this.echo.position.z);
+    // The figure stands `echoSide`/`echoBack` off its path point, in the
+    // echo's own frame; pulses, sigil and haze centre on the figure.
+    this.figure.position.set(-c.echoSide, 0, -c.echoBack);
+    const yaw = this.echo.rotation.y;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    this.figurePos.set(
+      this.echo.position.x + this.figure.position.x * cy + this.figure.position.z * sy,
+      0,
+      this.echo.position.z - this.figure.position.x * sy + this.figure.position.z * cy
+    );
+    const fp = this.figurePos;
+    this.ground.position.set(fp.x, 0.035, fp.z);
     this.ground.scale.setScalar(c.pulseRadius * 2);
     this._heat = Math.max(0, 1 - (this.nextPulse - this.age) / Math.max(0.01, c.preheat));
     this.skin.uniforms.uHeat.value = this._heat;
     this.groundMat.uniforms.uPulse.value = saturate((this.age - this.lastPulse) / Math.max(0.01, c.pulseRingTime));
-    this.position.copy(this.echo.position);
+    this.position.copy(fp);
 
     let pulses = 0;
     while (this.age >= this.nextPulse && pulses++ < 4) {
@@ -471,14 +620,13 @@ export class AshenDoppelgangerAbility extends Ability {
       this.lastPulse = this.age;
       this.groundMat.uniforms.uPulse.value = 0;
       this._pulseFx();
-      const found =
-        this.ctx.dummies?.findTargets?.(this.echo.position.x, this.echo.position.z, c.pulseRadius, this.found) ?? [];
+      const found = this.ctx.dummies?.findTargets?.(fp.x, fp.z, c.pulseRadius, this.found) ?? [];
       this._force.impulse = c.pulseForce;
       this._force.lift = c.pulseLift;
       this._force.spin = c.pulseSpin;
       for (const d of found) {
-        const x = d.position.x - this.echo.position.x;
-        const z = d.position.z - this.echo.position.z;
+        const x = d.position.x - fp.x;
+        const z = d.position.z - fp.z;
         const r = Math.hypot(x, z) || 1;
         const struck = d.kill?.(x / r, z / r, this._force, false);
         // Like Emberveil's scorch stain, the look travels with the actual
@@ -486,7 +634,7 @@ export class AshenDoppelgangerAbility extends Ability {
         if (struck) {
           d.corrode?.(c.scorchAmount, c.scorchLook);
           this._hitCount++;
-          this._strikeFx(d);
+          this._strikeFx(d, fp);
         }
       }
     }
@@ -495,6 +643,7 @@ export class AshenDoppelgangerAbility extends Ability {
   onTravel(dt) {
     this._updateEcho(dt);
     this._present(dt, 1);
+    this._updateBrand(dt, 1);
   }
 
   onImpact() {}
@@ -502,6 +651,7 @@ export class AshenDoppelgangerAbility extends Ability {
   onFade(dt, t) {
     this._updateEcho(dt);
     this._present(dt, t);
+    this._updateBrand(dt, t > 1 ? saturate((2 - t) * 4) : 1);
   }
 
   /* ------------------------------------------------------------------ */
@@ -536,7 +686,7 @@ export class AshenDoppelgangerAbility extends Ability {
     ss.heat = this._heat;
     ss.form = this._form;
     ss.crumble = this._crumble;
-    ss.origin.copy(this.echo.position);
+    ss.origin.copy(this.figurePos);
     this.skin.userData.sync(ss);
     if (this.rigMaterial) {
       const rs = this._rigState;
@@ -547,6 +697,10 @@ export class AshenDoppelgangerAbility extends Ability {
       rs.height = this._rigHeight;
       rs.opacity = opacity;
       this.rigMaterial.userData.sync(rs);
+      // The depth pass ignores the crust's dissolve, so the echo only casts
+      // a shadow while it stands whole.
+      const whole = this._form >= 1 && this._crumble <= 0;
+      for (let i = 0; i < this.rigMeshes.length; i++) this.rigMeshes[i].castShadow = whole;
     }
 
     // 2 · sigil (uPulse belongs to the pulse clock in `_updateEcho`)
@@ -569,7 +723,7 @@ export class AshenDoppelgangerAbility extends Ability {
 
     // 5 · haze — strongest at the pulse, gone under reduced motion
     this.haze.visible = !this.reduceMotion && c.hazeStrength > 0;
-    this.haze.position.copy(this.echo.position);
+    this.haze.position.copy(this.figurePos);
     fx.power = live * this._form * (0.45 + 0.55 * Math.max(this._heat, 1 - this.groundMat.uniforms.uPulse.value));
     this.hazeMat.userData.sync(fx);
 
@@ -612,7 +766,7 @@ export class AshenDoppelgangerAbility extends Ability {
 
   /** Station `k` of `points`: the echo, then history samples, then the caster. */
   _fusePoint(k, points, lower, available, out) {
-    if (k === 0) return out.copy(this.echo.position);
+    if (k === 0) return out.copy(this.figurePos);
     if (k === points - 1) {
       const p = this.ctx.character?.position;
       return p ? out.copy(p) : out.copy(this.samples[(lower + available - 1) % this.samples.length]);
@@ -680,7 +834,7 @@ export class AshenDoppelgangerAbility extends Ability {
     const h = low + Math.random() * (high - low);
     const a = Math.random() * Math.PI * 2;
     const r = 0.12 + Math.random() * 0.16;
-    return out.set(this.echo.position.x + Math.cos(a) * r, h, this.echo.position.z + Math.sin(a) * r);
+    return out.set(this.figurePos.x + Math.cos(a) * r, h, this.figurePos.z + Math.sin(a) * r);
   }
 
   /** Embers and ash shed continuously; heavier at the pulse and the crumble. */
@@ -727,7 +881,7 @@ export class AshenDoppelgangerAbility extends Ability {
     const c = this.config;
     const g = settings.global;
     const power = g.explosionIntensity;
-    _pos.copy(this.echo.position).setY(0);
+    _pos.copy(this.figurePos).setY(0);
     this.ctx.decals?.spawn?.(DecalType.SHOCKWAVE, _pos, {
       radius: c.pulseRadius * power,
       life: c.shockLife,
@@ -739,13 +893,13 @@ export class AshenDoppelgangerAbility extends Ability {
     this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
       radius: c.pulseRadius * c.scorchDecal,
       life: c.scorchDecalLife,
-      intensity: 0.8,
+      intensity: 0.5,
       colorA: getColor(c.scorchLook.rimColor),
       colorB: getColor(c.scorchLook.color)
     });
     if (this.sparks && c.pulseSparks > 0) {
       this._resetEmit();
-      _pos.copy(this.echo.position).setY(0.9);
+      _pos.copy(this.figurePos).setY(0.9);
       _emit.radius = 0.25;
       _emit.speed = c.sparkSpeed;
       _emit.speedVariance = 0.5;
@@ -758,8 +912,8 @@ export class AshenDoppelgangerAbility extends Ability {
     if (!this.reduceMotion && c.pulseShake > 0) this.ctx.shake?.add?.(c.pulseShake * power, c.shakeDecay, 18);
   }
 
-  /** A pulse felled `dummy`: a fire shell on it, sparks, a flash, a knock. */
-  _strikeFx(dummy) {
+  /** A blow from `from` felled `dummy`: a fire shell on it, sparks, a flash, a knock. */
+  _strikeFx(dummy, from) {
     const c = this.config;
     const g = settings.global;
     const power = g.explosionIntensity;
@@ -787,7 +941,7 @@ export class AshenDoppelgangerAbility extends Ability {
     });
     if (this.sparks) {
       this._resetEmit();
-      _dir.subVectors(dummy.position, this.echo.position).setY(0);
+      _dir.subVectors(dummy.position, from).setY(0);
       if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
       _dir.normalize().addScaledVector(_up, 0.8).normalize();
       _emit.direction = _dir;
@@ -842,7 +996,7 @@ export class AshenDoppelgangerAbility extends Ability {
         this.motes.emit(1, _emit);
       }
     }
-    _pos.copy(this.echo.position).setY(0);
+    _pos.copy(this.figurePos).setY(0);
     this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
       radius: c.pulseRadius * c.scorchDecal * 0.8,
       life: c.scorchDecalLife * 1.5,
@@ -853,6 +1007,377 @@ export class AshenDoppelgangerAbility extends Ability {
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.pulseLight * g.explosionIntensity);
   }
 
+
+  /* ------------------------------------------------------------------ */
+  /* The echo repeats your cast: brand, landing, cinder crown            */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Charge the coal in the echo's hand, fly it to the aimed point, land it
+   * once, then run the crown. `exitFade` is the cast's own exit (1 → 0).
+   */
+  _updateBrand(dt, exitFade) {
+    const c = this.config;
+    const g = settings.global;
+    const clock = this._clock;
+    // The hand: chest-high in front of the figure, turned toward the aim.
+    _dir.subVectors(this.aim, this.figurePos).setY(0);
+    if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
+    _dir.normalize();
+    this.hand.copy(this.figurePos).addScaledVector(_dir, 0.38).setY(1.45);
+
+    const chargeStart = Math.max(0, c.brandAt - c.brandCharge);
+    const bs = this._brandState;
+    bs.clock = clock;
+
+    if (!this._launched) {
+      if (this.age < chargeStart || exitFade <= 0) {
+        this.brand.visible = false;
+        this.tail.visible = false;
+      } else if (this.age < c.brandAt) {
+        // Anticipation: the coal swells in the hand, the light with it.
+        const k = saturate((this.age - chargeStart) / Math.max(0.01, c.brandCharge));
+        this.brand.visible = true;
+        this.tail.visible = false;
+        this.brand.position.copy(this.hand);
+        this.brand.position.y += Math.sin(clock * 9) * 0.03 * k;
+        this.brand.scale.setScalar(Math.max(0.001, c.brandSize * (0.2 + 0.8 * Easing.outCubic(k))));
+        if (!this.reduceMotion) this.brand.rotation.y += c.brandSpin * 0.4 * dt;
+        bs.heat = k;
+        this.brandMat.userData.sync(bs);
+        this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * 0.5 * k);
+        this._chargeMotes(dt, c, g, k);
+      } else {
+        this._launched = true;
+        this.launchFrom.copy(this.hand);
+        this._brandPrev.copy(this.hand);
+        this.brand.position.copy(this.hand);
+        this._launchFx(c, g);
+      }
+    }
+
+    if (this._launched && !this._landed) {
+      const u = saturate((this.age - c.brandAt) / Math.max(0.01, c.brandFlight));
+      this._brandPrev.copy(this.brand.position);
+      // A thrown arc: straight in plan, a parabola in height, landing on the floor.
+      this.brand.position.lerpVectors(this.launchFrom, this.aim, u);
+      this.brand.position.y = this.launchFrom.y * (1 - u) + 0.15 * u + 4 * c.brandArc * u * (1 - u);
+      this.brand.visible = true;
+      this.brand.scale.setScalar(c.brandSize);
+      if (!this.reduceMotion) {
+        this.brand.rotation.x += c.brandSpin * dt;
+        this.brand.rotation.y += c.brandSpin * 0.6 * dt;
+      }
+      bs.heat = 1;
+      this.brandMat.userData.sync(bs);
+      // The tail streams back along the flight.
+      _vel.subVectors(this.brand.position, this._brandPrev);
+      if (_vel.lengthSq() > 1e-8) {
+        _vel.normalize().negate();
+        _q.setFromUnitVectors(_up, _vel);
+        this.tail.quaternion.copy(_q);
+      }
+      this.tail.visible = true;
+      this.tail.position.copy(this.brand.position);
+      this.tail.scale.set(c.brandSize * 1.2, c.brandTail, c.brandSize * 1.2);
+      bs.power = exitFade;
+      this.tailMat.userData.sync(bs);
+      this._trail(dt, c, g);
+      this.position.copy(this.brand.position);
+      if (u >= 1) {
+        this._landed = true;
+        this._landAt = this.age;
+        this.brand.visible = false;
+        this.tail.visible = false;
+        this._land(c, g);
+      }
+    }
+
+    if (this._landed) this._updateCrown(dt, c, g, clock, exitFade);
+  }
+
+  /** Embers gathering round the hand while the coal charges. */
+  _chargeMotes(dt, c, g, k) {
+    if (!this.motes || dt <= 0) return;
+    const n = Math.round(this.brandEmitter.tick(dt, c.brandTrailRate * 0.35 * k) * g.particleCount);
+    if (n <= 0) return;
+    this._resetEmit();
+    _pos.copy(this.hand);
+    _emit.radius = 0.35 * (1 - k * 0.6);
+    _emit.speed = c.moteSpeed * 0.5;
+    _emit.spread = 1;
+    _emit.size = c.moteSize * 1.1;
+    _emit.life = c.moteLife * 0.5;
+    this.motes.emit(n, _emit);
+  }
+
+  /** The throw: a spit of sparks off the hand. */
+  _launchFx(c, g) {
+    if (this.sparks) {
+      this._resetEmit();
+      _pos.copy(this.hand);
+      _emit.direction = _dir;
+      _emit.radius = 0.1;
+      _emit.speed = c.sparkSpeed * 0.7;
+      _emit.spread = 0.6;
+      _emit.size = c.sparkSize;
+      _emit.life = c.sparkLife;
+      this.sparks.emit(Math.round(c.brandSparks * 0.25 * g.particleCount), _emit);
+    }
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * 0.8 * g.explosionIntensity);
+  }
+
+  /** Embers, sparks and ash smoke laid along the segment the coal just flew. */
+  _trail(dt, c, g) {
+    if (dt <= 0) return;
+    if (this.motes) {
+      const n = Math.round(this.brandEmitter.tick(dt, c.brandTrailRate) * g.particleCount);
+      if (n > 0) {
+        this._resetEmit();
+        _emit.radius = c.brandSize * 0.3;
+        _emit.speed = c.moteSpeed * 0.6;
+        _emit.spread = 1;
+        _emit.size = c.moteSize * 1.4;
+        _emit.life = c.moteLife * 0.8;
+        for (let i = 0; i < n; i++) {
+          _pos.lerpVectors(this._brandPrev, this.brand.position, Math.random());
+          this.motes.emit(1, _emit);
+        }
+      }
+    }
+    if (this.ash) {
+      const n = Math.round(this.brandSmokeEmitter.tick(dt, c.brandSmokeRate) * g.particleCount);
+      if (n > 0) {
+        this._resetEmit();
+        _emit.radius = c.brandSize * 0.25;
+        _emit.speed = 0.25;
+        _emit.spread = 1;
+        _emit.size = c.ashSize * 1.2;
+        _emit.life = c.ashLife * 0.8;
+        _emit.spin = 0.7;
+        for (let i = 0; i < n; i++) {
+          _pos.lerpVectors(this._brandPrev, this.brand.position, Math.random());
+          this.ash.emit(1, _emit);
+        }
+      }
+    }
+  }
+
+  /** The landing beat: strike, shell, shockwave, sparks, flash, knock, light. */
+  _land(c, g) {
+    const power = g.explosionIntensity;
+    const at = this.aim;
+    // Gameplay: everything inside `brandRadius` is struck once, thrown outward.
+    const found = this.ctx.dummies?.findTargets?.(at.x, at.z, c.brandRadius, this.found) ?? [];
+    this._force.impulse = c.brandForce;
+    this._force.lift = c.brandLift;
+    this._force.spin = c.brandTumble;
+    for (const d of found) {
+      const x = d.position.x - at.x;
+      const z = d.position.z - at.z;
+      const r = Math.hypot(x, z) || 1;
+      if (d.kill?.(x / r, z / r, this._force, false)) {
+        d.corrode?.(c.scorchAmount, c.scorchLook);
+        this._hitCount++;
+        this._strikeFx(d, at);
+      }
+    }
+    _pos.copy(at).setY(0.5);
+    this.ctx.bursts?.spawn?.(BurstMode.FIRE, _pos, {
+      radius: c.brandRadius * 0.15,
+      endRadius: c.brandRadius * c.brandBurst * power,
+      life: 0.6,
+      intensity: c.burstIntensity * 1.3,
+      opacity: 0.85,
+      fresnel: 1.5 * g.fresnel,
+      displace: 0.35,
+      turbulence: 0.9 * g.turbulence,
+      colorA: getColor(c.colorCinderA),
+      colorB: getColor(c.colorCinderC),
+      colorC: getColor(c.colorCinderD)
+    });
+    _pos.copy(at).setY(0);
+    this.ctx.decals?.spawn?.(DecalType.SHOCKWAVE, _pos, {
+      radius: c.brandRadius * 1.6 * power,
+      life: 0.7,
+      width: 0.08,
+      intensity: 1.2,
+      colorA: getColor(c.colorCinderC),
+      colorB: getColor(c.colorCinderA)
+    });
+    this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
+      radius: c.brandRadius * c.fieldScale * 1.05,
+      life: Math.max(c.scorchDecalLife, c.crownLife + c.crownCrumble + 1),
+      intensity: 0.9,
+      colorA: getColor(c.scorchLook.rimColor),
+      colorB: getColor(c.scorchLook.color)
+    });
+    if (this.sparks && c.brandSparks > 0) {
+      this._resetEmit();
+      _pos.copy(at).setY(0.3);
+      _emit.radius = c.brandRadius * 0.25;
+      _emit.speed = c.sparkSpeed * 1.3;
+      _emit.speedVariance = 0.5;
+      _emit.spread = 0.9;
+      _emit.size = c.sparkSize * 1.2;
+      _emit.life = c.sparkLife * 1.4;
+      this.sparks.emit(Math.round(c.brandSparks * g.particleCount), _emit);
+    }
+    if (this.motes) {
+      this._resetEmit();
+      _pos.copy(at).setY(0.4);
+      _emit.radius = c.brandRadius * 0.5;
+      _emit.speed = c.moteSpeed * 2;
+      _emit.spread = 1;
+      _emit.size = c.moteSize * 1.4;
+      _emit.life = c.moteLife;
+      this.motes.emit(Math.round(60 * g.particleCount), _emit);
+    }
+    if (this.ash) {
+      this._resetEmit();
+      _pos.copy(at).setY(0.3);
+      _emit.radius = c.brandRadius * 0.45;
+      _emit.speed = 0.9;
+      _emit.spread = 0.7;
+      _emit.size = c.ashSize * 1.8;
+      _emit.life = c.ashLife;
+      _emit.spin = 0.8;
+      this.ash.emit(Math.round(30 * g.particleCount), _emit);
+    }
+    if (c.brandFlash > 0) this.ctx.flash?.trigger?.(getColor(c.colorFlash), c.brandFlash * power);
+    if (!this.reduceMotion && c.brandShake > 0) this.ctx.shake?.add?.(c.brandShake * power, c.shakeDecay * 0.7, 20);
+    this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.brandLight * power);
+  }
+
+  /** The cinder crown and field: rise, cool, settle, sway, crumble. */
+  _updateCrown(dt, c, g, clock, exitFade) {
+    const k = this.age - this._landAt;
+    const R = c.brandRadius;
+    const n = Math.min(MAX_SPIRES, Math.max(0, Math.round(c.spireCount)));
+    const rise = saturate(k / Math.max(0.01, c.spireRise));
+    const riseE = Easing.outBack(rise);
+    const life = Math.max(0.1, c.crownLife);
+    const linger = Easing.inOutQuad(saturate(k / life));
+    const crumble = Math.max(saturate((k - life) / Math.max(0.05, c.crownCrumble)), 1 - exitFade);
+    const heat = Math.pow(0.5, k / Math.max(0.05, c.spireCool));
+    // Each echo pulse re-flares the stone it raised.
+    const pulse = (1 - this.groundMat.uniforms.uPulse.value) * 0.8 + this._heat * 0.3;
+    const sway = this.reduceMotion ? 0 : c.spireSway;
+
+    for (let i = 0; i < n; i++) {
+      const d = i * SPIRE_DICE;
+      const d0 = this.spireDice[d];
+      const d1 = this.spireDice[d + 1];
+      const d2 = this.spireDice[d + 2];
+      const d3 = this.spireDice[d + 3];
+      // Seat derived from the zone: the crown always rings `brandRadius`.
+      const a = this._crownYaw + (i / Math.max(1, n)) * TAU + (d0 - 0.5) * (TAU / Math.max(1, n)) * 0.5;
+      const r = c.spireRing * R * (0.78 + 0.44 * d1);
+      const h = Math.max(0.001, c.spireHeight * (0.58 + 0.42 * d2) * riseE);
+      const w = 0.7 * c.spireWidth * (0.75 + 0.5 * d1) * (0.55 + 0.45 * Math.min(1, riseE));
+      const sink = c.spireSettle * linger * (0.6 + 0.8 * d3) + crumble * h * 0.15;
+      const lean = c.spireLean * (0.55 + 0.9 * d3) + c.spireTilt * linger + sway * Math.sin(clock * 1.7 + i * 1.3);
+      _obj.position.set(this.aim.x + Math.cos(a) * r, -sink, this.aim.z + Math.sin(a) * r);
+      // Yaw so the spire's +z faces outward, then tilt its crown outward.
+      _obj.rotation.set(lean, Math.atan2(Math.cos(a), Math.sin(a)), 0);
+      _obj.scale.set(w, h, w * (0.8 + 0.4 * d0));
+      _obj.updateMatrix();
+      this.spires.setMatrixAt(i, _obj.matrix);
+    }
+    this.spires.count = n;
+    this.spires.instanceMatrix.needsUpdate = true;
+    this.spires.visible = n > 0 && crumble < 1;
+    const ss = this._spireState;
+    ss.clock = clock;
+    ss.heat = heat;
+    ss.pulse = pulse;
+    ss.crumble = crumble;
+    this.spireMat.userData.sync(ss);
+
+    // The torn floor stays until the cast itself fades.
+    this.field.visible = exitFade > 0;
+    this.field.position.set(this.aim.x, 0.03, this.aim.z);
+    this.field.scale.setScalar(c.fieldScale * R * 2);
+    const fs = this._fieldState;
+    fs.clock = clock;
+    fs.opacity = exitFade;
+    fs.reveal = saturate(k / Math.max(0.01, c.fieldReveal));
+    fs.heat = Math.pow(0.5, k / Math.max(0.05, c.fieldCool));
+    fs.pulse = pulse;
+    this.fieldMat.userData.sync(fs);
+
+    // Heat haze over the crown, strongest while the stone is hot.
+    const hz = this._crownHazeState;
+    hz.clock = clock;
+    hz.power = c.crownHaze / Math.max(0.01, c.hazeStrength) * heat * (1 - crumble) * exitFade;
+    this.crownHazeMat.userData.sync(hz);
+    this.crownHazeMat.uniforms.uWidth.value = R * c.spireRing * 1.3;
+    this.crownHazeMat.uniforms.uHeight.value = c.spireHeight * 1.5;
+    this.crownHaze.position.set(this.aim.x, 0, this.aim.z);
+    this.crownHaze.visible = !this.reduceMotion && hz.power > 0.01 && c.hazeStrength > 0;
+
+    // Embers and ash rising off the crown; a sigh of both as it crumbles.
+    this._crownShed(dt, c, g, heat, crumble, n, R);
+    if (crumble > 0 && !this._crownCollapsed) {
+      this._crownCollapsed = true;
+      if (this.ash) {
+        this._resetEmit();
+        _pos.copy(this.aim).setY(1);
+        _emit.radius = c.spireRing * R;
+        _emit.speed = 0.6;
+        _emit.spread = 1;
+        _emit.size = c.ashSize * 1.6;
+        _emit.life = c.ashLife * 1.2;
+        _emit.spin = 0.8;
+        this.ash.emit(Math.round(c.collapseAsh * g.particleCount), _emit);
+      }
+    }
+
+    // The light leaves the echo for the landing, then drifts back.
+    const w = saturate(1 - (k - 0.5) / 1.4);
+    this.position.lerpVectors(this.figurePos, this.aim, w);
+  }
+
+  _crownShed(dt, c, g, heat, crumble, n, R) {
+    if (dt <= 0 || n <= 0 || crumble >= 1) return;
+    const boost = (0.35 + heat) * (1 + crumble * 4);
+    if (this.motes) {
+      const m = Math.round(this.crownEmitter.tick(dt, c.crownEmbers * boost) * g.particleCount);
+      if (m > 0) {
+        this._resetEmit();
+        _emit.radius = 0.15;
+        _emit.speed = c.moteSpeed;
+        _emit.spread = 0.6;
+        _emit.size = c.moteSize * 1.2;
+        _emit.life = c.moteLife * 1.2;
+        for (let i = 0; i < m; i++) {
+          const a = Math.random() * TAU;
+          const r = Math.sqrt(Math.random()) * c.spireRing * R * 1.15;
+          _pos.set(this.aim.x + Math.cos(a) * r, 0.1 + Math.random() * c.spireHeight * 0.8 * (1 - crumble * 0.7), this.aim.z + Math.sin(a) * r);
+          this.motes.emit(1, _emit);
+        }
+      }
+    }
+    if (this.ash) {
+      const m = Math.round(this.crownSmokeEmitter.tick(dt, c.crownSmoke * (0.5 + crumble * 3)) * g.particleCount);
+      if (m > 0) {
+        this._resetEmit();
+        _emit.radius = 0.2;
+        _emit.speed = 0.35;
+        _emit.spread = 0.8;
+        _emit.size = c.ashSize * 1.4;
+        _emit.life = c.ashLife;
+        _emit.spin = 0.6;
+        for (let i = 0; i < m; i++) {
+          const a = Math.random() * TAU;
+          const r = c.spireRing * R * (0.7 + Math.random() * 0.5);
+          _pos.set(this.aim.x + Math.cos(a) * r, 0.4 + Math.random() * c.spireHeight * 0.7, this.aim.z + Math.sin(a) * r);
+          this.ash.emit(1, _emit);
+        }
+      }
+    }
+  }
+
   /* ------------------------------------------------------------------ */
   /* Pooling                                                             */
   /* ------------------------------------------------------------------ */
@@ -860,6 +1385,16 @@ export class AshenDoppelgangerAbility extends Ability {
   onDestroy() {
     this.count = 0;
     this.echo.visible = false;
+    this.brand.visible = false;
+    this.tail.visible = false;
+    this.spires.visible = false;
+    this.spires.count = 0;
+    this.field.visible = false;
+    this.crownHaze.visible = false;
+    this.brandEmitter.reset();
+    this.brandSmokeEmitter.reset();
+    this.crownEmitter.reset();
+    this.crownSmokeEmitter.reset();
     this.ground.visible = false;
     this.fuse.visible = false;
     this.haze.visible = false;
@@ -868,8 +1403,9 @@ export class AshenDoppelgangerAbility extends Ability {
   }
 
   dispose() {
-    for (const g of [this.bodyGeo, this.limbGeo, this.headGeo, this.groundGeo, this.sparkGeo, this.fuseGeo, this.hazeGeo]) g.dispose();
-    for (const m of [this.skin, this.groundMat, this.sparkMat, this.fuseMat, this.hazeMat]) m.dispose();
+    for (const g of [this.bodyGeo, this.limbGeo, this.headGeo, this.groundGeo, this.sparkGeo, this.fuseGeo, this.hazeGeo, this.brandGeo, this.tailGeo, this.spireGeo]) g.dispose();
+    for (const m of [this.skin, this.groundMat, this.sparkMat, this.fuseMat, this.hazeMat, this.brandMat, this.tailMat, this.spireMat, this.fieldMat, this.crownHazeMat]) m.dispose();
+    this.spires.dispose();
     if (this.echoRig?.traverse) {
       // The clone shares geometry with the caster but owns its skeletons
       // (and their bone textures).
@@ -950,6 +1486,9 @@ export function buildEditor(gui, c, Editor) {
   R(body, c, 'rigEmissive', 0, 6, 0.05, 'rig glow');
   body.addColor(c, 'colorRigBody').name('rig body');
   body.addColor(c, 'colorRigEmissive').name('rig emissive');
+  body.addColor(c, 'colorRigAsh').name('rig ash flecks');
+  R(body, c, 'echoSide', -3, 3, 0.05, 'stands to the side (m)');
+  R(body, c, 'echoBack', -3, 3, 0.05, 'stands behind (m)');
 
   const sigil = sub(folder, '2 · Sigil and pulse ring');
   R(sigil, c, 'sigilOpacity', 0, 1, 0.01, 'opacity');
@@ -1025,6 +1564,58 @@ export function buildEditor(gui, c, Editor) {
   beats.addColor(c, 'colorBurstC').name('shell outer');
   R(beats, c, 'collapseAsh', 0, 200, 1, 'crumble ash');
   R(beats, c, 'collapseEmbers', 0, 300, 1, 'crumble embers');
+
+  const brand = sub(folder, '8 · The echo repeats your cast');
+  R(brand, c, 'brandAt', 0.05, 3, 0.01, 'throws at (s)');
+  R(brand, c, 'brandCharge', 0, 1.5, 0.01, 'gathers for (s)');
+  R(brand, c, 'brandFlight', 0.05, 2, 0.01, 'flight (s)');
+  R(brand, c, 'brandArc', 0, 6, 0.05, 'arc height (m)');
+  R(brand, c, 'brandSize', 0.05, 2, 0.01, 'coal size (m)');
+  R(brand, c, 'brandSpin', 0, 30, 0.1, 'tumble (rad/s)');
+  R(brand, c, 'brandGlow', 0, 8, 0.05, 'seam glow');
+  R(brand, c, 'brandTail', 0, 6, 0.05, 'flame tail (m)');
+  R(brand, c, 'brandTrailRate', 0, 400, 1, 'trail embers/second');
+  R(brand, c, 'brandSmokeRate', 0, 200, 1, 'trail smoke/second');
+  R(brand, c, 'brandRadius', 0.5, 8, 0.05, 'landing radius (m)');
+  R(brand, c, 'brandForce', 0, 12, 0.1, 'landing force');
+  R(brand, c, 'brandLift', 0, 8, 0.05, 'landing lift');
+  R(brand, c, 'brandTumble', 0, 4, 0.05, 'landing tumble');
+  R(brand, c, 'brandShake', 0, 1.5, 0.01, 'landing knock');
+  R(brand, c, 'brandFlash', 0, 1, 0.01, 'landing flash');
+  R(brand, c, 'brandLight', 0, 8, 0.05, 'landing light (× intensity)');
+  R(brand, c, 'brandBurst', 0, 2, 0.01, 'fire shell (× radius)');
+  R(brand, c, 'brandSparks', 0, 400, 1, 'landing sparks');
+
+  const crown = sub(folder, '9 · Cinder crown');
+  R(crown, c, 'spireCount', 0, 12, 1, 'spires');
+  R(crown, c, 'spireRing', 0, 1.2, 0.01, 'seat (× radius)');
+  R(crown, c, 'spireHeight', 0.2, 6, 0.05, 'height (m)');
+  R(crown, c, 'spireWidth', 0.2, 3, 0.05, 'girth');
+  R(crown, c, 'spireLean', -1, 1.2, 0.01, 'outward lean (rad)');
+  R(crown, c, 'spireRise', 0.02, 1.5, 0.01, 'tears up over (s)');
+  R(crown, c, 'spireSettle', 0, 2, 0.01, 'sinks over linger (m)');
+  R(crown, c, 'spireTilt', 0, 1, 0.01, 'leans over linger (rad)');
+  R(crown, c, 'spireSway', 0, 0.2, 0.001, 'heat sway (rad)');
+  R(crown, c, 'crownLife', 0.2, 8, 0.05, 'stands for (s)');
+  R(crown, c, 'crownCrumble', 0.05, 3, 0.01, 'crumbles over (s)');
+  R(crown, c, 'spireCool', 0.1, 8, 0.05, 'heat half-life (s)');
+  R(crown, c, 'spireVeinGlow', 0, 10, 0.05, 'vein glow');
+  R(crown, c, 'spireVeinScale', 0.5, 20, 0.1, 'vein density');
+  R(crown, c, 'spireRoughness', 0, 1, 0.01, 'roughness');
+  crown.addColor(c, 'colorSpireRock').name('stone');
+  crown.addColor(c, 'colorSpireAsh').name('ash coat');
+  R(crown, c, 'crownEmbers', 0, 300, 1, 'embers/second');
+  R(crown, c, 'crownSmoke', 0, 120, 1, 'ash/second');
+  R(crown, c, 'crownHaze', 0, 3, 0.01, 'heat haze');
+
+  const field = sub(folder, '10 · Cinder field');
+  R(field, c, 'fieldScale', 0.2, 2.5, 0.01, 'radius (× landing radius)');
+  R(field, c, 'fieldReveal', 0.02, 2, 0.01, 'tears open over (s)');
+  R(field, c, 'fieldOpacity', 0, 1, 0.01, 'opacity');
+  R(field, c, 'fieldGlow', 0, 8, 0.05, 'crack glow');
+  R(field, c, 'fieldCool', 0.1, 10, 0.05, 'heat half-life (s)');
+  R(field, c, 'fieldCrackScale', 0.3, 8, 0.05, 'plate density');
+  gradient(field, c, 'colorCinder', 'cinder ramp', Editor);
 
   folder.close();
   return folder;

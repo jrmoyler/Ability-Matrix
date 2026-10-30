@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry, LatheGeometry, PlaneGeometry, Vector2 } from 'three';
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, LatheGeometry, PlaneGeometry, Vector2 } from 'three';
 
 /**
  * Ashen Doppelganger — procedural geometry.
@@ -21,6 +21,15 @@ import { BufferAttribute, BufferGeometry, LatheGeometry, PlaneGeometry, Vector2 
  *    rewrites in place each frame along the recorded path from the echo to the
  *    caster; unused points collapse onto the last one and the draw range trims
  *    them.
+ *  - **the cinder spire** (`createSpireGeometry`) — the hero of the echo's
+ *    own cast: a tapered, twisted, hexagonal shard of ash-basalt with a
+ *    broken crown, every ring jittered so the facets are uneven, and the
+ *    triangles left unshared so the sun picks out each facet. One unit tall;
+ *    the cast instances it round the landing and sizes each from the zone.
+ *  - **the brand** (`createBrandGeometry`) — the coal the echo throws: a
+ *    lumpy, eroded ember heart; and **the brand's tail**
+ *    (`createBrandTailGeometry`), an open flame cone the cast points back
+ *    along the flight.
  *  - **the ground quad** and **the haze quad** — flat parameter quads for the
  *    sigil and the distortion billboard (the haze quad is anchored at its
  *    bottom edge so it stands on the floor).
@@ -216,4 +225,101 @@ export function createGroundQuad() {
 /** Unit billboard quad standing on its bottom edge (y 0..1). */
 export function createHazeQuad() {
   return new PlaneGeometry(1, 1).translate(0, 0.5, 0);
+}
+
+/* -------------------------------------------------------------------- */
+/* The echo's own cast: brand, tail and cinder spires                   */
+/* -------------------------------------------------------------------- */
+
+/** Rows and sides of a cinder spire. */
+const SPIRE_ROWS = 12;
+const SPIRE_SIDES = 6;
+
+/**
+ * One cinder spire, y = -0.08 (buried) to ~1.05 (broken crown), base radius
+ * ~0.34. Faceted: the triangles are not shared, so each facet is flat-lit.
+ * `uv.y` is the height fraction (the crumble and vein shaders read it).
+ */
+export function createSpireGeometry() {
+  const ring = [];
+  for (let j = 0; j <= SPIRE_ROWS; j++) {
+    const y = j / SPIRE_ROWS;
+    // Tapers like a shard: a fat foot, a long waist, a sharp crown.
+    const r0 = 0.34 * Math.pow(1 - y * 0.94, 0.85) + 0.012;
+    // A slow bend and a twist so no two faces are parallel.
+    const bend = 0.14 * y * y;
+    const twist = y * 0.9;
+    const row = [];
+    for (let k = 0; k < SPIRE_SIDES; k++) {
+      const a = (k / SPIRE_SIDES) * Math.PI * 2 + twist + (hash3(k, j, 3) - 0.5) * 0.35;
+      const jag = 1 + (hash3(k, j, 9) - 0.5) * 0.42;
+      const r = r0 * jag;
+      row.push([Math.cos(a) * r + bend, y * 1.0 - (j === 0 ? 0.08 : 0), Math.sin(a) * r * 0.82]);
+    }
+    ring.push(row);
+  }
+  // The broken crown: an off-centre apex, a little higher than the last ring.
+  const apex = [0.16 + 0.03, 1.06, 0.02];
+  const positions = [];
+  const uvs = [];
+  const push = (p, u, v) => {
+    positions.push(p[0], p[1], p[2]);
+    uvs.push(u, v);
+  };
+  for (let j = 0; j < SPIRE_ROWS; j++) {
+    const v0 = j / SPIRE_ROWS;
+    const v1 = (j + 1) / SPIRE_ROWS;
+    for (let k = 0; k < SPIRE_SIDES; k++) {
+      const k1 = (k + 1) % SPIRE_SIDES;
+      const u0 = k / SPIRE_SIDES;
+      const u1 = (k + 1) / SPIRE_SIDES;
+      const a = ring[j][k];
+      const b = ring[j][k1];
+      const c = ring[j + 1][k1];
+      const d = ring[j + 1][k];
+      push(a, u0, v0); push(c, u1, v1); push(b, u1, v0);
+      push(a, u0, v0); push(d, u0, v1); push(c, u1, v1);
+    }
+  }
+  const top = ring[SPIRE_ROWS];
+  for (let k = 0; k < SPIRE_SIDES; k++) {
+    const k1 = (k + 1) % SPIRE_SIDES;
+    push(top[k], k / SPIRE_SIDES, 1); push(apex, 0.5, 1.06); push(top[k1], (k + 1) / SPIRE_SIDES, 1);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** The thrown coal: an eroded, lumpy ember heart about 1 m across at scale 1. */
+export function createBrandGeometry() {
+  const profile = [
+    [0.0, -0.42],
+    [0.18, -0.4],
+    [0.34, -0.3],
+    [0.45, -0.12],
+    [0.47, 0.06],
+    [0.4, 0.24],
+    [0.28, 0.38],
+    [0.12, 0.46],
+    [0.0, 0.48]
+  ].map(([r, y]) => new Vector2(r, y));
+  return erode(new LatheGeometry(profile, 18), 0.9, 0.06, 21.3);
+}
+
+/** An open flame cone along +y, 1 m long, ~0.45 m across at its root. */
+export function createBrandTailGeometry() {
+  const profile = [
+    [0.0, -0.08],
+    [0.38, 0.0],
+    [0.45, 0.08],
+    [0.4, 0.24],
+    [0.28, 0.48],
+    [0.16, 0.72],
+    [0.06, 0.9],
+    [0.0, 1.0]
+  ].map(([r, y]) => new Vector2(r, y));
+  return new LatheGeometry(profile, 20);
 }
