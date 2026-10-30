@@ -106,9 +106,11 @@ const FIELD_FRAGMENT = /* glsl */ `
     float core = exp(-x * 7.0);
     // Feather the two ends so the corridor never ends on a hard line.
     float ends = smoothstep(0.0, 0.04, vUv.y) * (1.0 - smoothstep(0.96, 1.0, vUv.y));
-    float body = edge * 0.4 + fil * 0.2 * (0.6 + 0.4 * n) + core * 0.3 + uPulse * 0.2;
-    vec3 col = mix(uColor, uCore, clamp(core * 0.6 + fil * 0.3 + uPulse * 0.25, 0.0, 1.0));
-    col *= uGlowGain * uGlobalGlow * (1.0 + uPulse * 0.8);
+    // The strike lives in the travelling wave (floor, threads, arches), so the
+    // ribbon only brightens a little on a pulse instead of washing out.
+    float body = edge * 0.4 + fil * 0.2 * (0.6 + 0.4 * n) + core * 0.3 + uPulse * 0.06;
+    vec3 col = mix(uColor, uCore, clamp(core * 0.6 + fil * 0.3 + uPulse * 0.15, 0.0, 1.0));
+    col *= uGlowGain * uGlobalGlow * (1.0 + uPulse * 0.3);
     float alpha = body * uFade * ends * sceneSoft(uSoft) * uShaderIntensity;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
@@ -168,6 +170,32 @@ const FILAMENT_VERTEX = /* glsl */ `
   }
 `;
 
+/**
+ * The filaments' own vertex stage: the thread swells where a strike wave is
+ * passing (a knot of mass running down the weft), so the twist is never the
+ * same twice between pulses.
+ */
+const FILAMENT_BULGE_VERTEX = /* glsl */ `
+  uniform float uWaveT;
+  uniform float uBulge;
+  varying vec2 vUv;
+  varying vec3 vNormalV;
+  varying vec3 vViewV;
+  varying float vKnot;
+  void main() {
+    vUv = uv;
+    float knot = uWaveT < 0.0 ? 0.0 : exp(-abs(uv.y - uWaveT) * 22.0) * (1.0 - uWaveT * 0.4);
+    vKnot = knot;
+    vec3 p = position;
+    // position.xy is radial from the corridor axis: swell the tube outward.
+    p.xy *= 1.0 + knot * uBulge;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    vNormalV = normalize(normalMatrix * normal);
+    vViewV = -mv.xyz;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
 const FILAMENT_FRAGMENT = /* glsl */ `
   uniform float uTime;
   uniform float uFade;
@@ -179,9 +207,11 @@ const FILAMENT_FRAGMENT = /* glsl */ `
   uniform vec3  uCore;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
+  uniform vec3  uDeep;
   varying vec2 vUv;
   varying vec3 vNormalV;
   varying vec3 vViewV;
+  varying float vKnot;
 
   ${noiseGLSL}
   ${commonGLSL}
@@ -193,9 +223,12 @@ const FILAMENT_FRAGMENT = /* glsl */ `
     float flicker = 0.75 + 0.25 * snoise(vec3(vUv.y * 14.0, uTime * 1.7, 0.0));
     float rim = fresnelTerm(vViewV, vNormalV, 1.6, uFresnel);
     float ends = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.95, 1.0, vUv.y));
-    vec3 col = mix(uColor, uCore, clamp(bead + uPulse * 0.5, 0.0, 1.0));
-    col *= uGlowGain * uGlobalGlow * (0.6 + rim + bead * 1.5 + uPulse);
-    float alpha = (0.25 + 0.35 * rim + 0.5 * bead) * flicker * ends * uFade * uShaderIntensity;
+    // Ramp: the deep tone in the thread's shadowed core, body on the flanks,
+    // core light in the beads and the travelling knot.
+    float lum = clamp(rim * 0.6 + bead * 0.7 + vKnot + uPulse * 0.3, 0.0, 1.0);
+    vec3 col = gradient4(uDeep, uColor, mix(uColor, uCore, 0.6), uCore, lum);
+    col *= uGlowGain * uGlobalGlow * (0.7 + rim + bead * 1.5 + vKnot * 2.5 + uPulse);
+    float alpha = (0.3 + 0.35 * rim + 0.5 * bead + vKnot) * flicker * ends * uFade * uShaderIntensity;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
 `;
@@ -215,10 +248,13 @@ export function createFilamentMaterial() {
       uGlowGain: { value: 1 },
       uBeads: { value: 60 },
       uFresnel: { value: 1 },
+      uWaveT: { value: -1 },
+      uBulge: { value: 1.2 },
       uColor: { value: new Color('#9f8fbe') },
-      uCore: { value: new Color('#efe4ff') }
+      uCore: { value: new Color('#efe4ff') },
+      uDeep: { value: new Color('#0e0819') }
     }),
-    vertexShader: FILAMENT_VERTEX,
+    vertexShader: FILAMENT_BULGE_VERTEX,
     fragmentShader: FILAMENT_FRAGMENT
   });
   material.userData.sync = (c) => {
@@ -228,6 +264,8 @@ export function createFilamentMaterial() {
     u.uGlowGain.value = c.filamentGlow ?? 1;
     u.uBeads.value = c.filamentBeads ?? 60;
     u.uFresnel.value = g().fresnel;
+    u.uDeep.value.set(c.voidColor ?? '#0e0819');
+    u.uBulge.value = c.filamentBulge ?? 1.2;
   };
   return material;
 }
@@ -512,8 +550,16 @@ const FLOOR_FRAGMENT = /* glsl */ `
   uniform float uAspect;   // corridor length / width, keeps the weave square
   uniform float uNoise;
   uniform float uSoft;
+  uniform float uFieldGlow;
+  uniform float uFieldFlow;
+  uniform float uRimGlow;
+  uniform float uWaveT;    // 0..1 front of the newest strike wave, <0 when none
+  uniform float uWaveWidth;
   uniform vec3  uWeft;
   uniform vec3  uVoid;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uCore;
   uniform sampler2D uSceneDepth;
   uniform vec2  uResolution;
   uniform float uCameraNear;
@@ -534,23 +580,55 @@ const FLOOR_FRAGMENT = /* glsl */ `
 
   void main() {
     float x = vUv.x * 2.0 - 1.0;               // -1..1 across
-    float well = exp(-x * x * 3.0);            // depth of the sag
-    // The cloth of space-time, pinched toward the spine: warp threads run the
-    // length and bunch at the centre, weft threads cross and bow toward the
-    // front the deeper they sit in the well.
+    float well = exp(-x * x * 2.2);            // depth of the sag
+    float along = vUv.y * uAspect;             // metres-ish down the corridor
+    // The cloth of space-time, pinched toward the spine.
     float pinch = x * (1.0 - uSag * 0.55 * well);
     float jitter = snoise(vec3(vUv * vec2(4.0, 4.0 * uAspect), uTime * 0.2)) * 0.06 * uNoise;
+
+    // A FILLED warp field: long bands of bent space dragged toward the front,
+    // shaped by the pinch so they converge on the spine. This is the body of
+    // the corridor; the weave only rides on top of it.
+    float bands = fbm3(vec3(pinch * 2.6, along * 0.55 - uTime * uFieldFlow, uTime * 0.12)) * 0.5 + 0.5;
+    float streak = pow(max(0.0, sin(pinch * 7.0 + bands * 5.0 * uNoise - along * 0.4 + uTime * 0.6)), 4.0);
+    // Mostly deep: only the crests of the bands and the spine climb the ramp.
+    float heat = clamp(well * 0.28 + smoothstep(0.45, 0.85, bands) * 0.55 + streak * 0.35 * well, 0.0, 1.0);
+
+    // The weave, thin and dim: warp threads bunch at the spine, weft threads
+    // bow toward the front the deeper they sit.
     float warp = line(pinch * uDensity * 0.5 + jitter, uThread);
     float bow = vUv.y * uAspect * uDensity * 0.5 - well * uSag * 0.6 - uTime * 0.35;
-    float weft = line(bow + jitter, uThread);
-    float threads = max(warp, weft) * (0.45 + 0.55 * well);
-    // Feather every side; the ends breathe in as the corridor builds.
-    float side = 1.0 - smoothstep(0.7, 1.0, abs(x));
-    float ends = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.95, 1.0, vUv.y));
+    // Cross threads only show where a band crest lights them, so the weave
+    // never reads as a tiled grid.
+    float weft = line(bow + jitter, uThread) * smoothstep(0.5, 0.8, bands);
+    float threads = max(warp * 0.7, weft) * (0.3 + 0.7 * well);
+
+    // The walls: a crushed lip where the floor folds up at the capsule edge.
+    float rim = exp(-abs(abs(x) - 0.78) * 26.0);
+
+    // A strike wave rolling from the caster to the front.
+    float wave = 0.0;
+    if (uWaveT >= 0.0) {
+      float d = (vUv.y - uWaveT) * uAspect;
+      // A chevron (it leads at the spine), thin, and it gathers strength as it
+      // runs toward the bodies at the front.
+      wave = exp(-abs(d + x * x * 0.8) / max(0.05, uWaveWidth)) * smoothstep(0.0, 0.25, uWaveT) * (0.55 + 0.45 * uWaveT) * well;
+    }
+
+    // Four-stop ramp: deep well -> saturated body -> pale tint -> white core.
+    float t = clamp(heat * 0.75 + threads * 0.1 + rim * 0.35 * uRimGlow + wave * 0.7, 0.0, 1.0);
+    vec3 ramp = gradient4(uVoid, uBody, uTint, uCore, t);
+    // Only the bright end of the ramp emits; the deep end darkens the floor.
+    float emit = smoothstep(0.25, 1.0, t);
+    vec3 col = mix(uVoid, ramp * uFieldGlow, smoothstep(0.08, 0.5, t));
+    col += uWeft * threads * 0.25 * uGlowGain;
+    col += uCore * wave * 0.6;
+    col *= mix(1.0, uGlobalGlow * (1.0 + uPulse * 0.25), emit);
+
+    float side = 1.0 - smoothstep(0.82, 1.0, abs(x));
+    float ends = smoothstep(0.0, 0.035, vUv.y) * (1.0 - smoothstep(0.965, 1.0, vUv.y));
     float mask = side * ends * uFade * sceneSoft(uSoft);
-    vec3 glow = uWeft * uGlowGain * uGlobalGlow * (1.0 + uPulse * 1.5);
-    vec3 col = mix(uVoid, glow, threads);
-    float alpha = max(well * 0.55 * uOpacity, threads * 0.8) * mask * uShaderIntensity;
+    float alpha = (uOpacity * (0.55 + 0.45 * well) + emit * 0.3 + wave * 0.2) * mask * uShaderIntensity;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
 `;
@@ -581,8 +659,16 @@ export function createWeftFloorMaterial() {
       uAspect: { value: 4 },
       uNoise: { value: 1 },
       uSoft: { value: 0 },
+      uFieldGlow: { value: 1 },
+      uFieldFlow: { value: 0.6 },
+      uRimGlow: { value: 1 },
+      uWaveT: { value: -1 },
+      uWaveWidth: { value: 0.6 },
       uWeft: { value: new Color('#c9b8ff') },
-      uVoid: { value: new Color('#120d1c') }
+      uVoid: { value: new Color('#0e0819') },
+      uBody: { value: new Color('#7c4fe0') },
+      uTint: { value: new Color('#c4a8ff') },
+      uCore: { value: new Color('#f7f1ff') }
     }),
     vertexShader: FLOOR_VERTEX,
     fragmentShader: FLOOR_FRAGMENT
@@ -599,6 +685,135 @@ export function createWeftFloorMaterial() {
     u.uOpacity.value = (c.floorOpacity ?? 0.6) * g().opacity;
     u.uAspect.value = Math.max(0.1, aspect);
     u.uNoise.value = g().noiseStrength;
+    u.uBody.value.set(c.gravityColor);
+    u.uTint.value.set(c.tintColor ?? c.weftColor ?? c.coreColor);
+    u.uCore.value.set(c.coreColor);
+    u.uFieldGlow.value = c.fieldGlow ?? 1;
+    u.uFieldFlow.value = c.fieldFlow ?? 0.6;
+    u.uRimGlow.value = c.rimGlow ?? 1;
+    u.uWaveWidth.value = c.waveWidth ?? 0.6;
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* 8 · Loom stone — the arches and the weights                         */
+/* ------------------------------------------------------------------ */
+
+const STONE_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  varying vec3 vLocal;
+  void main() {
+    vUv = uv;
+    vLocal = position;
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const STONE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uFade;      // 1 = whole; <1 dissolves from the noise threshold
+  uniform float uFlare;     // the beat: seams flood with core light
+  uniform float uSeamGlow;
+  uniform float uSeamScale;
+  uniform float uGloss;
+  uniform float uRunes;
+  uniform vec3  uStone;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uCore;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  varying vec3 vLocal;
+
+  ${noiseGLSL}
+  ${commonGLSL}
+
+  void main() {
+    vec3 N = normalize(vNormalW);
+    if (!gl_FrontFacing) N = -N;
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 L = normalize(uLightDir);
+    // Dark, dense stone: grain, a little strata, lit by the sun with a wrap
+    // so the shadow side still reads, a tight specular sheen, a violet rim.
+    float grain = fbm3(vLocal * 9.0 * uSeamScale);
+    float strata = 0.5 + 0.5 * sin(vWorld.y * 11.0 + grain * 3.0);
+    vec3 base = mix(uDeep, uStone, 0.55 + 0.35 * grain + 0.1 * strata);
+    float ndl = dot(N, L);
+    float diffuse = 0.2 + 0.8 * clamp(ndl * 0.6 + 0.4, 0.0, 1.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 48.0) * uGloss;
+    float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
+    vec3 col = base * diffuse + vec3(spec) * 0.6 + uBody * fres * 0.3;
+
+    // Seams: the stone is cracked, and bent space shows through the cracks —
+    // thin lines where a noise field crosses zero.
+    float crack = 1.0 - abs(snoise(vLocal * vec3(5.0, 5.0, 7.0) * uSeamScale + vec3(0.0, 0.0, uTime * 0.05)));
+    float seam = pow(crack, 22.0);
+    // Runes march along the sweep (uv.y): tied-off warp marks.
+    float rune = step(0.82, fract(vUv.y * 22.0 - uTime * 0.4)) * step(0.35, abs(vUv.x - 0.5)) * uRunes;
+    float lum = clamp(seam * (0.45 + 0.55 * uFlare) + rune * 0.6 + uFlare * 0.25, 0.0, 1.0);
+    vec3 glow = gradient4(uDeep, uBody, uTint, uCore, lum);
+    col += glow * lum * uSeamGlow * uGlobalGlow * uShaderIntensity * (1.0 + uFlare * 2.0);
+
+    // Dissolve for the exit, with a burning core-coloured edge.
+    if (uFade < 0.999) {
+      float k = snoise01(vWorld * 2.4) - (1.0 - uFade);
+      if (k < 0.0) discard;
+      col += uCore * (1.0 - smoothstep(0.0, 0.07, k)) * 2.0;
+    }
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+/**
+ * Lit loom stone for the arches and the weights. Opaque (it occludes and
+ * writes depth, so it belongs on LAYER.WORLD), sun-lit with a wrap term, its
+ * seams glowing the cast's ramp and flooding white on a strike.
+ */
+export function createLoomStoneMaterial() {
+  const material = new ShaderMaterial({
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uFade: { value: 1 },
+      uFlare: { value: 0 },
+      uSeamGlow: { value: 1 },
+      uSeamScale: { value: 1 },
+      uGloss: { value: 0.8 },
+      uRunes: { value: 1 },
+      uStone: { value: new Color('#2b2340') },
+      uDeep: { value: new Color('#0e0819') },
+      uBody: { value: new Color('#7c4fe0') },
+      uTint: { value: new Color('#c4a8ff') },
+      uCore: { value: new Color('#f7f1ff') }
+    }),
+    vertexShader: STONE_VERTEX,
+    fragmentShader: STONE_FRAGMENT
+  });
+  /** @param {object} c live settings */
+  material.userData.sync = (c) => {
+    const u = material.uniforms;
+    u.uStone.value.set(c.archColor ?? '#2b2340');
+    u.uDeep.value.set(c.voidColor ?? '#0e0819');
+    u.uBody.value.set(c.gravityColor);
+    u.uTint.value.set(c.tintColor ?? c.coreColor);
+    u.uCore.value.set(c.coreColor);
+    u.uSeamGlow.value = c.archSeamGlow ?? 1;
+    u.uSeamScale.value = g().noiseFrequency;
+    u.uGloss.value = c.archGloss ?? 0.8;
+    u.uRunes.value = c.archRunes ?? 1;
   };
   return material;
 }

@@ -211,6 +211,147 @@ export function shuttleGeometry() {
 }
 
 /**
+ * A loom frame — the hero of the standing corridor. A pointed (ogival) arch
+ * swept with a heavy, squared, bevelled section: two legs with flared feet,
+ * two curved shoulders meeting at a swollen keystone, and three studded bands
+ * on each leg where the warp would be tied off.
+ *
+ * Normalised so the ability can derive it from the settings: the span runs
+ * X -0.5..0.5, the height Y 0..1, and the section depth along Z is ±0.07
+ * (the ability scales Z by `archDepth`). `uv.y` runs 0..1 along the sweep
+ * (foot → apex → foot) and `uv.x` round the section, so the stone shader can
+ * march seams and runes along it. Built once; the ability only moves it.
+ */
+export function loomArchGeometry() {
+  const steps = 96;
+  const ring = 12;
+  const p = [];
+  const uv = [];
+  const ix = [];
+  // Centreline: straight legs to 0.52 of the height, then a pointed arch.
+  const legTop = 0.52;
+  const legLen = legTop;
+  const arcLen = 0.62; // rough length of one shoulder, normalised
+  const total = 2 * (legLen + arcLen);
+  const at = (s, out) => {
+    // s 0..1 along the whole sweep; mirror the second half.
+    const d = s * total;
+    const half = total / 2;
+    const m = d <= half ? d : total - d;
+    const sign = d <= half ? -1 : 1;
+    if (m <= legLen) {
+      out[0] = sign * 0.5;
+      out[1] = m;
+    } else {
+      // Shoulder: a circle arc centred on the far leg's line, which is what
+      // makes a two-centred (pointed) arch.
+      const k = (m - legLen) / arcLen; // 0..1 up the shoulder
+      const R = 1.0;
+      const cx = -sign * 0.5;
+      const a0 = 0;
+      const a1 = Math.acos(0.5); // the arc meets its twin at the apex
+      const a = a0 + (a1 - a0) * k;
+      out[0] = cx + sign * Math.cos(a) * R;
+      out[1] = legTop + Math.sin(a) * (1 - legTop) / Math.sin(a1);
+    }
+    return out;
+  };
+  const c0 = [0, 0];
+  const c1 = [0, 0];
+  for (let j = 0; j <= steps; j++) {
+    const s = j / steps;
+    at(s, c0);
+    at(Math.min(1, s + 0.002), c1);
+    if (s + 0.002 > 1) at(s - 0.002, c1), (c1[0] = 2 * c0[0] - c1[0]), (c1[1] = 2 * c0[1] - c1[1]);
+    let tx = c1[0] - c0[0];
+    let ty = c1[1] - c0[1];
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    // In-plane normal (perpendicular to the sweep) and the Z axis.
+    const nx = -ty;
+    const ny = tx;
+    // Swellings: flared feet, three tie-off studs per leg, the keystone.
+    const m = Math.min(s, 1 - s) * 2; // 0 at the feet, 1 at the apex
+    let swell = 1 + 0.9 * Math.exp(-Math.pow(m * 14, 2));
+    for (const k of [0.16, 0.28, 0.4]) swell *= 1 + 0.32 * Math.exp(-Math.pow((m - k) * 60, 2));
+    swell *= 1 + 0.75 * Math.exp(-Math.pow((m - 1) * 16, 2));
+    const w = 0.045 * swell; // half-thickness in the arch plane
+    const dz = 0.07 * (0.8 + 0.2 * swell); // half-depth along the corridor
+    for (let i = 0; i <= ring; i++) {
+      const a = (i / ring) * TAU;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      // A squared section with bevelled corners: superellipse, exponent 0.45.
+      const qx = Math.sign(ca) * Math.pow(Math.abs(ca), 0.45);
+      const qz = Math.sign(sa) * Math.pow(Math.abs(sa), 0.45);
+      p.push(c0[0] + nx * qx * w, c0[1] + ny * qx * w, qz * dz);
+      uv.push(i / ring, s);
+    }
+  }
+  for (let j = 0; j < steps; j++) {
+    for (let i = 0; i < ring; i++) {
+      const a = j * (ring + 1) + i;
+      const b = a + ring + 1;
+      ix.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  return build(p, uv, ix);
+}
+
+/**
+ * A loom weight — what each strike drops on a body. Warp-weighted looms hung
+ * their threads from fired-clay weights; this one is a truncated, four-sided
+ * pyramid of dark stone (a lathe whose radius is a rounded square in angle),
+ * with a cord hole near the top and a groove band round the waist.
+ *
+ * Base at Y 0, top at Y 1, base half-width ≈ 0.42. `uv.y` is height and
+ * `uv.x` round the body.
+ */
+export function loomWeightGeometry() {
+  const rings = 28;
+  const segs = 32;
+  const p = [];
+  const uv = [];
+  const ix = [];
+  for (let j = 0; j <= rings; j++) {
+    const v = j / rings;
+    // Truncated pyramid with a rounded cap and a chamfered base.
+    let r = 0.42 - 0.24 * v;
+    r *= 1 - 0.55 * Math.pow(Math.max(0, (v - 0.86) / 0.14), 2);
+    r *= 1 - 0.35 * Math.pow(Math.max(0, (0.06 - v) / 0.06), 2);
+    // The groove a cord would sit in.
+    r *= 1 - 0.08 * Math.exp(-Math.pow((v - 0.36) * 30, 2));
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * TAU;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      // Rounded square: four faces, softened corners.
+      const sq = 1 / Math.pow(Math.pow(Math.abs(ca), 4) + Math.pow(Math.abs(sa), 4), 0.25);
+      const k = 0.75 + 0.25 * Math.min(1.42, sq) / 1.42;
+      // The cord hole: a dent through two faces near the top.
+      const hole = Math.exp(-Math.pow((v - 0.72) * 18, 2)) * Math.pow(Math.abs(sa), 16) * 0.5;
+      const rr = r * sq * k * (1 - hole);
+      p.push(ca * rr, v, sa * rr);
+      uv.push(i / segs, v);
+    }
+  }
+  // Cap the base so the stone is closed from below.
+  const centre = p.length / 3;
+  p.push(0, 0, 0);
+  uv.push(0.5, 0);
+  for (let j = 0; j < rings; j++) {
+    for (let i = 0; i < segs; i++) {
+      const a = j * (segs + 1) + i;
+      const b = a + segs + 1;
+      ix.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  for (let i = 0; i < segs; i++) ix.push(centre, i + 1, i);
+  return build(p, uv, ix);
+}
+
+/**
  * The floor the corridor sags into: a fine grid over local X -0.5..0.5,
  * Y 0..1 (same frame as the ribbon), dense enough across the width that the
  * vertex stage can pull the cloth down into a well along the spine.

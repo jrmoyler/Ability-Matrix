@@ -48,6 +48,7 @@ const BARK_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uDissolve;
   uniform float uWake;       // 0..1: the trap is triggered — veins flush
+  uniform float uTipGlow;    // thorns: the point burns with sap (uv.y → 1)
   uniform float uRidge;
   uniform float uMoss;
   uniform vec3  uColor;
@@ -77,6 +78,8 @@ const BARK_FRAGMENT = /* glsl */ `
     // When the trap wakes, sap glows up the furrows.
     float vein = smoothstep(0.75, 0.95, furrow) * uWake * (0.6 + 0.4 * sin(vUv.y * 30.0 - uTime * 6.0));
     col += uVein * vein * 1.6 * uGlobalGlow * uShaderIntensity;
+    // A sap-lit point (only the thorns turn this on).
+    col += uVein * smoothstep(0.45, 1.0, vUv.y) * uTipGlow * (0.6 + 0.4 * uWake) * uGlobalGlow * uShaderIntensity;
     // Withering: a noise threshold eats the wood, leaving a glowing rim.
     float burn = 0.0;
     if (uDissolve > 0.0) {
@@ -100,6 +103,7 @@ export function createBarkMaterial() {
       uFade: { value: 1 },
       uDissolve: { value: 0 },
       uWake: { value: 0 },
+      uTipGlow: { value: 0 },
       uRidge: { value: 1 },
       uMoss: { value: 0.6 },
       uColor: { value: new Color('#365423') },
@@ -173,8 +177,9 @@ const LEAF_FRAGMENT = /* glsl */ `
     float lit = abs(dot(n, normalize(uLightDir)));
     float rim = fresnelTerm(vViewW, n, 2.0, uFresnel);
     float blotch = fbm3(vec3(vUv * vec2(3.0, 6.0), 0.0) + vWorld * 0.3);
-    vec3 col = uColor * (0.45 + 0.35 * vUv.y + 0.35 * lit) * (1.0 - uVariegate * 0.35 * blotch);
-    col += uRim * (0.22 * mid + veins + 0.25 * rim) * uGlobalGlow;
+    // Ramp down the blade: deep at the stem, body in the middle, a paler tip.
+    vec3 col = uColor * (0.28 + 0.3 * vUv.y + 0.32 * lit) * (1.0 - uVariegate * 0.35 * blotch);
+    col += uRim * (0.14 * mid + veins * 0.7 + 0.18 * rim) * uGlobalGlow;
     // Withering eats each leaf from its tip with a pale burn edge.
     float burn = 0.0;
     if (uDissolve > 0.0) {
@@ -361,20 +366,49 @@ const STRIKE_VERTEX = /* glsl */ `
   uniform float uProgress;
   uniform float uWidth;
   uniform float uArc;
+  uniform float uCoil;        // 0..1: the last third wraps the body
+  uniform float uCoilRadius;
+  uniform float uCoilHeight;
+  uniform float uSeed;
   varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+
+  const float TAU = 6.28318530718;
+
+  // The vine's centreline at station s (0 anchor .. 1 tip).
+  vec3 centre(float s) {
+    // A quadratic from the canopy anchor to the target, raised by uArc in the
+    // middle, drawn only as far as the windup has grown it.
+    float t = s * uProgress;
+    vec3 mid = (uAnchor + uTarget) * 0.5 + vec3(0.0, uArc, 0.0);
+    vec3 q = (1.0 - t) * (1.0 - t) * uAnchor + 2.0 * (1.0 - t) * t * mid + t * t * uTarget;
+    q.y += sin(t * 12.0 - uTime * 4.0) * 0.05 * sin(t * 3.14159) * (1.0 - uCoil);
+    // The bind: the last third leaves the curve and winds up round the body.
+    float k = smoothstep(0.62, 0.9, s) * uCoil;
+    float c = clamp((s - 0.62) / 0.38, 0.0, 1.0);
+    float ang = uSeed * 2.0944 + c * TAU * 1.6 + uTime * 0.6;
+    vec3 helix = vec3(uTarget.x + cos(ang) * uCoilRadius, uTarget.y + c * uCoilHeight, uTarget.z + sin(ang) * uCoilRadius);
+    return mix(q, helix, k);
+  }
+
   void main() {
     vUv = uv;
-    // A quadratic from the canopy anchor to the target, raised by \`uArc\` in
-    // the middle; drawn only as far as the windup has grown it.
-    float t = uv.y * uProgress;
-    vec3 mid = (uAnchor + uTarget) * 0.5 + vec3(0.0, uArc, 0.0);
-    vec3 p = (1.0 - t) * (1.0 - t) * uAnchor + 2.0 * (1.0 - t) * t * mid + t * t * uTarget;
-    vec2 d = uTarget.xz - uAnchor.xz;
-    vec2 side = vec2(-d.y, d.x) / max(0.001, length(d));
-    float w = uWidth * sin(t * 3.14159) * (uv.x * 2.0 - 1.0);
-    p.xz += side * w;
-    p.y += sin(t * 12.0 - uTime * 4.0) * 0.04 * sin(t * 3.14159);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    float s = position.y;
+    vec3 c = centre(s);
+    vec3 T = normalize(centre(min(1.0, s + 0.01)) - centre(max(0.0, s - 0.01)) + vec3(1e-5));
+    vec3 up = abs(T.y) > 0.95 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+    vec3 S = normalize(cross(T, up));
+    vec3 B = normalize(cross(S, T));
+    // Thick at the canopy, tapering to a hooked point; thorn knobs on one flank.
+    float w = uWidth * (1.0 - 0.6 * s) * (1.0 - smoothstep(0.9, 1.0, s) * 0.85);
+    w *= 1.0 + 0.9 * pow(max(0.0, sin(s * 44.0)), 14.0) * max(0.0, position.x);
+    vec3 n = S * position.x + B * position.z;
+    vec3 p = c + n * w;
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
 
@@ -384,26 +418,36 @@ const STRIKE_FRAGMENT = /* glsl */ `
   uniform float uGlowGain;
   uniform vec3  uColor;
   uniform vec3  uVein;
+  uniform vec3  uDeep;
+  uniform vec3  uLightDir;
   uniform float uGlobalGlow;
   varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
   ${noiseGLSL}
   void main() {
-    float mid = exp(-abs(vUv.x - 0.5) * 22.0);
-    float vein = pow(max(0.0, cos(vUv.y * 38.0 - uTime * 2.0)), 14.0);
-    // Thorny silhouette: noise notches the vine's two edges.
-    float notch = snoise(vec3(vUv.y * 40.0, vUv.x * 2.0, 0.0));
-    float edge = abs(vUv.x - 0.5) * 2.0;
-    if (edge > 0.82 + 0.18 * notch) discard;
-    vec3 col = mix(uColor, uVein * uGlowGain * uGlobalGlow, mid * 0.35 + vein * 0.4);
+    vec3 N = normalize(vNormalW);
+    if (!gl_FrontFacing) N = -N;
+    vec3 V = normalize(cameraPosition - vWorld);
+    float lambert = clamp(dot(N, normalize(uLightDir)) * 0.6 + 0.4, 0.0, 1.0);
+    // Fibrous, ridged wood running along the vine.
+    float ridge = 0.5 + 0.5 * sin(vUv.x * 6.2832 * 5.0 + vUv.y * 9.0);
+    float grain = snoise(vec3(vUv.x * 4.0, vUv.y * 60.0, 0.0)) * 0.5 + 0.5;
+    vec3 base = mix(uDeep, uColor, 0.45 + 0.35 * ridge + 0.2 * grain);
+    vec3 col = base * (0.3 + 0.85 * lambert);
+    // Sap pulses down the veins toward the prey.
+    float vein = pow(max(0.0, cos(vUv.y * 38.0 - uTime * 3.0)), 10.0) * smoothstep(0.75, 1.0, ridge);
+    float fres = pow(1.0 - clamp(abs(dot(N, V)), 0.0, 1.0), 3.0);
+    col += uVein * (vein * 0.9 + fres * 0.35) * uGlowGain * uGlobalGlow;
     gl_FragColor = vec4(col, uFade);
   }
 `;
 
-/** One of the three lashing vines. Bent on the GPU, notched with thorns. */
+/** One lashing vine: a lit, thorned tube bent on the GPU, coiling to bind. */
 export function createStrikeMaterial() {
   const material = new ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     side: DoubleSide,
     uniforms: {
       uTime: { value: 0 },
@@ -412,11 +456,17 @@ export function createStrikeMaterial() {
       uProgress: { value: 0 },
       uWidth: { value: 0.12 },
       uArc: { value: 0.8 },
+      uCoil: { value: 0 },
+      uCoilRadius: { value: 0.38 },
+      uCoilHeight: { value: 1.3 },
+      uSeed: { value: 0 },
       uFade: { value: 0 },
       uGlowGain: { value: 1 },
       uGlobalGlow: sharedUniforms().uGlobalGlow,
+      uLightDir: sharedUniforms().uLightDir,
       uColor: { value: new Color('#365423') },
-      uVein: { value: new Color('#a9eb6a') }
+      uVein: { value: new Color('#a9eb6a') },
+      uDeep: { value: new Color('#0d1608') }
     },
     vertexShader: STRIKE_VERTEX,
     fragmentShader: STRIKE_FRAGMENT
@@ -425,9 +475,122 @@ export function createStrikeMaterial() {
     const u = material.uniforms;
     u.uColor.value.set(c.barkColor);
     u.uVein.value.set(c.rootColor);
+    u.uDeep.value.set(c.shadeColor ?? '#0d1608');
     u.uWidth.value = c.strikeWidth ?? 0.12;
     u.uArc.value = c.strikeArc ?? 0.8;
     u.uGlowGain.value = c.strikeGlow ?? 1;
+    u.uCoilRadius.value = c.bindRadius ?? 0.38;
+    u.uCoilHeight.value = c.bindHeight ?? 1.3;
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* 5b · The maw — bulb and jaws                                        */
+/* ------------------------------------------------------------------ */
+
+const MAW_VERTEX = /* glsl */ `
+  uniform float uTime;
+  uniform float uBreath;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vNormalO;
+  varying vec3 vWorld;
+  void main() {
+    vUv = uv;
+    vec3 p = position;
+    // It breathes: a slow swell, stronger toward the free end.
+    p *= 1.0 + sin(uTime * 2.2) * 0.04 * uBreath * uv.y;
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalO = normal;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const MAW_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uFade;
+  uniform float uDissolve;
+  uniform float uHunger;     // 0..1: open and hungry — the gullet blazes
+  uniform float uInside;     // 1 for jaws (cupped toward +Z), 0 for the bulb
+  uniform float uGlowGain;
+  uniform vec3  uSkin;
+  uniform vec3  uDeep;
+  uniform vec3  uGullet;
+  uniform vec3  uCore;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vNormalO;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  ${commonGLSL}
+  void main() {
+    vec3 N = normalize(vNormalW);
+    vec3 NO = normalize(vNormalO);
+    if (!gl_FrontFacing) { N = -N; NO = -NO; }
+    vec3 V = normalize(cameraPosition - vWorld);
+    float lambert = clamp(dot(N, normalize(uLightDir)) * 0.6 + 0.4, 0.0, 1.0);
+    // Waxy, mottled skin (the outside of a pitcher plant), veined lengthwise.
+    float mottle = fbm3(vec3(vUv * vec2(5.0, 9.0), 0.0) + vWorld * 0.4);
+    float vein = pow(max(0.0, cos(vUv.x * 6.2832 * 6.0 + mottle * 2.0)), 10.0);
+    // Pale, waxy skin with dark veins: it has to stand off the dark trunk.
+    vec3 skin = mix(uSkin * 0.6, uSkin, mottle) * (0.35 + 0.8 * lambert);
+    skin = mix(skin, uDeep, vein * 0.75);
+    float spec = pow(clamp(dot(N, normalize(normalize(uLightDir) + V)), 0.0, 1.0), 40.0) * 0.5;
+    float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
+    vec3 col = skin + vec3(spec) + uGullet * fres * (0.45 + 0.6 * uHunger) * uGlowGain;
+    // The inside of a jaw: a glowing gullet ramp (deep → body → tint → core),
+    // ribbed, flaring when the maw is open.
+    float inside = smoothstep(-0.1, 0.5, NO.z) * uInside;
+    float ribs = 0.5 + 0.5 * sin(vUv.y * 40.0 - uTime * 3.0);
+    float lum = clamp(0.25 + 0.35 * ribs + 0.5 * uHunger - vUv.y * 0.2, 0.0, 1.0);
+    vec3 gullet = gradient4(uDeep, uSkin, uGullet, uCore, lum) * (0.8 + 1.4 * uHunger) * uGlowGain * uGlobalGlow * uShaderIntensity;
+    col = mix(col, gullet, inside);
+    if (uDissolve > 0.0) {
+      float k = snoise01(vWorld * 2.5) - uDissolve;
+      if (k < 0.0) discard;
+      col += uGullet * (1.0 - smoothstep(0.0, 0.08, k)) * 2.0;
+    }
+    gl_FragColor = vec4(col, uFade);
+  }
+`;
+
+/** The maw's bulb (`inside` 0) or one of its jaws (`inside` 1). Lit, opaque. */
+export function createMawMaterial(inside = 1) {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uFade: { value: 1 },
+      uDissolve: { value: 0 },
+      uHunger: { value: 0 },
+      uInside: { value: inside },
+      uBreath: { value: 1 },
+      uGlowGain: { value: 1 },
+      uSkin: { value: new Color('#4c7a2c') },
+      uDeep: { value: new Color('#0d1608') },
+      uGullet: { value: new Color('#a9eb6a') },
+      uCore: { value: new Color('#f4ffd8') }
+    }),
+    vertexShader: MAW_VERTEX,
+    fragmentShader: MAW_FRAGMENT
+  });
+  material.userData.sync = (c) => {
+    const u = material.uniforms;
+    u.uSkin.value.set(c.mawColor ?? c.leafColor);
+    u.uDeep.value.set(c.shadeColor ?? '#0d1608');
+    u.uGullet.value.set(c.rootColor);
+    u.uCore.value.set(c.mawCore ?? '#f4ffd8');
+    u.uGlowGain.value = c.mawGlow ?? 1;
+    u.uBreath.value = g().noiseStrength;
   };
   return material;
 }
