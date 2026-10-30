@@ -51,7 +51,8 @@ export default {
     wallThickness: 1.9, // metres of body along the line at the foot (thins to ~half at the top)
     wallCurl: 1.3, // metres the crest curls forward over the front, like a breaking wave
     rowBlend: 0.85, // 0 = rows cut hard (stacked bands), 1 = the shear bends smoothly through one mass
-    pleatRowPhase: 0, // 0 = pleats run straight up through every row (one mass), 1 = alternate rows flipped (zig-zag bands)
+    pleatRowPhase: 0,
+    shearWaves: 1, // half-waves the smooth shear makes up the wall: 1 = foot shoved one way, crest the other (0 = one per row) // 0 = pleats run straight up through every row (one mass), 1 = alternate rows flipped (zig-zag bands)
 
     /* --- the shear --- */
     shearAmount: 0.7, // metres a row is shoved sideways
@@ -64,26 +65,29 @@ export default {
     /* ================================================================ */
     flowSpeed: 9, // metres/second the air streams sideways inside a row
     streakScale: 1.2, // streak features per metre
-    streakGlow: 0.4, // brightest streaks
+    streakGlow: 0.25, // brightest streaks
     bodyGlow: 0.05, // the body of the air
-    ridgeGlow: 0.15, // the fold ridges
-    seamGlow: 0.3, // the seams between rows
+    ridgeGlow: 0.12, // the fold ridges
+    seamGlow: 0.15, // the seams between rows
     topTear: 0.4, // share of the height the torn top edge eats
     footFade: 0.12, // share of the height feathered into the dust
     softFade: 0.4, // metres of soft fade where it meets geometry
-    wallOpacity: 0.45,
+    wallOpacity: 0.35,
+    skinFocus: 0.85, // 0 = the bright streaks cover the wall, 1 = only on the curling lip (the body carries the mass)
     colorAirA: '#f0fffb', // brightest streaks and ridges
-    colorAirB: '#185c5c', // the air
-    colorAirC: '#0e333a', // the air's depth
-    colorAirD: '#04141a', // the deep tone: the body's foot and gaps
-    bodyOpacity: 0.36, // opacity of each of the seven body slices
-    bodyDensity: 0.35, // 0 = even, 1 = packed lumps with gaps
+    colorAirB: '#1b4a4e', // the air
+    colorAirC: '#0d2329', // the air's depth
+    colorAirD: '#040b0f', // the deep tone: the body's foot and gaps
+    bodyOpacity: 0.6, // opacity of each of the seven body slices
+    bodyDensity: 0.2, // 0 = even, 1 = packed lumps with gaps
     bodyLight: 0.75, // how much the sun shapes the folds of the body
-    bodyRim: 0.15, // grazing-angle brightening of the body
+    bodyRim: 0.08, // grazing-angle brightening of the body
     bodyCrease: 0.75, // 0..1 how deep the upright pleat creases sink to the deep tone
-    crestGlow: 0.35, // the pale edge along the curling crest
+    crestGlow: 0.45,
+    bodyCore: 0.95, // 0..1 how solid each slice is regardless of the lumps (high = it occludes what is behind)
+    ribGlow: 0.25, // light along the upright rib crests // the pale edge along the curling crest
     colorSeam: '#ffffff', // seams and tear edges
-    lensWarp: 1.1, // how hard each row shoves the world sideways (distortion)
+    lensWarp: 0.5, // how hard each row shoves the world sideways (distortion)
     lensDepth: 1.6, // the lens is this much deeper than the wall
 
     /* ================================================================ */
@@ -100,20 +104,20 @@ export default {
     /* 4 · DRAG MARKS                                                    */
     /* ================================================================ */
     groundStep: 0.35, // metres the grooves jump sideways at every snap
-    grooveDensity: 2.6, // grooves per metre
-    grooveGlow: 0.5, // fresh grooves glow
-    groundScour: 0.82, // opacity of the scoured band
+    grooveDensity: 1.6, // grooves per metre
+    grooveGlow: 0.3, // fresh grooves glow
+    groundScour: 0.92, // opacity of the scoured band
     freshLength: 2.5, // metres of fresh glow behind the wall
     groundFade: 0.9, // seconds the marks take to erode (after the halves are gone)
     groundWidth: 1.15, // band width, × wall width (berms included)
-    bermAmount: 0.85, // the dust heaped at both edges of the band
+    bermAmount: 0.7, // the dust heaped at both edges of the band
     driftSpeed: 1.2, // m/s the loose dust keeps drifting sideways over the band
-    driftGlow: 0.45, // brightness of the drifting dust
+    driftGlow: 0.32, // brightness of the drifting dust
     lingerDustRate: 70, // dust / second lifting off the band through the linger
-    colorScourDeep: '#04090b', // the bare, scoured floor
-    colorScour: '#162224', // the dust combed flat on it
-    colorGroove: '#4f6764',
-    colorBerm: '#71847f', // dust heaped at the edges
+    colorScourDeep: '#020506', // the bare, scoured floor
+    colorScour: '#111a1b', // the dust combed flat on it
+    colorGroove: '#3c4d4b',
+    colorBerm: '#4c5a58', // dust heaped at the edges
 
     /* ================================================================ */
     /* 5 · PARTICLES                                                     */

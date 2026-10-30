@@ -681,6 +681,7 @@ export function buildEditor(gui, c, Editor) {
   R(shape, c, 'wallCurl', 0, 4, 0.01, 'crest curls over (m)');
   R(shape, c, 'pleatRowPhase', 0, 1, 0.01, 'row pleat flip');
   R(shape, c, 'rowBlend', 0, 1, 0.01, 'smooth shear through rows');
+  R(shape, c, 'shearWaves', 0, 6, 0.05, 'shear half-waves up the wall');
 
   const shear = folder.addFolder('2 · The shear');
   R(shear, c, 'shearAmount', 0, 3, 0.01, 'row shove (m)');
@@ -699,6 +700,7 @@ export function buildEditor(gui, c, Editor) {
   R(look, c, 'footFade', 0.01, 0.6, 0.01, 'foot feather');
   R(look, c, 'softFade', 0.01, 2, 0.01, 'soft fade (m)');
   R(look, c, 'wallOpacity', 0, 2, 0.01, 'opacity');
+  R(look, c, 'skinFocus', 0, 1, 0.01, 'streaks only on lip');
   look.addColor(c, 'colorAirA').name('streaks');
   look.addColor(c, 'colorAirB').name('air');
   look.addColor(c, 'colorAirC').name('air, deep');
@@ -711,6 +713,8 @@ export function buildEditor(gui, c, Editor) {
   R(bodyF, c, 'bodyRim', 0, 3, 0.01, 'rim');
   R(bodyF, c, 'bodyCrease', 0, 1, 0.01, 'upright creases');
   R(bodyF, c, 'crestGlow', 0, 3, 0.01, 'crest edge');
+  R(bodyF, c, 'bodyCore', 0, 1, 0.01, 'solid core (occludes)');
+  R(bodyF, c, 'ribGlow', 0, 3, 0.01, 'rib crest light');
   const lens = look.addFolder('Lens (distortion)');
   R(lens, c, 'lensWarp', 0, 3, 0.01, 'strength');
   R(lens, c, 'lensDepth', 0.2, 4, 0.01, 'depth (× pleats)');

@@ -59,6 +59,7 @@ const WALL_GLSL = /* glsl */ `
   uniform float uCurl;        // metres the crest curls forward over the front
   uniform float uRowBlend;    // 0 = rows cut hard, 1 = the shear bends smoothly through one mass
   uniform float uRowPhase;    // 0 = pleats run straight up every row (one mass), 1 = alternate rows flipped
+  uniform float uWaves;       // half-waves the smooth shear makes up the wall (0 = follow the rows)
 
   float tri(float x) { return abs(fract(x) - 0.5) * 4.0 - 1.0; }
 
@@ -71,7 +72,8 @@ const WALL_GLSL = /* glsl */ `
     float hard = uShift * sgn * (0.75 + 0.5 * fract(sin(row * 12.9898 + uSeed) * 43758.5453));
     // Smooth shear: the same alternate shove, but bending continuously from
     // row to row, so the wall sways as one sheared slab instead of bands.
-    float smoothS = uShift * sin(v * max(uRows, 1.0) * 3.14159265);
+    float waves = uWaves > 0.01 ? uWaves : max(uRows, 1.0);
+    float smoothS = uShift * sin((v - 0.5) * waves * 3.14159265 + (uWaves > 0.01 ? 0.0 : 0.5 * waves * 3.14159265));
     float shift = mix(hard, smoothS, uRowBlend);
     float lateral = u * uWidth + shift + sign(u) * uSplit;
     fold = tri(u * uSlabs + row * 0.5 * uRowPhase + uShift * 0.25);
@@ -138,6 +140,7 @@ const WALL_FRAGMENT = /* glsl */ `
   uniform float uDissolve;
   uniform float uSoftFade;
   uniform float uOpacity;
+  uniform float uSkinFocus;    // 0 = streaks everywhere, 1 = streaks only on the curling lip
   uniform vec3  uColorA;
   uniform vec3  uColorB;
   uniform vec3  uColorC;
@@ -189,7 +192,10 @@ const WALL_FRAGMENT = /* glsl */ `
     float top = 1.0 - smoothstep(1.0 - uTopTear * (0.4 + 0.6 * tear), 1.0, vUv.y);
     float foot = smoothstep(0.0, max(uFootFade, 0.01), vUv.y);
     float ends = 1.0 - smoothstep(0.38, 0.5, abs(vUv.x));
-    float mask = top * foot * ends * (0.2 + 0.8 * flow + ridge * 0.4 + seam);
+    float lipS = smoothstep(0.7, 0.9, vUv.y);
+    // Focused: a soft sheet of streaming light on the lip only (no fine speckle).
+    float lipFlow = lipS * smoothstep(0.15, 0.75, streak);
+    float mask = top * foot * ends * (mix(0.2 + 0.8 * flow, lipFlow, uSkinFocus) + ridge * 0.4 * (1.0 - 0.6 * uSkinFocus) + seam);
     // Torn in two: the strip of triangles stretched across the middle is the gap.
     if (uSplit > 0.001) mask *= smoothstep(0.0045, 0.0085, abs(vUv.x));
 
@@ -230,7 +236,8 @@ function wallShapeUniforms() {
     uLift: { value: 0 },
     uCurl: { value: 0 },
     uRowPhase: { value: 1 },
-    uRowBlend: { value: 0 }
+    uRowBlend: { value: 0 },
+    uWaves: { value: 0 }
   };
 }
 
@@ -255,6 +262,7 @@ function syncWallShape(u, st) {
   u.uCurl.value = c.wallCurl * st.grow;
   u.uRowPhase.value = c.pleatRowPhase;
   u.uRowBlend.value = c.rowBlend;
+  u.uWaves.value = c.shearWaves ?? 0;
 }
 
 /** The pleated, sheared wall. Additive. */
@@ -280,6 +288,7 @@ export function createShearWallMaterial() {
       uDissolve: { value: 0 },
       uSoftFade: { value: 0.4 },
       uOpacity: { value: 1 },
+      uSkinFocus: { value: 0 },
       uColorA: { value: new Color() },
       uColorB: { value: new Color() },
       uColorC: { value: new Color() },
@@ -308,6 +317,7 @@ export function createShearWallMaterial() {
     u.uDissolve.value = st.dissolve;
     u.uSoftFade.value = c.softFade;
     u.uOpacity.value = c.wallOpacity * g.opacity * st.fade;
+    u.uSkinFocus.value = c.skinFocus ?? 0;
     u.uColorA.value.copy(getColor(c.colorAirA));
     u.uColorB.value.copy(getColor(c.colorAirB));
     u.uColorC.value.copy(getColor(c.colorAirC));
@@ -350,6 +360,8 @@ const BODY_FRAGMENT = /* glsl */ `
   uniform vec3  uLightDir;
   uniform float uCrease;       // 0..1 how deep the upright creases sink
   uniform float uLip;          // brightness of the curling crest's edge
+  uniform float uCore;         // 0..1 how much of each slice is solid regardless of the lumps
+  uniform float uRib;          // brightness of the upright rib crests
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -375,7 +387,7 @@ const BODY_FRAGMENT = /* glsl */ `
 
     // Packed air: big lumps streaming sideways with the row, a different cut per slice.
     vec3 sp = vec3((x - sgn * uFlow * 0.7) * uStreakScale * 0.18, y * uStreakScale * 0.9, vRow * 5.0 + vSlice * 3.1 + uSeed);
-    float lump = fbm3(sp) * 0.5 + 0.5;
+    float lump = mix(fbm3(sp) * 0.5 + 0.5, 0.6, smoothstep(0.5, 0.75, vUv.y));
     float dens = mix(1.0, smoothstep(0.25, 0.8, lump), uDensity);
 
     // Lit like a folded mass: the folds face the sun or turn from it.
@@ -383,8 +395,12 @@ const BODY_FRAGMENT = /* glsl */ `
     vec3 v = normalize(cameraPosition - vWorld);
     if (dot(n, v) < 0.0) n = -n;
     float lam = 0.35 + 0.65 * max(dot(n, normalize(uLightDir)), 0.0);
+    // Where the crest curls over, the derivative normals flip pixel to pixel:
+    // calm the shading there so the curl reads as one smooth dark lip.
+    float calm = smoothstep(0.5, 0.75, vUv.y);
+    lam = mix(lam, 0.6, calm);
     float shade = mix(1.0, lam, uLightAmt);
-    float rim = pow(1.0 - abs(dot(n, v)), 2.5) * uRim;
+    float rim = pow(1.0 - abs(dot(n, v)), 2.5) * uRim * (1.0 - calm);
 
     float inRow = fract(vUv.y * rows);
     float seam = 1.0 - smoothstep(0.0, 0.08, min(inRow, 1.0 - inRow));
@@ -396,8 +412,8 @@ const BODY_FRAGMENT = /* glsl */ `
     float lit = dens * shade;
     vec3 col = mix(uColorD, uColorC, smoothstep(0.0, 0.25, h) * smoothstep(0.1, 0.5, dens));
     col = mix(col, uColorB, smoothstep(0.25, 0.85, lit) * 0.9);
-    col = mix(col, uColorA, smoothstep(0.8, 1.0, lit) * 0.5);
-    col *= 0.6 + 0.4 * shade;
+    col = mix(col, uColorA, smoothstep(0.92, 1.0, lit) * 0.25);
+    col *= 0.55 + 0.45 * shade;
     // Upright shear ribs: the pleats run straight up the mass, the creases
     // sinking to the deep tone, so the wall has vertical structure.
     float crease = 1.0 - smoothstep(0.0, 0.55, abs(vFold));
@@ -405,6 +421,9 @@ const BODY_FRAGMENT = /* glsl */ `
     // Only the curling lip of the crest catches a pale edge.
     float lip = smoothstep(0.72, 0.9, h) * (1.0 - smoothstep(0.93, 1.0, h));
     col += uColorA * lip * uLip * (0.4 + 0.6 * shade);
+    // Light on the rib crests only — thin upright highlights on the dark mass.
+    float rib = smoothstep(0.82, 0.98, abs(vFold)) * smoothstep(0.08, 0.3, h);
+    col += mix(uColorB, uColorA, 0.35) * rib * uRib * (0.3 + 0.7 * shade) * (0.6 + 0.4 * dens);
     col += uColorA * rim;
     col += uColorA * seam * uSeamGlow * (0.15 + uSeamFlash * 1.2);
 
@@ -412,7 +431,7 @@ const BODY_FRAGMENT = /* glsl */ `
     float top = 1.0 - smoothstep(1.0 - uTopTear * (0.5 + 0.5 * tear), 1.0, vUv.y);
     float foot = smoothstep(0.0, max(uFootFade * 0.5, 0.01), vUv.y);
     float ends = 1.0 - smoothstep(0.36, 0.5, abs(vUv.x));
-    float a = uAlpha * top * foot * ends * (0.35 + 0.65 * dens) * (1.0 - 0.4 * abs(vSlice) * 2.0);
+    float a = uAlpha * top * foot * ends * mix(0.35 + 0.65 * dens, 1.0, uCore) * (1.0 - 0.4 * abs(vSlice) * 2.0);
     if (uSplit > 0.001) a *= smoothstep(0.006, 0.02, abs(vUv.x));
 
     if (uDissolve > 0.0) {
@@ -463,7 +482,9 @@ export function createShearBodyMaterial() {
       uColorC: { value: new Color() },
       uColorD: { value: new Color() },
       uCrease: { value: 0.5 },
-      uLip: { value: 0.3 }
+      uLip: { value: 0.3 },
+      uCore: { value: 0 },
+      uRib: { value: 0 }
     }),
     vertexShader: WALL_VERTEX,
     fragmentShader: BODY_FRAGMENT
@@ -493,6 +514,8 @@ export function createShearBodyMaterial() {
     u.uColorD.value.copy(getColor(c.colorAirD));
     u.uCrease.value = c.bodyCrease;
     u.uLip.value = c.crestGlow * g.glow;
+    u.uCore.value = c.bodyCore ?? 0;
+    u.uRib.value = (c.ribGlow ?? 0) * g.glow;
   };
 
   return material;
@@ -613,17 +636,22 @@ const GROUND_FRAGMENT = /* glsl */ `
     float halfW = uWidth * 0.5;
     float ax = abs(vP.y) / max(halfW, 0.01);
     // Which snap this stretch of floor was dragged under; its sideways offset.
-    float k = floor(vP.x / max(uSnapSpacing, 0.1));
-    float off = (mod(k, 2.0) < 0.5 ? 1.0 : -1.0) * uStep * (0.6 + 0.4 * hash11(k + uSeed));
-    float lane = (vP.y + off) * uGrooves;
-    float wob = snoise(vec3(vP * vec2(0.3, 1.5), uSeed)) * 0.15;
-    float g = abs(fract(lane + wob) - 0.5);
-    float groove = 1.0 - smoothstep(0.02, 0.07, g);
-    float laneId = floor(lane + wob);
-    groove *= step(0.45, hash11(laneId * 3.7 + k * 1.3 + uSeed)) * (0.5 + 0.5 * snoise(vec3(vP.x * 0.8, laneId, uSeed)));
-    groove = max(groove, 0.0);
-    float edge = fract(vP.x / max(uSnapSpacing, 0.1));
-    float notch = (1.0 - smoothstep(0.0, 0.02, edge)) * step(uSnapSpacing, vP.x) * 0.25;
+    // The sideways step eases over most of a snap, so the combing kinks
+    // instead of breaking into a grid of cells.
+    float sx = vP.x / max(uSnapSpacing, 0.1);
+    float k = floor(sx);
+    float offA = (mod(k, 2.0) < 0.5 ? 1.0 : -1.0) * (0.6 + 0.4 * hash11(k + uSeed));
+    float offB = (mod(k + 1.0, 2.0) < 0.5 ? 1.0 : -1.0) * (0.6 + 0.4 * hash11(k + 1.0 + uSeed));
+    float off = mix(offA, offB, smoothstep(0.35, 1.0, fract(sx))) * uStep;
+    // Combed scratches: long, irregular streaks along the line of varying
+    // width and strength — no regular lanes, no cross lines.
+    float wob = snoise(vec3(vP.x * 0.12, vP.y * 0.4, uSeed + 4.0)) * 0.6;
+    float yy = (vP.y + off + wob) * uGrooves;
+    float s1 = snoise(vec3(vP.x * 0.09, yy * 1.3, uSeed));
+    float s2 = snoise(vec3(vP.x * 0.2, yy * 3.1, uSeed + 9.0));
+    float groove = smoothstep(0.35, 0.85, s1 * 0.65 + s2 * 0.35);
+    groove *= smoothstep(-0.2, 0.5, snoise(vec3(vP.x * 0.35, yy * 0.25, uSeed + 3.0)));
+    float notch = 0.0;
 
     // Dust combed flat along the line, and loose dust still drifting sideways.
     float comb = fbm3(vec3(vP.x * 0.22, (vP.y + off) * 1.4, uSeed)) * 0.5 + 0.5;
@@ -640,8 +668,8 @@ const GROUND_FRAGMENT = /* glsl */ `
     float lit = behind * startFade;
     float fresh = exp(-max(uReach - vP.x, 0.0) / max(uFresh, 0.05));
 
-    vec3 col = mix(uColorDeep, uColorScour, comb * 0.75);
-    col = mix(col, uColorGroove, max(groove * 0.5, notch));
+    vec3 col = mix(uColorDeep, uColorScour, smoothstep(0.35, 0.9, comb) * 0.8);
+    col = mix(col, uColorGroove, groove * 0.4);
     col = mix(col, uColorBerm, berm);
     col = mix(col, uColorBerm, drift * band * uDriftGlow);
     col += uColorFresh * (groove * 0.6 + notch) * fresh * uGrooveGlow * uGlobalGlow * uShaderIntensity;
