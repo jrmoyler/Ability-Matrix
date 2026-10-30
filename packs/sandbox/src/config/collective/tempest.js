@@ -38,13 +38,13 @@ export default {
     /* ================================================================ */
     /* 1 · THE DUST DEVIL (travel)                                       */
     /* ================================================================ */
-    devilHeight: 1.5, // metres
-    devilBase: 0.12, // radius where it touches the floor, metres
-    devilTop: 0.55, // radius at its lip, metres
+    devilHeight: 2.3, // metres
+    devilBase: 0.16, // radius where it touches the floor, metres
+    devilTop: 0.85, // radius at its lip, metres
     devilSpin: 2.6, // turns/second
     devilSway: 0.18, // how far its top snakes, metres
-    devilOpacity: 0.75,
-    devilDust: 70, // smoke puffs/second kicked up behind it
+    devilOpacity: 0.9,
+    devilDust: 110, // smoke puffs/second kicked up behind it
     devilChips: 26, // grit/second it throws off
     devilRumble: 0.12, // camera rumble while it runs
 
@@ -52,13 +52,13 @@ export default {
     /* 2 · THE FUNNEL                                                    */
     /* ================================================================ */
     /* --- silhouette (metres) --- */
-    height: 8.5, // full height of the column
-    baseRadius: 0.55, // radius where it meets the floor
-    topRadius: 3.4, // radius at the top of the funnel
-    flare: 2.1, // >1 stays thin low and flares late, <1 opens early
+    height: 4.3, // full height of the column — kept inside the 8 m capture frame
+    baseRadius: 0.85, // radius where it meets the floor
+    topRadius: 2.75, // radius at the top of the funnel
+    flare: 1.35, // >1 stays thin low and flares late, <1 opens early
     riseTime: 0.55, // seconds for the column to climb to full height
-    riseOvershoot: 0.08, // how far past full height it surges on arrival, × height
-    sway: 0.9, // how far the top snakes off the axis, metres
+    riseOvershoot: 0.06, // how far past full height it surges on arrival, × height
+    sway: 0.7, // how far the top snakes off the axis, metres
     swayFrequency: 1.7, // bends along its height
     swaySpeed: 1.3, // how fast the bends travel
     wobble: 0.14, // noise on the radius, fraction
@@ -74,60 +74,84 @@ export default {
     /* --- the banded filaments --- */
     bandScale: 2.4, // around-the-column frequency of the noise
     streak: 0.16, // along-the-spiral stretch (smaller = longer filaments)
-    bandFrequency: 1.7, // horizontal bands per metre of height
-    bandContrast: 0.55, // 0..1 how strongly the bands cut the body
-    filament: 0.8, // 0..1 how much the ridged filaments carve the shell
+    bandFrequency: 1.1, // horizontal bands per metre of height
+    bandContrast: 0.45, // 0..1 how strongly the bands cut the body
+    filament: 0.5, // 0..1 how much the ridged filaments carve the shell
     filamentSharp: 2.6, // filament tightness
     rimPower: 1.4, // facing ratio exponent — shells are densest edge-on
-    rim: 0.7, // 0..1 how much the facing ratio drives alpha
+    rim: 0.35, // 0..1 how much the facing ratio drives alpha
 
     /* --- fades --- */
-    floorFade: 0.6, // metres over which the funnel fades into the floor
-    topFade: 0.22, // fraction of the height that feathers out at the lip
+    floorFade: 0.35, // metres over which the funnel fades into the floor
+    topFade: 0.16, // fraction of the height that feathers out at the lip
     softFade: 0.6, // metres — soft intersection against scene geometry
     collapseTime: 1.1, // seconds the funnel takes to thin out from the bottom up
     collapseSoft: 0.22, // width of the dissolving edge, fraction of the height
     collapseNoise: 0.25, // how ragged that edge is
 
     /* --- look --- */
-    outerOpacity: 0.62,
-    innerOpacity: 0.55,
-    innerGlow: 2.2, // emissive gain of the additive wind shell
-    filamentGlow: 1.4, // how much brighter a filament is than the body
-    colorFunnelBase: "#5d5446", // dust-dark where it scours the floor
-    colorFunnelMid: "#8f8b80", // the body
-    colorFunnelTop: "#cfe6ee", // pale where it thins into cloud
-    colorFilament: "#e4fbff", // filament highlights
-    colorWind: "#9fe8ff", // inner wind shell
+    outerOpacity: 0.95,
+    outerDensity: 2.2, // dust shell alpha multiplier: a tornado is mostly dirt and has weight
+    innerOpacity: 0.16,
+    innerGlow: 0.6, // emissive gain of the additive wind shell
+    filamentGlow: 0.7, // how much brighter a filament is than the body
+    colorFunnelBase: "#3a2e22", // dust-dark where it scours the floor
+    colorFunnelMid: "#2c4a57", // the body — storm slate
+    colorFunnelTop: "#7fb3c4", // pale where it thins into cloud
+    colorFilament: "#a9dcea", // filament highlights
+    colorWind: "#6fcbe6", // inner wind shell
+    colorFunnelDeep: "#0b141b", // storm-dark deep stop between filaments and bands
+    deepMix: 0.85, // 0..1 how far the gaps between filaments fall to it
+    innerDeepMix: 0.5, // the same on the additive wind shell (darker = less glow)
+    bandDark: 0.65, // 0..1 how dark the gaps between the cloud bands go
 
     /* ================================================================ */
     /* 3 · THE DUST SKIRT                                                */
     /* ================================================================ */
     skirtRadius: 2.4, // metres the dust spreads at the base
-    skirtRate: 140, // puffs/second
-    skirtSize: 1.1,
+    skirtRate: 200, // puffs/second
+    skirtSize: 1.35,
     skirtSpeed: 2.6, // how hard it is thrown outward
     skirtLifetime: 1.7,
-    skirtOpacity: 0.42,
+    skirtOpacity: 0.8,
     skirtSwirl: 2.2, // rad/s it is wound round the base
     skirtExpand: 0.9, // how far the swirl spreads over a puff's life
     skirtRise: 0.35, // m/s
     skirtTurbulence: 0.7,
     ringInterval: 0.32, // seconds between dust-ring decals at the base
     ringLife: 1.4,
-    ringIntensity: 0.8,
-    colorDustA: "#a0927b",
-    colorDustB: "#857a68",
-    colorDustC: "#6b6457",
-    colorDustD: "#4b4740",
-    colorRingA: "#6e6352",
-    colorRingB: "#a89a82",
+    ringIntensity: 0.55,
+
+    /* --- the scoured floor (a field shader, stays for the linger) --- */
+    scourRadius: 1.25, // × skirtRadius
+    scourGrowTime: 0.6, // seconds to spread out from the foot
+    scourOpacity: 0.92,
+    scourWind: 1.7, // log-spiral winding of the grooves
+    scourGrooves: 16, // grooves round the disc
+    scourGrooveDepth: 0.6, // relief of the grooves under the sun
+    scourBowl: 0.32, // the gouged bowl under the foot, × radius
+    scourGrit: 0.6, // pale grit flecks
+    scourLipGlow: 0.35, // the rim of thrown grit round the bowl
+    scourLift: 0.018, // metres off the floor
+    telegraphScour: 0.35, // the floor at the circle is already raked this far as the devil arrives
+    telegraphDust: 90, // dust/second drawn in and wound up at the circle during travel
+    telegraphRadius: 0.9, // × skirtRadius
+    colorScourDeep: "#0d0f12",
+    colorScourBody: "#3b3226",
+    colorScourTint: "#9c8b70",
+    colorScourLip: "#6d6150",
+    colorDustA: "#93826a",
+    colorDustB: "#5f5546",
+    colorDustC: "#463f35",
+    colorDustD: "#26221d",
+    colorRingA: "#3d362c",
+    colorRingB: "#6f6556",
 
     /* ================================================================ */
     /* 4 · DEBRIS                                                        */
     /* ================================================================ */
-    debrisRate: 70, // chips/second fed into the column
-    debrisSize: 0.07,
+    debrisRate: 160, // chips/second fed into the column
+    debrisSize: 0.26,
     debrisClimb: 5.5, // m/s the debris climbs
     debrisDrag: 0.45, // how soon it stalls high in the column
     debrisSwirl: 3.4, // rad/s it orbits
@@ -136,8 +160,8 @@ export default {
     debrisGravity: -0.6,
     debrisFling: 110, // chips thrown out when the column collapses
     debrisFlingSpeed: 11,
-    colorDebrisA: "#8a7b66",
-    colorDebrisB: "#6f6352",
+    colorDebrisA: "#b09a7a",
+    colorDebrisB: "#8a775d",
     colorDebrisC: "#5a5045",
     colorDebrisD: "#3a352f",
 
@@ -179,8 +203,8 @@ export default {
     colorBurstA: "#e8fbff",
     colorBurstB: "#9fe8ff",
     colorBurstC: "#4f7c8c",
-    colorShockA: "#9fe8ff",
-    colorShockB: "#ffffff",
+    colorShockA: "#1d4a5c",
+    colorShockB: "#6fb6cc",
     colorFlash: "#d8f6ff",
 
     /* --- what it does to the bodies --- */

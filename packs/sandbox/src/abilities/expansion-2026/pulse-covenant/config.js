@@ -48,21 +48,25 @@ export default {
     lightIntensity: 4,
     lightRadius: 9,
     lightPunch: 2, // extra intensity punched in by a pulse
+    bindLight: 6, // extra intensity punched in when the heart is bound
     lightThrob: 0.25, // how much the light swells on every heartbeat
 
-    /* --- palette --- */
-    heartColor: '#750a22', // the muscle
-    arteryColor: '#d91f47', // vessel walls and the veins in the heart
-    bloodGlow: '#ff8290', // living blood: boluses, cells, sigil, pulse
+    /* --- palette: a four-stop ramp core → tint → body → deep --- */
+    coreColor: '#fff0f2', // white-hot: wet highlights, the bolus core
+    bloodGlow: '#ff8290', // tint — living blood: boluses, cells, sigil, pulse
+    arteryColor: '#d91f47', // body — vessel walls and the veins in the heart
+    heartColor: '#750a22', // the muscle, between body and deep
+    deepColor: '#24030b', // deep — clotted blood: the pool, clefts, shadow sides
 
     /* ================================================================ */
     /* 1 · THE HEART                                                     */
     /* ================================================================ */
-    heartSize: 0.48, // scale of the heart
-    heartHeight: 1.5, // metres it hangs above the caster's feet
-    formTime: 0.35, // seconds it takes to swell into being
-    heartBeat: 0.15, // how much it swells on each beat
-    heartSquash: 0.12, // how hard it contracts apex-first
+    heartSize: 0.85, // scale of the heart (≈ 1.5 m tall at 0.85)
+    heartHeight: 2.45, // metres it hangs above the caster's feet
+    formTime: 0.35, // seconds it takes to swell into being — the bind lands then
+    heartBeat: 0.22, // how much it swells on each beat
+    heartSquash: 0.22, // how hard it contracts apex-first
+    heartSway: 0.12, // radians it turns to and fro while it hangs
     heartGlow: 1.4, // emissive gain of its veins and rim
     heartFresnel: 1.8, // wet rim
     heartVeins: 1, // how many veins show on its surface
@@ -71,20 +75,50 @@ export default {
     /* 2 · THE ARTERIES                                                  */
     /* ================================================================ */
     growTime: 0.5, // seconds the arteries take to reach the floor
-    arteryReach: 1, // radius multiplier of the whole network
+    arteryReach: 1, // × sigil radius: where the arteries plant on the floor
     arteryGlow: 1.6, // brightness of the bolus running down them
     arterySwell: 1, // how much the wall swells as the bolus passes
-    cellSize: 1, // size of the red cells riding them
+    cellSize: 1.6, // size of the red cells riding them
     cellGlow: 2, // their glow
 
     /* ================================================================ */
     /* 3 · THE COVENANT FLOOR — sigil and timing cue                     */
     /* ================================================================ */
-    floorRadius: 1.5, // metres the sigil reaches round the caster
+    floorRadius: 3.2, // metres the sigil reaches round the caster (the zone)
     floorGlow: 1.2, // capillaries, rings and pulse front
     floorVeins: 1, // capillary density
-    gateRadius: 0.8, // metres — the gate the timing cue contracts to
+    gateRadius: 1.4, // metres — the gate the timing cue contracts to
     cueGlow: 1.6, // brightness of the cue and gate (they flare in the window)
+    poolRadius: 0.92, // × sigil radius the blood pool spreads to
+    poolSpread: 0.6, // seconds the pool takes to run out after the bind
+    poolOpacity: 0.9, // how dark and solid the pool is
+    poolSheen: 1.2, // wet highlight on it
+    poolRipple: 1, // ripples rolling out on each beat
+    bindDecal: 1.5, // × sigil radius of the stain ring the bind slams down
+    bindDecalLife: 8, // seconds that stain stays
+    bindShake: 0.25, // camera trauma when the heart is bound (× global)
+    bindFlash: 0.14, // screen flash at the bind (× global explosion intensity)
+    bindBurst: 40, // droplets thrown off the heart at the bind
+
+    /* ================================================================ */
+    /* 3b · THE BEAT WAVES — the covenant's reach, rolled out each beat  */
+    /* ================================================================ */
+    waveReach: 9, // metres each heartbeat's blood wave rolls out to
+    waveGlow: 1.1, // brightness of the wave
+    waveWidth: 0.16, // band width of the wave, fraction of its radius
+    waveWarp: 0.3, // screen-space push of the wave on LAYER.DISTORTION
+
+    /* ================================================================ */
+    /* 3c · THE THREADS — vessels the heart throws to the blood nearby   */
+    /* ================================================================ */
+    threadCount: 5, // bodies the heart reaches for at once (max 6; presentation)
+    threadRange: 11, // metres it reaches
+    threadGrowTime: 0.55, // seconds a thread takes to cross to its body
+    threadRadius: 0.11, // metres at the heart (half that at the body)
+    threadArc: 0.9, // metres the arch rises over the straight line
+    threadGlow: 2.6, // bolus brightness
+    threadSplash: 5, // droplets splashed on the body when a bolus arrives
+    threadBite: 0.9, // metres — the ring of blood under a body when a bolus lands
 
     /* ================================================================ */
     /* 4 · THE PULSE — thrown from the hit that completed the rhythm     */
@@ -112,5 +146,13 @@ export default {
     beatDropSize: 0.07,
     beatDropSpeed: 1.6, // metres/second they are thrown up
     beatDropLife: 0.7,
+    moteRate: 28, // blood motes / second rising off the pool (second system)
+    moteSize: 0.14,
+    moteLife: 1.2,
+    moteRise: 0.8, // metres/second they float up
+    moteColorA: '#fff0f2', // birth
+    moteColorB: '#ff8290', // early
+    moteColorC: '#d91f47', // late
+    moteColorD: '#24030b', // death
   },
 };

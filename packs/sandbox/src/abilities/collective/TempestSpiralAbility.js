@@ -1,8 +1,9 @@
 import { Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../Ability.js';
-import { createFunnelGeometry } from '../../assets/collective/TempestSpiralGeometry.js';
+import { createFunnelGeometry, createScourGeometry } from '../../assets/collective/TempestSpiralGeometry.js';
 import {
   createFunnelMaterial,
+  createTempestScourMaterial,
   createTempestWarpMaterial
 } from '../../materials/collective/TempestSpiralMaterial.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
@@ -118,6 +119,18 @@ export class TempestSpiralAbility extends Ability {
       mesh.visible = false;
       this.group.add(mesh);
     }
+
+    /* ---- the scoured floor: dirt raked into wound grooves under the foot ---- */
+    this.scourGeometry = createScourGeometry(96, 28);
+    this.scourMaterial = createTempestScourMaterial();
+    this.scour = new Mesh(this.scourGeometry, this.scourMaterial);
+    this.scour.name = 'TempestScour';
+    this.scour.layers.set(LAYER.VFX);
+    this.scour.renderOrder = 2;
+    this.scour.frustumCulled = false;
+    this.scour.visible = false;
+    this.group.add(this.scour);
+    this._scourState = { radius: 3, spinPhase: 0, grow: 0, fade: 1, seed: 0 };
 
     /* ---- layer 6: the warp ---- */
     this.warpGeometry = new PlaneGeometry(1, 1, 1, 1);
@@ -307,6 +320,8 @@ export class TempestSpiralAbility extends Ability {
     this.inner.visible = false;
     this.warp.visible = false;
     this.devil.visible = true;
+    this.scour.visible = false;
+    this._telegraphClock = 0;
 
     // A puff off the caster's feet as the devil spins up.
     const c = settings.tempest;
@@ -395,6 +410,20 @@ export class TempestSpiralAbility extends Ability {
     state.seed = this._seed;
   }
 
+  /** The scoured floor: sized from the skirt, wound with the dust shell. */
+  _syncScour(centre, grow, fade) {
+    const c = settings.tempest;
+    const st = this._scourState;
+    st.radius = c.skirtRadius * c.scourRadius;
+    st.spinPhase = this._spin;
+    st.grow = grow;
+    st.fade = fade;
+    st.seed = this._seed;
+    this.scourMaterial.userData.sync(st);
+    this.scour.position.set(centre.x, 0, centre.z);
+    this.scour.visible = grow > 0.002 && fade > 0.004;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Travel — the dust devil                                             */
   /* ------------------------------------------------------------------ */
@@ -468,6 +497,32 @@ export class TempestSpiralAbility extends Ability {
 
     this._streakFx(dt, this.position, c.devilHeight * grow, c.devilTop, 0.35);
     this.ctx.shake.rumble(c.devilRumble, dt);
+
+    /* anticipation at the circle: the floor starts to be raked and the dust
+       there is drawn in and wound up before the devil arrives */
+    const target = this._centrePoint(_centre);
+    const gather = Easing.inQuad(saturate(this.u));
+    this._syncScour(target, c.telegraphScour * gather, 1);
+    const pulls = Math.round(this.dustEmitter.tick(dt, c.telegraphDust * (0.3 + gather)) * g.particleCount);
+    if (pulls > 0) {
+      _pos.copy(target).setY(0.25);
+      _emit.position = _pos;
+      _emit.radius = c.skirtRadius * c.telegraphRadius;
+      _emit.direction = _dir.set(0, 1, 0);
+      _emit.speed = c.skirtSpeed * 0.2;
+      _emit.speedVariance = 0.6;
+      _emit.spread = 0.4;
+      _emit.inherit = null;
+      _emit.anchor = target;
+      _emit.size = c.skirtSize * 0.8;
+      _emit.sizeVariance = 0.5;
+      _emit.life = c.skirtLifetime * 0.7;
+      _emit.lifeVariance = 0.4;
+      _emit.spin = 0.6;
+      _emit.tint = null;
+      _emit.time = time;
+      this.dust.emit(pulls, _emit);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -571,6 +626,11 @@ export class TempestSpiralAbility extends Ability {
     this.innerMaterial.userData.sync(this._innerState);
     this.outer.position.copy(centre);
     this.inner.position.copy(centre);
+
+    /* --- the scoured floor: spreads from the foot, stays, blown flat on exit --- */
+    const scourT = this.phase === AbilityPhase.IMPACT ? this.impactTime : 1e3;
+    const scourGrow = lerp(c.telegraphScour, 1, Easing.outCubic(saturate(scourT / Math.max(0.05, c.scourGrowTime))));
+    this._syncScour(centre, scourGrow, fade);
 
     /* --- layer 6: the base warp --- */
     const ws = this._warpState;
@@ -930,6 +990,7 @@ export class TempestSpiralAbility extends Ability {
     this.inner.visible = false;
     this.devil.visible = false;
     this.warp.visible = false;
+    this.scour.visible = false;
   }
 
   dispose() {
@@ -937,6 +998,8 @@ export class TempestSpiralAbility extends Ability {
     this.funnelGeometry.dispose();
     this.devilGeometry.dispose();
     this.warpGeometry.dispose();
+    this.scourGeometry.dispose();
+    this.scourMaterial.dispose();
     this.outerMaterial.dispose();
     this.innerMaterial.dispose();
     this.devilMaterial.dispose();
@@ -1029,6 +1092,30 @@ export function buildEditor(gui, c, Editor) {
   look.addColor(c, 'colorFunnelTop').name('lip');
   look.addColor(c, 'colorFilament').name('filaments');
   look.addColor(c, 'colorWind').name('wind shell');
+  R(look, c, 'deepMix', 0, 1, 0.01, 'gaps fall to storm-dark');
+  R(look, c, 'outerDensity', 0.2, 4, 0.01, 'dust shell density');
+  R(look, c, 'innerDeepMix', 0, 1, 0.01, 'wind shell gaps darken');
+  R(look, c, 'bandDark', 0, 1, 0.01, 'dark between cloud bands');
+  look.addColor(c, 'colorFunnelDeep').name('storm-dark deep');
+
+  const scour = folder.addFolder('3b · Scoured floor');
+  R(scour, c, 'scourRadius', 0.2, 3, 0.01, 'radius (× skirt)');
+  R(scour, c, 'scourGrowTime', 0.05, 3, 0.01, 'spreads over (s)');
+  R(scour, c, 'scourOpacity', 0, 1, 0.01, 'opacity');
+  R(scour, c, 'scourWind', -6, 6, 0.05, 'groove winding');
+  R(scour, c, 'scourGrooves', 1, 60, 0.5, 'grooves');
+  R(scour, c, 'scourGrooveDepth', 0, 2, 0.01, 'groove relief');
+  R(scour, c, 'scourBowl', 0, 1, 0.01, 'scoured bowl (× radius)');
+  R(scour, c, 'scourGrit', 0, 1, 0.01, 'grit flecks');
+  R(scour, c, 'scourLipGlow', 0, 3, 0.01, 'grit lip');
+  R(scour, c, 'scourLift', 0, 0.1, 0.001, 'lift off floor (m)');
+  R(scour, c, 'telegraphScour', 0, 1, 0.01, 'raked before arrival');
+  R(scour, c, 'telegraphDust', 0, 300, 1, 'dust drawn in before arrival /s');
+  R(scour, c, 'telegraphRadius', 0.1, 2, 0.01, 'gather radius (× skirt)');
+  scour.addColor(c, 'colorScourDeep').name('gouged');
+  scour.addColor(c, 'colorScourBody').name('raked dirt');
+  scour.addColor(c, 'colorScourTint').name('grit');
+  scour.addColor(c, 'colorScourLip').name('lip');
 
   const skirt = folder.addFolder('3 · Dust skirt');
   R(skirt, c, 'skirtRadius', 0.2, 8, 0.05, 'spread (m)');

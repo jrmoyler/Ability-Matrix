@@ -44,9 +44,10 @@ export default {
     /* ================================================================ */
     /* 1 · THE CANOPY — crown, branches, leaves, vines                   */
     /* ================================================================ */
-    canopyHeight: 4.8, // metres the crown hangs over the floor
+    canopyHeight: 2.9, // metres the crown stands over the floor (reads whole at the 8 m camera)
     canopySpread: 4, // metres the branches reach (4 = authored size)
-    seedScale: 1, // size of the travelling seed pod
+    trunkScale: 1.2, // girth of the braided trunk; its root flare reaches ≈ 0.6 × this
+    seedScale: 2, // size of the travelling seed pod
     retreatStrength: 0.8, // how far the canopy draws in as it withers, 0..1
     dropDistance: 1.5, // metres it sinks as it withers
 
@@ -54,7 +55,13 @@ export default {
     armDelay: 0.55, // seconds after landing before the snare can trigger
     triggerWindup: 0.32, // seconds from a body entering to the lash
     thornLength: 1.5, // metres the floor thorns stab up
-    strikeWidth: 0.12, // half-width of each lashing vine, metres
+    thornRing: 0.75, // metres from the snared body the thorn cage stands
+    thornGlow: 1.6, // sap burning in the thorn points
+    strikeReach: 0.7, // the lashing vines whip in from this far out on the canopy, × canopySpread
+    bindHold: 0.45, // seconds the vines stay coiled round the body after the lash
+    bindRadius: 0.38, // metres the bind coil wraps out from the body's centre
+    bindHeight: 1.3, // metres the coil climbs
+    strikeWidth: 0.2, // radius of each lashing vine at the canopy, metres (tapers to the tip)
     strikeDuration: 0.6, // seconds the vines take to withdraw after the hit
 
     lifetime: 6, // seconds the canopy hangs (× settings.global.lifetime)
@@ -67,13 +74,18 @@ export default {
 
     /* --- palette --- */
     barkColor: '#365423', // wood, pod husk, lashing vines
-    leafColor: '#55a837', // leaves, falling leaves
+    leafColor: '#18440f', // leaves (lit body), falling leaves
     leafRim: '#d1ff82', // leaf rim and veins, pod glow, pollen
     rootColor: '#a9eb6a', // root snare, sap, vine veins
 
     /* --- leaves --- */
     leafFlutter: 1, // how much the leaves flutter
     leafVariegation: 0.5, // blotching across each leaf
+    leafDeep: '#061104', // near-black green: undersides and the stem end of each leaf
+    leafDeepFloor: 0.7, // even the lit face keeps this much of the deep stop
+    leafDeepAmount: 0.85, // how far the underside / stem fall to the deep stop
+    leafEdgeStart: 0.86, // |across| where the lit margin starts
+    leafEdgeGlow: 1, // the lit margin (leafRim)
     leafBristle: 1, // how hard they curl when the trap wakes
     leafSpeed: 0.55, // metres/second the falling leaves drift
     leafLifetime: 1.7, // seconds a falling leaf lives
@@ -89,14 +101,40 @@ export default {
     tendrilCurl: 0.42, // radians the vines swing in as the trap wakes
 
     /* --- the seed pod --- */
-    seedHeight: 0.8, // metres off the floor it flies
+    seedHeight: 1.2, // metres off the floor it flies
     seedSpin: 3, // radians/second it turns
-    seedGlow: 1, // light leaking from its seams
+    seedGlow: 1.4, // light leaking from its seams
+    runnerWidth: 0.07, // radius of the runner vine trailing the pod back to the hand, metres
+    runnerArc: 0.5, // metres it sags/bows between hand and pod
+    runnerHeight: 1.2, // metres off the floor it leaves the caster
+    runnerFade: 0.6, // seconds it takes to wither once the pod lands
+
+    /* ================================================================ */
+    /* 0 · THE MAW — the pitcher that hangs under the crown and bites    */
+    /* ================================================================ */
+    mawScale: 1.15, // metres of bulb; the jaws hang about as far again
+    mawOffset: 1.3, // metres out from the trunk it hangs, on the caster's side
+    stalkLength: 0.3, // metres it hangs below the crown
+    stalkWidth: 0.11, // stalk radius, metres
+    mawOpen: 1.15, // radians the jaws gape through the windup
+    mawBite: 0.5, // metres off the floor the jaw tips close at
+    mawLunge: 0.14, // seconds the lunge onto the body takes
+    mawRetract: 0.8, // seconds it takes to haul itself back up after the bind
+    mawLean: 0.55, // radians it leans into the lunge
+    mawWindReach: 0.12, // how far it swings toward the body during the windup (the lunge covers the rest)
+    mawRear: 1.1, // metres it rears back toward the caster (and up) through the windup, so the lunge is a long plunge
+    mawRearLift: 0.25, // × mawRear, how far up it rears
+    mawPop: 0.3, // swells this much as the jaws slam shut (visual only)
+    mawPopTime: 0.25, // seconds the swell takes to settle after the lunge
+    mawGlow: 1.5, // gullet glow
+    mawColor: '#5a7a22', // waxy outer skin (veins and shade fall to the deep stop)
+    mawGullet: '#d8304e', // the blood-red gullet and the fresnel rim of the maw
+    mawCore: '#ffc070', // hot core of the gullet ramp
 
     /* ================================================================ */
     /* 2 · THE SNARE — the root sigil and the dappled shade              */
     /* ================================================================ */
-    rootGlow: 1, // emissive gain of the snare
+    rootGlow: 0.55, // emissive gain of the snare
     rootCount: 12, // root lobes round the snare
     shadeOpacity: 0.45, // how dark the leaf shadow is
     shadeScale: 1, // leaf-shadow fleck size
@@ -105,8 +143,8 @@ export default {
     /* ================================================================ */
     /* 3 · THE LASH — vines, splinters, snap                             */
     /* ================================================================ */
-    strikeArc: 0.8, // metres the lashing vines bow upward
-    strikeGlow: 1, // vein glow along the vines
+    strikeArc: -0.7, // metres the lashing vines bow (negative = they swoop low across the snare, under the leaves)
+    strikeGlow: 1.8, // vein glow along the vines
     splinterBurst: 26, // wood splinters thrown from the struck body
     splinterSize: 0.07, // metres
     splinterSpeed: 4, // metres/second
@@ -125,9 +163,12 @@ export default {
     /* 4 · THE BEATS                                                     */
     /* ================================================================ */
     unfurlShake: 0.1, // trauma as the canopy bursts open (× explosionIntensity)
+    landFlash: 0.06, // screen flash as the pod hits the floor
+    landBurst: 0.6, // AIR burst radius at landing, × zoneRadius
+    landDecal: 1, // dust ring at landing, × zoneRadius
     windupRumble: 0.35, // rumble while the trap winds up
     strikeShake: 0.3, // trauma on the lash
-    strikeFlash: 0.12, // screen flash on the lash
+    strikeFlash: 0.18, // screen flash on the lash
     strikeLight: 9, // light punch on the lash
     flashColor: '#d8ffb0'
   }

@@ -1,4 +1,4 @@
-import { Group, Mesh, Vector3 } from 'three';
+import { Color, Group, Mesh, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { settings, CAST_ANIMATIONS } from '../../../config/settings.js';
 import { LAYER } from '../../../core/Layers.js';
@@ -6,6 +6,7 @@ import { frame } from '../../../core/FrameUniforms.js';
 import { ParticleShape } from '../../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../../particles/ParticleEngine.js';
 import { getColor } from '../../../utils/color.js';
+import { DecalType } from '../../../effects/GroundDecals.js';
 import { impactForce } from '../AuthoredImpactForce.js';
 import { bindExpansionCombat } from '../StandaloneCombat.js';
 import { ExpansionAtmosphere, prefersReducedMotion } from '../ExpansionAtmosphere.js';
@@ -16,7 +17,8 @@ import {
   compressionRingGeometry,
   weftRingGeometry,
   shuttleGeometry,
-  weftFloorGeometry
+  weftFloorGeometry,
+  loomArchGeometry
 } from './MassWeftGeometry.js';
 import {
   createWeftFieldMaterial,
@@ -25,7 +27,8 @@ import {
   createShuttleMaterial,
   createCompressionMaterial,
   createGravityLensMaterial,
-  createWeftFloorMaterial
+  createWeftFloorMaterial,
+  createLoomStoneMaterial
 } from './MassWeftMaterials.js';
 
 // The corridor geometry is part of this module's public surface (tests and
@@ -36,6 +39,11 @@ export const ID = 'exp-mass-weft';
 export const UID = 'matrix-expansion/mass-weft';
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const smooth = (a, b, x) => {
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+const _decal = { radius: 1, life: 4, intensity: 0.5, width: 0.05, colorA: null, colorB: null };
 
 /** Bodies one pulse can strike — the combat binding's own target cap. */
 const MAX_TARGETS = 8;
@@ -46,6 +54,8 @@ const RINGS_PER_WAVE = 3;
 const HEDDLES = 6;
 /** Grit emissions spaced down the corridor per accepted pulse. */
 const GRIT_STATIONS = 4;
+/** Loom arches the corridor can stand (`archCount` picks how many show). */
+const MAX_ARCHES = 8;
 
 const _emit = {};
 const _pos = new Vector3();
@@ -70,24 +80,46 @@ function distanceToSegment(px, pz, ax, az, bx, bz) {
  * MASS WEFT — Gravity, line cast.
  *
  * The cast is a loom. A **shuttle** of collapsed mass flies point-first down
- * the line, and behind it space is woven into a narrow corridor: a ribbon of
- * bent light on the floor, a well of darkened stone under it, two threads
- * twisting round it through a row of bead heddles, and a lens that pulls the
- * screen toward its spine. When the shuttle reaches the aim point the weft
- * locks in and the corridor **pulses**: every `pulsePeriod` it asks the combat
- * binding who is standing inside the capsule and strikes them. When its
- * lifetime runs out the corridor narrows, the threads draw in, and the whole
- * weave implodes into the shuttle.
+ * the line, and behind it space is woven into a narrow corridor: a row of
+ * heavy stone **loom arches** heaves up out of the floor one after another as
+ * the shuttle passes, a filled well of bent space darkens the floor between
+ * them, two threads twist down the middle, and a lens pulls the screen toward
+ * the spine. When the shuttle reaches the aim point the weft locks in (the
+ * floor cracks along the line) and the corridor **pulses**: every
+ * `pulsePeriod` it asks the combat binding who is standing inside the capsule
+ * and strikes them. A strike is a wave: it runs from the caster to the front
+ * in `waveTime`, every arch it reaches **beats in** — lifts, then slams down
+ * and forward like a loom's beater — the threads swell where it passes, and a
+ * **loom weight** of dark stone drops out of the air onto every struck body.
+ * When its lifetime runs out the arches sink back into the floor, the
+ * corridor narrows, and the whole weave implodes into the shuttle.
+ *
+ * ## Beats (default settings, × `settings.global.lifetime`)
+ *
+ *   - 0.00–0.5 s  travel: the shuttle rolls down the line; arches rise behind it.
+ *   - lock-in    : knock, crack decals down the corridor, the first strike wave.
+ *   - every 1 s  : a strike wave, the arches beat in caster→front, weights drop.
+ *   - linger     : the well's bands drag toward the front, threads counter-wind.
+ *   - exit 1 s   : arches sink and dissolve, corridor narrows, shuttle flares.
  *
  * ## Layers (each a folder in the editor)
  *
+ *   0. **the loom arches** (`loomArchGeometry`, `createLoomStoneMaterial`) —
+ *      the hero: pointed stone frames swept with a squared, studded section,
+ *      straddling the corridor at body-height-plus. Lit by the sun, opaque, on
+ *      `LAYER.WORLD`, casting shadows; seams and runes glow the four-stop ramp
+ *      and flood white as a strike wave beats them in. Spacing, span and
+ *      height are derived from the corridor every frame.
  *   1. **the weft ribbon** (`createWeftFieldMaterial`) — the folded trough on
  *      the floor; noise-broken filaments roll toward the front, the spine
  *      glows, the edges catch a hard line. It *is* the corridor: it grows
  *      behind the shuttle and never runs past the aim point.
  *   2. **the floor weave** (`createWeftFloorMaterial`) — normal-blended, so it
- *      darkens the floor into a well; warp and weft threads pinch toward the
- *      spine and bow toward the front the deeper they sit. Flares on a pulse.
+ *      darkens the floor into a well; a *filled* field of bent-space bands
+ *      coloured off the four-stop ramp (deep → body → tint → core), a dim
+ *      weave pinched toward the spine, crushed lips at the capsule edge, and
+ *      the strike wave rolling down it. CRACK decals laid at lock-in stay for
+ *      the corridor's life.
  *   3. **filaments and heddles** — two counter-wound helical threads
  *      (`gravityFilamentGeometry`) and six bead rings (`weftRingGeometry`)
  *      they appear to pass through; fresnel-lit, beads of light riding them.
@@ -96,9 +128,10 @@ function distanceToSegment(px, pz, ax, az, bx, bz) {
  *      burning grazing rim. It rolls in flight, throbs while the corridor
  *      stands, and flares as the weave implodes into it.
  *   5. **compression and contact** — on every *accepted* pulse, three faceted
- *      rings run down the corridor (three waves can overlap), and a pooled
- *      rosette, STORM burst and CRACK decal mark each struck body
- *      (`GravityContacts`). A refused pulse draws nothing.
+ *      rings run down the corridor (three waves can overlap), and each struck
+ *      body gets a falling loom weight (lit stone, `loomWeightGeometry`) that
+ *      lands with a STORM burst, a CRACK decal and a knock, plus a rosette of
+ *      puckered space (`GravityContacts`). A refused pulse draws nothing.
  *   6. **the lens** — the ribbon's own geometry on `LAYER.DISTORTION`,
  *      pulling the screen toward the spine with a travelling shear.
  *   7. **particles** — the shared corridor streaks (`ExpansionAtmosphere`)
@@ -228,6 +261,21 @@ export class MassWeftAbility extends Ability {
       this.rings.push(ring);
     }
 
+    /* ---- 0 · the loom arches ---- */
+    const arch = g(loomArchGeometry());
+    this.arches = [];
+    this.archMaterials = [];
+    for (let i = 0; i < MAX_ARCHES; i++) {
+      const mat = m(createLoomStoneMaterial());
+      const mesh = new Mesh(arch, mat);
+      mesh.visible = false;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.rig.add(mesh);
+      this.arches.push(mesh);
+      this.archMaterials.push(mat);
+    }
+
     /* ---- 4 · the shuttle ---- */
     this.coreMat = m(createShuttleMaterial());
     this.core = new Mesh(g(shuttleGeometry()), this.coreMat);
@@ -265,10 +313,14 @@ export class MassWeftAbility extends Ability {
       }
     });
     this.lens.layers.set(LAYER.DISTORTION);
+    // Stone is solid: it belongs in the depth prepass and the shadow map.
+    for (const a of this.arches) a.layers.set(LAYER.WORLD);
 
     /** The four materials that share the corridor's fade/pulse/clock. */
     this._bodyMaterials = [this.mat, this.filamentMat, this.ringMat, this.coreMat];
 
+    this._scarDeep = new Color();
+    this._scarBody = new Color();
     this.scope = null;
     this.failure = null;
     this.nextPulse = 0;
@@ -335,8 +387,86 @@ export class MassWeftAbility extends Ability {
     this.compressionTimes.fill(-1);
     this.compressionNext = 0;
     for (const wave of this.compressionWaves) for (const ring of wave) ring.visible = false;
+    for (const a of this.arches) a.visible = false;
     this.coreMat.uniforms.uFlare.value = 0;
     this.floorMat.uniforms.uPulse.value = 0;
+    this.floorMat.uniforms.uWaveT.value = -1;
+    this.filamentMat.uniforms.uWaveT.value = -1;
+  }
+
+  /** Progress 0..1 of the newest strike wave down the corridor, or -1. */
+  _waveT(c) {
+    if (this.lastPulse < 0) return -1;
+    const k = (this.stagedTime - this.lastPulse) / Math.max(0.1, c.waveTime ?? 0.55);
+    return k > 1.15 ? -1 : k;
+  }
+
+  /**
+   * Place, raise, beat and sink the loom arches.
+   * @param {object} c       live settings
+   * @param {number} width   corridor half-width this frame (m)
+   * @param {number} closing 0..1 through the exit
+   * @param {number} time    visual clock (0 under reduced motion)
+   */
+  _arches(c, width, closing, time) {
+    const n = Math.max(0, Math.min(MAX_ARCHES, Math.round(c.archCount ?? 5)));
+    const height = Math.max(0.3, c.archHeight ?? 2.1);
+    const span = Math.max(0.4, width * 2 * (c.archSpan ?? 1.3));
+    const depth = Math.max(0.2, c.archDepth ?? 1.6);
+    const riseTime = Math.max(0.05, c.archRiseTime ?? 0.35);
+    const speed = Math.max(1, c.speed ?? 20);
+    const beat = Math.max(0.1, c.archBeat ?? 0.45);
+    const waveTime = Math.max(0.1, c.waveTime ?? 0.55);
+    const slam = c.archSlam ?? 0.22;
+    const swing = c.archSwing ?? 0.32;
+    const sinceStrike = this.lastPulse < 0 ? -1 : this.stagedTime - this.lastPulse;
+    for (let i = 0; i < MAX_ARCHES; i++) {
+      const mesh = this.arches[i];
+      if (i >= n) {
+        mesh.visible = false;
+        continue;
+      }
+      // The arches stand over the first `archReach` of the corridor and leave
+      // the far end open, where the bodies are struck and the weights land.
+      const along = ((i + 0.5) / n) * clamp01(c.archReach ?? 0.72);
+      const z = this.length * along;
+      // Each arch heaves out of the floor as the shuttle passes it.
+      const rise = smooth(0, 1, (this.age - z / speed) / riseTime);
+      mesh.visible = rise > 0.001;
+      if (!mesh.visible) continue;
+      // The strike wave reaches this arch `along × waveTime` after the pulse:
+      // a lift (anticipation), a slam down and forward, a damped recovery.
+      let lift = 0;
+      let lean = 0;
+      let flare = 0;
+      if (sinceStrike >= 0) {
+        const k = (sinceStrike - along * waveTime) / beat;
+        if (k >= 0 && k < 1) {
+          if (k < 0.3) {
+            const u = Math.sin((k / 0.3) * Math.PI * 0.5);
+            lift = 0.35 * u;
+            lean = -0.4 * u;
+          } else {
+            const u = (k - 0.3) / 0.7;
+            const recoil = Math.exp(-u * 5) * Math.cos(u * 9);
+            lift = -recoil;
+            lean = recoil;
+          }
+          flare = Math.exp(-Math.abs(k - 0.32) * 7);
+        }
+      }
+      // A slow breathing sway between strikes, out of step arch to arch.
+      const sway = Math.sin(time * 1.3 + i * 1.7) * 0.025;
+      const sink = closing * closing;
+      mesh.position.set(0, (rise - 1) * height * 1.05 + lift * slam * height - sink * height * 1.1, z);
+      mesh.rotation.set(lean * swing + sway + (i % 2 ? 1 : -1) * sink * 0.35, 0, Math.sin(time * 0.7 + i) * 0.02);
+      mesh.scale.set(span, height, depth);
+      const mat = this.archMaterials[i];
+      mat.userData.sync(c);
+      mat.uniforms.uTime.value = time * (c.flowSpeed ?? 1);
+      mat.uniforms.uFlare.value = flare * (c.archFlare ?? 1.2) + 0.25 * (1 - rise);
+      mat.uniforms.uFade.value = 1 - closing * 0.85;
+    }
   }
 
   /** Copy the live palette and gains into every material. */
@@ -439,6 +569,7 @@ export class MassWeftAbility extends Ability {
     this.floorMat.uniforms.uFade.value = 0.75;
     this.coreMat.uniforms.uFlare.value = 0;
     this._lens(c, t, extent > 0 ? 1 : 0, 0);
+    this._arches(c, width, 0, t);
     this._syncParticles(c);
     this._emitInfall(dt, c, extent, width, 0.5);
   }
@@ -453,6 +584,24 @@ export class MassWeftAbility extends Ability {
     const gl = settings.global;
     if (!this.reduceMotion) this.ctx.shake?.add?.((c.arrivalShake ?? 0.12) * gl.explosionIntensity, 3, 14);
     this.lightBoost = (c.pulseLight ?? 6) * 0.6 * gl.explosionIntensity;
+    // The floor answers: the weft cracks the stone down the whole line, and
+    // the cracks stay for as long as the corridor stands.
+    const scars = Math.max(0, Math.min(8, Math.round(c.scarCount ?? 4)));
+    if (scars && this.ctx.decals?.spawn) {
+      const deep = this._scarDeep;
+      const body = this._scarBody;
+      deep.set(c.voidColor ?? '#0e0819');
+      body.set(c.gravityColor);
+      _decal.radius = Math.min(4, c.zoneRadius * (c.scarScale ?? 1.4));
+      _decal.life = (c.lifetime + c.fade) * this.lifetimeScale;
+      _decal.intensity = c.scarGlow ?? 0.6;
+      _decal.colorA = body;
+      _decal.colorB = deep;
+      for (let i = 0; i < scars; i++) {
+        this.pointAt((i + 0.5) / scars, _pos).setY(0);
+        this.ctx.decals.spawn(DecalType.CRACK, _pos, _decal);
+      }
+    }
     this.onFade(0, 0);
   }
 
@@ -644,6 +793,10 @@ export class MassWeftAbility extends Ability {
     this.coreMat.uniforms.uFade.value = Math.min(1, fade + implosion);
     this.coreMat.uniforms.uFlare.value = implosion * (c.collapseFlare ?? 1.4);
     this._lens(c, visualTime, fade, pulse);
+    const waveT = this._waveT(c);
+    this.floorMat.uniforms.uWaveT.value = waveT;
+    this.filamentMat.uniforms.uWaveT.value = waveT;
+    this._arches(c, visualWidth, t <= 1 ? 0 : clamp01(t - 1), visualTime);
 
     for (let j = 0; j < this.compressionWaves.length; j++) {
       const pulseAge = this.compressionTimes[j] < 0 ? -1 : this.stagedTime - this.compressionTimes[j];
@@ -670,6 +823,7 @@ export class MassWeftAbility extends Ability {
 
   onDestroy() {
     this.rig.visible = false;
+    for (const a of this.arches) a.visible = false;
     this.lens.visible = false;
     this.contactEffects.reset();
     for (const wave of this.compressionWaves) for (const ring of wave) ring.visible = false;
@@ -734,6 +888,23 @@ export function buildEditor(gui, c, Editor) {
   R(strike, c, 'hitLift', 0, 20, 0.1, 'lift');
   R(strike, c, 'hitSpin', 0, 8, 0.05, 'spin');
 
+  const arches = sub(f, '0 · Loom arches');
+  R(arches, c, 'archCount', 0, MAX_ARCHES, 1, 'arches');
+  R(arches, c, 'archHeight', 0.3, 5, 0.05, 'height (m)');
+  R(arches, c, 'archReach', 0.2, 1, 0.01, 'reach (× corridor length)');
+  R(arches, c, 'archSpan', 0.5, 3, 0.05, 'span (× corridor width)');
+  R(arches, c, 'archDepth', 0.2, 4, 0.05, 'thickness');
+  R(arches, c, 'archRiseTime', 0.05, 2, 0.05, 'rise time (s)');
+  R(arches, c, 'archBeat', 0.1, 1.5, 0.05, 'beat length (s)');
+  R(arches, c, 'archSlam', 0, 1, 0.01, 'slam depth (× height)');
+  R(arches, c, 'archSwing', 0, 1.2, 0.01, 'beat lean (rad)');
+  R(arches, c, 'archFlare', 0, 4, 0.05, 'seam flare on a beat');
+  R(arches, c, 'archSeamGlow', 0, 4, 0.05, 'seam glow');
+  R(arches, c, 'archRunes', 0, 2, 0.05, 'rune bands');
+  R(arches, c, 'archGloss', 0, 3, 0.05, 'gloss');
+  C(arches, c, 'archColor', 'stone');
+  R(arches, c, 'waveTime', 0.1, 2, 0.05, 'strike wave runs for (s)');
+
   const ribbon = sub(f, '1 · Weft ribbon');
   R(ribbon, c, 'travelWidth', 0.25, 2, 0.05, 'width in flight (× radius)');
   R(ribbon, c, 'collapseStrength', 0, 1, 0.05, 'narrowing on collapse');
@@ -742,8 +913,9 @@ export function buildEditor(gui, c, Editor) {
   R(ribbon, c, 'ribbonNoise', 0, 3, 0.05, 'noise in the threads');
   R(ribbon, c, 'ribbonRipple', 0, 3, 0.05, 'trough ripple');
   R(ribbon, c, 'softFade', 0, 2, 0.01, 'soft edge into geometry (m)');
-  C(ribbon, c, 'gravityColor', 'bent space');
-  C(ribbon, c, 'coreColor', 'weft light');
+  C(ribbon, c, 'gravityColor', 'bent space (body)');
+  C(ribbon, c, 'tintColor', 'pale tint');
+  C(ribbon, c, 'coreColor', 'weft light (core)');
 
   const floor = sub(f, '2 · Floor weave');
   R(floor, c, 'floorWidth', 0.5, 5, 0.05, 'width (× radius)');
@@ -752,14 +924,22 @@ export function buildEditor(gui, c, Editor) {
   R(floor, c, 'weaveDensity', 1, 20, 0.5, 'threads across');
   R(floor, c, 'weaveThread', 0.01, 0.4, 0.005, 'thread thickness');
   R(floor, c, 'weaveGlow', 0, 4, 0.05, 'thread glow');
+  R(floor, c, 'fieldGlow', 0, 4, 0.05, 'field glow');
+  R(floor, c, 'fieldFlow', 0, 3, 0.05, 'field drag speed');
+  R(floor, c, 'rimGlow', 0, 4, 0.05, 'crushed lip glow');
+  R(floor, c, 'waveWidth', 0.05, 3, 0.05, 'strike wave width (m)');
+  R(floor, c, 'scarCount', 0, 8, 1, 'crack decals at lock-in');
+  R(floor, c, 'scarScale', 0.2, 4, 0.05, 'crack size (× radius)');
+  R(floor, c, 'scarGlow', 0, 2, 0.05, 'crack glow');
   C(floor, c, 'weftColor', 'threads');
-  C(floor, c, 'voidColor', 'the well');
+  C(floor, c, 'voidColor', 'the well (deep)');
 
   const threads = sub(f, '3 · Filaments + heddles');
   R(threads, c, 'filamentHeight', 0.1, 2, 0.05, 'height (m)');
   R(threads, c, 'filamentTwist', 0, 3, 0.05, 'twist speed (rad/s)');
   R(threads, c, 'filamentGlow', 0, 4, 0.05, 'filament glow');
   R(threads, c, 'filamentBeads', 4, 160, 1, 'beads per thread');
+  R(threads, c, 'filamentBulge', 0, 4, 0.05, 'swell where a strike passes');
   R(threads, c, 'ringScale', 0.2, 2, 0.05, 'heddle size');
   R(threads, c, 'ringSpin', 0, 4, 0.05, 'heddle spin (rad/s)');
   R(threads, c, 'ringTilt', 0, 1.5, 0.01, 'alternate lean (rad)');
@@ -782,6 +962,17 @@ export function buildEditor(gui, c, Editor) {
   R(waves, c, 'contactScale', 0.2, 3, 0.05, 'contact size');
   R(waves, c, 'contactDuration', 0.1, 2, 0.05, 'contact lasts');
   R(waves, c, 'contactGlow', 0, 2, 0.05, 'contact strength');
+  R(waves, c, 'weightScale', 0.2, 4, 0.05, 'loom weight size (× radius)');
+  R(waves, c, 'weightDrop', 0.5, 10, 0.1, 'weight drops from (m)');
+  R(waves, c, 'weightFall', 0.04, 1, 0.01, 'weight fall time (s)');
+  R(waves, c, 'weightLinger', 0.2, 4, 0.05, 'weight settles over (s)');
+  R(waves, c, 'weightSink', 0, 1.5, 0.05, 'weight sinks (× size)');
+  R(waves, c, 'weightGlow', 0, 4, 0.05, 'weight landing flare');
+  R(waves, c, 'weightShake', 0, 1, 0.01, 'weight landing shake');
+  R(waves, c, 'threadLength', 1, 20, 0.1, 'warp thread length (m)');
+  R(waves, c, 'threadWidth', 0.005, 0.3, 0.005, 'warp thread radius (m)');
+  R(waves, c, 'threadSnap', 0.05, 1.5, 0.05, 'thread snaps over (s)');
+  R(waves, c, 'threadGlow', 0, 4, 0.05, 'thread glow');
 
   const lens = sub(f, '6 · Lens');
   R(lens, c, 'lensWarp', 0, 3, 0.05, 'refraction');

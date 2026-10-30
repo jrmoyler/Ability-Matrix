@@ -22,7 +22,7 @@ import {
   createSpringGeometry,
   writeSpring,
 } from './geometry.js';
-import { createLedgerMaterial, createLensMaterial, createSmearMaterial, createStressMaterial } from './materials.js';
+import { createBandSteelMaterial, createLedgerMaterial, createLensMaterial, createSmearMaterial, createStressMaterial } from './materials.js';
 import config from './config.js';
 
 export { config };
@@ -50,7 +50,7 @@ const _up = new Vector3(0, 1, 0);
 /** Reused emit bag (ParticleSystem.emit destructures, never retains). */
 const _emit = { position: _pos, direction: _dir, radius: 0, speed: 1, spread: 0.5, size: 0.1, life: 0.5, spin: 2, time: 0 };
 /** Reused spring parameters for `writeSpring`. */
-const _spring = { r0: 0.4, rOut: 1, phi: 20, psi: 0, height: 1, thick: 0.1, wave: 0, wavePhase: 0, hookCurl: 0.5, hookShare: 0.05 };
+const _spring = { r0: 0.4, rOut: 1, phi: 20, psi: 0, height: 1, thick: 0.1, wave: 0, wavePhase: 0, hookCurl: 0.5, hookShare: 0.05, taper: 0, ribbon: 0 };
 
 /**
  * TEMPORAL MORTGAGE — Time, zone cast. *Borrowed speed with recovery debt.*
@@ -199,9 +199,14 @@ export class Ability extends BaseAbility {
     this.steel = own(new MeshStandardMaterial({
       color: 0x2b4f86, metalness: 0.9, roughness: 0.28, emissive: 0x0d3a70, emissiveIntensity: 0.3, side: DoubleSide,
     }));
-    this.spring = new Mesh(this.springGeom, this.steel);
+    // The band itself is tempered: the ramp's deep stop is on the metal (dark
+    // at the foot and on the inner coils), the glow lives only in the stress
+    // light's edge line and stress slashes.
+    this.bandSteel = own(createBandSteelMaterial());
+    this.spring = new Mesh(this.springGeom, this.bandSteel);
     this.spring.castShadow = true;
-    this.spring.receiveShadow = true;
+    // No self-shadowing: on a thin curved band it reads as striped acne.
+    this.spring.receiveShadow = false;
     this.spring.frustumCulled = false;
     this.body.add(this.spring);
 
@@ -646,14 +651,18 @@ export class Ability extends BaseAbility {
       scale = c.travelScale * Easing.outBack(charge);
       tilt = 1.1;
       spin = this.age * c.travelSpin * (0.3 + 0.7 * charge * charge);
-      // Sparks shed along the throw.
-      if (dt > 0 && this.age >= hold) {
+      // Winding: the hand lights up as the coil is wound tight.
+      if (this.age < hold) this.lightBoost = Math.max(this.lightBoost, c.chargeLight * charge * settings.global.explosionIntensity);
+      // Sparks and soft time motes shed along the throw: the path stays drawn.
+      if (dt > 0) {
         this._trailT += dt;
         if (this._trailT >= 0.03) {
           this._trailT = 0;
           _pos.set(this.root.position.x, y, this.root.position.z);
           _dir.copy(this.direction).multiplyScalar(-1).add(_up).normalize();
-          this._emitTo(this.sparks, c.trailCount, 0.1, c.sparkSpeed * 0.4, 0.6, c.sparkSize, c.sparkLife * 0.7);
+          if (this.age >= hold) this._emitTo(this.sparks, c.trailCount, 0.1, c.sparkSpeed * 0.4, 0.6, c.sparkSize, c.sparkLife * 0.7);
+          // Winding in the hand: a glow of motes at the coil; in flight: they hang behind it.
+          this._emitTo(this.motes, c.trailGlow, this.age < hold ? 0.35 : 0.12, this.age < hold ? 0.6 : 0.15, 0.8, c.trailGlowSize, c.moteLife * 0.6);
         }
       }
     } else {
@@ -681,12 +690,31 @@ export class Ability extends BaseAbility {
     _spring.wavePhase = ambient * 6;
     _spring.hookCurl = c.hookCurl;
     _spring.hookShare = c.hookShare;
+    _spring.taper = Math.max(0, Math.min(0.9, c.bandTaper));
+    // One coiled band, not concentric walls: the foot lifts toward the arbor
+    // so the coil climbs as a conical helix (0 = every coil stands on the floor).
+    _spring.ribbon = c.bandRibbon > 0 ? c.bandRibbon * H : 0;
     writeSpring(this.springGeom, _spring);
     this.steel.color.copy(getColor(c.steelColor));
     this.steel.emissive.copy(getColor(c.steelEmissive));
     this.steel.emissiveIntensity = c.steelGlow * g.glow * (0.4 + balance + (travelling ? 1 : 0));
     this.steel.metalness = c.steelMetalness;
     this.steel.roughness = c.steelRoughness;
+    this.steel.envMapIntensity = c.steelEnv;
+    const bs = this.bandSteel;
+    bs.color.copy(this.steel.color);
+    bs.emissive.copy(this.steel.emissive);
+    bs.emissiveIntensity = this.steel.emissiveIntensity;
+    bs.metalness = c.steelMetalness;
+    bs.roughness = c.steelRoughness;
+    bs.envMapIntensity = c.steelEnv;
+    const tu = bs.userData.uniforms;
+    tu.uTemperColor.value.copy(getColor(c.temperColor));
+    tu.uTemperStrength.value = c.temperStrength;
+    tu.uTemperHeight.value = c.temperHeight;
+    tu.uTemperInner.value = c.temperInner;
+    tu.uTemperSheen.value = c.temperSheen * g.shaderIntensity;
+    tu.uSheenColor.value.copy(getColor(c.sheenColor));
     this.iron.color.copy(getColor(c.ironColor));
     this.iron.roughness = c.ironRoughness;
 
@@ -763,7 +791,7 @@ export class Ability extends BaseAbility {
       const n = this._sparkEmitter.tick(dt, c.sparkRate);
       if (n) {
         const rTip = _spring.rOut;
-        _pos.set(this.position.x + Math.cos(tipAngle) * rTip, H * 0.85, this.position.z + Math.sin(tipAngle) * rTip);
+        _pos.set(this.position.x + Math.cos(tipAngle) * rTip, H * (1 - _spring.taper) * 0.85, this.position.z + Math.sin(tipAngle) * rTip);
         _dir.set(-Math.sin(tipAngle), 0.35, Math.cos(tipAngle)).normalize();
         this._emitTo(this.sparks, n, 0.15, c.sparkSpeed, 0.35, c.sparkSize, c.sparkLife);
       }
@@ -862,11 +890,16 @@ export function buildEditor(gui, c, Editor) {
   R(throwF, c, 'travelArc', 0, 5, 0.05, 'arc height (m)');
   R(throwF, c, 'travelSpin', 0, 40, 0.5, 'spin in flight (rad/s)');
   R(throwF, c, 'trailCount', 0, 12, 1, 'trail sparks');
+  R(throwF, c, 'trailGlow', 0, 12, 1, 'trail motes');
+  R(throwF, c, 'trailGlowSize', 0.02, 0.6, 0.005, 'trail mote size (m)');
+  R(throwF, c, 'chargeLight', 0, 20, 0.1, 'hand light while winding');
   R(throwF, c, 'landTime', 0.02, 0.6, 0.01, 'grows on landing (s)');
 
   const spring = sub(folder, '1 · The mainspring');
   R(spring, c, 'bandHeight', 0.1, 1, 0.01, 'band height (× radius)');
   R(spring, c, 'bandThickness', 0.02, 0.4, 0.005, 'band thickness (m)');
+  R(spring, c, 'bandTaper', 0, 0.9, 0.01, 'outer coils stand lower by');
+  R(spring, c, 'bandRibbon', 0, 1, 0.01, 'band width (× height; < 1 lifts the inner coils into a helix)');
   R(spring, c, 'arborShare', 0.04, 0.3, 0.005, 'inner end (× radius)');
   R(spring, c, 'tightOuter', 0.15, 0.6, 0.01, 'wound outer radius (× radius)');
   R(spring, c, 'openOuter', 0.5, 1.2, 0.01, 'let-go outer radius (× radius)');
@@ -878,8 +911,15 @@ export function buildEditor(gui, c, Editor) {
   color(spring, c, 'steelColor', 'blued steel');
   R(spring, c, 'steelMetalness', 0, 1, 0.01, 'metalness');
   R(spring, c, 'steelRoughness', 0, 1, 0.01, 'roughness');
+  R(spring, c, 'steelEnv', 0, 2, 0.01, 'reflection strength');
   color(spring, c, 'steelEmissive', 'stress emissive');
   R(spring, c, 'steelGlow', 0, 3, 0.01, 'stress emissive strength');
+  color(spring, c, 'temperColor', 'tempered deep (foot / inner coils)');
+  R(spring, c, 'temperStrength', 0, 1, 0.01, 'temper darkening');
+  R(spring, c, 'temperHeight', 0.05, 1, 0.01, 'temper height (share of band)');
+  R(spring, c, 'temperInner', 0, 1, 0.01, 'inner coils darker');
+  R(spring, c, 'temperSheen', 0, 2, 0.01, 'temper streak');
+  color(spring, c, 'sheenColor', 'temper streak colour');
 
   const stress = sub(folder, '2 · Stress light');
   R(stress, c, 'stressGlow', 0, 6, 0.05, 'glow');
@@ -887,6 +927,14 @@ export function buildEditor(gui, c, Editor) {
   R(stress, c, 'stressPulses', 0, 20, 0.5, 'pulses along the band');
   R(stress, c, 'stressSpeed', 0, 12, 0.1, 'pulse speed (× clock)');
   R(stress, c, 'edgeGlow', 0, 6, 0.05, 'hot top edge');
+  R(stress, c, 'edgeWidth', 0.01, 0.6, 0.005, 'edge line width (share of height)');
+  R(stress, c, 'edgeTop', 0, 1, 0.01, 'edge light on the flat top');
+  R(stress, c, 'edgeInner', 0, 1, 0.01, 'edge line left on the inner coils');
+  R(stress, c, 'tipGlow', 0, 6, 0.05, 'free end glow');
+  R(stress, c, 'stressFill', 0, 1, 0.01, 'stress wash over the face');
+  R(stress, c, 'stressRim', 0, 1, 0.01, 'fresnel rim');
+  R(stress, c, 'stressSharp', 1, 160, 1, 'stress line sharpness');
+  R(stress, c, 'stressInflate', 0, 0.05, 0.001, 'skin offset (m)');
 
   const iron = sub(folder, '3 · Arbor, ratchet & key');
   R(iron, c, 'arborHeight', 0.2, 1.2, 0.01, 'arbor height (× radius)');
@@ -908,6 +956,8 @@ export function buildEditor(gui, c, Editor) {
   R(ledger, c, 'sweptGlow', 0, 4, 0.05, 'debt sector glow');
   R(ledger, c, 'debtInk', 0, 1, 0.01, 'repaid ink');
   R(ledger, c, 'floorGrain', 0, 3, 0.05, 'grain');
+  R(ledger, c, 'ledgerRim', 0, 3, 0.05, 'outer rim line');
+  R(ledger, c, 'ledgerCoil', 0, 3, 0.05, 'lit groove under the steel');
   R(ledger, c, 'floorFlow', 0, 4, 0.05, 'groove flow (× clock)');
   R(ledger, c, 'dissolveTime', 0.05, 1, 0.01, 'dissolves over (× exit)');
 

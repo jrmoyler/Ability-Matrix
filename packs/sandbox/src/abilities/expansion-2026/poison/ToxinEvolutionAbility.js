@@ -1,4 +1,4 @@
-import { Color, Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Color, Group, InstancedBufferAttribute, InstancedMesh, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -16,7 +16,9 @@ import {
   toxinVesselGeometry,
   toxinCoilGeometry,
   toxinSporeGeometry,
-  toxinPoolGeometry
+  toxinPoolGeometry,
+  toxinTendrilGeometry,
+  toxinTrailGeometry
 } from './ToxinGeometry.js';
 import {
   createMembraneMaterial,
@@ -25,7 +27,9 @@ import {
   createCoilMaterial,
   createPoolMaterial,
   createHazeMaterial,
-  createBlightMaterial
+  createBlightMaterial,
+  createTendrilMaterial,
+  createTrailMaterial
 } from './ToxinMaterials.js';
 
 export { toxinMembraneGeometry, toxinVesselGeometry, toxinCoilGeometry };
@@ -38,6 +42,8 @@ const MAX_STAGES = 3;
 /** Spores orbiting the host, and riding the travelling vessel. */
 const MAX_SPORES = 24;
 const MAX_TRAVEL_SPORES = 6;
+/** Blight tendrils erupting round the host: the base crop plus each generation's. */
+const MAX_TENDRILS = 14;
 const TAU = Math.PI * 2;
 const GOLDEN = 2.399963;
 
@@ -54,6 +60,13 @@ const _coil = { time: 0, fade: 1, pulse: 0, grow: 0 };
 const _pool = { time: 0, stage: 0, fade: 1, spread: 0 };
 const _haze = { time: 0, width: 1, height: 1, strength: 0 };
 const _blight = { time: 0, reach: 0, fade: 1, pulse: 0, stage: 0, hostX: 0, hostZ: 0 };
+const _tendril = { time: 0, ring: 1, height: 1, curl: 1, fade: 1, reduced: false };
+const _trail = { time: 0, from: new Vector3(), to: new Vector3(), head: 0, tail: 0, sag: 0, fade: 1 };
+/** Deterministic dice for the tendril poses (seeded per cast). */
+const dice = (n) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 /**
  * TOXIN EVOLUTION — an infection that grows through three generations.
@@ -91,6 +104,17 @@ const _blight = { time: 0, reach: 0, fade: 1, pulse: 0, stage: 0, hostX: 0, host
  *
  * Layers, each a folder in the editor:
  *
+ *   - **the blight tendrils** — the hero at zone scale (`toxinTendrilGeometry`,
+ *     `createTendrilMaterial`): fluted, pustuled tubes, opaque and lit off the
+ *     scene key on `LAYER.SHAPED`, erupting out of the stain in a ring derived
+ *     from `zoneRadius × tendrilRing`. They lean out at the root and curl back
+ *     over the host; every accepted generation adds `tendrilPerStage` more,
+ *     grows them taller and closes the curl further, and they writhe for the
+ *     whole linger. On exit they sink back into the floor behind a ragged front.
+ *   - **the venom stream** (`toxinTrailGeometry`, `createTrailMaterial`) — the
+ *     travel made visible: a dark stream with a hot thread drawn behind the
+ *     seed vessel along its lob; when the vessel bursts it sags onto the floor
+ *     and dries from the caster's end over `trailLinger`.
  *   - the blight (`createBlightMaterial`) — the search circle rotting: veins
  *     creep in from the rim during travel, bend toward the chosen host, carry
  *     each stage's pulse inward and stay through the linger
@@ -253,6 +277,33 @@ export class ToxinEvolutionAbility extends Ability {
     this.haze.visible = false;
     this.effect.add(this.haze);
 
+    /* ---- the hero: blight tendrils (after the VFX sweep: they are SHAPED) ---- */
+    this.tendrilMat = m(createTendrilMaterial());
+    const tendrilGeometry = g(toxinTendrilGeometry());
+    this.tendrilPose = new InstancedBufferAttribute(new Float32Array(MAX_TENDRILS * 4), 4);
+    this.tendrilLife = new InstancedBufferAttribute(new Float32Array(MAX_TENDRILS * 2), 2);
+    tendrilGeometry.setAttribute('aPose', this.tendrilPose);
+    tendrilGeometry.setAttribute('aLife', this.tendrilLife);
+    this.tendrils = new InstancedMesh(tendrilGeometry, this.tendrilMat, MAX_TENDRILS);
+    // Shape is written in the vertex stage: SHAPED keeps it out of the depth
+    // prepass, and the bent tube would throw a straight shadow, so none.
+    this.tendrils.layers.set(LAYER.SHAPED);
+    this.tendrils.castShadow = false;
+    this.tendrils.receiveShadow = false;
+    this.tendrils.frustumCulled = false;
+    this.tendrils.renderOrder = 2;
+    this.tendrils.count = 0;
+    this.effect.add(this.tendrils);
+
+    /* ---- the venom stream: travel, then a dried line on the floor ---- */
+    this.trailMat = m(createTrailMaterial());
+    this.trail = new Mesh(g(toxinTrailGeometry()), this.trailMat);
+    this.trail.layers.set(LAYER.VFX);
+    this.trail.frustumCulled = false;
+    this.trail.renderOrder = 2;
+    this.trail.visible = false;
+    this.group.add(this.trail);
+
     /* ---- per-cast state (reset in onSpawn) ---- */
     this.scope = null;
     this.targetId = null;
@@ -321,6 +372,33 @@ export class ToxinEvolutionAbility extends Ability {
     this.blight.position.set(this.aim.x, 0.035, this.aim.z);
     this.blight.visible = !!this.scope;
     this._syncBlight(this.config, 0, 1, 0);
+    // Dice for the tendrils: angle round the host, seed, height and curl.
+    const roll = Math.random() * 1000;
+    const pose = this.tendrilPose.array;
+    for (let i = 0; i < MAX_TENDRILS; i++) {
+      pose[i * 4] = i * GOLDEN + (dice(roll + i) - 0.5) * 0.5;
+      pose[i * 4 + 1] = dice(roll + i * 3.1 + 7);
+      pose[i * 4 + 2] = 0.78 + 0.4 * dice(roll + i * 5.3 + 1);
+      pose[i * 4 + 3] = 0.8 + 0.4 * dice(roll + i * 2.7 + 4);
+    }
+    this.tendrilPose.needsUpdate = true;
+    this.tendrilLife.array.fill(0);
+    this.tendrilLife.needsUpdate = true;
+    this.tendrils.count = 0;
+    this.trail.visible = !!this.scope;
+    this._syncTrail(this.config, 0, 0, 0, 1);
+  }
+
+  /** The venom stream from the hand to the landing point. */
+  _syncTrail(c, head, tail, sag, fade) {
+    _trail.time = this._time;
+    _trail.from.copy(this.origin);
+    _trail.to.copy(this.aim);
+    _trail.head = head;
+    _trail.tail = tail;
+    _trail.sag = sag;
+    _trail.fade = fade;
+    this.trailMat.userData.sync(c, _trail);
   }
 
   /**
@@ -427,6 +505,7 @@ export class ToxinEvolutionAbility extends Ability {
     // The telegraph: veins creep in from the rim of the search circle as the
     // vessel closes, reaching `blightTelegraph` of the way before it lands.
     if (this.blight.visible) this._syncBlight(c, (c.blightTelegraph ?? 0.6) * Easing.outCubic(clamp(this.u)), 1, 0);
+    if (this.trail.visible) this._syncTrail(c, this.u, 0, 0, 1);
 
     _solid.time = t;
     _solid.fade = 1;
@@ -628,6 +707,20 @@ export class ToxinEvolutionAbility extends Ability {
     const grow = (0.8 + this.stage * (c.membraneStageGrowth ?? 0.12)) * ms * husk * (1 + stagePulse * bloom) * retract * form;
     this.body.scale.set(grow, (1 + this.stage * 0.1) * Math.sqrt(ms) * husk * retract * form, grow);
 
+    /* ---- the hero: tendrils erupt, curl over the host, writhe, sink ---- */
+    this._presentTendrils(fade, stagePulse, visualTime, c);
+
+    /* ---- the venom stream: sags onto the floor and dries ---- */
+    if (this.trail.visible) {
+      const life = Math.max(0.1, c.trailLinger ?? 1.6);
+      const age = this.stagedTime;
+      const sag = this.reduceMotion ? 1 : Easing.outCubic(clamp(age / Math.max(0.05, c.trailSag ?? 0.35)));
+      const tail = Easing.inQuad(clamp(age / life)) * 0.9;
+      const dry = 1 - clamp((age - life * 0.7) / (life * 0.3));
+      this._syncTrail(c, 1, tail, sag, dry);
+      if (dry <= 0) this.trail.visible = false;
+    }
+
     /* ---- the blight: fully crept in after arrival, withering with the fade ---- */
     if (this.blight.visible) {
       const reach = this.reduceMotion ? 1 : (c.blightTelegraph ?? 0.6) + (1 - (c.blightTelegraph ?? 0.6)) * Easing.outCubic(clamp(this.stagedTime / Math.max(0.05, c.poolSpreadTime)));
@@ -727,6 +820,47 @@ export class ToxinEvolutionAbility extends Ability {
     }
   }
 
+  /**
+   * Tendril life, written into `aLife` (allocation-free). The base crop
+   * erupts on arrival, `tendrilPerStage` more with each accepted generation;
+   * each grows over `tendrilGrowTime`, staggered, and sinks with the fade.
+   */
+  _presentTendrils(fade, stagePulse, visualTime, c) {
+    const base = Math.max(0, Math.min(MAX_TENDRILS, Math.floor(c.tendrilCount ?? 6)));
+    const per = Math.max(0, Math.floor(c.tendrilPerStage ?? 2));
+    const count = Math.min(MAX_TENDRILS, base + per * this.stage);
+    const span = Math.max(0.05, c.tendrilGrowTime ?? 0.5);
+    const stagger = c.tendrilStagger ?? 0.05;
+    const life = this.tendrilLife.array;
+    for (let i = 0; i < MAX_TENDRILS; i++) {
+      let grow = 0;
+      if (i < count && this.effect.visible) {
+        const k = i < base ? -1 : Math.floor((i - base) / Math.max(1, per));
+        const birth = k < 0 ? 0 : this.stageTimes[k];
+        if (birth >= 0) {
+          const order = k < 0 ? i : (i - base) % Math.max(1, per);
+          const g = clamp((this.stagedTime - birth - order * stagger) / span);
+          grow = this.reduceMotion ? (g > 0 ? 1 : 0) : Math.min(1.06, Easing.outBack(g));
+        }
+      }
+      life[i * 2] = Math.max(0, grow * fade);
+      life[i * 2 + 1] = stagePulse;
+    }
+    this.tendrilLife.needsUpdate = true;
+    this.tendrils.count = count;
+    const husk = this.dormant ? 0.7 : 1;
+    // The ring is derived from the search circle, so the zone slider moves it.
+    _tendril.ring = Math.max(0.2, c.zoneRadius * (c.tendrilRing ?? 0.4));
+    _tendril.height = (c.tendrilHeight ?? 2.6) * (1 + this.stage * (c.tendrilStageGrowth ?? 0.1)) * husk;
+    // The claw closes: further each generation, and slowly through the linger.
+    const creep = clamp(this.stagedTime / Math.max(0.5, this.config.lifetime));
+    _tendril.curl = (c.tendrilCurl ?? 1.7) * (0.55 + 0.15 * this.stage + (c.tendrilClose ?? 0.25) * creep) + stagePulse * 0.2;
+    _tendril.time = visualTime;
+    _tendril.fade = fade;
+    _tendril.reduced = this.reduceMotion;
+    this.tendrilMat.userData.sync(c, _tendril);
+  }
+
   /** The light rides the vessel, then the host. The aim point never moves. */
   _updateLight(dt, scale) {
     if (this.phase === AbilityPhase.TRAVEL || !this.effect.visible) return super._updateLight(dt, scale);
@@ -747,6 +881,8 @@ export class ToxinEvolutionAbility extends Ability {
     this.effect.visible = false;
     this.travelPod.visible = false;
     this.blight.visible = false;
+    this.trail.visible = false;
+    this.tendrils.count = 0;
     this.dormant = false;
     this.haze.visible = false;
     for (const coil of this.coils) coil.visible = false;
@@ -825,6 +961,7 @@ export function buildEditor(gui, c, Editor) {
   color(palette, 'toxinColor', 'toxin');
   color(palette, 'coreColor', 'hot core');
   color(palette, 'stainColor', 'floor stain');
+  color(palette, 'deepColor', 'deep (flesh in shadow)');
 
   const vessel = sub(folder, '1 · The seed vessel');
   R(vessel, 'travelScale', 0.25, 2, 0.05, 'pod size');
@@ -835,6 +972,11 @@ export function buildEditor(gui, c, Editor) {
   R(vessel, 'travelDrips', 0, 4, 0.05, 'drips in flight (× drip rate)');
   R(vessel, 'vesselScale', 0.25, 2, 0.05, 'satellite vessel size');
   R(vessel, 'vesselGlow', 0, 6, 0.05, 'vessel glow');
+  R(vessel, 'trailRadius', 0.01, 0.3, 0.005, 'venom stream radius (m)');
+  R(vessel, 'trailGlow', 0, 4, 0.05, 'stream glow');
+  R(vessel, 'trailFlow', 0, 6, 0.05, 'stream flow speed');
+  R(vessel, 'trailSag', 0.05, 2, 0.01, 'stream falls to the floor over (s)');
+  R(vessel, 'trailLinger', 0.1, 5, 0.05, 'stream dries over (s)');
 
   const membrane = sub(folder, '2 · The membrane');
   R(membrane, 'formTime', 0.05, 1.5, 0.01, 'forms on arrival over');
@@ -850,6 +992,30 @@ export function buildEditor(gui, c, Editor) {
   R(membrane, 'bloomTime', 0.1, 2, 0.05, 'throb lasts');
   R(membrane, 'releaseDuration', 0.1, 2, 0.05, 'withers on escape over');
   R(membrane, 'softFade', 0.01, 1, 0.01, 'soft fade (m)');
+
+  R(membrane, 'membraneOpacity', 0, 1, 0.01, 'body density');
+  R(membrane, 'membraneBodyTone', 0, 0.6, 0.005, 'lit flesh tone (× body colour)');
+
+  const tendrils = sub(folder, '2b · The blight tendrils (hero)');
+  R(tendrils, 'tendrilCount', 0, MAX_TENDRILS, 1, 'erupt on arrival');
+  R(tendrils, 'tendrilPerStage', 0, 4, 1, 'more per generation');
+  R(tendrils, 'tendrilRing', 0.1, 1, 0.01, 'ring (× search radius)');
+  R(tendrils, 'tendrilHeight', 0.5, 5, 0.05, 'length (m)');
+  R(tendrils, 'tendrilStageGrowth', 0, 0.4, 0.01, 'longer per generation');
+  R(tendrils, 'tendrilThick', 0.03, 0.5, 0.005, 'root radius (m)');
+  R(tendrils, 'tendrilCurl', 0, 4, 0.05, 'curl over the host (rad)');
+  R(tendrils, 'tendrilClose', 0, 1, 0.01, 'closes through the linger');
+  R(tendrils, 'tendrilLean', -0.5, 1.2, 0.01, 'lean out at the root (rad)');
+  R(tendrils, 'tendrilGrowTime', 0.05, 2, 0.01, 'erupt over (s)');
+  R(tendrils, 'tendrilStagger', 0, 0.3, 0.005, 'stagger (s)');
+  R(tendrils, 'tendrilWrithe', 0, 3, 0.05, 'writhe');
+  R(tendrils, 'tendrilVeinGlow', 0, 4, 0.05, 'vein glow');
+  R(tendrils, 'tendrilVeinSpeed', 0, 4, 0.05, 'vein pulse speed');
+  R(tendrils, 'tendrilPustuleGlow', 0, 5, 0.05, 'pustule glow');
+  R(tendrils, 'tendrilSpecular', 0, 2, 0.01, 'wet highlight');
+  R(tendrils, 'tendrilRim', 0, 2, 0.01, 'rim light');
+  R(tendrils, 'tendrilBodyTone', 0, 0.6, 0.005, 'lit flesh tone (× body colour)');
+  R(tendrils, 'tendrilVeinBase', 0, 0.6, 0.005, 'vein resting glow');
 
   const coils = sub(folder, '3 · The coils');
   R(coils, 'coilGrowTime', 0.1, 2, 0.05, 'wind up over');
@@ -870,6 +1036,7 @@ export function buildEditor(gui, c, Editor) {
   R(pool, 'poolCells', 1, 12, 0.1, 'cell density');
   R(pool, 'poolGlow', 0, 6, 0.05, 'seam glow');
   R(pool, 'poolDarken', 0, 1, 0.01, 'floor darkening');
+  R(pool, 'poolEdgeGlow', 0, 1.5, 0.01, 'creeping-front glow');
 
   const blight = sub(folder, '5b · The blight (search circle)');
   R(blight, 'blightScale', 0.25, 1.5, 0.01, 'size (× search radius)');
@@ -878,6 +1045,8 @@ export function buildEditor(gui, c, Editor) {
   R(blight, 'blightSharp', 2, 30, 0.5, 'vein thinness');
   R(blight, 'blightGlow', 0, 4, 0.05, 'vein glow');
   R(blight, 'blightDarken', 0, 1, 0.01, 'rot darkness');
+  R(blight, 'blightFill', 0, 1.5, 0.01, 'rot fill between veins');
+  R(blight, 'blightRimGlow', 0, 1.5, 0.01, 'search-circle edge glow');
 
   const spores = sub(folder, '6 · The spores');
   R(spores, 'sporeOrbit', 0.2, 2, 0.05, 'orbit radius (m)');

@@ -17,7 +17,10 @@ import {
   canopyVineGeometry,
   canopyCrownGeometry,
   canopyBudGeometry,
-  canopyDiscGeometry
+  canopyDiscGeometry,
+  canopyTrunkGeometry,
+  canopyMawBulbGeometry,
+  canopyJawGeometry
 } from './PredatoryCanopyGeometry.js';
 import {
   createBarkMaterial,
@@ -26,7 +29,8 @@ import {
   createShadeMaterial,
   createStrikeMaterial,
   createBudMaterial,
-  createSnapMaterial
+  createSnapMaterial,
+  createMawMaterial
 } from './PredatoryCanopyMaterials.js';
 
 // The authored foliage builders are part of this module's public surface.
@@ -37,10 +41,21 @@ export const ID = 'exp-predatory-canopy';
 const TAU = Math.PI * 2;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+const smooth = (x) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+};
+/** Ease out with a small overshoot: the trunk heaves up past its height and settles. */
+const easeBack = (x) => {
+  const t = clamp01(x) - 1;
+  return 1 + t * t * (2.4 * t + 1.4);
+};
 
 /** Limbs round the crown; three leaves and one vine hang off each. */
 const BRANCHES = 12;
-const LEAVES_PER_BRANCH = 3;
+const LEAVES_PER_BRANCH = 4;
+/** Jaws round the maw's mouth. */
+const JAWS = 5;
 /** Thorns ringed round the snare. */
 const THORNS = 12;
 /** Vines that lash at the target. */
@@ -67,41 +82,55 @@ function setUniform(system, name, value) {
  * ## The acts
  *
  *   - **travel** — a ribbed seed pod with four folded leaves flies to the
- *     circle at `seedHeight`, turning, light seeping from its seams.
- *   - **unfurl** — on landing the pod is gone and the canopy opens from a
- *     point over `armDelay` (eased), with a soft knock on the camera, a leaf
- *     burst and a lift of light.
+ *     circle at `seedHeight`, turning, light seeping from its seams, trailing
+ *     a living **runner** vine back to the caster's hand.
+ *   - **unfurl** — on landing the pod bursts: a knock, a flash, a dust ring
+ *     and an AIR burst at the floor, and a braided strangler-fig **trunk**
+ *     heaves up out of the ground, overshoots and settles at `canopyHeight`
+ *     while the canopy opens from a point over `armDelay`. The runner withers.
  *   - **the wait** — leaves flutter, pollen drifts, sun flecks move through
- *     the dappled shade, roots creep in from the snare's rim.
+ *     the dappled shade, roots creep in from the snare's rim, and the **maw**
+ *     — a hanging pitcher of waxy skin with five toothed jaws — sways under
+ *     the crown, jaws breathing, its gullet glowing.
  *   - **the windup** — the first living body inside `zoneRadius` (the
  *     nearest one, after `armDelay`) wakes it: the warning ring races in,
  *     thorns stab up out of the floor, the vines swing in, the leaves
- *     bristle, sap flushes the bark, the camera rumbles, and three lashing
- *     vines grow from the crown toward the body — tracking it as it moves.
+ *     bristle, sap flushes the bark, the camera rumbles, three lashing vines
+ *     grow from the crown toward the body — tracking it as it moves — a cage
+ *     of thorns stabs up round it, and the maw swings toward it, jaws gaping.
  *   - **the lash** — after `triggerWindup` the body is struck once (if it is
  *     still inside, still the same body, and dummies are still on): AIR
  *     shell, DUSTRING, splinters, torn leaves, a snap of bent air, a knock,
- *     a flash and a punch of light. The vines withdraw over `strikeDuration`.
+ *     a flash and a punch of light. The maw lunges onto the body and its jaws
+ *     snap shut; the vines coil up round it and **bind** for `bindHold`
+ *     while the maw chews, then withdraw over `strikeDuration`.
  *   - **wither** — at the end of `lifetime` the canopy sinks by
  *     `dropDistance`, draws in by `retreatStrength`, sheds its leaves and
  *     dissolves tip-first, the thorns sinking back into the floor.
  *
  * ## Layers (each a folder in the editor)
  *
- *   1. **the canopy** — braided crown (`canopyCrownGeometry`), twelve knotted
- *      limbs with forks (`canopyBranchGeometry`), thirty-six serrated leaves
+ *   0. **the maw** — the hero: a lathed pitcher bulb (`canopyMawBulbGeometry`)
+ *      and five hinged, toothed jaws (`canopyJawGeometry`), lit waxy skin
+ *      outside and a glowing gullet ramp inside (`createMawMaterial`), hung
+ *      from the crown by a stalk vine. On `LAYER.WORLD`, casting shadows.
+ *   1. **the canopy** — a braided strangler-fig trunk (`canopyTrunkGeometry`)
+ *      rooted in the snare, braided crown (`canopyCrownGeometry`), twelve knotted
+ *      limbs with forks (`canopyBranchGeometry`), forty-eight serrated leaves
  *      (`canopyLeafGeometry`) and twelve hooked vines (`canopyVineGeometry`).
  *      Bark is a lit ridged/mossy shader (`createBarkMaterial`); leaves are
  *      wrap-lit and translucent (`createLeafMaterial`). Both wither with a
  *      noise dissolve and a burning edge.
  *   2. **the snare** — an additive root sigil (`createRootMaterial`) and a
  *      dark, normal-blended leaf shadow (`createShadeMaterial`) on the floor.
- *   3. **the lash** — curved thorns (`canopyThornGeometry`) and three GPU-bent
- *      strike vines (`createStrikeMaterial`), a snap on `LAYER.DISTORTION`
+ *   3. **the lash** — a cage of curved thorns (`canopyThornGeometry`) round
+ *      the snared body, three GPU-bent, lit, thorned tube vines that coil up
+ *      the body to bind it (`createStrikeMaterial`), a snap on `LAYER.DISTORTION`
  *      (`createSnapMaterial`), the AIR burst and DUSTRING decal.
  *   4. **particles** — falling LEAF particles and SOFT pollen from the canopy
  *      (pooled, shared), lit CHIP splinters off the struck body.
- *   5. **the seed pod** — `canopyBudGeometry` + `createBudMaterial`.
+ *   5. **the seed pod** — `canopyBudGeometry` + `createBudMaterial`, and the
+ *      runner vine (a strike-vine tube) trailing it from the caster.
  *   6. **the beats** — unfurl knock, windup rumble, lash knock/flash/light.
  *
  * ## Combat
@@ -201,7 +230,9 @@ export class PredatoryCanopyAbility extends Ability {
       this.strikeMaterials.push(material);
     }
 
-    /* ---- 1 · the canopy: limbs, leaves, vines, crown ---- */
+    /* ---- 1 · the canopy: trunk, limbs, leaves, vines, crown ---- */
+    this.trunk = new Mesh(ownG(canopyTrunkGeometry()), this.bark);
+    this.root.add(this.trunk);
     this.leaves = [];
     this.branches = [];
     this.tendrils = [];
@@ -215,14 +246,17 @@ export class PredatoryCanopyAbility extends Ability {
       this.branches.push(branch);
       for (let k = 0; k < LEAVES_PER_BRANCH; k++) {
         const leaf = new Mesh(this.leafGeo, this.leafMat);
-        const r = 1.1 + k * 0.86;
+        const r = 0.9 + k * 0.72;
         leaf.position.set(Math.cos(a) * r, 4.8 - 0.12 * k, Math.sin(a) * r);
         // Authored positions at spread 4; the ability rescales from these.
         leaf.userData.canopyX = leaf.position.x;
         leaf.userData.canopyZ = leaf.position.z;
         leaf.userData.canopyYOffset = -0.12 * k;
-        leaf.rotation.set(-0.35, -a + Math.PI / 2, (k % 2 ? 1 : -1) * 0.46);
-        leaf.scale.setScalar(0.72 + (i % 3) * 0.09);
+        // Yaw to face out along the limb, then tip the leaf over so it spreads
+        // and droops outward (the outer leaves hang lower): a roof, not a fan.
+        leaf.rotation.order = 'YXZ';
+        leaf.rotation.set(1.3 + k * 0.14, Math.PI / 2 - a, (k % 2 ? 1 : -1) * 0.4);
+        leaf.scale.setScalar(0.85 + (i % 3) * 0.1);
         this.root.add(leaf);
         this.leaves.push(leaf);
       }
@@ -235,18 +269,62 @@ export class PredatoryCanopyAbility extends Ability {
       this.tendrils.push(tendon);
     }
 
-    /* ---- 3 · thorns ringed round the snare ---- */
+    /* ---- 0 · the snare rig: maw, stalk and the thorn cage (unscaled) ---- */
+    this.snareRig = new Group();
+    this.snareRig.visible = false;
+    this.group.add(this.snareRig);
+
+    /* ---- 3 · a cage of thorns round the snared body ---- */
     const thorn = ownG(canopyThornGeometry());
+    // The thorns share the bark shader but in their own instance, so their
+    // points can burn with sap without lighting the whole tree.
+    this.thornMat = ownM(createBarkMaterial());
     this.thorns = [];
     for (let i = 0; i < THORNS; i++) {
       const a = (i * TAU) / THORNS;
-      const spike = new Mesh(thorn, this.bark);
-      spike.position.set(Math.cos(a) * 1.2, 0.03, Math.sin(a) * 1.2);
-      spike.rotation.set(0.3 * Math.sin(a), -a, -0.3 * Math.cos(a));
+      const spike = new Mesh(thorn, this.thornMat);
+      // Bent tip turned inward, the whole thorn leaning in over the body.
+      spike.rotation.set(0, Math.PI - a, -0.3);
+      spike.userData.angle = a;
       spike.visible = false;
-      this.root.add(spike);
+      this.snareRig.add(spike);
       this.thorns.push(spike);
     }
+
+    /* ---- 0 · the maw ---- */
+    this.maw = new Group();
+    this.snareRig.add(this.maw);
+    this.bulbMat = ownM(createMawMaterial(0));
+    this.jawMat = ownM(createMawMaterial(1));
+    this.bulb = new Mesh(ownG(canopyMawBulbGeometry()), this.bulbMat);
+    this.maw.add(this.bulb);
+    const jaw = ownG(canopyJawGeometry());
+    this.jaws = [];
+    for (let i = 0; i < JAWS; i++) {
+      const phi = (i * TAU) / JAWS;
+      const pivot = new Group();
+      pivot.position.set(Math.cos(phi) * 0.27, -0.97, Math.sin(phi) * 0.27);
+      // Local +Z (the inside of the cup) faces the maw's axis.
+      pivot.rotation.order = 'YXZ';
+      pivot.rotation.y = Math.atan2(-Math.cos(phi), -Math.sin(phi));
+      pivot.add(new Mesh(jaw, this.jawMat));
+      this.maw.add(pivot);
+      this.jaws.push(pivot);
+    }
+    const vine = ownG(canopyStrikeGeometry());
+    this.stalkMat = ownM(createStrikeMaterial());
+    this.stalk = new Mesh(vine, this.stalkMat);
+    this.snareRig.add(this.stalk);
+
+    /* ---- 5 · the runner: a vine the pod trails back to the caster ---- */
+    this.runnerMat = ownM(createStrikeMaterial());
+    this.runner = new Mesh(vine, this.runnerMat);
+    this.runner.visible = false;
+    this.group.add(this.runner);
+    this._mawPos = new Vector3();
+    this._mawRest = new Vector3();
+    this._mawBite = new Vector3();
+    this._handPos = new Vector3();
 
     /* ---- 5 · the seed pod ---- */
     this.seed = new Group();
@@ -280,7 +358,23 @@ export class PredatoryCanopyAbility extends Ability {
         n.frustumCulled = false;
       }
     });
-
+    this.snareRig.traverse((n) => {
+      if (n.isMesh) {
+        n.layers.set(LAYER.VFX);
+        n.frustumCulled = false;
+      }
+    });
+    this.runner.layers.set(LAYER.VFX);
+    this.runner.frustumCulled = false;
+    // Wood and flesh are solid: rigid, lit meshes go on the WORLD layer and
+    // cast the sun's shadow (the leaves bend in their vertex stage, and the
+    // GPU-bent vines likewise, so those stay on VFX without shadows).
+    const solid = [this.trunk, this.crown, ...this.branches, ...this.tendrils, ...this.thorns, this.bulb];
+    for (const j of this.jaws) solid.push(j.children[0]);
+    for (const m of solid) {
+      m.layers.set(LAYER.WORLD);
+      m.castShadow = true;
+    }
     /* ---- 3 · the snap of bent air at the struck body ---- */
     this.snapMat = ownM(createSnapMaterial());
     this.snap = new Mesh(disc, this.snapMat);
@@ -384,6 +478,11 @@ export class PredatoryCanopyAbility extends Ability {
     this._vineTarget.set(0, 0.35, 0);
     this._found.length = 0;
     this.strikeRig.visible = false;
+    this.snareRig.visible = false;
+    this.runner.visible = true;
+    this.runnerMat.uniforms.uFade.value = 1;
+    this.bulbMat.uniforms.uDissolve.value = 0;
+    this.jawMat.uniforms.uDissolve.value = 0;
     this.snap.visible = false;
     for (const thorn of this.thorns) thorn.visible = false;
     this.leafEmitter.reset();
@@ -413,7 +512,24 @@ export class PredatoryCanopyAbility extends Ability {
     this.leafMat.uniforms.uFade.value = 1;
     this.budMat.userData.sync(c);
     this.budMat.uniforms.uTime.value = visualTime;
+    this._runner(c, visualTime, 1);
     this._syncParticles(c);
+  }
+
+  /** The runner vine from the caster's hand to the pod (world space). */
+  _runner(c, visualTime, fade) {
+    this.runner.visible = fade > 0.001 && (c.runnerWidth ?? 0.07) > 0;
+    if (!this.runner.visible) return;
+    const u = this.runnerMat.uniforms;
+    this.runnerMat.userData.sync(c);
+    u.uWidth.value = c.runnerWidth ?? 0.07;
+    u.uArc.value = c.runnerArc ?? 0.5;
+    u.uAnchor.value.copy(this.origin).setY(c.runnerHeight ?? 1.2);
+    u.uTarget.value.copy(this.seed.visible ? this.seed.position : this.position);
+    u.uProgress.value = 1;
+    u.uCoil.value = 0;
+    u.uTime.value = visualTime;
+    u.uFade.value = fade;
   }
 
   onImpact() {
@@ -429,6 +545,27 @@ export class PredatoryCanopyAbility extends Ability {
     if (!this.reduceMotion) this.ctx.shake?.add?.((c.unfurlShake ?? 0.1) * gl.explosionIntensity, 3, 12);
     this.lightBoost = (c.strikeLight ?? 9) * 0.4 * gl.explosionIntensity;
     this._leafBurst(this.position, (c.canopyHeight ?? 4.8) * 0.5, c.strikeLeaves ?? 18, c);
+    this.snareRig.position.copy(this.position).setY(0);
+    this.snareRig.visible = true;
+    // The pod hits the floor: a dust ring the size of the snare, an AIR
+    // burst of torn earth and a green flash as the trunk heaves out.
+    if (!this.reduceMotion) {
+      const a = this._cueA.set(c.leafRim);
+      const b = this._cueB.set(c.leafColor);
+      const dark = this._cueDark.set(c.barkColor);
+      const burst = this._burstOpts;
+      burst.endRadius = Math.min(4, c.zoneRadius * (c.landBurst ?? 0.6));
+      burst.colorA = a;
+      burst.colorB = b;
+      burst.colorC = dark;
+      this.ctx.bursts?.spawn(BurstMode.AIR, this.position, burst);
+      const decal = this._decalOpts;
+      decal.radius = Math.min(6, c.zoneRadius * (c.landDecal ?? 1));
+      decal.colorA = b;
+      decal.colorB = dark;
+      this.ctx.decals?.spawn(DecalType.DUSTRING, this.position, decal);
+      this.ctx.flash?.trigger?.(getColor(c.flashColor ?? c.leafRim), (c.landFlash ?? 0.06) * gl.explosionIntensity);
+    }
     this.onFade(0, 0);
   }
 
@@ -484,7 +621,11 @@ export class PredatoryCanopyAbility extends Ability {
     this.shade.scale.set(shadeR, shadeR, 1);
 
     /* ---- the canopy: height, spread, wither ---- */
-    const h = Math.max(1, c.canopyHeight - closing * (c.dropDistance ?? 1.5));
+    // The trunk heaves up out of the floor with the opening and overshoots.
+    const rise = 0.3 + 0.7 * easeBack(elapsed / Math.max(0.01, c.armDelay));
+    const h = Math.max(1, c.canopyHeight * rise - closing * (c.dropDistance ?? 1.5));
+    const trunkScale = Math.max(0.1, c.trunkScale ?? 1.5);
+    this.trunk.scale.set(trunkScale, h, trunkScale);
     const spread = Math.max(0.5, c.canopySpread) / 4;
     for (const branch of this.branches) {
       branch.position.y = h;
@@ -548,7 +689,9 @@ export class PredatoryCanopyAbility extends Ability {
     const field = this.ctx.dummies;
     const targetCurrent = this._targetCurrent(target, field);
     const dist = targetCurrent ? Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z) : Infinity;
-    const release = this._strikeAt < 0 ? 1 : 1 - clamp01((elapsed - this._strikeAt) / Math.max(0.1, c.strikeDuration ?? 0.6));
+    // After the lash the vines hold the body for `bindHold`, then withdraw.
+    const release = this._strikeAt < 0 ? 1 : 1 - clamp01((elapsed - this._strikeAt - Math.max(0, c.bindHold ?? 0.45)) / Math.max(0.1, c.strikeDuration ?? 0.6));
+    const coil = this._strikeAt < 0 ? 0 : smooth((elapsed - this._strikeAt) / 0.18);
     // The tree wakes with the windup and settles once the vines withdraw.
     const awake = wind * release;
     this.bark.uniforms.uWake.value = awake;
@@ -572,13 +715,24 @@ export class PredatoryCanopyAbility extends Ability {
         const a = (i * TAU) / STRIKE_VINES;
         const mat = this.strikeMaterials[i];
         mat.userData.sync(c);
-        mat.uniforms.uAnchor.value.set(Math.cos(a) * c.canopySpread * 0.28, h, Math.sin(a) * c.canopySpread * 0.28);
+        // They whip in from the canopy's rim, so each lash is a long arc
+        // across the snare, not a short drop beside the trunk.
+        const reach = c.canopySpread * (c.strikeReach ?? 0.7) * Math.max(0.05, Math.min(1, this.root.scale.x));
+        mat.uniforms.uAnchor.value.set(Math.cos(a + 0.5) * reach, h - 0.25, Math.sin(a + 0.5) * reach);
         mat.uniforms.uTarget.value.copy(this._vineTarget);
         mat.uniforms.uProgress.value = wind;
         mat.uniforms.uTime.value = visualTime;
         mat.uniforms.uFade.value = fade * vineRelease;
+        mat.uniforms.uCoil.value = coil;
+        mat.uniforms.uSeed.value = i;
       }
     }
+
+    /* ---- the runner withers once the pod has landed ---- */
+    this._runner(c, visualTime, this.phase === AbilityPhase.IMPACT ? 1 - clamp01(elapsed / Math.max(0.05, c.runnerFade ?? 0.6)) : 0);
+
+    /* ---- the maw ---- */
+    this._updateMaw(c, h, wind, elapsed, visualTime, fade, closing);
 
     /* ---- particles: falling leaves and pollen under the canopy ---- */
     this._syncParticles(c);
@@ -608,9 +762,19 @@ export class PredatoryCanopyAbility extends Ability {
     }
 
     /* ---- thorns stab up with the windup and sink as it withers ---- */
+    this.thornMat.userData.sync(c);
+    this.thornMat.uniforms.uTime.value = visualTime;
+    this.thornMat.uniforms.uFade.value = fade;
+    this.thornMat.uniforms.uWake.value = awake;
+    this.thornMat.uniforms.uTipGlow.value = (c.thornGlow ?? 1.6) * wind;
+    this.thornMat.uniforms.uDissolve.value = closing * 0.85;
+    // The cage closes round wherever the vines last saw the body.
+    const ring = c.thornRing ?? 0.75;
     for (const thorn of this.thorns) {
+      const a = thorn.userData.angle;
       thorn.visible = wind > 0;
-      thorn.scale.set(1, Math.max(0.001, wind * (c.thornLength ?? 1.5) * (1 - closing)), 1);
+      thorn.position.set(this._vineTarget.x + Math.cos(a) * ring, 0.02, this._vineTarget.z + Math.sin(a) * ring);
+      thorn.scale.set(1.3, Math.max(0.001, wind * (c.thornLength ?? 1.5) * (1 - closing)), 1.3);
     }
     const curl = c.tendrilCurl ?? 0.42;
     for (let i = 0; i < this.tendrils.length; i++) {
@@ -640,6 +804,102 @@ export class PredatoryCanopyAbility extends Ability {
       this._withered = true;
       this._leafBurst(this.position, h * 0.85, c.shedLeaves ?? 40, c);
     }
+  }
+
+  /**
+   * The maw: hangs and breathes under the crown, swings toward the snared
+   * body with jaws gaping through the windup, lunges and snaps shut at the
+   * lash, chews through the bind, then hauls itself back up. Every distance
+   * is derived from the live settings and the vines' last aim.
+   */
+  _updateMaw(c, h, wind, elapsed, time, fade, closing) {
+    const scale = Math.max(0.1, c.mawScale ?? 0.85);
+    const length = scale * 1.95;
+    const sway = this.reduceMotion ? 0 : 0.12;
+    // It hangs off the trunk, on the side that faces the caster, so the
+    // player sees it — and lunges across to whoever trips the snare.
+    const off = (c.mawOffset ?? 1.3) * Math.max(0.05, Math.min(1, this.root.scale.x));
+    const ax = -this.direction.x * off;
+    const az = -this.direction.z * off;
+    this._mawRest.set(ax + Math.sin(time * 0.9) * sway, h - (c.stalkLength ?? 0.3), az + Math.cos(time * 0.7) * sway);
+    this._mawBite.set(this._vineTarget.x, Math.max(h * 0.5, (c.mawBite ?? 1.0) + length), this._vineTarget.z);
+    const idleOpen = 0.22 + (this.reduceMotion ? 0 : 0.1 * Math.sin(time * 1.6));
+    const gape = c.mawOpen ?? 1.15;
+    const shut = -0.12;
+    // How far it swings toward the body during the windup — kept short so
+    // the lunge itself covers most of the distance and reads as a strike.
+    const windReach = clamp01(c.mawWindReach ?? 0.3);
+    let pop = 1;
+    let rear = 0;
+    let reach;
+    let open;
+    let hunger;
+    if (this._strikeAt < 0) {
+      const w = ease(wind) * this._presence;
+      reach = w * windReach;
+      rear = w;
+      open = idleOpen + (gape - idleOpen) * w;
+      hunger = 0.15 + 0.85 * w;
+    } else {
+      const k = clamp01((elapsed - this._strikeAt) / Math.max(0.03, c.mawLunge ?? 0.14));
+      const r = clamp01((elapsed - this._strikeAt - Math.max(0, c.bindHold ?? 0.45)) / Math.max(0.1, c.mawRetract ?? 0.8));
+      reach = (windReach + (1 - windReach) * ease(k)) * (1 - smooth(r));
+      rear = 1 - ease(k);
+      // Swells as it lunges and slams shut, then settles: the bite reads at
+      // the play camera's distance. Purely visual; the hit already landed.
+      const q = clamp01((elapsed - this._strikeAt) / Math.max(0.05, (c.mawLunge ?? 0.14) + (c.mawPopTime ?? 0.25)));
+      pop = 1 + (c.mawPop ?? 0) * Math.sin(Math.PI * q) * (1 - smooth(r));
+      if (k < 1) open = gape + (shut - gape) * smooth((k - 0.35) / 0.65);
+      else if (r <= 0) open = shut + (this.reduceMotion ? 0 : 0.14 * Math.abs(Math.sin(time * 9)));
+      else open = shut + (idleOpen - shut) * smooth(r);
+      hunger = 1 - 0.8 * smooth(r);
+    }
+    // Withering: the jaws go limp and fall open.
+    open += closing * 0.6;
+    this._mawPos.lerpVectors(this._mawRest, this._mawBite, reach);
+    // Rears back (away from the body, toward the caster) and up through the
+    // windup, so the lunge is a long plunge, not a short twitch.
+    {
+      const rx = this._mawBite.x - this._mawRest.x;
+      const rz = this._mawBite.z - this._mawRest.z;
+      const rl = Math.hypot(rx, rz);
+      const back = (c.mawRear ?? 0) * rear * Math.max(0.05, Math.min(1, this.root.scale.x));
+      if (rl > 1e-4) {
+        this._mawPos.x -= (rx / rl) * back;
+        this._mawPos.z -= (rz / rl) * back;
+      } else {
+        this._mawPos.x += this.direction.x * -back;
+        this._mawPos.z += this.direction.z * -back;
+      }
+      this._mawPos.y += back * (c.mawRearLift ?? 0.3);
+    }
+    this.maw.position.copy(this._mawPos);
+    this.maw.scale.setScalar(scale * pop * Math.max(0.05, Math.min(1, this.root.scale.x)));
+    // Swing toward the bite: the free end leads.
+    const dx = this._mawBite.x - this._mawRest.x;
+    const dz = this._mawBite.z - this._mawRest.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    const lean = reach * (c.mawLean ?? 0.35);
+    this.maw.rotation.set((-dz / dl) * lean, time * 0.15, (dx / dl) * lean);
+    for (const j of this.jaws) j.rotation.x = open;
+    for (const m of [this.bulbMat, this.jawMat]) {
+      m.userData.sync(c);
+      m.uniforms.uTime.value = time;
+      m.uniforms.uFade.value = fade;
+      m.uniforms.uDissolve.value = closing * 0.9;
+      m.uniforms.uHunger.value = hunger;
+    }
+    // The stalk: from the crown to the bulb's neck.
+    const u = this.stalkMat.uniforms;
+    this.stalkMat.userData.sync(c);
+    u.uWidth.value = (c.stalkWidth ?? 0.11) * Math.max(0.05, Math.min(1, this.root.scale.x));
+    u.uArc.value = 0.25;
+    u.uAnchor.value.set(ax, h, az);
+    u.uTarget.value.copy(this._mawPos);
+    u.uProgress.value = 1;
+    u.uCoil.value = 0;
+    u.uTime.value = time;
+    u.uFade.value = fade;
   }
 
   /** The beat of a landed lash. Cosmetic only; the kill already happened. */
@@ -711,6 +971,8 @@ export class PredatoryCanopyAbility extends Ability {
     this.root.visible = false;
     this.seed.visible = false;
     this.strikeRig.visible = false;
+    this.snareRig.visible = false;
+    this.runner.visible = false;
     this.snap.visible = false;
     for (const thorn of this.thorns) thorn.visible = false;
     this._target = null;
@@ -779,17 +1041,43 @@ export function buildEditor(gui, c, Editor) {
   R(canopy, c, 'dropDistance', 0, 4, 0.1, 'sinks as it withers (m)');
   R(canopy, c, 'crownSpin', 0, 1, 0.01, 'crown turn (rad/s)');
   R(canopy, c, 'tendrilCurl', 0, 1.2, 0.01, 'vine swing on trigger (rad)');
+  R(canopy, c, 'trunkScale', 0.1, 4, 0.05, 'trunk girth (m)');
   const leaves = sub(canopy, 'Leaves');
   R(leaves, c, 'leafFlutter', 0, 3, 0.05, 'flutter');
   R(leaves, c, 'leafVariegation', 0, 1, 0.01, 'variegation');
   R(leaves, c, 'leafBristle', 0, 3, 0.05, 'bristle on trigger');
   C(leaves, c, 'leafColor', 'leaf');
   C(leaves, c, 'leafRim', 'rim and veins');
+  R(leaves, c, 'leafDeepAmount', 0, 1, 0.01, 'underside / stem to deep');
+  R(leaves, c, 'leafDeepFloor', 0, 1, 0.01, 'deep even on the lit face');
+  R(leaves, c, 'leafEdgeStart', 0, 1, 0.01, 'lit margin from (across)');
+  R(leaves, c, 'leafEdgeGlow', 0, 3, 0.05, 'lit margin glow');
+  C(leaves, c, 'leafDeep', 'deep (underside)');
   const bark = sub(canopy, 'Bark');
   R(bark, c, 'barkRidge', 0.2, 4, 0.05, 'furrow scale');
   R(bark, c, 'barkMoss', 0, 1, 0.01, 'moss');
   C(bark, c, 'barkColor', 'bark');
   C(bark, c, 'mossColor', 'moss');
+
+  const maw = sub(f, '0 · Maw');
+  R(maw, c, 'mawScale', 0.1, 2.5, 0.05, 'size (m)');
+  R(maw, c, 'mawOffset', 0, 4, 0.05, 'hangs out from the trunk (m)');
+  R(maw, c, 'stalkLength', 0, 2, 0.05, 'hangs below the crown (m)');
+  R(maw, c, 'stalkWidth', 0.01, 0.4, 0.01, 'stalk thickness (m)');
+  R(maw, c, 'mawOpen', 0, 2, 0.05, 'jaw gape (rad)');
+  R(maw, c, 'mawBite', 0, 3, 0.05, 'bites down to (m)');
+  R(maw, c, 'mawLunge', 0.03, 0.6, 0.01, 'lunge time (s)');
+  R(maw, c, 'mawRetract', 0.1, 3, 0.05, 'retract time (s)');
+  R(maw, c, 'mawLean', 0, 1.2, 0.01, 'lean into the lunge (rad)');
+  R(maw, c, 'mawWindReach', 0, 1, 0.01, 'swing toward the body in the windup');
+  R(maw, c, 'mawRear', 0, 3, 0.05, 'rears back before the lunge (m)');
+  R(maw, c, 'mawRearLift', 0, 1.5, 0.05, 'rear lift, × rear');
+  R(maw, c, 'mawPop', 0, 1, 0.01, 'swell on the bite');
+  R(maw, c, 'mawPopTime', 0.05, 1, 0.01, 'swell time after the lunge (s)');
+  C(maw, c, 'mawGullet', 'gullet');
+  R(maw, c, 'mawGlow', 0, 4, 0.05, 'gullet glow');
+  C(maw, c, 'mawColor', 'skin');
+  C(maw, c, 'mawCore', 'gullet core');
 
   const snare = sub(f, '2 · Snare');
   R(snare, c, 'rootGlow', 0, 4, 0.05, 'root glow');
@@ -801,8 +1089,14 @@ export function buildEditor(gui, c, Editor) {
 
   const lash = sub(f, '3 · Lash');
   R(lash, c, 'thornLength', 0.25, 3, 0.05, 'thorn length (m)');
+  R(lash, c, 'thornRing', 0.2, 3, 0.05, 'thorn cage radius (m)');
+  R(lash, c, 'thornGlow', 0, 4, 0.05, 'thorn points glow');
+  R(lash, c, 'strikeReach', 0, 1.2, 0.01, 'vines whip from (× spread)');
+  R(lash, c, 'bindHold', 0, 2, 0.05, 'vines bind the body for (s)');
+  R(lash, c, 'bindRadius', 0.1, 1.5, 0.01, 'bind coil radius (m)');
+  R(lash, c, 'bindHeight', 0.2, 3, 0.05, 'bind coil height (m)');
   R(lash, c, 'strikeWidth', 0.03, 0.5, 0.01, 'vine width (m)');
-  R(lash, c, 'strikeArc', 0, 3, 0.05, 'vine arc (m)');
+  R(lash, c, 'strikeArc', -3, 3, 0.05, 'vine arc (m, − swoops low)');
   R(lash, c, 'strikeGlow', 0, 4, 0.05, 'vine glow');
   R(lash, c, 'strikeDuration', 0.1, 2, 0.05, 'vines withdraw over');
   R(lash, c, 'snapWarp', 0, 3, 0.05, 'air snap strength');
@@ -831,9 +1125,16 @@ export function buildEditor(gui, c, Editor) {
   R(pod, c, 'seedHeight', 0.1, 3, 0.05, 'flight height (m)');
   R(pod, c, 'seedSpin', 0, 12, 0.1, 'spin (rad/s)');
   R(pod, c, 'seedGlow', 0, 4, 0.05, 'seam glow');
+  R(pod, c, 'runnerWidth', 0, 0.3, 0.005, 'runner vine thickness (m)');
+  R(pod, c, 'runnerArc', 0, 3, 0.05, 'runner arc (m)');
+  R(pod, c, 'runnerHeight', 0, 3, 0.05, 'runner leaves the hand at (m)');
+  R(pod, c, 'runnerFade', 0.05, 3, 0.05, 'runner withers over (s)');
 
   const beats = sub(f, '6 · Beats');
   R(beats, c, 'unfurlShake', 0, 1, 0.01, 'unfurl shake');
+  R(beats, c, 'landFlash', 0, 1, 0.01, 'landing flash');
+  R(beats, c, 'landBurst', 0, 2, 0.05, 'landing burst (× radius)');
+  R(beats, c, 'landDecal', 0, 2, 0.05, 'landing dust ring (× radius)');
   R(beats, c, 'windupRumble', 0, 2, 0.01, 'windup rumble');
   R(beats, c, 'strikeShake', 0, 1, 0.01, 'lash shake');
   R(beats, c, 'strikeFlash', 0, 1, 0.01, 'lash flash');

@@ -149,27 +149,136 @@ export function canopyThornGeometry() {
 }
 
 /**
- * Normalised ribbon for a target-seeking strike vine. The strike shader bends
- * it along a quadratic from the canopy anchor to the target in the vertex
- * stage, so the CPU never rebuilds it: X is -1..1 across, Y 0..1 along.
+ * Normalised tube for a target-seeking strike vine. The strike shader bends
+ * its centreline along a quadratic from the canopy anchor to the target (and
+ * coils its last third round the body when it binds) in the vertex stage, so
+ * the CPU never rebuilds it. `position` carries the unit ring (x = cos, z =
+ * sin) and `y` = `uv.y` the 0..1 station along the vine; the shader builds the
+ * frame and the radius. `uv.x` runs round the tube.
  */
 export function canopyStrikeGeometry() {
   const p = [];
   const uv = [];
   const idx = [];
-  const rows = 49;
+  const rows = 73;
+  const radial = 8;
   for (let j = 0; j < rows; j++) {
     const t = j / (rows - 1);
-    for (let side = 0; side < 2; side++) {
-      p.push(side ? 1 : -1, t, 0);
-      uv.push(side, t);
+    for (let i = 0; i <= radial; i++) {
+      const a = (i / radial) * TAU;
+      p.push(Math.cos(a), t, Math.sin(a));
+      uv.push(i / radial, t);
     }
-    if (j < rows - 1) {
-      const n = j * 2;
-      idx.push(n, n + 2, n + 1, n + 1, n + 2, n + 3);
+  }
+  for (let j = 0; j < rows - 1; j++) {
+    for (let i = 0; i < radial; i++) {
+      const n = j * (radial + 1) + i;
+      idx.push(n, n + radial + 1, n + 1, n + 1, n + radial + 1, n + radial + 2);
     }
   }
   return build(p, uv, idx);
+}
+
+/**
+ * The trunk the canopy grows on — a strangler fig: four strands rise from
+ * buttress roots splayed on the floor, twist round each other and knot into
+ * the crown, round a thicker central core. Normalised: Y 0..1 is floor to
+ * crown, the root flare reaches radius ≈ 0.6. The ability scales Y by the
+ * live canopy height and X/Z by `trunkScale`.
+ */
+export function canopyTrunkGeometry() {
+  const parts = [];
+  const strands = 4;
+  for (let k = 0; k < strands; k++) {
+    const a0 = (k / strands) * TAU + 0.4;
+    const pts = [];
+    for (let i = 0; i <= 28; i++) {
+      const y = i / 28;
+      // Wide buttress at the floor, pinched waist, a slight flare at the crown.
+      const r = 0.1 + 0.5 * Math.pow(1 - y, 3) + 0.08 * Math.pow(y, 4);
+      const a = a0 + y * 1.6 + Math.sin(y * 5 + k) * 0.12;
+      pts.push(new Vector3(Math.cos(a) * r, y - 0.04 * Math.pow(1 - y, 8), Math.sin(a) * r));
+    }
+    parts.push(taperedTube(pts, (t) => (0.075 * (1 - 0.45 * t) + 0.05 * Math.pow(1 - t, 6)) * (1 + 0.25 * Math.exp(-(((t - 0.55 - k * 0.05) * 14) ** 2))), 8));
+  }
+  // The core: thicker, nearly straight, gnarled by two knots.
+  const core = [];
+  for (let i = 0; i <= 20; i++) {
+    const y = i / 20;
+    core.push(new Vector3(Math.sin(y * 4) * 0.03, y, Math.cos(y * 3) * 0.03));
+  }
+  parts.push(taperedTube(core, (t) => (0.11 * (1 - 0.35 * t)) * (1 + 0.3 * Math.exp(-(((t - 0.35) * 12) ** 2)) + 0.25 * Math.exp(-(((t - 0.7) * 12) ** 2))), 10));
+  return merge(parts);
+}
+
+/**
+ * The maw's bulb: a hanging pod that the jaws hinge from. A lathe along -Y
+ * (top at 0, mouth at -1): swollen belly, a ridged neck at the top where it
+ * hangs, and a lipped mouth of radius ≈ 0.3 at the bottom, left open.
+ */
+export function canopyMawBulbGeometry() {
+  const rings = 30;
+  const segs = 24;
+  const p = [];
+  const uv = [];
+  const ix = [];
+  for (let j = 0; j <= rings; j++) {
+    const v = j / rings;
+    let r = 0.12 + 0.34 * Math.pow(Math.sin(Math.PI * Math.min(1, v * 1.15)), 0.8);
+    r = Math.max(r, 0.3 * Math.exp(-Math.pow((v - 1) * 9, 2)) + 0.12);
+    r *= 1 + 0.12 * Math.exp(-Math.pow((v - 0.08) * 30, 2)); // the neck ridge
+    r *= 1 + 0.1 * Math.exp(-Math.pow((v - 0.97) * 40, 2)); // the lip
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * TAU;
+      // Six lobes, so the bulb is a seed case and not a ball.
+      const lobe = 1 + 0.08 * Math.cos(a * 6);
+      p.push(Math.cos(a) * r * lobe, -v, Math.sin(a) * r * lobe);
+      uv.push(i / segs, v);
+    }
+  }
+  for (let j = 0; j < rings; j++) {
+    for (let i = 0; i < segs; i++) {
+      const a = j * (segs + 1) + i;
+      const b = a + segs + 1;
+      ix.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  return build(p, uv, ix);
+}
+
+/**
+ * One jaw of the maw: a cupped, pointed lobe hinged at the origin and hanging
+ * along -Y (length 1), with a row of teeth down both margins and a tip that
+ * hooks toward the maw's axis (+Z). The edges curl toward +Z, so +Z is the
+ * inside of the cup (the material glows there).
+ */
+export function canopyJawGeometry() {
+  const rows = 25;
+  const cols = 11;
+  const p = [];
+  const uv = [];
+  const ix = [];
+  for (let j = 0; j < rows; j++) {
+    const t = j / (rows - 1);
+    const width = 0.34 * Math.pow(Math.sin(Math.PI * (0.12 + 0.88 * t)), 0.7) * (1 - 0.55 * t * t);
+    for (let i = 0; i < cols; i++) {
+      const u = (i / (cols - 1)) * 2 - 1;
+      // Teeth: spikes on the outermost columns only, seven down each side.
+      const edge = Math.pow(Math.abs(u), 8);
+      const tooth = 1 + 0.55 * edge * Math.pow(Math.max(0, Math.sin(t * Math.PI * 7)), 6) * (t > 0.15 ? 1 : 0);
+      const x = u * width * tooth;
+      const z = 0.16 * u * u + 0.22 * Math.pow(t, 3) - 0.06 * Math.sin(Math.PI * t) + edge * 0.08 * tooth;
+      p.push(x, -t, z);
+      uv.push(i / (cols - 1), t);
+    }
+  }
+  for (let j = 0; j < rows - 1; j++) {
+    for (let i = 0; i < cols - 1; i++) {
+      const n = j * cols + i;
+      ix.push(n, n + cols, n + 1, n + 1, n + cols, n + cols + 1);
+    }
+  }
+  return build(p, uv, ix);
 }
 
 /**

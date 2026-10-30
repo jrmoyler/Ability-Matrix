@@ -77,20 +77,28 @@ const _spin = new Quaternion();
  *      fresnel rim, interference bands rolling up the body with R/B phase-split
  *      against G (the chromatic fringe), a strobe, slice tearing in the vertex
  *      stage, a noise-fronted assembly seam climbing from the feet, and the
- *      erosion that takes it apart on the burst.
+ *      erosion that takes it apart on the burst. Drawn premultiplied-over as
+ *      **dark violet glass** (`bodyCover`, `colorBodyDeep`): it covers what is
+ *      behind it, so the copy reads as *your silhouette* with a pale rim and
+ *      saturated bands — never a white blob of noise.
  *   2. **AFTERIMAGES** — two more draws of the same skinned meshes (sharing the
  *      clone's skeleton, so they cost no extra animation), offset either side
  *      across the view and drifting behind it, tinted magenta and cyan: the
  *      copy is never quite in register with itself.
  *   2b. **THE REFLECTION** (`createMirageBodyMaterial('mirror')`) — a third
  *      draw of the same skinned meshes, flipped through the floor in the
- *      vertex stage with a sideways ripple, drawn without the depth test and
- *      clipped to the lake, fading with depth: the copy upside down in water
- *      that is not there.
+ *      vertex stage with a sideways ripple, drawn without the depth test,
+ *      fading with depth: the copy upside down in water that is not there.
+ *      It is clipped where the *eye ray crosses the water* (so the image sits
+ *      on the lake instead of spilling toward the camera) and hidden by
+ *      anything standing in front of the water (scene depth), and it carries
+ *      the same dark glass, so the lake holds a readable inverted figure.
  *   3. **THE FALSE LAKE** (`createMiragePoolMaterial`) — a filled disc of the
  *      deep tone (normal blending, so it darkens the floor) mirroring the sky
  *      probe through a heat-bent normal, iridescent ripples running outward,
- *      a ragged bright shore; dries from the shore inward on the way out.
+ *      a ragged bright shore; dries from the shore inward on the way out. The
+ *      ripples are broken into wavelets by a slow noise so it reads as water,
+ *      not a target of rings.
  *   3b. **THE ROAD** (`createMirageRoadMaterial`) — the travel: the same false
  *      water laid along the line up to the projection's front, widening toward
  *      the circle, a hot seam at its leading edge; it dries from the caster's
@@ -99,6 +107,8 @@ const _spin = new Quaternion();
  *      — the authored hero shape: a ring of tall tongues of shimmer seated at
  *      `veilSeat × zoneRadius`, placed, swayed and tapered in the vertex stage;
  *      pulled in over the copy by the charge, blown out and thinned by the burst.
+ *      Each tongue smokes out to deep violet at its tip and edges, and that
+ *      smoke covers the sky (premultiplied) — the cast's deep stop.
  *   4. **HEAT HAZE** (LAYER.DISTORTION) — a column of air rising off the copy
  *      while it stands; the burst's double-fronted shock ring after.
  *   5. **MOTES** — curling specks drifting up off the body while it stands,
@@ -1115,9 +1125,11 @@ export function buildEditor(gui, c, Editor) {
   R(body, c, 'glitchSlices', 1, 80, 1, 'slices');
   R(body, c, 'bodyGlow', 0, 10, 0.05, 'glow');
   R(body, c, 'bodyOpacity', 0, 1, 0.01, 'opacity');
+  R(body, c, 'bodyCover', 0, 1, 0.01, 'dark glass cover (silhouette)');
   body.addColor(c, 'colorBodyRim').name('rim');
   body.addColor(c, 'colorBodyBand').name('bands');
   body.addColor(c, 'colorBodyEdge').name('seam');
+  body.addColor(c, 'colorBodyDeep').name('dark glass');
   R(body, c, 'chargeTime', 0.05, 3, 0.01, 'charge over (s)');
   R(body, c, 'chargeGlow', 0, 8, 0.05, 'charge glow');
   R(body, c, 'chargeGlitch', 0, 0.5, 0.005, 'charge tearing (m)');
@@ -1155,6 +1167,7 @@ export function buildEditor(gui, c, Editor) {
 
   const refl = folder.addFolder('3b · Reflection');
   R(refl, c, 'reflectStrength', 0, 2, 0.01, 'strength');
+  R(refl, c, 'reflectCover', 0, 1, 0.01, 'dark glass in the water');
   R(refl, c, 'reflectFade', 0.05, 5, 0.01, 'fades over depth (m)');
   R(refl, c, 'reflectRipple', 0, 0.5, 0.005, 'ripple (m)');
   R(refl, c, 'reflectRippleFreq', 0, 6, 0.01, 'ripples / m');
@@ -1177,8 +1190,10 @@ export function buildEditor(gui, c, Editor) {
   R(veil, c, 'veilGlow', 0, 6, 0.05, 'glow');
   R(veil, c, 'veilOpacity', 0, 1, 0.01, 'opacity');
   R(veil, c, 'veilBands', 0, 30, 0.1, 'bands');
+  R(veil, c, 'veilCover', 0, 1, 0.01, 'smoke cover (deep)');
   veil.addColor(c, 'colorVeil').name('body');
   veil.addColor(c, 'colorVeilTint').name('bands');
+  veil.addColor(c, 'colorVeilDeep').name('deep smoke');
 
   const haze = folder.addFolder('4 · Heat haze & shock');
   R(haze, c, 'hazeStrength', 0, 2, 0.01, 'haze strength');

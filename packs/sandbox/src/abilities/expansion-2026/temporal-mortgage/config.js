@@ -29,7 +29,7 @@ export default {
     /* --- the cast --- */
     range: 16, // max cast distance (m)
     minRange: 2,
-    speed: 26, // the wound spring flies to the target at (m/s)
+    speed: 15, // the wound spring flies to the target at (m/s) — slow enough that the throw reads
     cooldown: 4,
     castAnim: 'cast2',
     zoneRadius: 3.4, // the lash's reach = strike radius (m)
@@ -47,41 +47,61 @@ export default {
     debtStatus: 1, // 1: struck enemies carry the 'delayed' status for the repayment (combat on)
 
     /* --- anticipation & the throw --- */
-    chargeTime: 0.22, // the spring winds tight in the hand before it leaves (s, × lifetime)
+    chargeTime: 0.3, // the spring winds tight in the hand before it leaves (s, × lifetime)
     handHeight: 1.3, // hand height (m)
     handForward: 0.55, // hand ahead of the caster (m)
-    travelScale: 0.14, // spring size in flight (× full size)
-    travelArc: 1.3, // extra height at the top of the throw (m)
+    travelScale: 0.36, // spring size in flight (× full size)
+    travelArc: 2.1, // extra height at the top of the throw (m)
     travelSpin: 14, // rad/s it spins in flight
-    trailCount: 3, // sparks shed every 30 ms of the flight
+    trailCount: 5, // sparks shed every 30 ms of the flight
+    trailGlow: 3, // soft time motes shed every 30 ms of the flight (the visible path)
+    trailGlowSize: 0.22, // size of those motes (m)
+    chargeLight: 5, // light at the hand while the spring winds
     landTime: 0.12, // s the spring takes to grow to full size on landing
 
     /* --- 1 · the mainspring (solid blued steel) --- */
-    bandHeight: 0.4, // band height (× zone radius) → ~1.4 m standing
-    bandThickness: 0.1, // band thickness (m)
+    bandHeight: 0.72, // top of the band at the arbor (× zone radius) → ~2.45 m, falling to ~0.4 m at the free outer end
+    bandRibbon: 0.17, // the band's own width (× bandHeight ≈ 0.42 m): its foot lifts toward the arbor, so the coil climbs as one conical helix
+    bandThickness: 0.15,
+    bandTaper: 0.84, // the band steps down toward its outer end, so every coil shows above the one outside it // band thickness (m)
     arborShare: 0.12, // inner end of the band (× radius)
-    tightOuter: 0.3, // outer radius when fully wound (× radius)
+    tightOuter: 0.5, // outer radius when fully wound (× radius)
     openOuter: 0.97, // outer radius when fully let go (× radius)
-    tightTurns: 4.6, // coils when wound
-    openTurns: 1.6, // coils when let go
-    hookCurl: 0.5, // the outer end curls back into a hook (rad)
-    hookShare: 0.05, // length of the hook (fraction of the band)
+    tightTurns: 1.8, // coils when wound — few enough that the gaps between them stay open
+    openTurns: 1.55, // coils when let go — few, so the climb between turns reads as pitch
+    hookCurl: 0.9, // the outer end curls back into a hook (rad)
+    hookShare: 0.07, // length of the hook (fraction of the band)
     bandWave: 0.06, // the band ripples in height as it lashes (× height)
-    steelColor: '#2b4f86', // blued steel
-    steelMetalness: 0.9,
-    steelRoughness: 0.28,
+    steelColor: '#1d3560', // blued steel (upper band) — dark: the band is metal, not light
+    steelMetalness: 0.3, // moderate: a mirror band reflects the sky as vertical streaks
+    steelEnv: 0.15, // environment reflection strength on the steel
+    steelRoughness: 0.66, // satin: a sharper highlight read as a white streak down the near coil
     steelEmissive: '#0d3a70',
-    steelGlow: 0.2, // emissive under stress (× debt)
+    steelGlow: 0.12, // emissive under stress (× debt)
+    temperColor: '#070b1c', // tempered deep tone on the steel itself (the ramp's deep stop)
+    temperStrength: 0.85, // how dark the foot / inner coils go
+    temperHeight: 0.8, // share of the band height over which it lifts from deep to steel
+    temperInner: 0.5, // inner (relaxed) coils stay darker than the outer, loaded ones
+    temperSheen: 0.25, // faint temper streak just under the top edge
+    sheenColor: '#5a8fd8',
 
     /* --- 2 · the stress glow (shader over the band) --- */
-    stressGlow: 0.55, // brightness of the stress light running along the band
+    stressGlow: 0.7, // brightness of the stress light running along the band
     stressFresnel: 2.4, // rim sharpness
     stressPulses: 7, // pulses along the band
     stressSpeed: 3, // pulses run at (× the cast's clock)
-    edgeGlow: 0.9, // the hot top edge of the band
+    edgeGlow: 1.1, // the hot top edge of the band
+    edgeWidth: 0.08, // the hot edge is a thin line along the top of the side faces (share of height)
+    edgeTop: 0.25,
+    edgeInner: 0.15, // edge line left on the inner coils — the outer limb carries it
+    tipGlow: 1.2, // the free outer end lit hot // edge light allowed onto the flat top face (low: it read as a white basin rim)
+    stressFill: 0.03, // stress wash over the whole face — kept near zero, the glow is in lines
+    stressRim: 0.12, // fresnel rim share
+    stressSharp: 90, // stress-line sharpness (higher = thinner slashes)
+    stressInflate: 0.012, // the light skin floats this far off the steel (m) — no z-fighting
 
     /* --- 3 · the arbor, ratchet, pawl and key (solid) --- */
-    arborHeight: 0.55, // arbor post height (× radius)
+    arborHeight: 0.78, // arbor post height (× radius)
     arborWidth: 1, // arbor thickness scale
     ratchetTeeth: 24, // teeth on the ratchet (rebuilt on change)
     ratchetSize: 0.2, // ratchet radius (× radius)
@@ -100,6 +120,8 @@ export default {
     sweptGlow: 1.2, // the sector the lash has already swept stays lit
     debtInk: 0.8, // dark ink that creeps back as the debt is repaid
     floorGrain: 1, // fbm grain in the ledger
+    ledgerRim: 0.2, // the ledger's outer rim line (kept low: a bright rim read as a fountain basin)
+    ledgerCoil: 0.3, // the lit spiral groove under the steel
     floorFlow: 1, // grooves run at (× the cast's clock)
     dissolveTime: 0.8, // fraction of the exit spent dissolving
 
@@ -107,7 +129,7 @@ export default {
     smearGlow: 0.8,
     smearOpacity: 0.45,
     smearLength: 2.2, // rad behind the tip at full borrowed speed
-    smearHeight: 1.1, // × band height
+    smearHeight: 0.3, // × band height (the outer limb is the low end of the helix)
     smearStreaks: 18, // vertical streaks in the smear
 
     /* --- 6 · particles --- */
@@ -160,12 +182,12 @@ export default {
     sinkDepth: 0.9, // sinks this far (× band height)
 
     /* --- 9 · the lens --- */
-    lensStrength: 0.7, // time-shear swirl, signed by the clock's rate (× global distortion)
-    lensShock: 0.8, // pressure ring on landing
+    lensStrength: 0.22, // time-shear swirl, signed by the clock's rate (× global distortion)
+    lensShock: 0.6, // pressure ring on landing
 
     /* --- light --- */
     lightColor: '#7fd0ff',
-    lightIntensity: 6,
+    lightIntensity: 4,
     lightRadius: 10,
     lightHeight: 1.2, // m above the floor (inside the coil)
 

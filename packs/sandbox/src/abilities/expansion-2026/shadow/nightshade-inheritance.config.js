@@ -30,7 +30,7 @@ export default {
     /* --- the cast itself --- */
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
-    speed: 18, // metres/second the shade flies to the circle
+    speed: 26, // metres/second the shade flies to the circle
     cooldown: 9, // seconds before the ability can be armed again
     castAnim: 'cast2', // which clip in `CAST_ANIMATIONS` the body throws
     zoneRadius: 3.5, // metres: the first host is the nearest enemy inside this
@@ -60,8 +60,8 @@ export default {
     /* ================================================================ */
     /* 1 · THE SHADE IN FLIGHT                                           */
     /* ================================================================ */
-    travelScale: 1,
-    travelHeight: 0.9, // metres off the floor
+    travelScale: 1.6,
+    travelHeight: 1.1, // metres off the floor
     travelSpin: 0.8, // radians/second it turns as it flies
     travelFlap: 5, // wingbeats (radians/second of the flap cycle)
     travelTrailRate: 18, // umbral wisps per second shed behind the flying shade (× global particle count)
@@ -123,6 +123,51 @@ export default {
     colorUmbraA: '#2a1840',
     colorUmbraB: '#1a0f29',
     colorUmbraC: '#0e0817',
-    colorUmbraD: '#05030a'
+    colorUmbraD: '#05030a',
+
+    /* ================================================================ */
+    /* 6 · THE NIGHTSHADE BELL — the hero that closes over the host      */
+    /* ================================================================ */
+    bellPetals: 6, // petals in the bell (≤ 8)
+    bellHeight: 3.1, // metres: how tall the bell stands
+    bellSeat: 1.35, // metres: the ring the petals root on (tips curl in over the host)
+    petalWidth: 1.55, // metres across a petal at its shoulder
+    bellRise: 0.4, // seconds the petals take to tear up and close
+    bellOpen: 0.1, // radians each petal leans outward at rest
+    bellBreath: 0.2, // radians the bell opens on each hunger beat
+    bellSpin: 0.12, // radians/second the bell turns
+    bellSway: 0.04, // radians of idle sway
+    bellGlow: 1.6, // vein glow on the petals
+    bellWither: 0.7, // seconds the petals peel open and wither on release/exit
+    missHold: 1.1, // seconds a bell stands at an empty circle before it withers
+    petalRoughness: 0.32,
+    petalColor: '#1b1027', // the waxy, near-black aubergine of the petals (sun-lit)
+
+    /* ================================================================ */
+    /* 7 · THE BLIGHT — the zone-sized floor the shade lands in          */
+    /* ================================================================ */
+    blightScale: 1, // radius, × zoneRadius
+    blightSpread: 0.55, // seconds the blight creeps out to its rim
+    blightDarkness: 0.82, // how much of the floor it swallows
+    blightGlow: 1.4, // root-vein glow
+    shockTime: 0.45, // seconds the arrival ring takes to run out
+    arrivalShake: 0.14, // camera knock when the shade lands (× global camera shake)
+    arrivalLight: 1.2, // light punch when the shade lands (× lightIntensity)
+
+    /* ================================================================ */
+    /* 8 · ROOTS — the wake and the reach toward the heirs               */
+    /* ================================================================ */
+    wakeWidth: 1, // metres: the dark root the shade drags behind it
+    wakeLife: 1.6, // seconds the wake lingers after the landing
+    tendrils: 2, // roots reaching from a host toward its would-be heirs (0..2)
+    tendrilWidth: 0.8, // metres
+    tendrilCrawl: 0.9, // seconds a root takes to reach its heir
+    tendrilGlow: 2.4,
+
+    /* the four-stop shade ramp: pale core → lilac → violet body → void */
+    colorShadeA: '#f3eaff',
+    colorShadeB: '#c7a7ff',
+    colorShadeC: '#7b45c9',
+    colorShadeD: '#0b0612'
   }
 };

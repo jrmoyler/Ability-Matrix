@@ -7,14 +7,14 @@ Six heavy obsidian seal-stamps are thrown down the line ahead of the front and s
 ## Beats
 | t (s) | Beat | On screen |
 |---|---|---|
-| 0.00–1.0 | Anticipation + travel | Each seal (striking face 0.6 m radius, 0.8 m tall, rune band, turned handle; lit obsidian #1c1530, shadowing) is thrown from 2.6 m back, arcs in, and slams face-down the frame the front reaches its point: squash 22 %, SCORCH imprint (#0c0620, 4.5 s), shockwave ring, motes, knock 0.12. The sigil draws itself on; a ley line follows. |
-| per glyph | Hover | After 0.08 s in its print the seal lifts (outBack) to 2.2 m, bobs and turns, its engraved runes glowing; the chain charges 0.4 s — seals tip toward their prints and throb down the line. |
+| 0.00–1.0 | Anticipation + travel | Each seal (striking face 0.6 m radius, 0.8 m tall, rune band, turned handle; lit obsidian #1c1530, shadowing) is thrown from 2.6 m back, arcs in, and slams face-down the frame the front reaches its point: squash 22 %, 16 obsidian chips + a DUSTRING kicked up, SCORCH imprint (#0c0620, 4.5 s), shockwave ring, motes, knock 0.12. The sigil draws itself on; a ley line follows. |
+| per glyph | Hover | After 0.08 s in its print the seal lifts (outBack) to 1.95 m, a binding shaft of rune-rain (cone, seal face → 0.8 R at the print, tint → body → deep) hangs from it into its own sigil, bobs and turns, its engraved runes glowing; the chain charges 0.4 s — seals tip toward their prints and throb down the line. |
 | hold + k·0.15 | Impact (chain, outward) | Glyph k erupts, nearest the caster first: a 7 m pillar (thin white axis only, tint → body → deep #1a0a4a at the walls), STORM shell 1.6 m, shockwave, shards, streaks, halo rings; its seal is flung up and swallowed (0.45 s); a 1.5 m SCORCH burn (6 s) is left; bodies on it are lifted up the column and thrown. The last, biggest beat lands at the far (target) end. |
 | fade 1.6 s | Exit | Spent sigils come off ring by ring; imprints and burns outlive them. |
 
 ## Layers
 1. Seal stones — `assets/codex/GlyphBarrageGeometry.js` (faceted lathe) + `createGlyphSealMaterial` (patched MeshStandard, instanced `aSeal` glow) on `LAYER.WORLD`.
-2. Sigils — SDF ground shader per glyph. 3. Rune fragments (instanced billboards). 4. Pillars (four-stop ramp) + lens on `LAYER.DISTORTION`. 5. Shockwave, STORM shell, SCORCH imprint/burn decals. 6. Particles: CHIP shards, STREAKs, SOFT motes, RING halos. 7. Ley line. 8. Bodies lifted in the pillar.
+2. Sigils — SDF ground shader per glyph, now on an inked plate (premultiplied: deep #0d0628 disc darkening the floor, violet ink swirling in it). 2b. Binding shafts — `createGlyphBindMaterial`, seal → print. 3. Rune fragments (instanced billboards). 4. Pillars (four-stop ramp, premultiplied with deep walls covering what is behind — `pillarCover` — so a chain lined up along the view converges on violet, not white; HDR only in the axis) + lens on `LAYER.DISTORTION`. 5. Shockwave, STORM shell, SCORCH imprint/burn decals. 6. Particles: CHIP shards, STREAKs, SOFT motes, RING halos. 7. Ley line. 8. Bodies lifted in the pillar.
 
 ## Signature
 The stamp is a thing: a seal you see thrown, slammed and lifted off its print, then eaten by the light it printed.
@@ -24,3 +24,20 @@ core #ffffff / #f4f2ff, tint #9aa6ff / #c4b6ff, body #6a3dff / #7c8cff, deep #1a
 
 ## Gameplay
 Unchanged `handlesOwnHits`: bodies on a glyph are marked, and on its eruption knocked up, held in the pillar and thrown. Default `chainOrder` is now 1 (outward), so the chain ends at the target rather than on the caster.
+
+## What the capture shows (upgrade C)
+`/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-C/r2/codex__glyphs-sheet.jpg`: filled violet-plated sigils, seals hovering on violet binding shafts that run back to their prints (the "stack" at the far end is now visibly the line of hovering seals), f70 a violet column with a pale axis and deep top instead of a white slab. Before 7 → after honest 8. Short: from the caster camera the hovering seals still overlap one another in screen.
+
+## Upgrade G (second pass, 2026-10-30)
+Coordinator's read of the C sheet: the sigil trail was still mostly bright outline rings, and at f70 the last pillar blew to near-white at the top of frame.
+- Sigils are now filled prints: solid saturated ink (`colorInk` #4a1fd0 over the deep wash) fills the rune band, the star points, the tick band and the eye, the plate covers harder (`plateCover` 0.88), and strokes are mostly tint (`lineHot` 0.3, `lineGlow` 1.2, `haloGlow` 0.22) — rings are detail on the ink. Strokes widened by the pixel footprint (far / grazing seals) keep their energy instead of their brightness, so distant seals no longer read as white hoops.
+- Pillars: the white axis only climbs `pillarCoreReach` (0.5) of the height; above that the column falls tint → body → deep (`pillarTopDeep`), axis thinner (`pillarCoreTight` 16, `pillarCore` 0.3), `pillarHeight` 7 → 5 m so a near pillar stays in frame, `colorPillarA` more violet, glow 0.65; ring/streak/rune glows lowered, runes and seals flung up more slowly so the top of frame is not littered with bright fragments.
+- New keys (5): inkFill, colorInk, lineHot, pillarCoreReach, pillarTopDeep.
+After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-G/r2/codex__glyphs-sheet.jpg` — violet filled seals with a dark plate, f70 a violet column falling to deep at its top. Honest 8.
+
+## Fix-2 (third pass, 2026-10-30)
+Coordinator's read of up-G/r2: the floor sigil trail was still bright violet outline rings, and at ~1.7 s the pillar bloomed into a big pale-lavender column.
+- Sigils are dark ink: plate #07031a covering 0.94, ink fills near-black violet (`colorInk` #2c1280, `colorDeep` #170a52), strokes thin (`haloWidth` 0.035, `haloGlow` 0.08, `lineGlow` 1.0, `lineHot` 0.18), stroke tint deeper (`colorGlyph` #6c4cff), the charge throb (`chargePulse` 0.55) and the stamp/erupt flash on the sigil (code: 2.2/3.5 → 1.2/1.4) cut so the trail never turns into rings of light.
+- Pillar capped: the pale lavender cone was the binding shaft stretching up after the flung seal — it is now cut the instant its glyph erupts (presentation only). The column's pale share is capped by a new key `pillarAxisHeat` (0.45), flare 0.9 → 0.45, glow 0.5, thinner core (`pillarCoreTight` 22), more cover (0.72), deeper `colorPillarA/B`. STORM shell smaller and violet (`burstSize` 0.9, `burstIntensity` 0.35), halo rings fewer/dimmer, shock ring and floor SHOCKWAVE decal violet (decal colorB is now the pillar body, not white), shards/streaks/runes dimmer.
+- New key (1): pillarAxisHeat. Timing, targets and hits unchanged.
+After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/fix-2/r4/codex__glyphs-sheet.jpg`.

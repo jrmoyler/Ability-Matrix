@@ -45,15 +45,16 @@ export default {
     hitSpin: 0.6, // tumble imparted
 
     /* --- light (rides the vessel, then the host) --- */
-    lightColor: '#caff75',
-    lightIntensity: 6,
+    lightColor: '#a6dc55',
+    lightIntensity: 3.5,
     lightRadius: 8,
     lightPunch: 3, // extra intensity punched in per stage (× stage)
 
     /* --- palette --- */
     toxinColor: '#9be641', // the body of the toxin
     coreColor: '#e4ff93', // its hot core, veins and growing tips
-    stainColor: '#16260f', // the dark wet stain it leaves on the floor
+    stainColor: '#0e1a08', // the dark wet stain it leaves on the floor
+    deepColor: '#0b1806', // the deep stop: flesh in shadow, roots, the rind of the vessel
 
     /* ================================================================ */
     /* 1 · THE SEED VESSEL — travel                                      */
@@ -66,6 +67,11 @@ export default {
     travelDrips: 1.5, // venom drips shed in flight, × dripRate
     vesselScale: 1, // size of the per-stage satellite vessels
     vesselGlow: 1.4, // emissive gain of every vessel
+    trailRadius: 0.07, // metres, the venom stream drawn behind the vessel
+    trailGlow: 1.0, // its hot thread
+    trailFlow: 1.5, // beads running down it toward the host
+    trailSag: 0.35, // seconds it takes to fall to the floor once the vessel bursts
+    trailLinger: 1.8, // seconds it takes to dry away from the caster's end
 
     /* ================================================================ */
     /* 2 · THE MEMBRANE — grown over the host                            */
@@ -74,15 +80,40 @@ export default {
     membraneScale: 1.35, // girth of the membrane, × the host (the mass grown over it)
     membraneStageGrowth: 0.16, // extra girth per accepted generation
     dormantTime: 1.4, // no host in the circle: seconds the dormant colony gropes before it withers
-    membraneGlow: 1.3, // emissive gain
+    membraneGlow: 0.25, // emissive gain
     membraneFresnel: 1.6, // density at the silhouette
     veinScale: 1, // vein noise scale
-    veinSharp: 6, // vein sharpness (threads vs wash)
+    veinSharp: 16, // vein sharpness (threads vs wash)
     cystGrowth: 1, // how far the cysts swell out at later stages
     bloomStrength: 0.3, // how hard each accepted stage throbs everything
     bloomTime: 0.55, // seconds that throb lasts
     releaseDuration: 0.55, // seconds the infection takes to wither when the host escapes
     softFade: 0.25, // metres over which it fades where it meets the host/floor
+    membraneOpacity: 0.62, // how dense the dark sac is (the host shows through as a shadow)
+    membraneBodyTone: 0.08, // how far its lit flesh climbs from the deep stop toward the body colour
+
+    /* ================================================================ */
+    /* 2b · THE BLIGHT TENDRILS — the hero, at zone scale                */
+    /* ================================================================ */
+    tendrilCount: 6, // tendrils that erupt on arrival
+    tendrilPerStage: 2, // more erupt with every accepted generation (max 14 total)
+    tendrilRing: 0.4, // root ring radius, × zoneRadius (1.4 m at the default circle)
+    tendrilHeight: 2.6, // arc length, metres
+    tendrilStageGrowth: 0.1, // extra length per generation (× height)
+    tendrilThick: 0.21, // root radius, metres
+    tendrilCurl: 1.9, // radians each arc turns back over the host at full growth
+    tendrilClose: 0.3, // extra closing of the claw across the linger (× curl)
+    tendrilLean: 0.4, // radians the roots lean outward before curling in
+    tendrilGrowTime: 0.45, // seconds a tendril takes to erupt
+    tendrilStagger: 0.05, // seconds between neighbours erupting
+    tendrilWrithe: 1, // writhing through the linger (× global turbulence)
+    tendrilVeinGlow: 0.75, // emissive gain of the veins and their running pulses
+    tendrilVeinSpeed: 0.8, // pulses per second running up the veins
+    tendrilPustuleGlow: 1.6, // emissive gain of the ripening pustules and tips
+    tendrilSpecular: 0.3, // wet highlight
+    tendrilRim: 0.35, // thin bile rim light at the silhouette
+    tendrilBodyTone: 0.03, // lit flesh, × body colour, over the deep stop (low = near-black bile)
+    tendrilVeinBase: 0.04, // veins' resting glow between the pulses running up them
 
     /* ================================================================ */
     /* 3 · THE COILS — one per generation                                */
@@ -91,24 +122,25 @@ export default {
     coilSpread: 1, // radius multiplier
     coilTwistSpeed: 1, // how fast they turn
     coilTaper: 1, // 0 blunt → 1 pointed ends
-    coilGlow: 1.4,
+    coilGlow: 1.0,
 
     /* ================================================================ */
     /* 4 · THE CROWNS — the contact beat of each generation              */
     /* ================================================================ */
-    stageCueScale: 1, // crown size (0.25..3)
+    stageCueScale: 1.15, // crown size (0.25..3)
     stageCueDuration: 0.8, // seconds each crown takes to unfurl and decay
-    stageCueGlow: 0.8, // crown brightness and burst/decal intensity (0..2)
+    stageCueGlow: 0.6, // crown brightness and burst/decal intensity (0..2)
 
     /* ================================================================ */
     /* 5 · THE POOL — the stain on the floor                             */
     /* ================================================================ */
-    poolRadius: 1, // stain radius before any stage (× 1.25), metres
+    poolRadius: 1.3, // stain radius before any stage (× 1.25), metres
     poolGrowth: 0.2, // extra metres per stage
     poolSpreadTime: 0.6, // seconds it takes to creep out after arrival
     poolCells: 4, // cell density of the wet toxin
-    poolGlow: 1.5, // emissive gain of the cell seams
-    poolDarken: 0.55, // how much it darkens the floor between seams
+    poolGlow: 1.1, // emissive gain of the cell seams
+    poolDarken: 0.9, // how much it darkens the floor between seams
+    poolEdgeGlow: 0.2, // glow riding the stain's creeping front
 
     /* ================================================================ */
     /* 5b · THE BLIGHT — the search circle rotting (telegraph + floor)   */
@@ -117,8 +149,10 @@ export default {
     blightTelegraph: 0.6, // how far the veins have crept in from the rim when the vessel lands, 0..1
     blightVeins: 9, // veins round the rim
     blightSharp: 7, // vein thinness (higher = finer threads)
-    blightGlow: 1.6, // emissive gain of the veins and their pulses
-    blightDarken: 0.8, // how dark the rot stains the floor between veins
+    blightGlow: 1.2, // emissive gain of the veins and their pulses
+    blightDarken: 0.88, // how dark the rot stains the floor between veins
+    blightFill: 0.8, // how solidly the rot fills the grown circle (not just its rim)
+    blightRimGlow: 0.15, // the search circle's lit edge
 
     /* ================================================================ */
     /* 6 · THE SPORES — orbiting the host                                */
@@ -127,7 +161,7 @@ export default {
     sporeSpeed: 0.8, // radians/second round the host
     sporeRise: 0.45, // metres/second they climb before wrapping
     sporeSize: 1, // size multiplier
-    sporeGlow: 1.6,
+    sporeGlow: 1.0,
 
     /* ================================================================ */
     /* 7 · PARTICLES                                                     */

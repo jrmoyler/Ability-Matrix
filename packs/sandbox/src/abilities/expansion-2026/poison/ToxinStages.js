@@ -97,7 +97,7 @@ const STAGE_FRAGMENT = /* glsl */ `
     float n = snoise01(vec3(p * 5.0, uStage * 3.1));
     if (n < uProgress * uProgress * 0.9 - (0.6 - r)) discard;
     vec3 color = mix(uColor, uCore, clamp(ridges * 0.5 + rim * 0.3 + uStage * 0.08 + vHeight, 0.0, 1.0)) * uGlobalGlow;
-    gl_FragColor = vec4(color, clamp((0.16 + ridges * 0.45 + rim * 0.3) * uFade, 0.0, 1.0));
+    gl_FragColor = vec4(color, clamp((0.05 + ridges * 0.4 + rim * 0.25) * uFade, 0.0, 1.0));
   }
 `;
 
@@ -142,10 +142,13 @@ export class ToxinStages {
     this.primary = new Color();
     this.core = new Color();
     this.dark = new Color();
+    this.deep = new Color();
     this.meshes = [];
     this.materials = [];
     // Burst/decal options, one record reused for every stage.
-    this._burst = { radius: 0.08, endRadius: 1, life: 0.35, intensity: 1, opacity: 0.55, colorA: this.core, colorB: this.primary, colorC: this.dark };
+    // The shells ride the ramp's lower stops (body → deep), so a growing
+    // generation never washes the colony out with a pale ball.
+    this._burst = { radius: 0.08, endRadius: 1, life: 0.35, intensity: 1, opacity: 0.4, colorA: this.primary, colorB: this.dark, colorC: this.deep };
     this._decal = { radius: 1, life: 0.45, intensity: 1, width: 0.04, colorA: this.primary, colorB: this.dark };
     this._spores = { radius: 0.4, speed: 0.45, size: 0.09, life: 1.3 };
     for (let i = 0; i < 3; i++) {
@@ -173,6 +176,7 @@ export class ToxinStages {
     this.primary.copy(getColor(c.toxinColor));
     this.core.copy(getColor(c.coreColor));
     this.dark.copy(this.primary).multiplyScalar(0.25);
+    this.deep.copy(getColor(c.deepColor ?? '#0b1806'));
     const scale = Math.max(0.25, Math.min(3, c.stageCueScale ?? 1));
     // Bounded by the bridge's 5 m radius limit whatever the slider says.
     const radius = Math.min(5, (0.8 + stage * 0.35) * scale);

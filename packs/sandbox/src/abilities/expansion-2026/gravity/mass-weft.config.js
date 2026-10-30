@@ -55,6 +55,25 @@ export default {
     damage: 0.35, // damage per strike (a fresh sandbox dummy has 1)
 
     /* ================================================================ */
+    /* 0 · THE LOOM ARCHES — the hero: stone frames over the corridor    */
+    /* ================================================================ */
+    archCount: 4, // arches standing down the corridor (0..8), spaced evenly
+    archHeight: 1.45, // metres tall at the keystone
+    archReach: 0.62, // they cover this share of the corridor from the caster; the far end stays open
+    archSpan: 1.3, // span, × the corridor's full width (2 × zoneRadius)
+    archDepth: 1.6, // section thickness along the corridor (× authored)
+    archRiseTime: 0.35, // seconds an arch takes to heave out of the floor
+    archBeat: 0.45, // seconds of one beat (lift, slam, recoil)
+    archSlam: 0.22, // how far a beat drives the arch down, × its height
+    archSwing: 0.32, // radians a beat leans the arch toward the front
+    archFlare: 1.2, // seam flare as the wave beats it in
+    archSeamGlow: 1, // glow of the cracks and runes in the stone
+    archRunes: 1, // strength of the rune bands marching along the frame
+    archGloss: 0.8, // specular sheen of the stone
+    archColor: '#221b33', // the stone itself
+    waveTime: 0.55, // seconds a strike wave takes to run caster → front
+
+    /* ================================================================ */
     /* 1 · THE WEFT RIBBON — the corridor drawn on the floor             */
     /* ================================================================ */
     travelWidth: 1, // corridor width while the shuttle is still flying, × zoneRadius
@@ -70,12 +89,19 @@ export default {
     /* ================================================================ */
     floorWidth: 2.6, // floor width, × zoneRadius
     floorSag: 1, // how hard the threads pinch toward the spine
-    floorOpacity: 0.6, // darkness of the well
+    floorOpacity: 0.85, // darkness of the well
     weaveDensity: 6, // threads across the corridor
-    weaveThread: 0.08, // thread thickness (fraction of a cell)
-    weaveGlow: 1.2, // thread brightness
+    weaveThread: 0.05, // thread thickness (fraction of a cell)
+    weaveGlow: 0.6, // thread brightness (the weave rides on the filled field)
+    fieldGlow: 1.3, // emissive gain of the filled bent-space field
+    fieldFlow: 0.6, // how fast its bands drag toward the front
+    rimGlow: 1, // the crushed lip along the capsule edge
+    waveWidth: 0.45, // metres of the strike wave's bright front
+    scarCount: 4, // CRACK decals laid down the corridor at lock-in
+    scarScale: 1.4, // their radius, × zoneRadius
+    scarGlow: 0.6, // their glow
     weftColor: '#c9b8ff', // the threads
-    voidColor: '#120d1c', // the well, and the shuttle's body
+    voidColor: '#0e0819', // deep stop: the well, the stone's shadow, the shuttle's body
 
     /* ================================================================ */
     /* 3 · FILAMENTS + HEDDLES — the twist round the corridor            */
@@ -84,6 +110,7 @@ export default {
     filamentTwist: 0.45, // radians/second the pair counter-rotates
     filamentGlow: 1, // emissive gain
     filamentBeads: 60, // beads of light along each thread
+    filamentBulge: 1.2, // how much a thread swells where a strike wave passes
     ringScale: 1, // heddle ring size, × corridor width (≤ 1)
     ringSpin: 0.7, // radians/second the heddles turn
     ringTilt: 0.45, // radians every other heddle leans
@@ -92,7 +119,7 @@ export default {
     /* ================================================================ */
     /* 4 · THE SHUTTLE — the core that flies the line                    */
     /* ================================================================ */
-    coreScale: 0.7, // shuttle size
+    coreScale: 1.3, // shuttle size
     coreHeight: 0.6, // metres off the floor
     corePulse: 0.15, // how much it throbs while the corridor stands
     coreSpin: 3, // radians/second it rolls about its long axis in flight
@@ -107,9 +134,20 @@ export default {
     compressionScale: 1, // compression ring size
     compressionDuration: 0.5, // seconds a compression wave runs
     compressionGlow: 1, // emissive gain
-    contactScale: 1, // contact rosette size, × zoneRadius
+    contactScale: 1.3, // contact rosette size, × zoneRadius
     contactDuration: 0.6, // seconds a rosette lasts
-    contactGlow: 0.8, // rosette, burst and decal strength
+    contactGlow: 1.2, // rosette, burst and decal strength
+    weightScale: 1.9, // loom weight size, × zoneRadius (clamped 0.6..1.6)
+    weightDrop: 2.4, // metres above the body the weight is released
+    weightFall: 0.22, // seconds it takes to land (burst + crack on landing)
+    weightLinger: 1.4, // seconds it settles, sinks and dissolves
+    weightSink: 0.55, // how far it sinks into the floor, × its size
+    weightGlow: 1.4, // its seams' flare on landing
+    weightShake: 0.12, // trauma on each landing (× explosionIntensity)
+    threadLength: 7, // metres of warp thread the weight hangs from
+    threadWidth: 0.05, // its radius, metres
+    threadSnap: 0.35, // seconds it takes to snap and whip away after landing
+    threadGlow: 1.2, // its brightness
 
     /* ================================================================ */
     /* 6 · THE LENS — screen-space pull toward the spine                 */
@@ -149,7 +187,9 @@ export default {
     flashColor: '#e6dcff',
 
     /* --- palette --- */
-    gravityColor: '#9f8fbe', // bent space
-    coreColor: '#efe4ff' // the light the weft carries
+    // Four-stop ramp: core (white-hot) → tint → body (saturated) → deep (voidColor).
+    gravityColor: '#7b4fe0', // body: bent space, saturated violet
+    tintColor: '#c4a8ff', // tint: the pale violet between body and core
+    coreColor: '#f7f1ff' // core: the light the weft carries
   }
 };

@@ -67,9 +67,9 @@ export default {
     formNoise: 0.22, // how ragged the assembly front is, metres
     formNoiseScale: 3.5, // features per metre in that front
     formGlow: 4.0, // brightness of the seam
-    rimStrength: 2.2, // fresnel rim
-    rimPower: 2.4, // rim thinness
-    fill: 0.6, // how much of the body itself glows, under the rim
+    rimStrength: 1.6, // fresnel rim
+    rimPower: 3.2, // rim thinness
+    fill: 0.24, // how much of the body itself glows, under the rim
     bandDensity: 9, // interference bands per metre
     bandSpeed: 2.4, // how fast the bands roll up the body
     bandSharpness: 3.0, // higher = thinner bands
@@ -80,11 +80,13 @@ export default {
     flickerRate: 14, // strobe re-rolls per second
     glitch: 0.018, // metres the slice tearing throws a band sideways
     glitchSlices: 26, // slices up the body
-    bodyGlow: 2.6,
-    bodyOpacity: 0.85,
-    colorBodyRim: '#a8d8ff',
-    colorBodyBand: '#e8f4ff',
-    colorBodyEdge: '#ffffff', // the assembly seam
+    bodyGlow: 1.6,
+    bodyOpacity: 0.9,
+    bodyCover: 0.78, // how much the copy's dark glass covers what is behind it — the silhouette
+    colorBodyRim: '#cfe6ff', // pale tint: the fresnel outline
+    colorBodyBand: '#7a7cff', // saturated body: the interference bands
+    colorBodyEdge: '#ffffff', // the assembly seam (core — the only stop above 1)
+    colorBodyDeep: '#1a0f4a', // deep violet glass inside the outline
 
     /* --- 2 · afterimages: the chromatic ghosts trailing the copy --- */
     afterCount: 2, // 0..2
@@ -108,29 +110,30 @@ export default {
     /* ================================================================ */
     poolRadius: 0.95, // × zoneRadius
     poolGrowTime: 0.5, // seconds to spread after landing
-    poolRings: 7, // interference rings across the radius
-    poolRingSpeed: 0.6, // how fast they run outward
-    poolRingWidth: 0.05, // ring thickness, fraction of the radius
-    poolIridescence: 0.7, // how much the rings shift hue
+    poolRings: 4, // interference ripples across the radius (broken into wavelets)
+    poolRingSpeed: 0.5, // how fast they run outward
+    poolRingWidth: 0.035, // ring thickness, fraction of the radius
+    poolIridescence: 0.5, // how much the rings shift hue
     poolShimmer: 0.35, // heat shimmer bending the rings
     poolShimmerScale: 2.2,
-    poolEdgeGlow: 1.4, // the bright rim at the edge of the pool
-    poolGlow: 0.7,
+    poolEdgeGlow: 0.85, // the bright rim at the edge of the pool
+    poolGlow: 0.45,
     poolOpacity: 0.82, // how much the lake darkens the floor
-    poolSky: 1.0, // how much sky the lake mirrors
+    poolSky: 0.7, // how much sky the lake mirrors
     poolFlare: 2.0, // how much it flares on the burst
     colorPoolA: '#bfe4ff',
     colorPoolB: '#7f9cff',
     colorPoolC: '#f0b8ff',
-    colorPoolDeep: '#0a0c26', // the deep tone: the water that is not there
+    colorPoolDeep: '#0b0826', // the deep tone: the water that is not there
 
     /* --- 3b · the reflection: the copy upside down in the lake --- */
-    reflectStrength: 0.8,
-    reflectFade: 2.2, // metres of depth over which it fades
+    reflectStrength: 0.95,
+    reflectCover: 0.55, // how much the reflected dark glass darkens the lake
+    reflectFade: 3.2, // metres of depth over which it fades
     reflectRipple: 0.07, // metres it wavers sideways
     reflectRippleFreq: 1.4, // ripples per metre
     reflectRippleSpeed: 4,
-    colorReflect: '#9fb8ff',
+    colorReflect: '#7f8cff',
 
     /* ================================================================ */
     /* 3c · THE HEAT VEIL (the authored hero shape)                      */
@@ -150,8 +153,10 @@ export default {
     veilGlow: 1.3,
     veilOpacity: 0.55,
     veilBands: 5, // interference bands up a ribbon
-    colorVeil: '#6f7cff',
-    colorVeilTint: '#e8d4ff',
+    veilCover: 0.4, // how much the smoky tips cover the sky behind (deep stop)
+    colorVeil: '#6f7cff', // body
+    colorVeilTint: '#e8d4ff', // pale tint
+    colorVeilDeep: '#24106a', // deep violet the tongues smoke out to
 
     /* ================================================================ */
     /* 4 · HEAT HAZE (screen-space)                                      */

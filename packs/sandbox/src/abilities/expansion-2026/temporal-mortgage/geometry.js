@@ -54,6 +54,7 @@ const _cz = new Float32Array(SPRING_SEGMENTS + 1);
 const _nx = new Float32Array(SPRING_SEGMENTS + 1);
 const _nz = new Float32Array(SPRING_SEGMENTS + 1);
 const _h = new Float32Array(SPRING_SEGMENTS + 1);
+const _b = new Float32Array(SPRING_SEGMENTS + 1);
 
 /**
  * The band's buffers: positions and normals are written by `writeSpring`;
@@ -104,10 +105,15 @@ export function createSpringGeometry() {
  * angle θ maps to (cos θ, sin θ) on (x, z)).
  *
  * @param {BufferGeometry} g
- * @param {object} p { r0, rOut, phi, psi, height, thick, wave, wavePhase, hookCurl, hookShare }
+ * @param {object} p { r0, rOut, phi, psi, height, thick, wave, wavePhase, hookCurl, hookShare, taper }
  *   r0/rOut: inner / outer radius (m); phi: total turn (rad); psi: angle of the
  *   inner end; height (m); thick (m); wave: height ripple (fraction);
- *   hookCurl (rad) and hookShare (fraction of the band) shape the outer hook.
+ *   hookCurl (rad) and hookShare (fraction of the band) shape the outer hook;
+ *   taper: how much lower the outer end stands than the inner (fraction);
+ *   ribbon (m, optional): the band's own width — when set, the band's foot
+ *   lifts off the floor to (top − ribbon), so the coil climbs as a conical
+ *   helix toward the arbor (a visible pitch) and only the free outer end
+ *   rests on the floor.
  */
 export function writeSpring(g, p) {
   const S = SPRING_SEGMENTS;
@@ -127,7 +133,10 @@ export function writeSpring(g, p) {
     _cx[i] = Math.cos(theta) * r;
     _cz[i] = Math.sin(theta) * r;
     // Height ripples travel along the band; the inner coils stay quiet.
-    _h[i] = p.height * (1 + p.wave * s * Math.sin(s * 23 - p.wavePhase));
+    // The band steps down toward its outer end (`taper`), so from a low camera
+    // every inner coil shows above the one outside it and the spiral reads.
+    _h[i] = p.height * (1 - (p.taper ?? 0) * s) * (1 + p.wave * s * Math.sin(s * 23 - p.wavePhase));
+    _b[i] = p.ribbon > 0 ? Math.max(0, _h[i] - p.ribbon) : 0;
   }
   // 2 · in-plane normals from the centre line (outward = tangent turned −90°)
   for (let i = 0; i <= S; i++) {
@@ -151,12 +160,13 @@ export function writeSpring(g, p) {
     const ix = _cx[i] - nx * half, iz = _cz[i] - nz * half;
     const ox = _cx[i] + nx * half, oz = _cz[i] + nz * half;
     const top = _h[i];
+    const foot = _b[i];
     // inner face (bottom, top)
-    put(i * 2, ix, 0, iz, -nx, 0, -nz);
+    put(i * 2, ix, foot, iz, -nx, 0, -nz);
     put(i * 2 + 1, ix, top, iz, -nx, 0, -nz);
     // outer face
     let v = STRIP_VERTS + i * 2;
-    put(v, ox, 0, oz, nx, 0, nz);
+    put(v, ox, foot, oz, nx, 0, nz);
     put(v + 1, ox, top, oz, nx, 0, nz);
     // top edge (inner, outer)
     v = STRIP_VERTS * 2 + i * 2;
@@ -164,8 +174,8 @@ export function writeSpring(g, p) {
     put(v + 1, ox, top, oz, 0, 1, 0);
     // bottom edge
     v = STRIP_VERTS * 3 + i * 2;
-    put(v, ix, 0, iz, 0, -1, 0);
-    put(v + 1, ox, 0, oz, 0, -1, 0);
+    put(v, ix, foot, iz, 0, -1, 0);
+    put(v + 1, ox, foot, oz, 0, -1, 0);
   }
   // 4 · caps
   for (let c = 0; c < 2; c++) {
@@ -176,10 +186,10 @@ export function writeSpring(g, p) {
     tx /= l; tz /= l;
     const nx = _nx[i], nz = _nz[i];
     const base = STRIP_VERTS * 4 + c * 4;
-    put(base, _cx[i] - nx * half, 0, _cz[i] - nz * half, tx, 0, tz);
+    put(base, _cx[i] - nx * half, _b[i], _cz[i] - nz * half, tx, 0, tz);
     put(base + 1, _cx[i] - nx * half, _h[i], _cz[i] - nz * half, tx, 0, tz);
     put(base + 2, _cx[i] + nx * half, _h[i], _cz[i] + nz * half, tx, 0, tz);
-    put(base + 3, _cx[i] + nx * half, 0, _cz[i] + nz * half, tx, 0, tz);
+    put(base + 3, _cx[i] + nx * half, _b[i], _cz[i] + nz * half, tx, 0, tz);
   }
   g.attributes.position.needsUpdate = true;
   g.attributes.normal.needsUpdate = true;

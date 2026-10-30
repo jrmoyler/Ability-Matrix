@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -438,4 +438,233 @@ export function createInheritanceSealMaterial(tier) {
     fragmentShader: SEAL_FRAGMENT,
     uniforms: { uProgress: { value: 0 }, uTier: { value: tier }, uFade: { value: 0 } }
   });
+}
+
+/* ---------------------------------------------------------------------- */
+/* The nightshade bell, the blight and the creeping roots                  */
+/* ---------------------------------------------------------------------- */
+
+/** The shade's four-stop ramp: pale core → lilac → violet body → void. */
+const SHADE_RAMP = /* glsl */ `
+  uniform vec3 uRampA;
+  uniform vec3 uRampB;
+  uniform vec3 uRampC;
+  uniform vec3 uRampD;
+  vec3 shadeRamp(float k) {
+    k = clamp(k, 0.0, 1.0);
+    vec3 a = mix(uRampD, uRampC, smoothstep(0.0, 0.36, k));
+    vec3 b = mix(a, uRampB, smoothstep(0.34, 0.72, k));
+    return mix(b, uRampA, smoothstep(0.7, 1.0, k));
+  }
+`;
+
+function rampUniforms() {
+  return {
+    uRampA: { value: new Color('#f3eaff') },
+    uRampB: { value: new Color('#c7a7ff') },
+    uRampC: { value: new Color('#7b45c9') },
+    uRampD: { value: new Color('#0b0612') }
+  };
+}
+
+/**
+ * The bell petals: matter, not light. A glossy, waxy `MeshStandardMaterial`
+ * (sun-lit, shadow-casting, `LAYER.WORLD`), near-black aubergine, patched
+ * with a vein network that floods violet on the hunger beat (white at the
+ * midrib's root), a lilac rim on the margin, and a tip-down wither dissolve
+ * with a pale burning edge.
+ */
+export function createNightshadePetalMaterial() {
+  const material = new MeshStandardMaterial({
+    color: 0x1b1027,
+    roughness: 0.32,
+    metalness: 0.08,
+    side: DoubleSide
+  });
+  const u = {
+    uPetalClock: { value: 0 },
+    uPetalHunger: { value: 0 },
+    uPetalWither: { value: 0 },
+    uPetalGlow: { value: 1 },
+    uPetalGrow: { value: 1 },
+    ...rampUniforms()
+  };
+  material.userData.petal = u;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying vec2 vPetalUv;\nvarying vec3 vPetalWorld;`)
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+        vPetalUv = uv;
+        {
+          vec4 pw = vec4(transformed, 1.0);
+          #ifdef USE_INSTANCING
+            pw = instanceMatrix * pw;
+          #endif
+          vPetalWorld = (modelMatrix * pw).xyz;
+        }`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uPetalClock;
+        uniform float uPetalHunger;
+        uniform float uPetalWither;
+        uniform float uPetalGlow;
+        uniform float uPetalGrow;
+        varying vec2 vPetalUv;
+        varying vec3 vPetalWorld;
+        ${SHADE_RAMP}
+        ${noiseGLSL}`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float petalMottle = snoise01(vPetalWorld * vec3(3.0, 1.5, 3.0));
+        diffuseColor.rgb *= 0.6 + 0.8 * petalMottle;
+        // Deepest at the throat, a little bloom of colour toward the lobes.
+        diffuseColor.rgb = mix(diffuseColor.rgb, uRampC * 0.35, smoothstep(0.55, 1.0, vPetalUv.y) * 0.5);`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          float s = abs(vPetalUv.x - 0.5) * 2.0;
+          float t = vPetalUv.y;
+          // Tip-down wither with a pale burning edge.
+          float keep = (1.08 - uPetalWither * 1.25) - t + snoise(vPetalWorld * 3.0) * 0.12;
+          if (keep < 0.0) discard;
+          float burn = 1.0 - smoothstep(0.0, 0.07, keep);
+          // Midrib and branching laterals that sweep up toward the margin.
+          float midrib = exp(-s * s * 220.0);
+          float lateral = pow(max(0.0, cos((t * 9.0 - s * 2.4) * 3.14159)), 24.0) * smoothstep(0.05, 0.25, s) * (1.0 - s);
+          float fine = pow(1.0 - abs(snoise(vec3(vPetalUv * vec2(9.0, 14.0), uPetalClock * 0.1))), 14.0);
+          float veins = max(midrib, max(lateral, fine * 0.6));
+          // The hunger floods the veins from the root upward.
+          float flood = smoothstep(uPetalHunger * 1.2 - 0.1, uPetalHunger * 1.2 - 0.5, t);
+          float vk = 0.45 + 0.4 * flood + 0.15 * (1.0 - t);
+          float margin = smoothstep(0.82, 1.0, s);
+          totalEmissiveRadiance += shadeRamp(vk) * veins * uPetalGlow * (0.35 + 0.9 * flood)
+                                 + uRampB * margin * uPetalGlow * 0.25
+                                 + uRampA * burn * 2.5;
+        }`
+      );
+  };
+  material.customProgramCacheKey = () => 'nightshade-petal-v1';
+  return material;
+}
+
+/**
+ * The blight: the zone-sized floor the shade lands in. Normal-blended
+ * darkness (the void tone) with a ragged rim, root veins that creep out from
+ * the centre as it spreads, a slow inward swirl, and the arrival shock ring
+ * running out to the circle's edge.
+ */
+const BLIGHT_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uSpread;   // 0..1 how far the blight has crept
+  uniform float uShock;    // 0..1 the arrival ring running out (1 = gone)
+  uniform float uHunger;
+  uniform float uGlow;
+  uniform float uDarkness;
+  uniform float uShaderIntensity;
+  ${SURFACE_VARYINGS}
+  ${noiseGLSL}
+  ${SHADE_RAMP}
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    float a = atan(p.y, p.x);
+    vec2 q = rot2(uClock * 0.15 + r * 1.5) * p;
+    float n = fbm3(vec3(q * 2.5, uClock * 0.2));
+    float reach = uSpread * (0.92 + 0.12 * n);
+    float body = 1.0 - smoothstep(reach - 0.22, reach, r);
+    // Roots: angular ridges of noise, bent as they run out, thinning at the tips.
+    float roots = pow(1.0 - abs(snoise(vec3(a * 3.0 + r * 2.0, r * 3.5, 2.3))), 22.0);
+    roots += pow(1.0 - abs(snoise(vec3(a * 5.0 - r * 3.0, r * 6.0, 7.1))), 30.0) * 0.6;
+    roots *= smoothstep(reach + 0.05, reach - 0.1, r) * smoothstep(0.05, 0.2, r);
+    float pulse = 0.6 + 0.4 * sin(r * 14.0 - uClock * 3.0);
+    float shockR = 0.08 + uShock * 0.95;
+    float shock = exp(-pow((r - shockR) * 22.0, 2.0)) * (1.0 - uShock);
+    vec3 col = uRampD * (0.6 + 0.6 * n);
+    float glow = roots * pulse * (0.5 + uHunger) + shock * 1.5;
+    col += shadeRamp(0.45 + roots * 0.4 + shock * 0.6) * glow * uGlow * uShaderIntensity;
+    float alpha = (body * uDarkness + glow * 0.6) * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createBlightMaterial() {
+  const m = shadowMaterial({
+    fragmentShader: BLIGHT_FRAGMENT,
+    uniforms: {
+      uFade: { value: 0 },
+      uSpread: { value: 0 },
+      uShock: { value: 1 },
+      uHunger: { value: 0 },
+      uDarkness: { value: 0.8 },
+      ...rampUniforms()
+    }
+  });
+  m.side = DoubleSide;
+  return m;
+}
+
+/**
+ * A creeping root on the floor: the shade's wake from the caster to the
+ * circle, and the tendrils that reach from a host toward the enemies that
+ * would inherit it. The strip writhes sideways in the vertex stage; the
+ * fragment draws a dark core with a violet vein racing to `uReveal`.
+ */
+const ROOT_DISPLACE = /* glsl */ `
+  p.z *= 0.35 + 0.65 * sin(3.14159 * clamp(uv.x * 1.05, 0.0, 1.0));
+  p.z += snoise(vec3(uv.x * 4.0 * uLength * 0.25, uClock * 0.6, 3.7)) * 0.15 * sin(3.14159 * uv.x);
+`;
+
+const ROOT_FRAGMENT = /* glsl */ `
+  uniform float uClock;
+  uniform float uFade;
+  uniform float uReveal;
+  uniform float uGlow;
+  uniform float uLength;
+  uniform float uShaderIntensity;
+  ${SURFACE_VARYINGS}
+  ${noiseGLSL}
+  ${SHADE_RAMP}
+  void main() {
+    float across = abs(vUv.y - 0.5) * 2.0;
+    float n = snoise(vec3(vUv.x * uLength * 2.0, vUv.y * 3.0, uClock * 0.4));
+    float body = 1.0 - smoothstep(0.25 + 0.25 * n, 0.9, across);
+    float head = uReveal - vUv.x;
+    if (head < 0.0) discard;
+    float tip = exp(-head * uLength * 1.5);
+    float core = exp(-across * across * 9.0);
+    float flow = 0.55 + 0.45 * sin(vUv.x * uLength * 4.0 - uClock * 6.0);
+    vec3 col = uRampD + shadeRamp(0.4 + core * 0.35 + tip * 0.4) * (core * flow + tip * 1.5) * uGlow * uShaderIntensity;
+    float alpha = (body * 0.9 + core * 0.6 + tip) * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createRootMaterial() {
+  return shadowMaterial({
+    vertexShader: surfaceVertex(ROOT_DISPLACE, 'uniform float uLength;'),
+    fragmentShader: ROOT_FRAGMENT,
+    uniforms: { uFade: { value: 0 }, uReveal: { value: 0 }, uLength: { value: 1 }, ...rampUniforms() }
+  });
+}
+
+/** Copy the four-stop shade ramp (hex strings) into any of these materials' ramp uniforms. */
+export function syncShadeRamp(u, a, b, c, d, getColor) {
+  u.uRampA.value.copy(getColor(a));
+  u.uRampB.value.copy(getColor(b));
+  u.uRampC.value.copy(getColor(c));
+  u.uRampD.value.copy(getColor(d));
 }

@@ -166,3 +166,57 @@ export function nightshadeSigilGeometry() {
   }
   return finish(positions, uvs, indices);
 }
+
+/**
+ * The hero: one petal of the giant nightshade bell that closes over a host.
+ * A cupped, pointed blade in unit space — `x` across (±0.5 at its widest),
+ * `y` up (0 → 1), `z` outward from the bell's axis in units of the bell's
+ * seat radius: it bellies out (z ≈ +0.3) and its tip curls in over the host
+ * (z ≈ -0.9), so instancing it round a ring with scale (width, height, seat)
+ * builds a closed bell of any size. The section is cupped toward the axis
+ * and a raised midrib runs up it; the tip is drawn out to a hooked point.
+ * `uv.x` across (0..1, midrib at 0.5), `uv.y` root → tip.
+ */
+export function nightshadePetalGeometry() {
+  const ROWS = 28;
+  const COLS = 13;
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  for (let j = 0; j < ROWS; j++) {
+    const t = j / (ROWS - 1);
+    // Width: narrow root, full shoulder, long pointed tip.
+    const w = 0.5 * Math.pow(Math.sin(Math.PI * (0.12 + 0.88 * t)), 0.7) * (1 - 0.85 * Math.pow(t, 3)) + 0.015;
+    const z0 = 0.32 * Math.sin(Math.PI * t * 0.85) - 1.05 * Math.pow(t, 2.3);
+    const y = t - 0.04;
+    for (let i = 0; i < COLS; i++) {
+      const s = (i / (COLS - 1)) * 2 - 1;
+      // Cupped toward the axis; the midrib stands proud on the outside.
+      const cup = -0.16 * (1 - s * s) * Math.sin(Math.PI * t);
+      const rib = 0.035 * Math.exp(-s * s * 60) * (1 - t);
+      // A ruffled margin.
+      const ruffle = 0.03 * Math.sin(t * 22 + s * 3) * s * s;
+      positions.push(s * w, y + ruffle * 0.5, z0 + cup + rib + ruffle);
+      uvs.push(i / (COLS - 1), t);
+    }
+  }
+  gridIndices(indices, 0, ROWS, COLS);
+  return finish(positions, uvs, indices);
+}
+
+/** A ground strip 1 m long (x 0 → 1), 1 m wide (z ±0.5), 32 segments along. */
+export function nightshadeStripGeometry() {
+  const SEG = 33;
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  for (let j = 0; j < 2; j++) {
+    for (let i = 0; i < SEG; i++) {
+      const u = i / (SEG - 1);
+      positions.push(u, 0, j - 0.5);
+      uvs.push(u, j);
+    }
+  }
+  gridIndices(indices, 0, 2, SEG);
+  return finish(positions, uvs, indices);
+}

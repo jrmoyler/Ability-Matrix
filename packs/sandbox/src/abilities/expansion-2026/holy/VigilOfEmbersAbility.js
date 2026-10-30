@@ -1,4 +1,4 @@
-import { Group, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -25,7 +25,9 @@ import {
   createVigilFloorMaterial,
   createVigilCurtainMaterial,
   createVigilShaftMaterial,
-  createVigilWarpMaterial
+  createVigilWarpMaterial,
+  createVigilGroundMaterial,
+  createVigilRunnerMaterial
 } from './VigilMaterials.js';
 
 export { vigilArchGeometry, vigilFlameGeometry, vigilCurtainGeometry } from './VigilGeometry.js';
@@ -48,6 +50,16 @@ const smooth01 = (x) => {
   return t * t * (3 - 2 * t);
 };
 
+/** A flat quad, x ∈ [-0.5, 0.5] across, z ∈ [0, 1] along; uv = (x + 0.5, z). */
+function runnerGeometry() {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array([-0.5, 0, 0, 0.5, 0, 0, -0.5, 0, 1, 0.5, 0, 1]), 3));
+  geometry.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), 2));
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+  geometry.setIndex([0, 2, 1, 1, 2, 3]);
+  return geometry;
+}
+
 const _emit = {};
 const _pos = new Vector3();
 const _up = new Vector3(0, 1, 0);
@@ -64,16 +76,32 @@ const _up = new Vector3(0, 1, 0);
  * — or if the circle was genuinely empty, which is honest to show — so a
  * refused pulse never pretends to land.
  *
+ * Anticipation and travel read as one continuous procession: the votive (a
+ * body-sized gilded shrine of three arches round a lamp flame) is carried at
+ * `travelHeight`, and behind it a **processional runner** of light is laid
+ * on the floor all the way back to the hand — gilt borders and marching rune
+ * dashes on dark bronze, hottest at the votive. As it closes in, the
+ * sanctuary **forms at the target before it arrives**: the dark consecrated
+ * ground and the sigil start to draw round, a column of light comes down onto
+ * the circle and the arches' feet begin to build (`telegraph*`). On arrival
+ * the rest of the vault rises out of that half-built state, and the runner is
+ * taken up from the hand end.
+ *
  * Layers, each a folder in the editor:
  *
- *   1. **the votive** — three arches and a flame, turning as they travel.
+ *   1. **the votive** — three arches and a flame, turning as they travel, and
+ *      the processional runner laid behind them.
  *   2. **the arches** — eight two-centred gothic arches on pillars
- *      (`vigilArchGeometry`) that *build* from their feet up with a burning
- *      noise front, carry a gilt trim and flare when a pulse climbs them.
+ *      (`vigilArchGeometry`), solid sun-lit gilded stone (pale gold falling to
+ *      dark bronze in shade), that *build* from their feet up with a burning
+ *      noise front, carry a gilt trim, and through the vigil **kindle**: veins
+ *      of light climb from the feet to the keystone while the floor runes
+ *      light one by one — the linger's own motion. A pulse climbs them too.
  *   3. **bells, lamps and crown** — four bells turned from a founder's profile
  *      that sway and ring on every pulse, four lamp flames (noise-swayed in
  *      the vertex stage, fbm tongues in the fragment) and a crown of tines.
- *   4. **floor and column** — a consecrated sigil drawn round by a sweep, its
+ *   4. **floor and column** — dark bronze consecrated ground (the deep stop)
+ *      under a consecrated sigil drawn round by a sweep, its
  *      rings at the true damage radius, rune cells, spokes aligned with the
  *      arches and the pulse wave; a god-ray column from the crown; heat
  *      shimmer over the lamps on `LAYER.DISTORTION`.
@@ -148,6 +176,8 @@ export class VigilOfEmbersAbility extends Ability {
     this.group.add(this.rig);
 
     this.mat = m(createVigilArchMaterial());
+    /** The votive's own arches: always fully built while the vault at the target forms. */
+    this.votiveMat = m(createVigilArchMaterial());
     this.bellMat = m(createVigilGiltMaterial());
     this.crownMat = m(createVigilGiltMaterial());
     this.flameMat = m(createVigilFlameMaterial());
@@ -157,7 +187,14 @@ export class VigilOfEmbersAbility extends Ability {
     this.pulseEffects = new VigilPulses(this.group, this.ctx, this.atmosphere, g, m);
 
     /* ---- 4 · the consecrated floor ---- */
-    this.floor = new Mesh(g(new PlaneGeometry(2, 2)), this.floorMat);
+    const quad = g(new PlaneGeometry(2, 2));
+    this.groundMat = m(createVigilGroundMaterial());
+    this.ground = new Mesh(quad, this.groundMat);
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.position.y = 0.032;
+    this.ground.renderOrder = -2;
+    this.rig.add(this.ground);
+    this.floor = new Mesh(quad, this.floorMat);
     this.floor.rotation.x = -Math.PI / 2;
     this.floor.position.y = 0.04;
     this.rig.add(this.floor);
@@ -227,7 +264,7 @@ export class VigilOfEmbersAbility extends Ability {
     this.travelVigil.visible = false;
     this.group.add(this.travelVigil);
     for (let i = 0; i < TRAVEL_ARCHES; i++) {
-      const a = new Mesh(arch, this.mat);
+      const a = new Mesh(arch, this.votiveMat);
       a.rotation.y = (i * TAU) / TRAVEL_ARCHES;
       // Small, and lifted so the pillars stand on the votive's base.
       a.scale.setScalar(0.45);
@@ -239,7 +276,15 @@ export class VigilOfEmbersAbility extends Ability {
     travelFlame.scale.setScalar(0.55);
     this.travelVigil.add(travelFlame);
 
-    for (const root of [this.rig, this.travelVigil]) {
+    /* ---- 1 · the processional runner laid behind the votive ---- */
+    this.runnerMat = m(createVigilRunnerMaterial());
+    this.runner = new Mesh(g(runnerGeometry()), this.runnerMat);
+    this.runner.visible = false;
+    this.runner.renderOrder = -1;
+    this.group.add(this.runner);
+    this._runnerFront = 0;
+
+    for (const root of [this.rig, this.travelVigil, this.runner]) {
       root.traverse((n) => {
         if (!n.isMesh) return;
         n.layers.set(LAYER.VFX);
@@ -258,6 +303,36 @@ export class VigilOfEmbersAbility extends Ability {
     this.nextPulse = 0;
     this.pulseAt = -1;
     this.failure = null;
+    /** How far the sanctuary had formed at the target before the votive arrived, 0..1. */
+    this._pre = 0;
+  }
+
+  /** Bells, lamps and crown appear only once the votive has arrived. */
+  _showUpperRig(visible) {
+    for (const b of this.bells) b.visible = visible;
+    for (const f of this.flames) f.visible = visible;
+    this.crown.visible = visible;
+  }
+
+  /** The runner from the hand to `front` metres along the line; `take` 0..1 lifts it from the hand end. */
+  _runner(front, take) {
+    const c = this.config;
+    const start = 0.4;
+    const length = Math.max(0.01, front - start);
+    this.runner.position.copy(this.origin).addScaledVector(this.direction, start);
+    this.runner.position.y = 0.03;
+    this.runner.rotation.y = Math.atan2(this.direction.x, this.direction.z);
+    this.runner.scale.set(c.runnerWidth ?? 1.1, 1, length);
+    const u = this.runnerMat.uniforms;
+    u.uClock.value = this.reduceMotion ? 0 : this.age;
+    u.uFront.value = length;
+    u.uTake.value = take;
+    u.uFade.value = 1;
+    u.uGlow.value = (c.runnerGlow ?? 1) * settings.global.glow;
+    u.uColor.value.copy(getColor(c.holyColor));
+    u.uCore.value.copy(getColor(c.coreColor));
+    u.uDeep.value.copy(getColor(c.deepColor ?? '#3a2209'));
+    this.runner.visible = front > start + 0.05 && take < 1;
   }
 
   createParticles() {
@@ -309,6 +384,10 @@ export class VigilOfEmbersAbility extends Ability {
     this.travelVigil.position.copy(this.origin);
     this.nextPulse = 0;
     this.pulseAt = -1;
+    this._pre = 0;
+    this._runnerFront = 0;
+    this.runner.visible = false;
+    this._showUpperRig(true);
   }
 
   _syncParticles() {
@@ -373,14 +452,17 @@ export class VigilOfEmbersAbility extends Ability {
     this.travelVigil.rotation.y = t * (c.travelSpin ?? 0.8);
     this.travelVigil.scale.setScalar((c.travelScale ?? 1) * (0.4 + 0.6 * smooth01(this.age / 0.15)));
 
-    const u = this.mat.uniforms;
+    const u = this.votiveMat.uniforms;
     u.uClock.value = t;
     u.uFade.value = 1;
     u.uPulse.value = 0;
     u.uBuild.value = 1;
+    u.uKindle.value = 1;
     u.uGlow.value = (c.archGlow ?? 1) * settings.global.glow;
     u.uColor.value.copy(getColor(c.holyColor));
     u.uCore.value.copy(getColor(c.coreColor));
+    u.uStone.value.copy(getColor(c.stoneColor ?? '#e2c48e'));
+    u.uDeep.value.copy(getColor(c.deepColor ?? '#3a2209'));
     const f = this.flameMat.uniforms;
     f.uClock.value = t;
     f.uFade.value = 1;
@@ -400,6 +482,24 @@ export class VigilOfEmbersAbility extends Ability {
         this.embers.emit(count, _emit);
       }
     }
+
+    if (!this.scope) return;
+    /* --- the processional runner, laid behind the votive --- */
+    this._runnerFront = this.front;
+    this._runner(this.front, 0);
+
+    /* --- the sanctuary forms at the target before the votive arrives --- */
+    const start = c.telegraphStart ?? 0.35;
+    const pre = smooth01((this.u - start) / Math.max(0.05, 1 - start));
+    if (pre > 0) {
+      this._pre = pre;
+      this.pointAt(1, this.rig.position);
+      this.rig.visible = true;
+      this._showUpperRig(false);
+      // dt = 0: resolves the rig without pulsing or emitting.
+      this.onFade(0, 0);
+      this.warp.visible = false;
+    }
   }
 
   onImpact() {
@@ -407,6 +507,7 @@ export class VigilOfEmbersAbility extends Ability {
     if (!this.scope) return;
     this.rig.position.copy(this.position);
     this.rig.visible = true;
+    this._showUpperRig(true);
     // Arrival frame: resolve the whole rig now, unbuilt, before the first pulse.
     this.mat.uniforms.uBuild.value = 0;
     this.onFade(0, 0);
@@ -496,8 +597,19 @@ export class VigilOfEmbersAbility extends Ability {
     const flash = (sincePulse < 0 ? 0 : 1 - clamp01(sincePulse / 0.35)) * (c.pulseStrength ?? 1);
     const release = t <= 1 ? 0 : clamp01(t - 1);
     const recede = release * (c.recedeDepth ?? 1.5);
-    const build = smooth01(this.stagedTime / Math.max(0.05, c.buildTime ?? 0.55));
-    const reveal = smooth01(this.stagedTime / Math.max(0.05, c.revealTime ?? 0.6));
+    // Whatever formed before the arrival is kept; the rest builds from there.
+    const preBuild = this._pre * (c.telegraphBuild ?? 0.4);
+    const preReveal = this._pre * (c.telegraphReveal ?? 0.5);
+    const build = preBuild + (1 - preBuild) * smooth01(this.stagedTime / Math.max(0.05, c.buildTime ?? 0.55));
+    const reveal = preReveal + (1 - preReveal) * smooth01(this.stagedTime / Math.max(0.05, c.revealTime ?? 0.6));
+    // The vigil kindles: veins climb the arches, runes light, over `kindleTime`.
+    const kindle = this.phase === AbilityPhase.TRAVEL ? 0 : clamp01(this.stagedTime / Math.max(0.1, c.kindleTime ?? 2.6));
+    const deep = getColor(c.deepColor ?? '#3a2209');
+
+    /* --- the runner is taken up from the hand end after the arrival --- */
+    if (this.phase !== AbilityPhase.TRAVEL && this.runner.visible) {
+      this._runner(this._runnerFront, clamp01(this.impactTime / Math.max(0.05, c.runnerFade ?? 0.6)));
+    }
     const holy = getColor(c.holyColor);
     const core = getColor(c.coreColor);
     const gilt = getColor(c.giltColor ?? '#ffcf6a');
@@ -510,15 +622,20 @@ export class VigilOfEmbersAbility extends Ability {
     arch.uFade.value = fade;
     arch.uPulse.value = flash;
     arch.uBuild.value = build;
+    arch.uKindle.value = kindle;
     arch.uGlow.value = (c.archGlow ?? 1) * gl.glow;
     arch.uColor.value.copy(holy);
     arch.uCore.value.copy(core);
+    arch.uStone.value.copy(getColor(c.stoneColor ?? '#e2c48e'));
+    arch.uDeep.value.copy(deep);
     const archRing = c.zoneRadius * (c.archRadius ?? 0.64);
+    const archSize = (c.archScale ?? 1) * (1 - release * 0.6);
     for (let i = 0; i < this.arches.length; i++) {
       const a = (i * TAU) / this.arches.length;
       const w = this.arches[i];
-      w.position.set(Math.sin(a) * archRing, 1 - recede, Math.cos(a) * archRing);
-      w.scale.setScalar((c.archScale ?? 1) * (1 - release * 0.6));
+      // Feet on the floor at any size (the springing line sits archSize up).
+      w.position.set(Math.sin(a) * archRing, archSize - recede, Math.cos(a) * archRing);
+      w.scale.setScalar(archSize);
     }
 
     /* --- 4 · the floor --- */
@@ -528,11 +645,20 @@ export class VigilOfEmbersAbility extends Ability {
     floor.uPulse.value = sincePulse < 0 ? 0 : 1 - wave;
     floor.uWave.value = wave;
     floor.uReveal.value = reveal;
+    floor.uKindle.value = kindle;
     floor.uSpin.value = c.sigilSpin ?? 0.05;
     floor.uGlow.value = (c.floorGlow ?? 1) * gl.glow;
     floor.uColor.value.copy(holy);
     floor.uCore.value.copy(core);
     this.floor.scale.set(c.zoneRadius, c.zoneRadius, 1);
+    const ground = this.groundMat.uniforms;
+    ground.uClock.value = visualTime;
+    ground.uFade.value = fade;
+    ground.uReveal.value = reveal;
+    ground.uDark.value = (c.groundDark ?? 0.6) * gl.opacity;
+    ground.uDeep.value.copy(deep);
+    ground.uColor.value.copy(holy);
+    this.ground.scale.set(c.zoneRadius * 1.08, c.zoneRadius * 1.08, 1);
 
     /* --- 5 · the curtains, one per overlapping pulse --- */
     for (let i = 0; i < this.curtains.length; i++) {
@@ -579,13 +705,14 @@ export class VigilOfEmbersAbility extends Ability {
     bell.uColor.value.copy(holy);
     bell.uCore.value.copy(core);
     bell.uGilt.value.copy(gilt);
+    bell.uDeep.value.copy(deep);
     for (let i = 0; i < this.bells.length; i++) {
       const a = (i * TAU) / this.bells.length;
       const b = this.bells[i];
       const swing = Math.sin(visualTime * 3 + i) * (c.bellSwing ?? 0.15) + Math.sin(visualTime * 14 + i * 1.7) * (c.bellRing ?? 0.35) * flash;
       b.rotation.z = Math.PI + swing;
       b.position.set(Math.sin(a) * lampRing, (c.bellHeight ?? 2.9) - recede, Math.cos(a) * lampRing);
-      b.scale.setScalar(1 - release * 0.6);
+      b.scale.setScalar((c.bellScale ?? 1) * (1 - release * 0.6));
     }
 
     /* --- the crown --- */
@@ -598,6 +725,7 @@ export class VigilOfEmbersAbility extends Ability {
     crown.uColor.value.copy(holy);
     crown.uCore.value.copy(core);
     crown.uGilt.value.copy(gilt);
+    crown.uDeep.value.copy(deep);
     this.crown.rotation.y = visualTime * (c.crownSpin ?? 0.4);
     this.crown.position.y = (c.crownHeight ?? 3.2) - recede;
     this.crown.scale.setScalar((c.crownRadius ?? 1) * (1 - release * 0.6));
@@ -641,6 +769,7 @@ export class VigilOfEmbersAbility extends Ability {
   onDestroy() {
     this.rig.visible = false;
     this.travelVigil.visible = false;
+    this.runner.visible = false;
     this.warp.visible = false;
     for (const curtain of this.curtains) curtain.visible = false;
     this.pulseEffects.reset();
@@ -707,6 +836,12 @@ export function buildEditor(gui, c, Editor) {
   R(votive, 'travelScale', 0.25, 2, 0.05, 'size');
   R(votive, 'travelHeight', 0, 3, 0.05, 'height (m)');
   R(votive, 'travelSpin', -6, 6, 0.05, 'turn (rad/s)');
+  R(votive, 'runnerWidth', 0.1, 4, 0.05, 'runner width (m)');
+  R(votive, 'runnerGlow', 0, 4, 0.05, 'runner glow');
+  R(votive, 'runnerFade', 0.05, 3, 0.05, 'runner taken up over (s)');
+  R(votive, 'telegraphStart', 0, 0.95, 0.01, 'sanctuary forms from (× carry)');
+  R(votive, 'telegraphBuild', 0, 1, 0.01, 'arches built before arrival');
+  R(votive, 'telegraphReveal', 0, 1, 0.01, 'sigil drawn before arrival');
 
   const arches = sub(folder, '2 · Arches');
   R(arches, 'archRadius', 0.2, 1.2, 0.01, 'stand at (× radius)');
@@ -714,9 +849,13 @@ export function buildEditor(gui, c, Editor) {
   R(arches, 'archGlow', 0, 4, 0.05, 'glow');
   R(arches, 'buildTime', 0.05, 2, 0.01, 'build (s)');
   R(arches, 'recedeDepth', 0, 4, 0.1, 'sink on exit (m)');
+  R(arches, 'kindleTime', 0.1, 8, 0.05, 'veins kindle over (s)');
+  C(arches, 'stoneColor', 'gilded stone');
+  C(arches, 'deepColor', 'deep bronze');
 
   const lamps = sub(folder, '3 · Bells, lamps + crown');
   R(lamps, 'bellHeight', 1, 5, 0.05, 'bells hang at (m)');
+  R(lamps, 'bellScale', 0.25, 3, 0.05, 'bell size');
   R(lamps, 'bellRadius', 0.2, 3, 0.05, 'lamp ring (m)');
   R(lamps, 'bellSwing', 0, 0.8, 0.01, 'idle sway (rad)');
   R(lamps, 'bellRing', 0, 1.2, 0.01, 'ring swing (rad)');
@@ -733,6 +872,7 @@ export function buildEditor(gui, c, Editor) {
 
   const floor = sub(folder, '4 · Floor + column');
   R(floor, 'floorGlow', 0, 3, 0.05, 'sigil glow');
+  R(floor, 'groundDark', 0, 1, 0.01, 'consecrated ground darkness');
   R(floor, 'revealTime', 0.05, 2, 0.01, 'sigil draws in (s)');
   R(floor, 'sigilSpin', -1, 1, 0.01, 'sigil turn (rad/s)');
   R(floor, 'shaftGlow', 0, 2, 0.01, 'column glow');

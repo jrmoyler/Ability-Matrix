@@ -1,4 +1,4 @@
-import { BufferGeometry, CatmullRomCurve3, ExtrudeGeometry, Float32BufferAttribute, Shape, Vector3 } from 'three';
+import { BufferGeometry, CatmullRomCurve3, ExtrudeGeometry, Float32BufferAttribute, Shape, Sphere, Vector3 } from 'three';
 
 /**
  * Pulse Covenant — authored procedural geometry.
@@ -11,7 +11,8 @@ import { BufferGeometry, CatmullRomCurve3, ExtrudeGeometry, Float32BufferAttribu
  *                          vessels thin toward their ends like vessels do
  *  - `bloodCellGeometry`   a biconcave disc — the beads are red cells
  *  - `gateRingGeometry`    the timing gate on the floor, twelve tick marks
- *  - `pulseRingGeometry`   the flat ring a secondary pulse throws
+ *  - `pulseRingGeometry`   the flat ring a secondary pulse (and each beat wave) throws
+ *  - `threadTubeGeometry`  a parametric tube the thread shader arches to a body
  *
  * All built once per ability instance.
  */
@@ -201,4 +202,32 @@ export function pulseRingGeometry(segments = 96, rings = 4) {
     }
   }
   return finish(positions, uvs, indices);
+}
+
+/**
+ * A covenant thread in parametric form: `position` holds (t along the
+ * thread, cos, sin) round it, and the thread shader bends it along an arch
+ * from the heart to a body every frame. Built once; the target can move.
+ */
+export function threadTubeGeometry(segments = 36, radial = 7) {
+  const positions = [], uvs = [], indices = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    for (let j = 0; j <= radial; j++) {
+      const a = (j / radial) * TAU;
+      positions.push(t, Math.cos(a), Math.sin(a));
+      uvs.push(t, j / radial);
+      if (i < segments && j < radial) {
+        const v = i * (radial + 1) + j;
+        indices.push(v, v + radial + 1, v + 1, v + 1, v + radial + 1, v + radial + 2);
+      }
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  // The shader places it; a generous sphere keeps it from being culled.
+  geometry.boundingSphere = new Sphere(new Vector3(), 64);
+  return geometry;
 }

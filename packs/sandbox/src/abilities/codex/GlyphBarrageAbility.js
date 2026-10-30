@@ -17,7 +17,8 @@ import {
   createGlyphPillarMaterial,
   createGlyphPillarWarpMaterial,
   createGlyphLeyMaterial,
-  createGlyphSealMaterial
+  createGlyphSealMaterial,
+  createGlyphBindMaterial
 } from '../../materials/codex/GlyphBarrageMaterials.js';
 import { createSealGeometry } from '../../assets/codex/GlyphBarrageGeometry.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
@@ -69,6 +70,17 @@ const _seal = new Object3D();
  * print while the chain charges, and flung up its pillar when it erupts. The
  * chain now runs outward by default so it ends on the target, the pillars
  * use a four-stop ramp with a thin white axis, and each eruption leaves a burn.
+ *
+ * **Tied to the line**: while a seal hovers, a cone of rune-rain (the
+ * *binding shaft*, `createGlyphBindMaterial`) hangs from its striking face to
+ * its own print, so the floating stones read as still pressing the sigils
+ * rather than as a stack at the far end. Each slam kicks obsidian chips and a
+ * dust ring up off the floor (the stamp's 3D beat). The sigils sit on an
+ * inked plate (premultiplied: a deep floor-darkening disc with arcane ink
+ * swirling in it), and the pillars are premultiplied too, their deep walls
+ * covering what is behind them — so a chain of pillars lined up along the
+ * view converges on violet rather than summing to a white slab; HDR only in
+ * the thin axis.
  *
  * Eight layers, each a folder in the editor:
  *
@@ -148,6 +160,15 @@ export class GlyphBarrageAbility extends Ability {
       pillar.visible = false;
       this.group.add(pillar);
 
+      const bindMaterial = createGlyphBindMaterial();
+      const bind = new Mesh(this.pillarGeometry, bindMaterial);
+      bind.name = `GlyphBind${i}`;
+      bind.layers.set(LAYER.VFX);
+      bind.renderOrder = 11;
+      bind.frustumCulled = false;
+      bind.visible = false;
+      this.group.add(bind);
+
       const warpMaterial = createGlyphPillarWarpMaterial();
       const warp = new Mesh(this.pillarGeometry, warpMaterial);
       warp.name = `GlyphLens${i}`;
@@ -163,6 +184,13 @@ export class GlyphBarrageAbility extends Ability {
         pillarMaterial,
         warp,
         warpMaterial,
+        bind,
+        bindMaterial,
+        bindState: { foot: 1, top: 0.5, height: 1, intensity: 0, seed: 0 },
+        /** Where its seal is this frame (written by `_sealFrame`). */
+        sealY: 0,
+        sealR: 0,
+        sealLift: 0,
         /** Dice, rolled at spawn. */
         lat: 0,
         spin: 0,
@@ -413,6 +441,8 @@ export class GlyphBarrageAbility extends Ability {
       rec.sigil.visible = false;
       rec.pillar.visible = false;
       rec.warp.visible = false;
+      rec.bind.visible = false;
+      rec.sealLift = 0;
     }
     this._layout();
 
@@ -464,7 +494,7 @@ export class GlyphBarrageAbility extends Ability {
     const R = Math.max(0.1, c.glyphRadius);
     const S = c.sealSize * R;
     let x = rec.x, z = rec.z, y = 0;
-    let grow = 1, squash = 0, glow = 0.4, yaw = rec.spin, tilt = 0;
+    let grow = 1, squash = 0, glow = 0.4, yaw = rec.spin, tilt = 0, lifted = 0;
     if (rec.stampAt < 0) {
       // In flight: thrown from `sealLead` metres back down the line.
       const from = Math.max(0.5, rec.along - c.sealLead);
@@ -490,6 +520,7 @@ export class GlyphBarrageAbility extends Ability {
       } else {
         const k = saturate((sa - c.sealDwell) / Math.max(0.02, c.sealRiseTime));
         y = c.sealHover * Easing.outBack(k) + c.sealBob * Math.sin(this.age * 3 + rec.seed) * k;
+        lifted = k;
       }
       // The stamp flare, then the chain's throb; tipped toward its print.
       glow = 0.5 + 2.4 * Math.exp(-sa / 0.15) + rec.charge * 1.2;
@@ -499,9 +530,13 @@ export class GlyphBarrageAbility extends Ability {
         grow = 1 - Easing.inQuad(saturate(e / Math.max(0.02, c.sealGone)));
         yaw += e * 9;
         glow = 3.5;
+        lifted *= 1 - saturate(e / 0.12);
       }
     }
     grow *= 1 - fadeT;
+    rec.sealY = y;
+    rec.sealR = S * grow;
+    rec.sealLift = lifted * grow;
     _seal.position.set(x, y, z);
     _seal.rotation.set(tilt * Math.cos(rec.seed), yaw, tilt * Math.sin(rec.seed));
     _seal.scale.set(S * grow * (1 + squash * 0.5), S * c.sealHeight * grow * (1 - squash), S * grow * (1 + squash * 0.5));
@@ -557,7 +592,7 @@ export class GlyphBarrageAbility extends Ability {
       // Lands oversized and is pressed down into the floor.
       s.scale = 1 + c.stampOvershoot * (1 - Easing.outCubic(st));
       s.stamp = Easing.outCubic(saturate(sa / Math.max(0.01, c.stampTime * 1.6)));
-      s.bright = (1 + 2.2 * Math.exp(-sa / 0.12)) * (1 + throb) + (e >= 0 ? 3.5 * Math.exp(-e / 0.1) : 0);
+      s.bright = (1 + 1.2 * Math.exp(-sa / 0.12)) * (1 + throb) + (e >= 0 ? 1.4 * Math.exp(-e / 0.1) : 0);
       s.spent = e >= 0 ? lerp(1, c.spentDim, smoothstep(0, 0.35, e)) : 1;
       s.fade = fadeT;
       if (e >= 0) {
@@ -606,6 +641,24 @@ export class GlyphBarrageAbility extends Ability {
       this._sealFrame(i, rec, fadeT, throb);
     }
     this.seals.count = this._count;
+    for (let i = 0; i < GLYPH_MAX; i++) {
+      const rec = this._glyphs[i];
+      const on = i < this._count && rec.sealLift > 0.01 && c.bindStrength > 0 && fadeT < 1;
+      rec.bind.visible = on;
+      if (!on) continue;
+      // The shaft: from the seal's striking face down to its own print.
+      const bs = rec.bindState;
+      bs.foot = R * c.bindFoot;
+      bs.top = rec.sealR * 0.92;
+      bs.height = Math.max(0.05, rec.sealY);
+      bs.seed = rec.seed;
+      // Once its glyph erupts the shaft is cut: it must not stretch up after
+      // the flung seal as a pale cone laid over the violet pillar.
+      const cut = rec.eruptAt >= 0 ? Math.exp(-(this.age - rec.eruptAt) / 0.06) : 1;
+      bs.intensity = c.bindStrength * rec.sealLift * (0.55 + 0.9 * rec.charge) * (1 - fadeT) * cut;
+      rec.bindMaterial.userData.sync(bs);
+      rec.bind.position.set(rec.x, 0, rec.z);
+    }
     this.seals.instanceMatrix.needsUpdate = true;
     this.sealData.needsUpdate = true;
     this.sealMaterial.userData.sync();
@@ -755,6 +808,34 @@ export class GlyphBarrageAbility extends Ability {
     _emit.life = c.moteLifetime * 0.7;
     this.motes.emit(Math.round(14 * g.particleCount), _emit);
 
+    // The slam: obsidian chips kicked up off the rim and a ring of dust —
+    // the stamp lands in 3D, not only as light on the floor.
+    if (c.stampChips > 0) {
+      this._resetEmit(time);
+      _pos.set(rec.x, 0.1, rec.z);
+      _emit.position = _pos;
+      _emit.radius = R * 0.85;
+      _emit.direction = _up;
+      _emit.speed = c.stampChipSpeed;
+      _emit.speedVariance = 0.5;
+      _emit.spread = 0.9;
+      _emit.size = c.shardSize * 0.9;
+      _emit.sizeVariance = 0.5;
+      _emit.life = c.shardLifetime * 0.6;
+      _emit.lifeVariance = 0.3;
+      _emit.spin = 12;
+      this.shards.emit(Math.round(c.stampChips * g.particleCount), _emit);
+    }
+    if (c.stampDust > 0) {
+      this.ctx.decals.spawn(DecalType.DUSTRING, _floor, {
+        radius: R * 1.6,
+        life: 0.9,
+        intensity: c.stampDust,
+        colorA: getColor(c.colorScorchRim),
+        colorB: getColor(c.colorDeep)
+      });
+    }
+
     this.ctx.shake.add(c.stampShake, 9, 22);
     this.ctx.flash.trigger(getColor(c.colorFlash), c.stampFlash * g.explosionIntensity);
     this.lightBoost = Math.max(this.lightBoost, c.lightIntensity * c.stampLight);
@@ -834,7 +915,8 @@ export class GlyphBarrageAbility extends Ability {
       width: 0.07,
       intensity: c.decalShock,
       colorA: getColor(c.colorShock),
-      colorB: getColor(c.colorLine)
+      // violet, not white: the floor ring stays in the ramp's body stop
+      colorB: getColor(c.colorPillarB)
     });
     _pos.set(rec.x, 0.9, rec.z);
     this.ctx.bursts.spawn(BurstMode.STORM, _pos, {
@@ -1106,6 +1188,7 @@ export class GlyphBarrageAbility extends Ability {
       rec.sigil.visible = false;
       rec.pillar.visible = false;
       rec.warp.visible = false;
+      rec.bind.visible = false;
     }
     this.runes.visible = false;
     this.ley.visible = false;
@@ -1118,6 +1201,7 @@ export class GlyphBarrageAbility extends Ability {
       rec.sigilMaterial.dispose();
       rec.pillarMaterial.dispose();
       rec.warpMaterial.dispose();
+      rec.bindMaterial.dispose();
     }
     this.sigilGeometry.dispose();
     this.pillarGeometry.dispose();
@@ -1191,6 +1275,16 @@ export function buildEditor(gui, c, Editor) {
   sigil.addColor(c, 'colorGlyph').name('glow');
   sigil.addColor(c, 'colorDeep').name('wash');
   sigil.addColor(c, 'colorRune').name('runes');
+  R(sigil, c, 'plateCover', 0, 1, 0.01, 'inked plate darkness');
+  R(sigil, c, 'plateInk', 0, 3, 0.01, 'ink swirl glow');
+  R(sigil, c, 'plateInkScale', 0.3, 8, 0.05, 'ink swirl scale');
+  sigil.addColor(c, 'colorPlate').name('plate');
+  R(sigil, c, 'inkFill', 0, 3, 0.01, 'solid ink fills');
+  sigil.addColor(c, 'colorInk').name('ink fills');
+  R(sigil, c, 'lineHot', 0, 1, 0.01, 'white-hot strokes share');
+  R(sigil, c, 'stampChips', 0, 60, 1, 'chips kicked up per stamp');
+  R(sigil, c, 'stampChipSpeed', 0, 12, 0.1, 'chip speed');
+  R(sigil, c, 'stampDust', 0, 2, 0.01, 'dust ring per stamp');
 
   const seal = folder.addFolder('1b · Seal stones');
   R(seal, c, 'sealSize', 0.1, 1.5, 0.01, 'size (× radius)');
@@ -1214,6 +1308,12 @@ export function buildEditor(gui, c, Editor) {
   R(seal, c, 'sealMetalness', 0, 1, 0.01, 'metalness');
   seal.addColor(c, 'colorSeal').name('obsidian');
   seal.addColor(c, 'colorSealRune').name('engraving');
+  R(seal, c, 'bindStrength', 0, 3, 0.01, 'binding shaft strength');
+  R(seal, c, 'bindGlow', 0, 4, 0.01, 'binding shaft glow');
+  R(seal, c, 'bindFoot', 0.1, 1.5, 0.01, 'shaft foot (× glyph radius)');
+  R(seal, c, 'bindStreaks', 1, 40, 1, 'rune-rain streams');
+  R(seal, c, 'bindFlow', -10, 10, 0.05, 'rune-rain speed');
+  R(seal, c, 'bindFresnel', 0.1, 6, 0.05, 'shaft edge');
 
   const frag = folder.addFolder('2 · Rune fragments');
   R(frag, c, 'runesPerGlyph', 0, 10, 1, 'per glyph');
@@ -1237,11 +1337,15 @@ export function buildEditor(gui, c, Editor) {
   R(pillar, c, 'pillarStreakSpeed', 0, 30, 0.1, 'streak speed');
   R(pillar, c, 'pillarFresnel', 0.1, 8, 0.05, 'edge falloff');
   R(pillar, c, 'pillarSoftFade', 0.01, 2, 0.01, 'soft floor contact (m)');
+  R(pillar, c, 'pillarCover', 0, 1, 0.01, 'wall cover (deep, not additive)');
   pillar.addColor(c, 'colorPillarCore').name('core');
   pillar.addColor(c, 'colorPillarA').name('foot');
   pillar.addColor(c, 'colorPillarB').name('top');
   pillar.addColor(c, 'colorPillarDeep').name('deep');
   R(pillar, c, 'pillarCoreTight', 1, 40, 0.5, 'axis thinness');
+  R(pillar, c, 'pillarCoreReach', 0.05, 1, 0.01, 'white axis climbs (share of height)');
+  R(pillar, c, 'pillarTopDeep', 0, 2, 0.01, 'upper column falls to deep');
+  R(pillar, c, 'pillarAxisHeat', 0, 2, 0.01, 'pale share of the column (caps the lavender bloom)');
 
   const warp = folder.addFolder('4 · Distortion');
   R(warp, c, 'warpStrength', 0, 4, 0.01, 'strength');

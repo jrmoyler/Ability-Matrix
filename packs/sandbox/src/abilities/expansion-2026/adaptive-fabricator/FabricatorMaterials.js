@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, AddEquation, CustomBlending, MeshDepthMaterial, OneFactor, OneMinusSrcAlphaFactor, RGBADepthPacking, SrcAlphaFactor, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, Vector3, DoubleSide, AddEquation, CustomBlending, MeshDepthMaterial, OneFactor, OneMinusSrcAlphaFactor, RGBADepthPacking, SrcAlphaFactor, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -345,7 +345,7 @@ export function createFloorMaterial() {
     u.uSweepPhase.value = s.sweep;
     u.uRingPhase.value = s.rings;
     u.uNoise.value = c.floorNoise * g.noiseStrength;
-    u.uColor.value.copy(getColor(c.coreColor));
+    u.uColor.value.copy(getColor(c.floorColor));
     u.uHot.value.copy(getColor(c.beamColor));
   };
   return material;
@@ -360,6 +360,26 @@ const UV_VERTEX = /* glsl */ `
   void main() {
     vUv = uv;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+// The bolt bows over its length by a world-space vector at mid-span: up over
+// the head, out to one side (alternating shot to shot) and a little outward.
+// A body packed against the plinth sits almost straight below the emitters,
+// so a purely upward bow lay along the chord and read as a pillar; the
+// sideways bow turns it into a visible curved trajectory.
+const BEAM_VERTEX = /* glsl */ `
+  uniform vec3 uBow;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    // Skewed bell: the apex sits nearer the emitter so the bolt rises and
+    // swings out first, then falls onto the body.
+    float t = uv.y;
+    float bell = 6.75 * t * (1.0 - t) * (1.0 - t);
+    world.xyz += uBow * bell;
+    gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
 
@@ -403,21 +423,24 @@ export function createBeamMaterial() {
     toneMapped: false,
     uniforms: sharedUniforms({
       uFade: { value: 0 },
+      uBow: { value: new Vector3() },
       uGlow: { value: 2.6 },
       uNoise: { value: 1 },
       uColor: { value: new Color('#d6ffff') },
       uBody: { value: new Color('#3ab5ec') },
       uDeep: { value: new Color('#04121c') },
     }),
-    vertexShader: UV_VERTEX,
+    vertexShader: BEAM_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
   });
-  /** @param {{fade:number, color:string}} s */
+  /** @param {{fade:number, color:string, arc?:number, bow?:Vector3}} s */
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
     u.uFade.value = s.fade * g.opacity;
+    if (s.bow) u.uBow.value.copy(s.bow);
+    else u.uBow.value.set(0, s.arc ?? 0, 0);
     u.uGlow.value = c.beamGlow * g.glow;
     u.uNoise.value = c.beamNoise * g.noiseStrength;
     u.uColor.value.copy(getColor(s.color));

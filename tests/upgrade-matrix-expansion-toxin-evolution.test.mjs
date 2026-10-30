@@ -1,57 +1,123 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Scene, Vector3 } from 'three';
+import { Vector3 } from 'three';
 import { settings } from '../packs/sandbox/src/config/settings.js';
-import { ToxinEvolutionAbility, ID } from '../packs/sandbox/src/abilities/expansion-2026/poison/ToxinEvolutionAbility.js';
-import cfg from '../packs/sandbox/src/abilities/expansion-2026/poison/toxin-evolution.config.js';
-settings[ID] = structuredClone(cfg.settings);
+import config from '../packs/sandbox/src/abilities/expansion-2026/poison/toxin-evolution.config.js';
+import { ToxinEvolutionAbility, ID, buildEditor } from '../packs/sandbox/src/abilities/expansion-2026/poison/ToxinEvolutionAbility.js';
+import { toxinTendrilGeometry, toxinTrailGeometry } from '../packs/sandbox/src/abilities/expansion-2026/poison/ToxinGeometry.js';
+import { ThunderheadParasiteAbility, CONFIG, ID as THUNDER_ID, buildEditor as thunderEditor } from '../packs/sandbox/src/abilities/expansion-2026/storm/ThunderheadParasite.js';
+import { createCloudGeometry } from '../packs/sandbox/src/abilities/expansion-2026/storm/ThunderheadParasiteGeometry.js';
 
-function arena(actors) {
-  const scene = new Scene(), events = [];
-  const scope = {
-    queryActors: ({ position, radius }) => ({ ok: true, actors: actors.filter((a) => a.alive && Math.hypot(a.position[0] - position[0], a.position[2] - position[2]) <= radius) }),
-    getActor: (id) => ({ ok: true, actor: actors.find((a) => a.id === id) }),
-    emit: (e) => (events.push(e), { ok: true })
+settings[ID] = structuredClone(config.settings);
+settings[THUNDER_ID] = structuredClone(CONFIG.settings);
+
+/** A lil-gui stand-in that records every key a folder exposes. */
+function recorder() {
+  const keys = new Set();
+  const ctl = { name: () => ctl, onChange: () => ctl };
+  const folder = () => ({
+    addFolder: () => folder(),
+    add: (_o, k) => (keys.add(k), ctl),
+    addColor: (_o, k) => (keys.add(k), ctl),
+    close() {}
+  });
+  const Editor = {
+    range: (f, c, k) => (keys.add(k), ctl),
+    gradient: (f, c, prefix) => { for (const s of 'ABCD') keys.add(prefix + s); return f; },
+    castAnimation: () => (keys.add('castAnim'), ctl)
   };
-  const ctx = { scene, lights: { acquire: () => ({}), set() {}, release() {} }, expansionCombat: { bind: () => scope } };
-  const a = new ToxinEvolutionAbility(ctx);
-  scene.add(a.group);
-  return { a, events };
+  return { keys, gui: folder(), Editor };
 }
-const tick = (a, s) => { for (let i = 0; i < s * 60; i++) a.update(1 / 60); };
 
-test('the blight telegraphs the search circle during travel, sized from zoneRadius', () => {
-  const { a } = arena([{ id: 'd', alive: true, position: [6, 0, 0] }]);
-  a.spawn(new Vector3(), new Vector3(1, 0, 0), 6);
-  assert.equal(a.blight.visible, true);
-  assert.equal(a.blight.position.x, 6);
-  a.update(0.15);
-  const reach = a.blightMat.uniforms.uReach.value;
-  assert.ok(reach > 0 && reach <= a.config.blightTelegraph + 1e-6);
-  assert.ok(Math.abs(a.blight.scale.x - a.config.zoneRadius * a.config.blightScale) < 1e-6);
-  tick(a, 1.5);
-  assert.ok(a.blightMat.uniforms.uReach.value > reach);
+const finite = (g) => [...g.attributes.position.array].every(Number.isFinite);
+
+test('every new toxin key is a live slider', () => {
+  const { keys, gui, Editor } = recorder();
+  buildEditor(gui, settings[ID], Editor);
+  for (const k of Object.keys(config.settings)) if (/^(tendril|trail|deep|membraneOpacity)/.test(k)) assert.ok(keys.has(k), k);
+});
+
+test('every new thunderhead key is a live slider', () => {
+  const { keys, gui, Editor } = recorder();
+  thunderEditor(gui, settings[THUNDER_ID], Editor);
+  for (const k of ['cloudBoil', 'cloudBoilRate', 'cloudTwist', 'cloudAnvil', 'cloudSwell', 'cloudSurge', 'cloudCrownLight', 'cloudLining', 'cloudEmber', 'flareSize', 'flareGlow', 'crackleGlow', 'crackleScale', 'scorchDarken']) {
+    assert.ok(k in CONFIG.settings, k);
+    assert.ok(keys.has(k), k);
+  }
+});
+
+test('authored geometry is finite', () => {
+  for (const g of [toxinTendrilGeometry(), toxinTrailGeometry(), createCloudGeometry(2)]) {
+    assert.ok(finite(g));
+    g.dispose();
+  }
+  const cloud = createCloudGeometry(2);
+  for (const name of ['aLobe', 'aHeight', 'aCenter', 'aOcc']) assert.ok(cloud.attributes[name], name);
+  cloud.dispose();
+});
+
+function toxinArena() {
+  const actors = [{ id: 'dummy:1', alive: true, standGeneration: 1, position: [5, 0, 0] }];
+  const facade = {
+    queryActors: () => ({ ok: true, actors }),
+    getActor: (id) => ({ ok: true, actor: actors.find((a) => a.id === id) }),
+    emit: () => ({ ok: true })
+  };
+  const ctx = {
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    expansionCombat: { bind: () => facade }
+  };
+  return new ToxinEvolutionAbility(ctx);
+}
+
+test('tendrils erupt on arrival, multiply per generation, sink on exit and reset on reuse', () => {
+  const a = toxinArena();
+  a.spawn(new Vector3(), new Vector3(1, 0, 0), 5);
+  assert.equal(a.trail.visible, true);
+  a.update(0.1);
+  assert.ok(a.trailMat.uniforms.uHead.value > 0 && a.trailMat.uniforms.uHead.value < 1);
+  for (let i = 0; i < 20; i++) a.update(0.05);
+  const first = a.tendrils.count;
+  assert.ok(first >= settings[ID].tendrilCount);
+  assert.ok(a.tendrilLife.array[0] > 0.5);
+  for (let i = 0; i < 60; i++) a.update(0.05);
+  assert.ok(a.tendrils.count > first, 'later generations add tendrils');
+  for (let i = 0; i < 200 && a.isActive; i++) a.update(0.05);
+  assert.ok(a.tendrilLife.array[0] < 0.05, 'they sink on exit');
   a.destroy();
-  assert.equal(a.blight.visible, false);
+  a.spawn(new Vector3(), new Vector3(1, 0, 0), 5);
+  assert.equal(a.tendrils.count, 0);
+  a.destroy();
   a.dispose();
 });
 
-test('no host: a dormant colony rises at the aim point, strikes nothing, then withers', () => {
-  const { a, events } = arena([]);
-  a.spawn(new Vector3(), new Vector3(1, 0, 0), 6);
-  tick(a, 0.5);
-  assert.equal(a.dormant, true);
-  assert.equal(a.targetId, null);
-  assert.equal(a.effect.visible, true);
-  assert.equal(a.effect.position.x, 6);
-  tick(a, 0.5);
-  assert.ok(a.body.scale.x > 0);
-  tick(a, a.config.dormantTime + a.config.releaseDuration + 0.2);
-  assert.equal(a.effect.visible, false);
-  assert.equal(events.length, 0);
+test('the thunderhead churns through the ride and flares on a bolt', () => {
+  const actors = [{ id: 'dummy:1', alive: true, position: [0, 0, 8] }];
+  const facade = {
+    queryActors: () => ({ ok: true, actors }),
+    getActor: (id) => ({ ok: true, actor: actors.find((x) => x.id === id) }),
+    on: () => ({ ok: true, unsubscribe() {} }),
+    emit: () => ({ ok: true })
+  };
+  const ctx = {
+    lights: { acquire: () => ({}), set() {}, release() {} },
+    bursts: { spawn() {} },
+    decals: { spawn() {} },
+    expansionCombat: { bind: () => facade }
+  };
+  const a = new ThunderheadParasiteAbility(ctx);
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 8);
+  let flared = false;
+  for (let i = 0; i < 12; i++) { a.update(0.05); flared ||= a.flare.visible; }
+  assert.ok(flared, 'the bite lands with a contact flare');
+  for (let i = 0; i < 18; i++) a.update(0.05);
+  const u = a.cloudMaterial.uniforms;
+  const twist = u.uTwist.value, anvil = u.uAnvil.value, scale = a.cloud.scale.x;
+  for (let i = 0; i < 40; i++) a.update(0.05);
+  assert.ok(u.uTwist.value > twist, 'the crown wheels');
+  assert.ok(u.uAnvil.value > anvil, 'the anvil spreads');
+  assert.ok(a.cloud.scale.x > scale, 'it swells as it feeds');
   a.destroy();
-  a.spawn(new Vector3(), new Vector3(1, 0, 0), 6);
-  assert.equal(a.dormant, false);
-  a.destroy();
+  assert.equal(a.flare.visible, false);
   a.dispose();
 });

@@ -39,7 +39,7 @@ export default {
     spin: 2, // tumble on a knockdown
 
     /* --- light --- */
-    lightColor: '#ffd1a3',
+    lightColor: '#ff9a4a',
     lightIntensity: 5,
     lightRadius: 9,
 
@@ -55,10 +55,15 @@ export default {
     /* ================================================================ */
     /* 2 · SHIELD FRONTS                                                */
     /* ================================================================ */
-    edgeColor: '#fff0dd', // hot rim of the shield
-    bodyColor: '#d16f56', // pressure body of the shield
+    // The four-stop ramp: core → pale (edge) → saturated (body) → deep.
+    coreColor: '#fff3df', // white-hot: the crest line and burning edges only
+    edgeColor: '#ffc27a', // pale amber rims and sides
+    bodyColor: '#e2571c', // saturated orange pressure cells
+    deepColor: '#2b0d06', // dark umber that carries the sheet and the scour
+    frontDensity: 0.62, // base opacity of the dark body: how solid the wall reads
+    frontClear: 1.6, // the sheet rises out of the floor over this many metres past the brace
     frontHeight: 1.8, // metres
-    frontGlow: 2, // emissive strength of the shield
+    frontGlow: 1.0, // brightness of the ramp on the shield
     frontOpacity: 1, // multiplier on the shield's alpha
     frontNoise: 0.6, // weight of the pressure cells in the body
     frontNoiseScale: 3, // pressure cells per metre-ish
@@ -76,14 +81,20 @@ export default {
     /* ================================================================ */
     /* 3 · GROUND SCOUR                                                 */
     /* ================================================================ */
-    groundColor: '#ff9e76',
+    groundColor: '#e2571c', // saturated seams in the scour
     groundOpacity: 1, // multiplier on the corridor scour
-    groundGlow: 1.5,
+    groundGlow: 1.0,
+    groundDeep: 1, // weight of the dark scorched base
+    groundSeams: 1, // weight of the pressure seams
+    coolTime: 0.9, // seconds the seams take to cool after the last break
+    aftershock: 0.8, // aftershock ripples rolling down the scour
+    aftershockSpeed: 3.5, // metres/second
+    lingerTime: 1.4, // presentation-only linger after the last break (s)
     scourWidth: 0.45, // how far behind a front the fresh scour reaches, metres × width
     dustRate: 40, // grit streaks per second kicked off each front's foot
     dustSize: 0.09,
     dustLife: 0.6,
-    dustColor: '#d9b49a', // grit tint; also the break's dust-ring decal
+    dustColor: '#9a5a36', // grit tint; also the break's dust-ring decal
 
     /* ================================================================ */
     /* 4 · SPRAY + CONTACT                                              */
@@ -97,23 +108,23 @@ export default {
     particleDrag: 1.1, // drag on the shared streak system
     // The one pooled streak system's lifetime gradient; spray, grit and
     // shards are all tinted over it.
-    colorSprayA: '#fff6e4',
-    colorSprayB: '#ffd1a3',
-    colorSprayC: '#e9876f',
-    colorSprayD: '#68394b',
+    colorSprayA: '#fff3df',
+    colorSprayB: '#ffb062',
+    colorSprayC: '#d9501a',
+    colorSprayD: '#2b0d06',
     contactSize: 1, // pressure-petal size at a struck target
     contactLife: 0.4, // seconds a contact petal lives
     chipCount: 12, // shards off a struck target
     chipSize: 0.09,
     chipLife: 0.38,
     chipSpeed: 3,
-    chipColor: '#e9b08f', // shard tint
+    chipColor: '#ff9a4a', // shard tint
     contactLight: 1.5, // light punch on a confirmed contact
 
     /* ================================================================ */
     /* 5 · BREAK (arrival at the end of the line)                       */
     /* ================================================================ */
-    wakeTime: 0.55, // seconds a wake ring lives after a front breaks
+    wakeTime: 0.8, // seconds a wake ring lives after a front breaks
     wakeGrowth: 1.15, // how far a wake spreads, × width
     wakeOpacity: 0.65,
     impactShake: 0.12, // camera knock when the first front breaks
@@ -122,6 +133,7 @@ export default {
     arrivalLight: 3, // light punch per break
     shockRadius: 3, // shockwave decal on each break, metres
     burstSize: 2.2, // pressure shell on the first break, metres
+    burstOpacity: 0.4, // its opacity
 
     /* ================================================================ */
     /* 6 · DISTORTION                                                   */

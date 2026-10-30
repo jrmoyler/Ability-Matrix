@@ -289,6 +289,9 @@ export function createReticleGeometry(segments = 64) {
  * camera at any bearing sees at least one face-on. `uv.x` across (0..1),
  * `uv.y` along (0 at the emitter, 1 at the target).
  */
+/** Segments along the bolt: enough for the arc the beam shader bends into it. */
+const BEAM_SEGMENTS = 20;
+
 export function createBeamGeometry() {
   const positions = [];
   const uvs = [];
@@ -298,12 +301,12 @@ export function createBeamGeometry() {
     const x = Math.cos(a);
     const z = Math.sin(a);
     const base = positions.length / 3;
-    for (let j = 0; j <= 8; j++) {
-      const v = j / 8;
+    for (let j = 0; j <= BEAM_SEGMENTS; j++) {
+      const v = j / BEAM_SEGMENTS;
       positions.push(-x, v, -z, x, v, z);
       uvs.push(0, v, 1, v);
     }
-    for (let j = 0; j < 8; j++) {
+    for (let j = 0; j < BEAM_SEGMENTS; j++) {
       const k = base + j * 2;
       indices.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
     }

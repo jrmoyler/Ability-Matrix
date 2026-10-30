@@ -295,6 +295,8 @@ const FISSURE_FRAGMENT = /* glsl */ `
   uniform float uFresh;       // metres behind the front that stay white-hot
   uniform float uTelegraph;   // metres ahead of the front the seam runs
   uniform float uTelegraphGlow;
+  uniform float uCoreWidth;   // metres, the molten slit
+  uniform float uLip;         // ember glow on the slit's lips
   uniform float uWander;
   uniform float uBranching;
   uniform float uGlow;
@@ -319,7 +321,7 @@ const FISSURE_FRAGMENT = /* glsl */ `
     // The slit wanders off the aimed line, like a real crack finding weakness.
     float wander = uWander * fbm3(vec3(along * 0.38, uSeed, 1.7)) * 2.0;
     float d = abs(across - wander);
-    float coreW = 0.025 + 0.05 * snoise01(vec3(along * 1.4, uSeed, 3.1));
+    float coreW = uCoreWidth * (0.45 + 0.75 * snoise01(vec3(along * 1.4, uSeed, 3.1)));
     float core = 1.0 - smoothstep(coreW * 0.35, coreW, d);
 
     // Branch cracks: ridged filaments, dying out away from the slit.
@@ -339,7 +341,9 @@ const FISSURE_FRAGMENT = /* glsl */ `
     tele *= uTelegraphGlow * step(0.001, uHeat);
 
     float heat = reached * uHeat * mix(0.6, 1.0, fresh);
-    float glow = (core + branch * 0.5) * heat + tele * 0.35;
+    // The lips: a wider ember band either side of the slit, broken by grain.
+    float lip = (1.0 - smoothstep(coreW, coreW * 3.2, d)) * (0.55 + 0.45 * snoise01(vec3(along * 3.1, across * 6.0, uSeed + 5.0)));
+    float glow = (core + branch * 0.5 + lip * uLip * (1.0 - core)) * heat + tele * 0.35;
     vec3 hot = mix(uColorEmber, uColorHot, clamp(core * (0.35 + fresh * 0.9) * uHeat, 0.0, 1.0));
 
     // The scar: scorched ground around the crack, normal-blended darkening.
@@ -379,6 +383,8 @@ export function createFissureMaterial() {
       uFresh: { value: 2.5 },
       uTelegraph: { value: 2.5 },
       uTelegraphGlow: { value: 0.6 },
+      uCoreWidth: { value: 0.17 },
+      uLip: { value: 0.45 },
       uWander: { value: 0.12 },
       uBranching: { value: 1 },
       uGlow: { value: 3 },
@@ -408,6 +414,8 @@ export function createFissureMaterial() {
     u.uFresh.value = c.crackFresh;
     u.uTelegraph.value = c.telegraphLength;
     u.uTelegraphGlow.value = c.telegraphGlow;
+    u.uCoreWidth.value = c.crackCoreWidth ?? 0.17;
+    u.uLip.value = c.crackLip ?? 0.45;
     u.uWander.value = c.crackWander * g.randomness;
     u.uBranching.value = c.crackBranching;
     u.uGlow.value = c.crackGlow * g.glow;

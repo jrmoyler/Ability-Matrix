@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -70,6 +70,8 @@ const HEART_FRAGMENT = /* glsl */ `
   uniform vec3  uMuscle;
   uniform vec3  uVessel;
   uniform vec3  uBlood;
+  uniform vec3  uDeep;
+  uniform vec3  uCore;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
   varying vec3 vLocal;
@@ -89,20 +91,30 @@ const HEART_FRAGMENT = /* glsl */ `
     float wrap = clamp((dot(N, normalize(uLightDir)) + 0.5) / 1.5, 0.0, 1.0);
     // Striations along the height, broken so they do not read as stripes.
     float fibre = snoise(vec3(vLocal.x * 2.0, vLocal.y * 14.0, vLocal.z * 2.0)) * 0.5 + 0.5;
-    vec3 col = uMuscle * (0.35 + 0.75 * wrap) * (0.8 + 0.3 * fibre);
+    // Four-stop ramp: the deep tone pools in the clefts and the shadow side,
+    // the muscle is the body, the wet highlight and the beat are the tint/core.
+    float cleft = smoothstep(0.35, -0.2, fibre - 0.25 + wrap * 0.6);
+    vec3 col = mix(uMuscle, uDeep, cleft) * (0.3 + 0.8 * wrap) * (0.8 + 0.3 * fibre);
     // Veins flare on the beat.
     float veins = pow(ridged(vLocal * 3.2 + vec3(0.0, uTime * 0.1, 0.0), 4), 6.0);
     col = mix(col, uVessel * (1.0 + uBeat * 2.5) * uGlow * uGlobalGlow, clamp(veins * uVeins, 0.0, 1.0));
+    // A wet specular: muscle under a film of blood.
+    vec3 V = normalize(vViewDir);
+    vec3 H = normalize(normalize(uLightDir) + V);
+    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 48.0) * (0.4 + 0.6 * fibre);
+    col += uCore * spec * 0.9;
     float rim = fresnelTerm(vViewDir, N, 3.0, uFresnel);
     col += uBlood * rim * (0.5 + uBeat) * uGlow * uGlobalGlow;
-    col += uBlood * burn * 3.0;
-    gl_FragColor = vec4(col, clamp(uFade, 0.0, 1.0));
+    col += uCore * burn * 3.0;
+    gl_FragColor = vec4(col, 1.0);
   }
 `;
 
 export function createHeartMaterial() {
+  // Opaque and lit: the heart is muscle, so it lives on LAYER.WORLD, occludes
+  // and casts a shadow. The exit is a discard dissolve, not an alpha fade.
   const material = new ShaderMaterial({
-    transparent: true,
+    transparent: false,
     depthWrite: true,
     blending: NormalBlending,
     toneMapped: false,
@@ -117,7 +129,9 @@ export function createHeartMaterial() {
       uVeins: { value: 1 },
       uMuscle: { value: new Color('#750a22') },
       uVessel: { value: new Color('#d91f47') },
-      uBlood: { value: new Color('#ff8290') }
+      uBlood: { value: new Color('#ff8290') },
+      uDeep: { value: new Color('#24030b') },
+      uCore: { value: new Color('#fff0f2') }
     }),
     vertexShader: HEART_VERTEX,
     fragmentShader: HEART_FRAGMENT
@@ -136,6 +150,8 @@ export function createHeartMaterial() {
     copyColor(u.uMuscle.value, c.heartColor);
     copyColor(u.uVessel.value, c.arteryColor);
     copyColor(u.uBlood.value, c.bloodGlow);
+    copyColor(u.uDeep.value, c.deepColor);
+    copyColor(u.uCore.value, c.coreColor);
   };
   return material;
 }
@@ -172,6 +188,8 @@ const ARTERY_FRAGMENT = /* glsl */ `
   uniform vec3  uLightDir;
   uniform vec3  uWall;
   uniform vec3  uBlood;
+  uniform vec3  uDeep;
+  uniform vec3  uCore;
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
@@ -186,15 +204,21 @@ const ARTERY_FRAGMENT = /* glsl */ `
     float wrap = clamp((dot(N, normalize(uLightDir)) + 0.6) / 1.6, 0.0, 1.0);
     float bolus = exp(-pow((fract(uFlow) - vUv.x) * 9.0, 2.0));
     float rim = fresnelTerm(vViewDir, N, 2.0, 1.0);
-    vec3 col = uWall * (0.4 + 0.7 * wrap);
-    col += uBlood * (bolus * (1.0 + uFlare) + rim * 0.4 + tip) * uGlow * uGlobalGlow;
-    gl_FragColor = vec4(col, clamp(uFade, 0.0, 1.0));
+    // Dark wet vessel walls (deep → body with the light), so the bolus is
+    // the only bright thing running down them.
+    vec3 col = mix(uDeep, uWall, 0.1 + 0.4 * wrap) * (0.3 + 0.5 * wrap);
+    float spec = pow(clamp(dot(N, normalize(normalize(uLightDir) + normalize(vViewDir))), 0.0, 1.0), 48.0);
+    col += uCore * spec * 0.25;
+    col += uBlood * (bolus * (1.0 + uFlare) + rim * 0.15 + tip) * uGlow * uGlobalGlow;
+    col += uCore * bolus * bolus * 0.6 * uGlow * uGlobalGlow;
+    gl_FragColor = vec4(col, 1.0);
   }
 `;
 
 export function createArteryMaterial() {
+  // Opaque vessel walls (the exit is the network shrinking, not an alpha fade).
   const material = new ShaderMaterial({
-    transparent: true,
+    transparent: false,
     depthWrite: true,
     blending: NormalBlending,
     toneMapped: false,
@@ -206,7 +230,9 @@ export function createArteryMaterial() {
       uGlow: { value: 1.6 },
       uFlare: { value: 0 },
       uWall: { value: new Color('#d91f47') },
-      uBlood: { value: new Color('#ff8290') }
+      uBlood: { value: new Color('#ff8290') },
+      uDeep: { value: new Color('#24030b') },
+      uCore: { value: new Color('#fff0f2') }
     }),
     vertexShader: ARTERY_VERTEX,
     fragmentShader: ARTERY_FRAGMENT
@@ -222,6 +248,8 @@ export function createArteryMaterial() {
     u.uGlow.value = c.arteryGlow * g.glow;
     copyColor(u.uWall.value, c.arteryColor);
     copyColor(u.uBlood.value, c.bloodGlow);
+    copyColor(u.uDeep.value, c.deepColor);
+    copyColor(u.uCore.value, c.coreColor);
   };
   return material;
 }
@@ -527,8 +555,8 @@ export function createPulseRingMaterial() {
     const u = material.uniforms;
     u.uProgress.value = state.progress;
     u.uAlpha.value = state.alpha * g.opacity;
-    u.uGlow.value = c.pulseGlow * g.glow;
-    u.uWidth.value = c.pulseWidth;
+    u.uGlow.value = (state.glow ?? c.pulseGlow) * g.glow;
+    u.uWidth.value = state.width ?? c.pulseWidth;
     copyColor(u.uColor.value, c.bloodGlow);
     copyColor(u.uCore.value, c.dropletColorA);
   };
@@ -589,7 +617,228 @@ export function createPulseWarpMaterial() {
     const u = material.uniforms;
     u.uRadius.value = state.radius;
     u.uProgress.value = state.progress;
-    u.uStrength.value = c.warpStrength * settings.global.distortion;
+    u.uStrength.value = (state.strength ?? c.warpStrength) * settings.global.distortion;
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The blood pool — the floor that stays                                */
+/* -------------------------------------------------------------------- */
+
+const POOL_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSpread;    // 0..1 how far the pool has run out
+  uniform float uBeat;
+  uniform float uFade;      // 1 standing, → 0 as it dries on the exit
+  uniform float uSheen;
+  uniform float uRipple;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uGlobalGlow;
+  uniform vec3  uLightDir;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uCore;
+  varying vec2 q;
+
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(q);
+    float a = atan(q.y, q.x);
+    // A ragged, lobed edge that creeps outward as it spreads.
+    float lobes = fbm3(vec3(cos(a) * 2.2, sin(a) * 2.2, 3.1)) * 0.5 + 0.5;
+    float edge = uSpread * (0.78 + 0.22 * lobes);
+    float mask = 1.0 - smoothstep(edge - 0.05, edge, r);
+    if (mask < 0.003) discard;
+    // Thicker, darker blood in the middle; a thin bright meniscus at the rim.
+    float depth = smoothstep(edge, edge * 0.25, r);
+    float clot = fbm3(vec3(q * 5.0, uTime * 0.05)) * 0.5 + 0.5;
+    vec3 col = mix(uBody * 0.55, uDeep, clamp(depth * 0.8 + clot * 0.35, 0.0, 1.0));
+    // Ripples rolling out from the heart on each beat.
+    float ripple = sin(r * 38.0 - uTime * 9.0) * 0.5 + 0.5;
+    ripple *= exp(-r * 2.5) * (0.35 + uBeat) * uRipple;
+    // Wet sheen: a noise normal tilted by the ripples, lit by the sun.
+    vec3 n = normalize(vec3(
+      (fbm3(vec3(q * 9.0 + 0.7, uTime * 0.1)) + ripple * 0.6) * 0.35,
+      1.0,
+      (fbm3(vec3(q * 9.0 - 3.1, uTime * 0.1)) + ripple * 0.6) * 0.35));
+    float spec = pow(clamp(dot(n, normalize(uLightDir + vec3(0.0, 1.0, 0.0))), 0.0, 1.0), 40.0);
+    col += uCore * spec * uSheen * 0.6;
+    float meniscus = exp(-abs(r - edge) * 60.0);
+    col += uTint * meniscus * 0.6 * uGlow * uGlobalGlow;
+    col += uBody * ripple * 0.35 * uGlow * uGlobalGlow;
+    float alpha = mask * (0.55 + 0.4 * depth) * uFade * uOpacity;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The pool of blood the covenant sheds round the caster at the bind: a dark,
+ * glossy stain with a lobed creeping edge, ripples that roll out on every
+ * beat and a bright meniscus. Normal blending — it is the deep stop of the
+ * ramp that grounds the cast on the dark floor — and it stays for the whole
+ * covenant, drying away only on the exit.
+ */
+export function createPoolMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uSpread: { value: 0 },
+      uBeat: { value: 0 },
+      uFade: { value: 1 },
+      uSheen: { value: 1 },
+      uRipple: { value: 1 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uDeep: { value: new Color('#24030b') },
+      uBody: { value: new Color('#d91f47') },
+      uTint: { value: new Color('#ff8290') },
+      uCore: { value: new Color('#fff0f2') }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: POOL_FRAGMENT
+  });
+  material.userData.sync = (c, state) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uTime.value = state.time * g.noiseSpeed;
+    u.uSpread.value = state.spread;
+    u.uBeat.value = state.beat;
+    u.uFade.value = state.fade;
+    u.uSheen.value = c.poolSheen;
+    u.uRipple.value = c.poolRipple * g.noiseStrength;
+    u.uOpacity.value = c.poolOpacity * g.opacity;
+    u.uGlow.value = c.floorGlow * g.glow;
+    copyColor(u.uDeep.value, c.deepColor);
+    copyColor(u.uBody.value, c.arteryColor);
+    copyColor(u.uTint.value, c.bloodGlow);
+    copyColor(u.uCore.value, c.coreColor);
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The threads — vessels reaching out to the blood nearby               */
+/* -------------------------------------------------------------------- */
+
+const THREAD_VERTEX = /* glsl */ `
+  // position = (t along the thread, cos, sin) round it.
+  uniform vec3  uA;       // the heart
+  uniform vec3  uB;       // the body it reaches for
+  uniform vec3  uC;       // arch control point
+  uniform float uGrow;    // 0..1 of the way there
+  uniform float uRadius;
+  varying float vT;
+  varying float vFront;
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+
+  vec3 bez(float t) {
+    float s = 1.0 - t;
+    return s * s * uA + 2.0 * s * t * uC + t * t * uB;
+  }
+
+  void main() {
+    float t = min(position.x, uGrow);
+    vec3 P = bez(t);
+    vec3 T = normalize(bez(min(t + 0.01, 1.0)) - bez(max(t - 0.01, 0.0)) + vec3(1e-5));
+    vec3 S = normalize(cross(T, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 0.0));
+    vec3 U = normalize(cross(S, T));
+    // Thick at the heart, thin where it bites; a swollen, pointed growing tip.
+    float behind = (uGrow - t);
+    float r = uRadius * mix(1.0, 0.5, t) * (0.25 + 0.75 * smoothstep(0.0, 0.06, behind));
+    vec3 n = S * position.y + U * position.z;
+    vec3 world = P + n * r;
+    vT = t;
+    vFront = behind;
+    vNormalW = n;
+    vViewDir = cameraPosition - world;
+    gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+  }
+`;
+
+const THREAD_FRAGMENT = /* glsl */ `
+  uniform float uFlow;     // bolus position, cycles 0..1 heart → body
+  uniform float uGlow;
+  uniform float uGlobalGlow;
+  uniform float uFade;
+  uniform vec3  uLightDir;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uCore;
+  varying float vT;
+  varying float vFront;
+  varying vec3  vNormalW;
+  varying vec3  vViewDir;
+
+  ${commonGLSL}
+
+  void main() {
+    if (uFade < 0.01) discard;
+    vec3 N = normalize(vNormalW);
+    float wrap = clamp((dot(N, normalize(uLightDir)) + 0.5) / 1.5, 0.0, 1.0);
+    vec3 col = mix(uDeep, uBody, wrap * 0.8) * (0.4 + 0.6 * wrap);
+    float bolus = exp(-pow((fract(uFlow) - vT) * 11.0, 2.0));
+    float tip = exp(-vFront * 30.0);
+    float rim = fresnelTerm(vViewDir, N, 2.5, 1.0);
+    col += uTint * (bolus * 1.6 + rim * 0.35 + tip * 1.2) * uGlow * uGlobalGlow;
+    col += uCore * bolus * bolus * uGlow * uGlobalGlow;
+    gl_FragColor = vec4(col * uFade, 1.0);
+  }
+`;
+
+/**
+ * One covenant thread: a vessel thrown from the heart to a body nearby,
+ * bent along a quadratic arch in the vertex stage (so the target can move),
+ * growing out tip-first and carrying one bolus of light per beat from the
+ * heart to the body. Opaque — it is a vessel, not a glow.
+ */
+export function createThreadMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uA: { value: new Vector3() },
+      uB: { value: new Vector3(0, 0, 1) },
+      uC: { value: new Vector3() },
+      uGrow: { value: 0 },
+      uRadius: { value: 0.06 },
+      uFlow: { value: 0 },
+      uGlow: { value: 2 },
+      uFade: { value: 1 },
+      uDeep: { value: new Color('#24030b') },
+      uBody: { value: new Color('#d91f47') },
+      uTint: { value: new Color('#ff8290') },
+      uCore: { value: new Color('#fff0f2') }
+    }),
+    vertexShader: THREAD_VERTEX,
+    fragmentShader: THREAD_FRAGMENT
+  });
+  material.userData.sync = (c, state) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uA.value.copy(state.a);
+    u.uB.value.copy(state.b);
+    u.uC.value.copy(state.c);
+    u.uGrow.value = state.grow;
+    u.uFlow.value = state.flow;
+    u.uFade.value = state.fade;
+    u.uRadius.value = c.threadRadius;
+    u.uGlow.value = c.threadGlow * g.glow;
+    copyColor(u.uDeep.value, c.deepColor);
+    copyColor(u.uBody.value, c.arteryColor);
+    copyColor(u.uTint.value, c.bloodGlow);
+    copyColor(u.uCore.value, c.coreColor);
   };
   return material;
 }
