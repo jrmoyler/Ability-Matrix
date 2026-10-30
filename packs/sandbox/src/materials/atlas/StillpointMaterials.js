@@ -95,6 +95,9 @@ const SHELL_FRAGMENT = /* glsl */ `
   uniform float uSweepTrail;
   uniform float uGlint;
   uniform float uPass;          // 0 far wall, 1 near wall
+  uniform float uSaturation;
+  uniform float uFrameDeep;     // the frames' own dark body    // 1 as authored, 0 grey-violet
+  uniform float uLightCap;      // how far the brightest light is held down
   uniform vec3  uColorEdge;
   uniform vec3  uColorNode;
   uniform vec3  uColorFill;
@@ -191,10 +194,16 @@ const SHELL_FRAGMENT = /* glsl */ `
     light += uColorBurn * burning * 2.0;
     light += uColorBurn * uFlash * (edge + 0.25);
 
+    // Pull the light toward its own grey and keep the frames in the deep
+    // stop's family: violet glass, not neon.
+    float lum = dot(light, vec3(0.2126, 0.7152, 0.0722));
+    light = mix(vec3(lum) * mix(vec3(1.0), uColorRim / max(dot(uColorRim, vec3(0.2126, 0.7152, 0.0722)), 1e-3), 0.35), light, uSaturation);
+    light *= mix(1.0, uLightCap, smoothstep(0.0, 1.5, lum));
+
     float pass = mix(uBackFace, 1.0, uPass);
     vec2 screenUV = gl_FragCoord.xy / uResolution;
     float soft = softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, 0.25);
-    float a = clamp(paneA + edge * 0.6 * formed, 0.0, 1.0) * uOpacity * pass * soft;
+    float a = clamp(paneA + edge * uFrameDeep * formed, 0.0, 1.0) * uOpacity * pass * soft;
     vec3 outC = (body * a + light * uOpacity * pass * soft * uGlobalGlow * uShaderIntensity);
     if (a < 0.003 && dot(outC, outC) < 1e-5) discard;
     gl_FragColor = vec4(outC, a);
@@ -239,6 +248,9 @@ export function createStillpointShellMaterial(pass = 1) {
       uSweepTrail: { value: 3 },
       uGlint: { value: 2 },
       uPass: { value: pass },
+      uSaturation: { value: 1 },
+      uLightCap: { value: 1 },
+      uFrameDeep: { value: 0.6 },
       uColorEdge: { value: new Color() },
       uColorNode: { value: new Color() },
       uColorFill: { value: new Color() },
@@ -278,6 +290,9 @@ export function createStillpointShellMaterial(pass = 1) {
     u.uSweepGlow.value = c.sweepGlow;
     u.uSweepTrail.value = c.sweepTrail;
     u.uGlint.value = c.panelGlint;
+    u.uSaturation.value = c.panelSaturation;
+    u.uLightCap.value = c.panelLightCap;
+    u.uFrameDeep.value = c.frameDeep;
     u.uColorEdge.value.copy(getColor(c.colorEdge));
     u.uColorNode.value.copy(getColor(c.colorNode));
     u.uColorFill.value.copy(getColor(c.colorFill));

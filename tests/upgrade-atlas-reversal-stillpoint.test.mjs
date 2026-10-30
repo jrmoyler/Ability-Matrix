@@ -10,15 +10,18 @@ const src = (p) => readFileSync(new URL(`../packs/sandbox/src/${p}`, import.meta
 
 const NEW_REVERSAL = ['rimWidth', 'colorBoltPale', 'colorBoltDeep', 'boltYaw', 'muzzleSparks', 'colorConeDeep', 'coneDeep',
   'wallDeep', 'releaseBurst', 'sealRadius', 'sealGlow', 'sealDeep', 'sealRunes', 'sealSpin', 'sealTelegraph',
-  'colorSealDeep', 'colorSeal', 'colorSealHot'];
+  'colorSealDeep', 'colorSeal', 'colorSealHot', 'wallCrest', 'wallGrow', 'wallLinger', 'scarGlow'];
 const NEW_STILLPOINT = ['colorPanelDeep', 'panelOpacity', 'panelGlow', 'panelGlint', 'sweepSpeed', 'sweepHeld', 'sweepGlow',
-  'sweepTrail', 'floorDeep', 'floorTelegraph', 'colorFloorDeep', 'seedSize', 'seedGlow', 'seedTrailSize'];
+  'sweepTrail', 'floorDeep', 'floorTelegraph', 'colorFloorDeep', 'seedSize', 'seedGlow', 'seedTrailSize',
+  'panelSaturation', 'panelLightCap', 'frameDeep'];
 
 test('reversal: identity and hit settings preserved, new presentation keys are live sliders', () => {
   assert.equal(reversal.id, 'reversal');
   assert.equal(reversal.meta.cast, 'zone');
   assert.deepEqual(reversal.settings.hit, { impulse: 11.0, lift: 4.5, spin: 1.8 });
   assert.equal(reversal.settings.coneAngle, 0.62);
+  assert.equal(reversal.settings.sweepTime, 0.6);
+  assert.equal(reversal.settings.coneReach, 2.2);
   const editor = src('abilities/atlas/AegisReversalAbility.js');
   for (const key of NEW_REVERSAL) {
     assert.ok(key in reversal.settings, `config ${key}`);
@@ -33,6 +36,7 @@ test('stillpoint: identity and hit settings preserved, new presentation keys are
   assert.deepEqual(stillpoint.settings.hit, { impulse: 10.0, lift: 3.5, spin: 2.6 });
   assert.equal(stillpoint.settings.killReach, 9.0);
   assert.equal(stillpoint.settings.fragmentHitRadius, 0.55);
+  assert.equal(stillpoint.settings.holdTime, 2.2);
   const editor = src('abilities/atlas/StillpointAbility.js');
   for (const key of NEW_STILLPOINT) {
     assert.ok(key in stillpoint.settings, `config ${key}`);

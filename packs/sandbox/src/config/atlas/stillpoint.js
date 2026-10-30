@@ -43,11 +43,11 @@ export default {
     formTime: 0.6, // seconds for the lattice to draw itself from the floor up
     latticeFreq: 3.0, // geodesic subdivision of the cage (triangles per face edge)
     edgeWidth: 0.02, // lattice stroke width, fraction of a cell
-    edgeGlow: 0.6,
-    nodeGlow: 1.1, // the vertices where edges meet
+    edgeGlow: 0.3,
+    nodeGlow: 0.4, // the vertices where edges meet
     fillGlow: 0.06, // faint film across each face
     fresnelPower: 2.0,
-    fresnelGlow: 0.3,
+    fresnelGlow: 0.18,
     shimmerSpeed: 0.5, // the slowed shimmer crawling over the cage
     shimmerScale: 2.2,
     shimmerAmount: 0.6,
@@ -55,24 +55,27 @@ export default {
     shellOpacity: 1.0,
     dissolveEdge: 0.08, // burning edge as it dissolves
     turnRate: 0.06, // radians/second the cage itself turns (barely)
-    colorEdge: '#9b7dff',
-    colorNode: '#fbf8ff',
-    colorFill: '#3a1d9e',
-    colorRim: '#8a66ff',
+    colorEdge: '#7c68c9',
+    colorNode: '#d8cff2',
+    colorFill: '#1e1648',
+    colorRim: '#6c58b8',
     colorBurn: '#e4d8ff',
     colorPanelDeep: '#0d0626', // the deep stop: the glass panes' mass
 
     /* --- the glass panes and the time hand --- */
     panelOpacity: 0.9, // how much body each pane has (premultiplied: darkens what is behind)
-    panelGlow: 0.55, // light inside the panes
+    panelGlow: 0.42, // light inside the panes
     panelGlint: 0.5, // hard sun glint on a facet
+    panelSaturation: 0.5, // 1 as authored → 0 grey-violet: keeps the glass off neon
+    panelLightCap: 0.7, // holds the brightest light on the panes and frames down (1 = off)
+    frameDeep: 0.75, // the frames' own dark body, so they read as dark leading with a thin lit line
     sweepSpeed: 2.2, // radians/second the time hand rolls round the dome
     sweepHeld: 0.25, // × that while time is held: visibly dragging
-    sweepGlow: 1.4, // how much the hand lights the panes it passes
+    sweepGlow: 1.0, // how much the hand lights the panes it passes
     sweepTrail: 6.0, // how fast its wake cools (higher = shorter wake)
 
     /* --- the floor under it --- */
-    floorGlow: 0.5,
+    floorGlow: 0.35,
     floorRings: 7, // concentric dilation rings, crowding toward the middle
     floorRingSpeed: 0.12, // how slowly they creep inward
     floorSpokes: 12,
@@ -80,7 +83,7 @@ export default {
     floorDeep: 0.75, // the stilled ground goes dark under the dome, 0..1
     floorTelegraph: 1, // 0..1 — a ring closing on the mark while the seed flies
     colorFloorDeep: '#080320',
-    colorFloor: '#5a3ae0',
+    colorFloor: '#43328f',
     colorFloorHot: '#cdbcff',
 
     /* ================================================================ */

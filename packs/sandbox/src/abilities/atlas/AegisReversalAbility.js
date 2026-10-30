@@ -851,16 +851,25 @@ export class AegisReversalAbility extends Ability {
     ws.apex.copy(_centre);
     ws.axisX = this.direction.x;
     ws.axisZ = this.direction.z;
-    ws.front = Math.max(0.05, front);
     const k = reach > 0 ? front / reach : 0;
-    ws.half = lerp(c.coneStartAngle, c.coneAngle, k);
-    // Tall enough to break above the shield from behind the caster.
-    ws.height = c.wallHeight * (1 - 0.35 * k);
     const sweeping = this._released && front < reach * 0.999;
-    ws.strength = this._released ? (1 - Easing.inQuad(k)) * saturate((t - this._releaseAt()) / 0.05) : 0;
+    // Presentation only: once the front (and its hits) has run its course the
+    // wall carries on a beat — rolling a little further, its crest slumping —
+    // so the blow reads from behind the caster, past the shield's top.
+    const since = this._released ? t - this._releaseAt() : 0;
+    const tailTime = Math.max(0.01, c.wallLinger * this._scale());
+    const tail = this._released ? saturate((since - this._sweepTime()) / tailTime) : 0;
+    ws.front = Math.max(0.05, front + reach * 0.1 * Easing.outQuad(tail));
+    ws.half = lerp(c.coneStartAngle, c.coneAngle, k);
+    // Grows as it runs, so it stays tall in frame as it moves away.
+    ws.height = c.wallHeight * (1 + c.wallGrow * Easing.outQuad(k)) * (1 - 0.45 * tail);
+    ws.strength = this._released
+      ? saturate(since / 0.05) * (1 - 0.3 * saturate((k - 0.6) / 0.4)) * (1 - Easing.inQuad(tail))
+      : 0;
+    if (fading) ws.strength = 0;
     this.wallMaterial.userData.sync(ws);
     this.warpMaterial.userData.sync(ws);
-    this.wall.visible = sweeping && ws.strength > 0.003;
+    this.wall.visible = this._released && tail < 1 && ws.strength > 0.003;
     this.warp.visible = this.wall.visible;
 
     if (sweeping) {
@@ -1197,6 +1206,10 @@ export function buildEditor(gui, c, Editor) {
   R(wave, c, 'wallGlow', 0, 8, 0.05, 'wavefront glow');
   R(wave, c, 'wallBands', 0, 20, 0.1, 'wavefront bands');
   R(wave, c, 'wallDeep', 0, 1, 0.01, 'wavefront body (dark)');
+  R(wave, c, 'wallCrest', 0, 8, 0.05, 'wavefront crest');
+  R(wave, c, 'wallGrow', 0, 2, 0.01, 'wavefront grows as it runs (×)');
+  R(wave, c, 'wallLinger', 0, 1.5, 0.01, 'wavefront rolls on after (s)');
+  R(wave, c, 'scarGlow', 0, 4, 0.05, 'floor scar glow');
   R(wave, c, 'distortion', 0, 4, 0.01, 'wavefront warp');
   R(wave, c, 'releaseBurst', 0, 4, 0.01, 'air burst (× shield radius)');
   R(wave, c, 'releaseShake', 0, 2, 0.01, 'shake');

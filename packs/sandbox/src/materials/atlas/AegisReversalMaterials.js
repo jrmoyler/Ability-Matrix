@@ -454,6 +454,7 @@ const CONE_FRAGMENT = /* glsl */ `
   uniform vec3  uColorB;
   uniform vec3  uColorDeep;
   uniform float uDeep;
+  uniform float uScar;
   uniform float uGlobalGlow;
   uniform float uOpacity;
 
@@ -499,9 +500,17 @@ const CONE_FRAGMENT = /* glsl */ `
 
     float edgeLit = edge * behind * (1.0 - uAfter) + edge * exp(-pow((r - uFront) / 0.6, 2.0)) * swept;
 
+    /* --- the scar: burnt rays, veins and edges that cool slowly --- */
+    float cool = 1.0 - uAfter * 0.85;
+    cool *= cool;
+    float vein = 1.0 - abs(snoise(vec3(xz * 1.3, uSeed + 3.7)));
+    vein = smoothstep(0.86, 0.97, vein);
+    float scar = behind * (ray * 0.55 + vein * 0.7 + edge * 0.9) * uScar * cool * endFade;
+
     vec3 color = mix(uColorA, uColorB, front) * (front * 2.0 + trail) * uFloorGlow
                + uColorA * edgeLit * uEdgeGlow
-               + uColorA * preview;
+               + uColorA * preview
+               + mix(uColorDeep, uColorA, 0.75) * scar;
     // The swept path is scorched dark: the deep stop is the cone's mass, the
     // light only rides on it (premultiplied "over": deep darkens, light adds).
     float scorched = behind * uDeep * (0.75 + 0.25 * scorch) * (1.0 - uAfter * 0.45)
@@ -542,6 +551,7 @@ export function createReversalConeMaterial() {
       uColorB: { value: new Color() },
       uColorDeep: { value: new Color() },
       uDeep: { value: 0.6 },
+      uScar: { value: 1 },
       uOpacity: { value: 1 }
     }),
     vertexShader: CONE_VERTEX,
@@ -572,6 +582,7 @@ export function createReversalConeMaterial() {
     u.uColorB.value.copy(getColor(c.colorConeB));
     u.uColorDeep.value.copy(getColor(c.colorConeDeep));
     u.uDeep.value = c.coneDeep;
+    u.uScar.value = c.scarGlow * g.shaderIntensity;
   };
 
   return material;
@@ -629,6 +640,7 @@ const WALL_FRAGMENT = /* glsl */ `
   uniform vec3  uColorB;
   uniform vec3  uColorDeep;
   uniform float uDeep;
+  uniform float uCrest;
   uniform float uGlobalGlow;
 
   varying vec2 vUv;
@@ -642,17 +654,31 @@ const WALL_FRAGMENT = /* glsl */ `
     float s = abs(vUv.x);
     float h = vUv.y;
     float sides = 1.0 - smoothstep(0.7, 1.0, s);
-    float top = 1.0 - smoothstep(0.25, 1.0, h);
+    // The body runs nearly to the top, so the wave's full height shows from
+    // behind the caster; a torn crest line caps it.
+    float grain = 0.7 + 0.3 * snoise(vec3(vUv.x * 8.0, h * 4.0 - uTime * 6.0, 2.3));
+    float tear = 0.04 * snoise(vec3(vUv.x * 2.6, uTime * 1.5, 7.1));
+    float crestAt = 0.86 + tear;
+    float top = 1.0 - smoothstep(crestAt, crestAt + 0.1, h);
     float bands = 0.5 + 0.5 * sin(h * uBands * 6.2831853 - uTime * 14.0);
     bands = pow(bands, 3.0);
-    float grain = 0.7 + 0.3 * snoise(vec3(vUv.x * 8.0, h * 4.0 - uTime * 6.0, 2.3));
     vec3 V = normalize(cameraPosition - vWorld);
     float fres = 0.5 + 0.5 * pow(1.0 - abs(dot(V, normalize(vNormalW))), 2.0);
-    float light = (0.35 + bands) * sides * top * grain * fres;
-    vec3 color = mix(uColorA, uColorB, bands * bands * (1.0 - h));
+    // One dark mass: light gathers at its foot (where it tears the floor) and
+    // its crest, with rising spray streaks between — the bands only faint.
+    float foot = exp(-h * 7.0);
+    float spray = snoise(vec3(vUv.x * 16.0, h * 1.6 - uTime * 2.5, 4.2)) * 0.5 + 0.5;
+    spray = pow(spray, 4.0) * smoothstep(0.0, 0.2, h);
+    float light = (foot * 1.4 + spray * 0.55 + bands * 0.18) * sides * top * grain * fres;
+    vec3 color = mix(uColorA, uColorB, foot * 0.5 + bands * 0.15);
+    float crest = exp(-pow((h - crestAt) / 0.05, 2.0)) * sides * (0.75 + 0.25 * grain);
     // A dark body to the wave (premultiplied "over"), the bands of light on it.
-    float body = sides * top * uDeep * uStrength * (0.7 + 0.3 * grain);
-    vec3 outC = uColorDeep * body + color * light * uGlow * uGlobalGlow * uStrength;
+    float body = sides * top * uDeep * uStrength * (0.75 + 0.25 * grain);
+    // A low navy fill so the mass reads against the night sky, not only its light.
+    float fill = sides * top * uStrength * (0.12 + 0.1 * h) * fres;
+    vec3 outC = uColorDeep * body + uColorA * fill * uGlobalGlow
+              + color * light * uGlow * uGlobalGlow * uStrength
+              + mix(uColorA, uColorB, 0.35) * crest * uCrest * uGlobalGlow * uStrength;
     if (body < 0.003 && dot(outC, outC) < 1e-5) discard;
     gl_FragColor = vec4(outC, clamp(body, 0.0, 1.0));
   }
@@ -672,7 +698,7 @@ const WALL_WARP_FRAGMENT = /* glsl */ `
   void main() {
     float s = abs(vUv.x);
     float h = vUv.y;
-    float mask = (1.0 - smoothstep(0.6, 1.0, s)) * (1.0 - smoothstep(0.3, 1.0, h));
+    float mask = (1.0 - smoothstep(0.6, 1.0, s)) * (1.0 - smoothstep(0.5, 0.95, h));
     float ripple = 0.6 + 0.4 * sin(h * 20.0 - uTime * 18.0);
     float strength = uStrength * mask * ripple;
     if (strength < 0.002) discard;
@@ -694,7 +720,8 @@ function wallUniforms() {
     uColorA: { value: new Color() },
     uColorB: { value: new Color() },
     uColorDeep: { value: new Color() },
-    uDeep: { value: 0.4 }
+    uDeep: { value: 0.4 },
+    uCrest: { value: 1 }
   });
 }
 
@@ -715,6 +742,7 @@ function syncWall(material, state, warp) {
   u.uColorB.value.copy(getColor(c.colorConeB));
   u.uColorDeep.value.copy(getColor(c.colorConeDeep));
   u.uDeep.value = c.wallDeep;
+  u.uCrest.value = c.wallCrest * g.glow;
 }
 
 export function createReversalWallMaterial() {

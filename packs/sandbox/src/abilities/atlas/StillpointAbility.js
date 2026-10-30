@@ -1145,6 +1145,9 @@ export function buildEditor(gui, c, Editor) {
   R(lattice, c, 'panelOpacity', 0, 1, 0.01, 'glass panes (body)');
   R(lattice, c, 'panelGlow', 0, 4, 0.01, 'pane glow');
   R(lattice, c, 'panelGlint', 0, 8, 0.05, 'sun glint');
+  R(lattice, c, 'panelSaturation', 0, 1, 0.01, 'glass saturation');
+  R(lattice, c, 'panelLightCap', 0.1, 1, 0.01, 'brightest light held to');
+  R(lattice, c, 'frameDeep', 0, 1, 0.01, 'frames: dark body');
   R(lattice, c, 'sweepSpeed', -4, 4, 0.01, 'time hand (rad/s)');
   R(lattice, c, 'sweepHeld', 0, 1, 0.01, 'time hand while held (×)');
   R(lattice, c, 'sweepGlow', 0, 4, 0.01, 'time hand glow');

@@ -126,10 +126,14 @@ export default {
     floorGlow: 2.2,
     edgeGlow: 2.2, // the cone's two bounding edges
     lingerTime: 0.8, // seconds the scorched cone glows after the front passes
-    wallHeight: 4.2, // metres — the standing wavefront
+    wallHeight: 3.7, // metres — the standing wavefront
     wallGlow: 2.0,
-    wallBands: 6.0, // horizontal bands in the wavefront
-    wallDeep: 0.45, // dark body of the wavefront under its bands, 0..1
+    wallBands: 4.0, // horizontal bands in the wavefront
+    wallDeep: 0.8, // dark body of the wavefront under its bands, 0..1
+    wallCrest: 2.0, // the torn bright crest along the wavefront's top
+    wallGrow: 0.3, // the wavefront grows by this much (×) as it runs out
+    wallLinger: 0.45, // seconds the wavefront rolls on after the front (and its hits) is done — presentation only
+    scarGlow: 1.1, // burnt rays, veins and edges left glowing on the swept floor, cooling over the linger
     distortion: 1.2, // screen warp of the wavefront
     releaseBurst: 1.6, // air burst off the face, × shieldRadius
     releaseShake: 0.6,

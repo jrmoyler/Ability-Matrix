@@ -15,7 +15,7 @@ A faceted violet seed drifts on an arc to a ring closing on the floor; a dome of
 | 2.2–4.3 | Exit | Dome dissolves crown-first with a burning edge, floor fades, the crack decal stays. |
 
 ## Layers
-1. Dome (hero) — geodesic icosphere, two premultiplied passes (far wall, near wall): filled dark glass panes (fresnel-thick, faceted sun glint, per-pane tint, inner ripples), time-hand sweep, thin frames and nodes, form/dissolve.
+1. Dome (hero) — geodesic icosphere, two premultiplied passes (far wall, near wall): filled dark glass panes (fresnel-thick, faceted sun glint, per-pane tint, inner ripples), time-hand sweep, thin frames and nodes, form/dissolve. Light is pulled toward grey-violet (`panelSaturation` 0.5) and its brightest values held down (`panelLightCap` 0.7); frames carry their own dark body (`frameDeep`) with only a thin muted line (`edgeGlow` 0.3, `nodeGlow` 0.4).
 2. Floor — premultiplied: deep indigo disc, inward-creeping rings, spokes, torn patches; telegraph ring in flight.
 3. Debris — instanced lumpy rock (lit, voronoi cracks glowing) and refractive glass slivers, closed-form paths.
 4. Seed — faceted premultiplied crystal on the travel arc + mote trail.
@@ -23,7 +23,7 @@ A faceted violet seed drifts on an arc to a ring closing on the floor; a dome of
 6. Dilation lens on LAYER.DISTORTION.
 
 ## Palette (four-stop)
-#fbf8ff nodes/glint → #9b7dff frames / #8a66ff rim → #3a1d9e pane body → #0d0626 pane deep (most of the mass); floor #5a3ae0 rings on #080320.
+#d8cff2 nodes/glint → #7c68c9 frames / #6c58b8 rim → #1e1648 pane body → #0d0626 pane deep (most of the mass); floor #43328f rings on #080320.
 
 ## Hits
 Unchanged rules: held bodies released at the release, killed only by a fragment's swept segment within `killReach` 9 m / `fragmentHitRadius` 0.55 m. Default `holdTime` stays 2.2 s (the freeze duration is gameplay); captures of the release need `--frames` past 4 s.
