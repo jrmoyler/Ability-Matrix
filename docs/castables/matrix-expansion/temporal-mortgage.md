@@ -38,5 +38,13 @@ One lash per cast: every enemy inside `zoneRadius` that the lash's sweep passes 
 ## Upgrade notes (2026-10-30)
 Fixed from the audit: the drum read (fewer, wider coils + a stepped taper), the streaked 'video noise' skin (z-fighting stress skin, shadow acne and mirror reflections), the lens shear toned down (0.22), and the empty first 0.67 s (bigger wind-up at the hand with light and motes, slower visible throw). New keys: bandTaper, steelEnv, stressInflate, trailGlow, trailGlowSize, chargeLight.
 
-## Known gap
+## Known gap (first pass — closed in upgrade G, see below)
 The band's lit face is still on the pale side of the ramp at the camera; the deep stop is carried by the ledger floor rather than the steel.
+
+## Upgrade G (second pass, 2026-10-30) — dark steel
+Coordinator's read: the spring read as tiers but pale blue-white, like a stepped fountain.
+- The band has its own material now (`createBandSteelMaterial`, a patched lit MeshStandardMaterial): the ramp's deep stop is on the metal — tempered near-black (`temperColor` #070b1c) at the foot and on the inner coils, darker blued steel (#1d3560) only up top, a faint temper streak under the edge. Satin, not mirror (metalness 0.3, roughness 0.66).
+- The stress light is confined: no wash (`stressFill` 0.03), low rim (`stressRim`), thin slashes (`stressSharp` 90, 7 pulses) and a thin hot line along the top of the side faces (`edgeWidth` 0.08); the flat top face only takes `edgeTop` of it, so the top no longer reads as a white basin rim.
+- Ledger rim line and the lit groove under the band are now keys (`ledgerRim` 0.2, `ledgerCoil` 0.6), toned down.
+- New keys (13): temperColor, temperStrength, temperHeight, temperInner, temperSheen, sheenColor, edgeWidth, edgeTop, stressFill, stressRim, stressSharp, ledgerRim, ledgerCoil.
+After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-G/r3/matrix-expansion__temporal-mortgage-sheet.jpg` — a dark blued-steel coil with thin cyan edge lines and stress slashes. Honest 8. Still short: from the play camera the stepped coils can still read as concentric walls between lashes; the spiral is clearest while the outer limb is lashing (f40).

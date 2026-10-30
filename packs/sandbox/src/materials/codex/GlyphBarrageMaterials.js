@@ -151,6 +151,9 @@ const SIGIL_FRAGMENT = /* glsl */ `
   uniform float uCover;       // how dark the inked plate under the strokes is
   uniform float uFieldGlow;   // the arcane ink swirling in it
   uniform float uFieldScale;
+  uniform float uInkFill;     // the solid ink fills (rune band, star points, eye) — the body stop
+  uniform float uLineHot;     // 0 = strokes in the tint, 1 = white-hot strokes
+  uniform vec3  uColorInk;    // saturated body ink
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
 
@@ -162,6 +165,15 @@ const SIGIL_FRAGMENT = /* glsl */ `
   vec2 rot(vec2 p, float a) {
     float c = cos(a), s = sin(a);
     return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+  }
+
+  /** 1 inside a regular n-gon of circumradius r (soft edge w), 0 outside. */
+  float ngonIn(vec2 p, float r, float n, float w) {
+    float an = PI / n;
+    float a = atan(p.y, p.x);
+    float bn = mod(a + an, 2.0 * an) - an;
+    float q = length(p) * cos(bn);
+    return 1.0 - smoothstep(-w, w, q - r * cos(an));
   }
 
   /** Distance to the outline of a regular n-gon of circumradius r. */
@@ -182,6 +194,12 @@ const SIGIL_FRAGMENT = /* glsl */ `
     float w = max(uLineW, fwidth(d) * 1.2);
     float core = 1.0 - smoothstep(w * 0.45, w, d);
     float halo = exp(-d / max(uHaloW, 1e-3));
+    // A stroke widened by the pixel footprint (far / grazing glyphs) keeps
+    // its energy, not its brightness — otherwise distant seals read as
+    // bright hoops instead of inked prints.
+    float thin = clamp(uLineW / w, 0.25, 1.0);
+    core *= thin;
+    halo *= mix(0.5, 1.0, thin);
     gCore += core * vis;
     gHalo += halo * vis * 0.5;
     gTint += tint * halo * vis * 0.5;
@@ -303,7 +321,23 @@ const SIGIL_FRAGMENT = /* glsl */ `
     float ink = smoothstep(-0.15, 0.6, swirl) * (0.35 + 0.65 * smoothstep(R * 0.2, R * 0.9, r));
     vec3 field = mix(uColorDeep, uColorGlyph, ink) * ink * uFieldGlow * plate;
 
-    vec3 color = uColorLine * gCore * uLineGlow
+    /* the ink fills: solid bands of saturated ink the strokes sit on, so the
+       seal reads as a filled print (deep plate → body ink → pale strokes →
+       a few white-hot lines) rather than a set of bright hoops */
+    float fw = max(fwidth(r) * 1.5, 0.01);
+    float bandIn = smoothstep(rm - hb - fw, rm - hb + fw, r) * (1.0 - smoothstep(R * 0.945 - fw, R * 0.945 + fw, r));
+    float nS = max(floor(uStar + 0.5), 3.0);
+    vec2 pS = rot(p, uRotB);
+    float starIn = max(ngonIn(pS, R * 0.66, nS, fw), ngonIn(rot(pS, PI / nS), R * 0.66, nS, fw))
+                 * smoothstep(R * 0.46, R * 0.46 + fw * 2.0, r);
+    float eyeIn = 1.0 - smoothstep(R * 0.22 - fw, R * 0.22 + fw, r);
+    float tickIn = smoothstep(R * 0.66, R * 0.68, r) * (1.0 - smoothstep(R * 0.71, R * 0.73, r));
+    float fills = bandIn * v1 + starIn * v3 * 0.75 + eyeIn * v5 * 0.6 + tickIn * v2 * 0.4;
+    float inkN = 0.35 + 0.65 * smoothstep(-0.3, 0.7, swirl);
+    vec3 inkCol = mix(uColorDeep, uColorInk, inkN) * fills * uInkFill * (1.0 - uFade);
+    field += inkCol;
+
+    vec3 color = mix(uColorGlyph, uColorLine, uLineHot) * gCore * uLineGlow
                + gTint * uHaloGlow
                + uColorDeep * wash * washVis * uFillGlow
                + field;
@@ -322,7 +356,7 @@ const SIGIL_FRAGMENT = /* glsl */ `
     color *= uOpacity * uGlobalGlow * uShaderIntensity;
     // Premultiplied over: the plate darkens what is under it (the deep stop
     // on the floor), the strokes and the ink add light on top.
-    float cover = clamp(plate * uCover * uOpacity, 0.0, 1.0);
+    float cover = clamp((plate + fills * uInkFill * 0.3) * uCover * uOpacity, 0.0, 1.0);
     gl_FragColor = vec4(color + uColorPlate * cover * 0.25, cover);
   }
 `;
@@ -383,7 +417,10 @@ export function createGlyphSigilMaterial() {
       uColorPlate: { value: new Color() },
       uCover: { value: 0.7 },
       uFieldGlow: { value: 0.6 },
-      uFieldScale: { value: 2.2 }
+      uFieldScale: { value: 2.2 },
+      uInkFill: { value: 0.8 },
+      uLineHot: { value: 0.35 },
+      uColorInk: { value: new Color() }
     }),
     vertexShader: SIGIL_VERTEX,
     fragmentShader: SIGIL_FRAGMENT
@@ -439,6 +476,9 @@ export function createGlyphSigilMaterial() {
     u.uCover.value = c.plateCover * (1 - state.fade);
     u.uFieldGlow.value = c.plateInk * g.glow * g.shaderIntensity;
     u.uFieldScale.value = c.plateInkScale * g.noiseFrequency;
+    u.uInkFill.value = c.inkFill * g.shaderIntensity;
+    u.uLineHot.value = c.lineHot;
+    u.uColorInk.value.copy(getColor(c.colorInk));
   };
 
   return material;
@@ -633,6 +673,8 @@ const PILLAR_FRAGMENT = /* glsl */ `
   uniform vec3  uColorDeep;
   uniform float uCoreWidth;
   uniform float uCover;
+  uniform float uCoreReach;   // share of the height the white axis climbs before it gives way
+  uniform float uTopDeep;     // how hard the upper column falls to the deep stop
 
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
@@ -668,11 +710,18 @@ const PILLAR_FRAGMENT = /* glsl */ `
     // One heat field through a four-stop ramp: a thin white axis (HDR only
     // there), the pale tint round it, the saturated body at the walls and the
     // deep violet at the rim and up the column — never a white slab.
+    // The white axis lives only in the lower part of the column; above
+    // uCoreReach it hands over to the tint, then the body, then the deep
+    // stop, so the top of a near pillar (which is the top of the frame)
+    // reads as violet falling to deep, never as a white blow-out.
+    float coreZone = 1.0 - smoothstep(uCoreReach * 0.6, uCoreReach, y);
     float axis = pow(facing, uCoreWidth);
-    float heat = clamp(axis * (0.5 + 0.4 * top) + streak * 0.16 + hotFoot * 0.2 - y * 0.3, 0.0, 1.0);
+    float upper = smoothstep(0.25, 0.95, y) * uTopDeep;
+    float heat = clamp(axis * (0.25 + 0.55 * coreZone) + streak * 0.14 + hotFoot * 0.2 - y * 0.3 - upper * 0.45, 0.0, 1.0);
     vec3 col = gradient4(uColorCore, uColorA, uColorB, uColorDeep, 1.0 - heat);
-    vec3 color = col * (0.22 + fres * 0.75 + streak * (0.25 + fres) * uShaderIntensity)
-               + uColorCore * (axis * axis * uCore * (0.4 + 0.6 * top) + hotFoot * 0.4);
+    float dim = 1.0 - 0.6 * upper;
+    vec3 color = col * dim * (0.22 + fres * 0.75 + streak * (0.25 + fres) * uShaderIntensity)
+               + uColorCore * (axis * axis * uCore * coreZone + hotFoot * 0.4);
 
     float a = top * foot * uIntensity * uOpacity;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
@@ -719,7 +768,9 @@ export function createGlyphPillarMaterial() {
       uColorB: { value: new Color() },
       uColorDeep: { value: new Color() },
       uCoreWidth: { value: 10 },
-      uCover: { value: 0.5 }
+      uCover: { value: 0.5 },
+      uCoreReach: { value: 0.55 },
+      uTopDeep: { value: 1 }
     }),
     vertexShader: PILLAR_VERTEX,
     fragmentShader: PILLAR_FRAGMENT
@@ -748,6 +799,8 @@ export function createGlyphPillarMaterial() {
     u.uColorDeep.value.copy(getColor(c.colorPillarDeep));
     u.uCoreWidth.value = c.pillarCoreTight;
     u.uCover.value = c.pillarCover;
+    u.uCoreReach.value = c.pillarCoreReach;
+    u.uTopDeep.value = c.pillarTopDeep;
   };
 
   return material;

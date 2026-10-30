@@ -376,8 +376,8 @@ export class Ability extends BaseAbility {
     this._coreState = { build: 0, baseY: 0, height: BUILD_HEIGHT, flare: 0 };
     this._floorState = { fade: 1, telegraph: 1, opacity: 1, sweep: 0, rings: 0 };
     this._padState = { fade: 1, build: 0, heat: 0 };
-    this._beamState = { fade: 0, color: config.settings.beamColor, arc: 0 };
-    this._lockState = { fade: 0, color: config.settings.lockColor, arc: 0 };
+    this._beamState = { fade: 0, color: config.settings.beamColor, arc: 0, bow: new Vector3() };
+    this._lockState = { fade: 0, color: config.settings.lockColor, arc: 0, bow: new Vector3() };
     this._haloState = { fade: 1, color: config.settings.beamColor, glow: 1.6 };
     this._ringState = { fade: 0, color: config.settings.beamColor, glow: 2 };
     this._seedState = { fade: 1 };
@@ -712,6 +712,27 @@ export class Ability extends BaseAbility {
     return out;
   }
 
+  /**
+   * The bolt's bow at its apex (world metres): `arc` up, `beamSwing` to one
+   * side of the line from the sentry to the body — alternating side shot to
+   * shot (deterministic from the shot index) — and `beamThrow` outward.
+   * The sight for the next shot uses the next shot's side, so it traces the
+   * very curve the bolt will take.
+   */
+  _bow(out, target, arc, shot) {
+    const c = this.config;
+    _dir.copy(target).sub(this._point).setY(0);
+    if (_dir.lengthSq() < 1e-8) _dir.copy(this.direction).setY(0);
+    if (_dir.lengthSq() < 1e-8) _dir.set(0, 0, 1);
+    _dir.normalize();
+    const side = c.beamAlternate > 0.5 && (shot & 1) ? -1 : 1;
+    // lateral = up × outward
+    out.set(_dir.z, 0, -_dir.x).multiplyScalar(c.beamSwing * side);
+    out.addScaledVector(_dir, c.beamThrow);
+    out.y = arc;
+    return out;
+  }
+
   /** Seconds the lock-on is drawn before a shot; never more than most of the interval. */
   _lockWindow() {
     const c = this.config;
@@ -888,6 +909,7 @@ export class Ability extends BaseAbility {
       bs.fade = (1 - this._beamAge / beamTime) * fade;
       bs.color = color;
       bs.arc = c.beamArc;
+      this._bow(bs.bow, this._targetPoint, c.beamArc, this._shots - 1);
       this.beamMat.userData.sync(bs);
     }
 
@@ -911,6 +933,7 @@ export class Ability extends BaseAbility {
       ls.fade = c.lockOpacity * (0.35 + 0.65 * k) * blink * fade;
       ls.color = c.lockColor;
       ls.arc = c.lockArc;
+      this._bow(ls.bow, this._lockPoint, c.lockArc, this._shots);
       this.lockMat.userData.sync(ls);
     }
 
@@ -1056,6 +1079,9 @@ export function buildEditor(gui, c, Editor) {
   R(beam, c, 'beamTime', 0.02, 1, 0.01, 'beam time (s)');
   R(beam, c, 'beamWidth', 0.01, 0.4, 0.005, 'beam width (m)');
   R(beam, c, 'beamArc', 0, 4, 0.05, 'bolt arcs up by (m)');
+  R(beam, c, 'beamSwing', 0, 4, 0.05, 'bolt swings out sideways by (m)');
+  R(beam, c, 'beamThrow', -2, 3, 0.05, 'bolt bows outward by (m)');
+  R(beam, c, 'beamAlternate', 0, 1, 1, 'alternate side each shot');
   R(beam, c, 'beamGlow', 0, 8, 0.05, 'beam glow');
   R(beam, c, 'beamNoise', 0, 2, 0.01, 'beam noise');
   const lock = subFolder(shot, 'Lock-on sight');

@@ -32,5 +32,9 @@ Unchanged: shots every `shotInterval` in the impact phase at the nearest unobstr
 ## Upgrade notes (2026-10-30)
 Fixed from the audit: the housing no longer leans cyan (neutral metal, saturated trim at low weight, smaller muzzle/impact shells that used to read as a pale dome over the head); the scan field takes its own saturated body tone; travel is a slower, higher lob; the shot is now a two-step beat (lock-on, then bolt) and the bolt arcs over the head because the old straight bolt from the head to a body standing behind the mast was hidden by the housing. New keys: floorColor, lockColor, lockTime, lockWidth, lockArc, lockOpacity, beamArc, muzzleHeight, muzzleReach.
 
-## Known gap
+## Known gap (first pass — closed in upgrade G, see below)
 With the cluster of bodies right against the plinth the bolt's arc is nearly vertical from the play camera — it reads as a bright pillar over the head rather than a lobbed curve. A wider `muzzleReach` or a sideways bow would make it read as a trajectory.
+
+## Upgrade G (second pass, 2026-10-30) — the known gap closed
+The bolt's bow is now a world-space vector, not only "up": `beamArc` 1.6 m up, `beamSwing` 2.2 m to one side of the sentry→body line (alternating side each shot, `beamAlternate`, deterministic from the shot index), `beamThrow` 0.6 m outward, on a skewed bell (apex at one third, so it rises and swings out first, then falls onto the body). `muzzleReach` 0.7 → 1.0. The lock-on sight uses the next shot's side, so it traces the curve the bolt will take. With the cluster packed against the plinth the shot now reads as a lobbed curved bolt swinging out from the emitters and down onto the body instead of a bright pillar over the head.
+New keys (3): beamSwing, beamThrow, beamAlternate. After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-G/r1/matrix-expansion__adaptive-fabricator-sheet.jpg` (f45/f52 show the arc). Honest 8.

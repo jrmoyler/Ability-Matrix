@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, AddEquation, CustomBlending, MeshDepthMaterial, OneFactor, OneMinusSrcAlphaFactor, RGBADepthPacking, SrcAlphaFactor, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, Vector3, DoubleSide, AddEquation, CustomBlending, MeshDepthMaterial, OneFactor, OneMinusSrcAlphaFactor, RGBADepthPacking, SrcAlphaFactor, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -363,15 +363,22 @@ const UV_VERTEX = /* glsl */ `
   }
 `;
 
-// The bolt bows upward over its length (world metres at mid-span), so a shot
-// at a body behind the mast still arcs up over the head where it can be seen.
+// The bolt bows over its length by a world-space vector at mid-span: up over
+// the head, out to one side (alternating shot to shot) and a little outward.
+// A body packed against the plinth sits almost straight below the emitters,
+// so a purely upward bow lay along the chord and read as a pillar; the
+// sideways bow turns it into a visible curved trajectory.
 const BEAM_VERTEX = /* glsl */ `
-  uniform float uArc;
+  uniform vec3 uBow;
   varying vec2 vUv;
   void main() {
     vUv = uv;
     vec4 world = modelMatrix * vec4(position, 1.0);
-    world.y += uArc * 4.0 * uv.y * (1.0 - uv.y);
+    // Skewed bell: the apex sits nearer the emitter so the bolt rises and
+    // swings out first, then falls onto the body.
+    float t = uv.y;
+    float bell = 6.75 * t * (1.0 - t) * (1.0 - t);
+    world.xyz += uBow * bell;
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
@@ -416,7 +423,7 @@ export function createBeamMaterial() {
     toneMapped: false,
     uniforms: sharedUniforms({
       uFade: { value: 0 },
-      uArc: { value: 0 },
+      uBow: { value: new Vector3() },
       uGlow: { value: 2.6 },
       uNoise: { value: 1 },
       uColor: { value: new Color('#d6ffff') },
@@ -426,13 +433,14 @@ export function createBeamMaterial() {
     vertexShader: BEAM_VERTEX,
     fragmentShader: BEAM_FRAGMENT,
   });
-  /** @param {{fade:number, color:string, arc?:number}} s */
+  /** @param {{fade:number, color:string, arc?:number, bow?:Vector3}} s */
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
     const u = material.uniforms;
     u.uFade.value = s.fade * g.opacity;
-    u.uArc.value = s.arc ?? 0;
+    if (s.bow) u.uBow.value.copy(s.bow);
+    else u.uBow.value.set(0, s.arc ?? 0, 0);
     u.uGlow.value = c.beamGlow * g.glow;
     u.uNoise.value = c.beamNoise * g.noiseStrength;
     u.uColor.value.copy(getColor(s.color));

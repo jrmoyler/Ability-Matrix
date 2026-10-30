@@ -27,3 +27,10 @@ Unchanged `handlesOwnHits`: bodies on a glyph are marked, and on its eruption kn
 
 ## What the capture shows (upgrade C)
 `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-C/r2/codex__glyphs-sheet.jpg`: filled violet-plated sigils, seals hovering on violet binding shafts that run back to their prints (the "stack" at the far end is now visibly the line of hovering seals), f70 a violet column with a pale axis and deep top instead of a white slab. Before 7 → after honest 8. Short: from the caster camera the hovering seals still overlap one another in screen.
+
+## Upgrade G (second pass, 2026-10-30)
+Coordinator's read of the C sheet: the sigil trail was still mostly bright outline rings, and at f70 the last pillar blew to near-white at the top of frame.
+- Sigils are now filled prints: solid saturated ink (`colorInk` #4a1fd0 over the deep wash) fills the rune band, the star points, the tick band and the eye, the plate covers harder (`plateCover` 0.88), and strokes are mostly tint (`lineHot` 0.3, `lineGlow` 1.2, `haloGlow` 0.22) — rings are detail on the ink. Strokes widened by the pixel footprint (far / grazing seals) keep their energy instead of their brightness, so distant seals no longer read as white hoops.
+- Pillars: the white axis only climbs `pillarCoreReach` (0.5) of the height; above that the column falls tint → body → deep (`pillarTopDeep`), axis thinner (`pillarCoreTight` 16, `pillarCore` 0.3), `pillarHeight` 7 → 5 m so a near pillar stays in frame, `colorPillarA` more violet, glow 0.65; ring/streak/rune glows lowered, runes and seals flung up more slowly so the top of frame is not littered with bright fragments.
+- New keys (5): inkFill, colorInk, lineHot, pillarCoreReach, pillarTopDeep.
+After sheet: `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-G/r2/codex__glyphs-sheet.jpg` — violet filled seals with a dark plate, f70 a violet column falling to deep at its top. Honest 8.

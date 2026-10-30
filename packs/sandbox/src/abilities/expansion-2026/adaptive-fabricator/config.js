@@ -126,13 +126,16 @@ export default {
     fireColor: '#ffb05c', // … a chilled or frozen target
     beamTime: 0.45, // seconds the beam stays drawn
     beamWidth: 0.26, // beam half-width, metres
-    beamArc: 2.8, // the bolt bows up this far at mid-span, metres — it arcs over the head, never hidden behind the mast
+    beamArc: 1.6, // the bolt bows up this far at its apex, metres — it arcs over the head, never hidden behind the mast
+    beamSwing: 2.2, // … and swings out to one side this far, metres: a body packed against the plinth sits almost under the emitters, so only a sideways bow reads as a trajectory
+    beamThrow: 0.6, // … and bows outward (away from the mast) this far, metres
+    beamAlternate: 1, // 1 = the swing alternates side every shot, 0 = always the same side
     beamGlow: 3, // beam brightness (white only in the core; edges fall to the deep tone)
     beamNoise: 1, // noise flowing down the beam
     lockColor: '#ff4a2e', // the lock-on sight drawn before each shot (a warm read against the cyan)
     lockTime: 0.4, // seconds the sight is drawn before a shot (≤ 0.8 × shotInterval)
     lockWidth: 0.035, // sight half-width, metres
-    lockArc: 2.8, // the sight traces the same arc the bolt will take, metres
+    lockArc: 1.6, // the sight traces the same arc the bolt will take, metres
     lockOpacity: 0.8, // sight brightness
     impactRadius: 1.4, // arrival ring size at the struck target, metres
     impactDuration: 0.45, // seconds the arrival rings live
@@ -155,7 +158,7 @@ export default {
     muzzleSize: 0.6, // flash shell at the emitter on each shot, metres
     muzzleLife: 0.12,
     muzzleHeight: 0.8, // the bolt leaves from the emitter tips: metres above the head (× housingScale)
-    muzzleReach: 0.7, // … and this far out on the side facing the target (× housingScale)
+    muzzleReach: 1.0, // … and this far out on the side facing the target (× housingScale)
     shotBurst: 1.3, // ionised shell at the struck body, metres
     shotBurstLife: 0.3,
     scorchRadius: 0.85, // scorch left under each struck body, metres (stays)

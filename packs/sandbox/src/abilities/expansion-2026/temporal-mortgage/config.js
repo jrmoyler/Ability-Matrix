@@ -71,19 +71,30 @@ export default {
     hookCurl: 0.5, // the outer end curls back into a hook (rad)
     hookShare: 0.05, // length of the hook (fraction of the band)
     bandWave: 0.06, // the band ripples in height as it lashes (× height)
-    steelColor: '#2a4f8c', // blued steel
-    steelMetalness: 0.25, // kept low: a mirror band reflects the sky as vertical streaks
-    steelEnv: 0.12, // environment reflection strength on the steel
-    steelRoughness: 0.5,
+    steelColor: '#1d3560', // blued steel (upper band) — dark: the band is metal, not light
+    steelMetalness: 0.3, // moderate: a mirror band reflects the sky as vertical streaks
+    steelEnv: 0.15, // environment reflection strength on the steel
+    steelRoughness: 0.66, // satin: a sharper highlight read as a white streak down the near coil
     steelEmissive: '#0d3a70',
-    steelGlow: 0.3, // emissive under stress (× debt)
+    steelGlow: 0.12, // emissive under stress (× debt)
+    temperColor: '#070b1c', // tempered deep tone on the steel itself (the ramp's deep stop)
+    temperStrength: 0.85, // how dark the foot / inner coils go
+    temperHeight: 0.8, // share of the band height over which it lifts from deep to steel
+    temperInner: 0.5, // inner (relaxed) coils stay darker than the outer, loaded ones
+    temperSheen: 0.25, // faint temper streak just under the top edge
+    sheenColor: '#5a8fd8',
 
     /* --- 2 · the stress glow (shader over the band) --- */
-    stressGlow: 0.45, // brightness of the stress light running along the band
+    stressGlow: 0.7, // brightness of the stress light running along the band
     stressFresnel: 2.4, // rim sharpness
-    stressPulses: 4, // pulses along the band
+    stressPulses: 7, // pulses along the band
     stressSpeed: 3, // pulses run at (× the cast's clock)
-    edgeGlow: 0.9, // the hot top edge of the band
+    edgeGlow: 1.4, // the hot top edge of the band
+    edgeWidth: 0.08, // the hot edge is a thin line along the top of the side faces (share of height)
+    edgeTop: 0.4, // edge light allowed onto the flat top face (low: it read as a white basin rim)
+    stressFill: 0.03, // stress wash over the whole face — kept near zero, the glow is in lines
+    stressRim: 0.12, // fresnel rim share
+    stressSharp: 90, // stress-line sharpness (higher = thinner slashes)
     stressInflate: 0.012, // the light skin floats this far off the steel (m) — no z-fighting
 
     /* --- 3 · the arbor, ratchet, pawl and key (solid) --- */
@@ -106,6 +117,8 @@ export default {
     sweptGlow: 1.2, // the sector the lash has already swept stays lit
     debtInk: 0.8, // dark ink that creeps back as the debt is repaid
     floorGrain: 1, // fbm grain in the ledger
+    ledgerRim: 0.2, // the ledger's outer rim line (kept low: a bright rim read as a fountain basin)
+    ledgerCoil: 0.6, // the lit spiral groove under the steel
     floorFlow: 1, // grooves run at (× the cast's clock)
     dissolveTime: 0.8, // fraction of the exit spent dissolving
 

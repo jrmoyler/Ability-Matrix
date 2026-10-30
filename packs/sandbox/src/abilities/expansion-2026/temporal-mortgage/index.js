@@ -22,7 +22,7 @@ import {
   createSpringGeometry,
   writeSpring,
 } from './geometry.js';
-import { createLedgerMaterial, createLensMaterial, createSmearMaterial, createStressMaterial } from './materials.js';
+import { createBandSteelMaterial, createLedgerMaterial, createLensMaterial, createSmearMaterial, createStressMaterial } from './materials.js';
 import config from './config.js';
 
 export { config };
@@ -199,7 +199,11 @@ export class Ability extends BaseAbility {
     this.steel = own(new MeshStandardMaterial({
       color: 0x2b4f86, metalness: 0.9, roughness: 0.28, emissive: 0x0d3a70, emissiveIntensity: 0.3, side: DoubleSide,
     }));
-    this.spring = new Mesh(this.springGeom, this.steel);
+    // The band itself is tempered: the ramp's deep stop is on the metal (dark
+    // at the foot and on the inner coils), the glow lives only in the stress
+    // light's edge line and stress slashes.
+    this.bandSteel = own(createBandSteelMaterial());
+    this.spring = new Mesh(this.springGeom, this.bandSteel);
     this.spring.castShadow = true;
     // No self-shadowing: on a thin curved band it reads as striped acne.
     this.spring.receiveShadow = false;
@@ -694,6 +698,20 @@ export class Ability extends BaseAbility {
     this.steel.metalness = c.steelMetalness;
     this.steel.roughness = c.steelRoughness;
     this.steel.envMapIntensity = c.steelEnv;
+    const bs = this.bandSteel;
+    bs.color.copy(this.steel.color);
+    bs.emissive.copy(this.steel.emissive);
+    bs.emissiveIntensity = this.steel.emissiveIntensity;
+    bs.metalness = c.steelMetalness;
+    bs.roughness = c.steelRoughness;
+    bs.envMapIntensity = c.steelEnv;
+    const tu = bs.userData.uniforms;
+    tu.uTemperColor.value.copy(getColor(c.temperColor));
+    tu.uTemperStrength.value = c.temperStrength;
+    tu.uTemperHeight.value = c.temperHeight;
+    tu.uTemperInner.value = c.temperInner;
+    tu.uTemperSheen.value = c.temperSheen * g.shaderIntensity;
+    tu.uSheenColor.value.copy(getColor(c.sheenColor));
     this.iron.color.copy(getColor(c.ironColor));
     this.iron.roughness = c.ironRoughness;
 
@@ -892,6 +910,12 @@ export function buildEditor(gui, c, Editor) {
   R(spring, c, 'steelEnv', 0, 2, 0.01, 'reflection strength');
   color(spring, c, 'steelEmissive', 'stress emissive');
   R(spring, c, 'steelGlow', 0, 3, 0.01, 'stress emissive strength');
+  color(spring, c, 'temperColor', 'tempered deep (foot / inner coils)');
+  R(spring, c, 'temperStrength', 0, 1, 0.01, 'temper darkening');
+  R(spring, c, 'temperHeight', 0.05, 1, 0.01, 'temper height (share of band)');
+  R(spring, c, 'temperInner', 0, 1, 0.01, 'inner coils darker');
+  R(spring, c, 'temperSheen', 0, 2, 0.01, 'temper streak');
+  color(spring, c, 'sheenColor', 'temper streak colour');
 
   const stress = sub(folder, '2 · Stress light');
   R(stress, c, 'stressGlow', 0, 6, 0.05, 'glow');
@@ -899,6 +923,11 @@ export function buildEditor(gui, c, Editor) {
   R(stress, c, 'stressPulses', 0, 20, 0.5, 'pulses along the band');
   R(stress, c, 'stressSpeed', 0, 12, 0.1, 'pulse speed (× clock)');
   R(stress, c, 'edgeGlow', 0, 6, 0.05, 'hot top edge');
+  R(stress, c, 'edgeWidth', 0.01, 0.6, 0.005, 'edge line width (share of height)');
+  R(stress, c, 'edgeTop', 0, 1, 0.01, 'edge light on the flat top');
+  R(stress, c, 'stressFill', 0, 1, 0.01, 'stress wash over the face');
+  R(stress, c, 'stressRim', 0, 1, 0.01, 'fresnel rim');
+  R(stress, c, 'stressSharp', 1, 160, 1, 'stress line sharpness');
   R(stress, c, 'stressInflate', 0, 0.05, 0.001, 'skin offset (m)');
 
   const iron = sub(folder, '3 · Arbor, ratchet & key');
@@ -921,6 +950,8 @@ export function buildEditor(gui, c, Editor) {
   R(ledger, c, 'sweptGlow', 0, 4, 0.05, 'debt sector glow');
   R(ledger, c, 'debtInk', 0, 1, 0.01, 'repaid ink');
   R(ledger, c, 'floorGrain', 0, 3, 0.05, 'grain');
+  R(ledger, c, 'ledgerRim', 0, 3, 0.05, 'outer rim line');
+  R(ledger, c, 'ledgerCoil', 0, 3, 0.05, 'lit groove under the steel');
   R(ledger, c, 'floorFlow', 0, 4, 0.05, 'groove flow (× clock)');
   R(ledger, c, 'dissolveTime', 0.05, 1, 0.01, 'dissolves over (× exit)');
 

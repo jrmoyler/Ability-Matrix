@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, LessEqualDepth, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, LessEqualDepth, MeshStandardMaterial, NormalBlending, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -54,6 +54,61 @@ const QUAD_VERTEX = /* glsl */ `
 `;
 
 /* -------------------------------------------------------------------- */
+/* Band steel (lit, tempered)                                           */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The mainspring's steel: a lit `MeshStandardMaterial` patched so the ramp's
+ * deep stop lives on the metal itself. Spring steel is tempered dark — the
+ * band runs from near-black blued iron at its foot (and along its inner,
+ * relaxed coils) up to the blued-steel tone only in its upper part, with a
+ * faint straw-coloured temper streak below the top edge. The glow is not
+ * here; it is the stress light's job and stays on edges and stress lines.
+ */
+export function createBandSteelMaterial() {
+  const material = new MeshStandardMaterial({
+    color: 0x1d3560, metalness: 0.45, roughness: 0.42, emissive: 0x0d3a70, emissiveIntensity: 0.15, side: DoubleSide,
+  });
+  const uniforms = {
+    uTemperColor: { value: new Color(0x070b1c) },
+    uTemperStrength: { value: 0.85 },
+    uTemperHeight: { value: 0.8 },
+    uTemperInner: { value: 0.5 },
+    uTemperSheen: { value: 0.25 },
+    uSheenColor: { value: new Color(0x5a8fd8) },
+  };
+  material.userData.uniforms = uniforms;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vTemperUv;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTemperUv = uv;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec2 vTemperUv;
+        uniform vec3 uTemperColor;
+        uniform float uTemperStrength;
+        uniform float uTemperHeight;
+        uniform float uTemperInner;
+        uniform float uTemperSheen;
+        uniform vec3 uSheenColor;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          // deep at the foot and on the inner coils, steel only up top / outside
+          float up = smoothstep(0.0, max(0.05, uTemperHeight), vTemperUv.y);
+          float outward = mix(1.0 - uTemperInner, 1.0, smoothstep(0.0, 0.8, vTemperUv.x));
+          float t = up * outward;
+          diffuseColor.rgb = mix(diffuseColor.rgb, uTemperColor, uTemperStrength * (1.0 - t));
+          // a thin temper streak just under the top edge
+          float streak = exp(-pow((vTemperUv.y - 0.86) * 22.0, 2.0));
+          diffuseColor.rgb += uSheenColor * streak * uTemperSheen;
+        }`);
+  };
+  material.customProgramCacheKey = () => 'temporal-mortgage-band-steel';
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
 /* Stress light                                                         */
 /* -------------------------------------------------------------------- */
 
@@ -80,6 +135,11 @@ const STRESS_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uGlow;
   uniform float uEdge;
+  uniform float uEdgeWidth;   // share of the band height the hot edge line covers
+  uniform float uEdgeTop;     // how much of the edge light spills onto the flat top face
+  uniform float uFill;        // base stress wash over the whole face (kept low: the steel is the read)
+  uniform float uRim;         // fresnel rim share
+  uniform float uSharp;       // stress-line sharpness (higher = thinner lines)
   uniform float uFresnelPow;
   uniform float uFresnel;
   uniform float uFlash;       // instalment click flash
@@ -96,14 +156,21 @@ const STRESS_FRAGMENT = /* glsl */ `
   void main() {
     float s = vUv.x;
     float v = vUv.y;
+    // The flat top face has v = 1 everywhere; only the side faces carry the
+    // thin hot line along their upper edge, so the top does not read as a
+    // white rim of a basin.
+    float top = smoothstep(0.5, 0.8, abs(vNormalW.y));
     // Outer coils carry the load: stress rises along the band.
     float stress = smoothstep(0.1, 1.0, s) * (0.2 + 0.8 * uDebt);
-    float pulse = pow(0.5 + 0.5 * sin((s * uPulses - uFlow) * 6.2831853), 8.0);
-    float rim = fresnelTerm(vViewDir, vNormalW, uFresnelPow, uFresnel);
-    float edge = smoothstep(0.86, 1.0, v) * uEdge;
-    float heat = stress * (0.3 + 1.2 * pulse) * uShaderIntensity + edge * (0.25 + 0.75 * uDebt) + uFlash * 0.6;
+    // Stress lines: thin bright slashes across the band, not a wash.
+    float pulse = pow(0.5 + 0.5 * sin((s * uPulses - uFlow) * 6.2831853), uSharp);
+    float rim = fresnelTerm(vViewDir, vNormalW, uFresnelPow, uFresnel) * (1.0 - top);
+    float edgeLine = smoothstep(1.0 - uEdgeWidth, 1.0, v);
+    float edge = mix(edgeLine, uEdgeTop, top) * uEdge;
+    float line = stress * pulse * (1.0 - top);
+    float heat = line * 1.6 * uShaderIntensity + edge * (0.35 + 0.65 * uDebt) + uFlash * 0.6;
     vec3 col = gradient4(uDeep, uBody, uTint, uCore, clamp(heat * 0.8, 0.0, 1.0)) * (0.6 + heat);
-    float a = (stress * (0.15 + 0.85 * pulse) + rim * 0.5 * (0.2 + stress) + edge * 0.6 + uFlash * 0.4) * uFade;
+    float a = (stress * uFill + line + rim * uRim * (0.2 + stress) + edge * 0.6 + uFlash * 0.25) * uFade;
     if (a < 0.003) discard;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(a, 0.0, 1.0));
   }
@@ -121,6 +188,11 @@ export function createStressMaterial() {
       uFade: { value: 1 },
       uGlow: { value: 1.6 },
       uEdge: { value: 2.2 },
+      uEdgeWidth: { value: 0.1 },
+      uEdgeTop: { value: 0.2 },
+      uFill: { value: 0.03 },
+      uRim: { value: 0.12 },
+      uSharp: { value: 28 },
       uFresnelPow: { value: 2.4 },
       uFresnel: { value: 1 },
       uFlash: { value: 0 },
@@ -144,6 +216,11 @@ export function createStressMaterial() {
     u.uFade.value = s.fade * g.opacity;
     u.uGlow.value = c.stressGlow * g.glow;
     u.uEdge.value = c.edgeGlow;
+    u.uEdgeWidth.value = c.edgeWidth;
+    u.uEdgeTop.value = c.edgeTop;
+    u.uFill.value = c.stressFill;
+    u.uRim.value = c.stressRim;
+    u.uSharp.value = c.stressSharp;
     u.uFresnelPow.value = c.stressFresnel;
     u.uFresnel.value = g.fresnel;
     u.uFlash.value = s.flash;
@@ -178,6 +255,8 @@ const LEDGER_FRAGMENT = /* glsl */ `
   uniform float uSweptGlow;
   uniform float uInk;
   uniform float uGrain;
+  uniform float uRimGlow;     // outer rim line of the ledger
+  uniform float uCoilGlow;    // the lit groove under the steel
   uniform float uScale;
   uniform vec3  uCore;
   uniform vec3  uTint;
@@ -226,13 +305,13 @@ const LEDGER_FRAGMENT = /* glsl */ `
     col = mix(col, uDeep * 0.35, repaid * uInk * (0.6 + 0.4 * grain));
     col += uBody * drawn * uSweptGlow * (0.25 + 0.55 * grain) * (0.4 + 0.6 * uDebt);
     col += uTint * cells * drawn * 0.25 * uDebt;
-    col += uTint * coil * 1.2 * uShaderIntensity;
+    col += uTint * coil * uCoilGlow * uShaderIntensity;
     col += uBody * fine * 0.5 * uShaderIntensity;
     col += uCore * tip * 3.0;
-    col += uTint * rim * 0.9;
+    col += uTint * rim * uRimGlow;
     col *= 1.0 - shade * 0.25;
 
-    float alpha = uOpacity * (0.55 * edgeFade + 0.35 * drawn + coil * 0.6 + tip + rim * 0.7);
+    float alpha = uOpacity * (0.55 * edgeFade + 0.35 * drawn + coil * 0.6 * min(1.0, uCoilGlow) + tip + rim * 0.7 * min(1.0, uRimGlow));
     vec2 dm = dissolveMask(snoise01(vec3(w * 0.9, 4.1)), uDissolve, 0.08);
     col += uTint * dm.y * 2.5;
     gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(alpha * dm.x * uFade, 0.0, 1.0));
@@ -267,6 +346,8 @@ export function createLedgerMaterial() {
       uSweptGlow: { value: 1.2 },
       uInk: { value: 0.8 },
       uGrain: { value: 1 },
+      uRimGlow: { value: 0.35 },
+      uCoilGlow: { value: 0.6 },
       uScale: { value: 1 },
       uCore: { value: new Color() },
       uTint: { value: new Color() },
@@ -299,6 +380,8 @@ export function createLedgerMaterial() {
     u.uSweptGlow.value = c.sweptGlow;
     u.uInk.value = c.debtInk;
     u.uGrain.value = c.floorGrain * g.noiseStrength;
+    u.uRimGlow.value = c.ledgerRim;
+    u.uCoilGlow.value = c.ledgerCoil;
     u.uScale.value = g.noiseFrequency;
     u.uCore.value.copy(getColor(c.coreColor));
     u.uTint.value.copy(getColor(c.tintColor));

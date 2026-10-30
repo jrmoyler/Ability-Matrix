@@ -1275,6 +1275,9 @@ export function buildEditor(gui, c, Editor) {
   R(sigil, c, 'plateInk', 0, 3, 0.01, 'ink swirl glow');
   R(sigil, c, 'plateInkScale', 0.3, 8, 0.05, 'ink swirl scale');
   sigil.addColor(c, 'colorPlate').name('plate');
+  R(sigil, c, 'inkFill', 0, 3, 0.01, 'solid ink fills');
+  sigil.addColor(c, 'colorInk').name('ink fills');
+  R(sigil, c, 'lineHot', 0, 1, 0.01, 'white-hot strokes share');
   R(sigil, c, 'stampChips', 0, 60, 1, 'chips kicked up per stamp');
   R(sigil, c, 'stampChipSpeed', 0, 12, 0.1, 'chip speed');
   R(sigil, c, 'stampDust', 0, 2, 0.01, 'dust ring per stamp');
@@ -1336,6 +1339,8 @@ export function buildEditor(gui, c, Editor) {
   pillar.addColor(c, 'colorPillarB').name('top');
   pillar.addColor(c, 'colorPillarDeep').name('deep');
   R(pillar, c, 'pillarCoreTight', 1, 40, 0.5, 'axis thinness');
+  R(pillar, c, 'pillarCoreReach', 0.05, 1, 0.01, 'white axis climbs (share of height)');
+  R(pillar, c, 'pillarTopDeep', 0, 2, 0.01, 'upper column falls to deep');
 
   const warp = folder.addFolder('4 · Distortion');
   R(warp, c, 'warpStrength', 0, 4, 0.01, 'strength');
