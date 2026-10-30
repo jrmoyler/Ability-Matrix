@@ -24,7 +24,7 @@ export default {
     range: 18, // maximum cast distance, metres
     minRange: 2, // closer than this and the cast is refused
     speed: 27, // how fast the vessel pays out down the line, metres/second
-    lifetime: 2.2, // seconds the spatter takes to dry and fade
+    lifetime: 1.5, // seconds the spatter takes to dry and fade
     cooldown: 0.6, // seconds before the ability can be armed again
     castAnim: 'cast3', // which clip in `CAST_ANIMATIONS` the body throws
 
@@ -41,7 +41,7 @@ export default {
     handSide: 0.25, // metres to the right
     handHeight: 1.5, // metres off the floor
     woundSize: 0.5, // radius of the bloom round the wrist, metres
-    woundGlow: 2.4,
+    woundGlow: 1.6,
     woundOpen: 0.12, // seconds the wrist takes to open
     colorWoundCore: '#ffd8dc',
     colorWoundHalo: '#e0102c',
@@ -49,7 +49,7 @@ export default {
     /* ================================================================ */
     /* 2 · THE VESSEL — shape                                            */
     /* ================================================================ */
-    rootRadius: 0.13, // thickness at the wrist, metres
+    rootRadius: 0.15, // thickness at the wrist, metres
     tipRadius: 0.035, // thickness at the tip, metres
     taper: 0.9,
     segmentLength: 0.34, // metres per bead
@@ -67,17 +67,17 @@ export default {
     pulseRate: 2.6, // pulses per second pumped hand → tip
     pulseSpacing: 2.4, // metres between pulses
     pulseSwell: 0.55, // how far a pulse swells the beads
-    pulseGlow: 3.2, // blood glowing through the wall as a pulse passes (bloom > 1)
-    wallGlow: 0.15, // resting glow through the wall
+    pulseGlow: 1.15, // blood glowing through the wall as a pulse passes (bloom > 1)
+    wallGlow: 0.06, // resting glow through the wall
     capillaryScale: 3.2,
     capillaries: 0.7,
     wetness: 1.6, // wet specular
-    rimGlow: 0.8,
+    rimGlow: 0.3,
     dissolveEdge: 0.06,
-    colorVesselDeep: '#200308',
-    colorVesselBody: '#8a1626',
-    colorVesselHot: '#ff2a40',
-    colorVesselRim: '#ff6070',
+    colorVesselDeep: '#140105',
+    colorVesselBody: '#460712',
+    colorVesselHot: '#e8182e',
+    colorVesselRim: '#c8182c',
     colorCapillary: '#3a0410',
 
     /* ================================================================ */
@@ -86,16 +86,29 @@ export default {
     snapTime: 0.16, // seconds the arch takes to come over and down
     slamDepth: 0.6, // how far past straight it is driven (lays it flat)
     slamSweep: 0.12, // seconds it takes to land hand → tip
-    holdTime: 0.35, // seconds it lies on the floor, still pulsing
-    recoilTime: 0.5, // seconds it takes to reel back into the wrist
+    holdTime: 1.55, // seconds it lies on the floor, writhing, pulsing, the head striking
+    recoilTime: 0.65, // seconds it takes to reel back into the wrist
     recoilSlack: 0.8,
     recoilWave: 1.8,
     travelRumble: 0.06,
     slamShake: 0.55,
     shakeDuration: 0.4,
-    slamFlash: 0.3,
+    slamFlash: 0.04, // kept tiny: the punch is the local tip glow + light, not a red screen
     slamLight: 2.6, // light punch, × lightIntensity
     colorFlash: '#ff3a50',
+
+    /* --- the linger: it lies there alive --- */
+    writheAmp: 0.42, // metres of sideways serpentine while it lies
+    writheLength: 2.6, // metres per serpentine wave
+    writheSpeed: 6.5, // radians/second the serpentine crawls hand -> tip
+    writheIn: 0.22, // seconds after the slam it comes alive
+    lieThicken: 1.22, // × its radius while it lies, swollen with pooled blood
+    rearHeight: 1.35, // metres the torn head rears off the floor
+    rearFrom: 0.62, // share of the length from which the head rears
+    rearRate: 0.95, // strikes per second
+    restrikeDrops: 55, // blood thrown by each strike of the head
+    restrikeRing: 1.7, // metres, the ring each strike throws (0 = none)
+    restrikeShake: 0.1,
 
     /* ================================================================ */
     /* 5 · RUPTURE                                                       */
@@ -107,11 +120,11 @@ export default {
     ruptureWarp: 1.3,
     splashSize: 2, // the splash dome, metres
     shockRadius: 5,
-    colorSplashA: '#ff8a96',
+    colorSplashA: '#ff3a4c',
     colorSplashB: '#d01a30',
     colorSplashC: '#4a0410',
     colorShockA: '#ff2a44',
-    colorShockB: '#ffc4cc',
+    colorShockB: '#ff6a7a',
 
     /* ================================================================ */
     /* 6 · SPLATTER                                                      */
@@ -125,6 +138,10 @@ export default {
     splatterSheen: 0.8,
     splatterOpacity: 0.95,
     splatterMist: 18, // mist puffs per second off the drying spatter
+    poolGrow: 1.3, // the smear spreads to × (1 + this) its width while wet
+    poolTime: 1.1, // seconds the pool takes to spread
+    poolFlow: 0.45, // m/s the wet sheen runs down the line
+    poolPulse: 0.7, // fresh blood welling in the pool with each beat
     colorSplatterFresh: '#9a0c1e',
     colorSplatterDark: '#2a0208',
     colorSplatterDry: '#2e1610',
@@ -140,14 +157,14 @@ export default {
     dropLife: 0.85,
     dropGravity: 14,
     dropStretch: 0.3,
-    dropGlow: 1.2,
+    dropGlow: 0.9,
     sprayStretch: 0.2,
     sprayGlow: 2.6,
     mistSize: 0.5,
     mistLift: 0.7,
     mistLife: 1.5,
     mistOpacity: 0.35,
-    colorDropA: '#ff5868',
+    colorDropA: '#e0283c',
     colorDropB: '#c8142c',
     colorDropC: '#760614',
     colorDropD: '#36020a',
