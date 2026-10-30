@@ -1,5 +1,5 @@
 # Stillpoint — `atlas/stillpoint`
-Control · zone · range 2–16 m · dome r 3.2 m, 2.3 m high · ≈ 0.4 s travel + 0.6 s form + 0.8 s tear/catch + 0.7 s held + 1.1 s release flight + 1.2 s dissolve
+Control · zone · range 2–16 m · dome r 3.2 m, 2.3 m high · ≈ 0.4 s travel + 0.6 s form + 0.8 s tear/catch + 2.2 s held + 1.1 s release flight + 1.2 s dissolve
 
 ## Read in one line
 A faceted violet seed drifts on an arc to a ring closing on the floor; a dome of dark time-glass panes rises out of it, the floor tears and its stones and glass are caught dead in the air and slowly turned while a time-hand drags round the dome, then everything stored lets go at once and the fragments throw the bodies down.
@@ -26,4 +26,4 @@ A faceted violet seed drifts on an arc to a ring closing on the floor; a dome of
 #fbf8ff nodes/glint → #9b7dff frames / #8a66ff rim → #3a1d9e pane body → #0d0626 pane deep (most of the mass); floor #5a3ae0 rings on #080320.
 
 ## Hits
-Unchanged rules: held bodies released at the release, killed only by a fragment's swept segment within `killReach` 9 m / `fragmentHitRadius` 0.55 m. Default `holdTime` shortened 2.2 → 0.7 s so the held-then-released beat reads in one look (still a live slider).
+Unchanged rules: held bodies released at the release, killed only by a fragment's swept segment within `killReach` 9 m / `fragmentHitRadius` 0.55 m. Default `holdTime` stays 2.2 s (the freeze duration is gameplay); captures of the release need `--frames` past 4 s.
