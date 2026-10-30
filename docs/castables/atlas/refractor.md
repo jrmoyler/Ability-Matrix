@@ -36,3 +36,10 @@ pathWidth, pathIntensity, pathLinger, pathDashes, pathDashSpeed, scarWidth, scar
 
 ## What the capture shows (upgrade L)
 `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-L/after4/atlas__refractor-sheet.jpg`: f8 charged lance at the hand; f20 the lance mid-flight on its light path toward the cluster; f40 a tall faceted cyan prism over a spectral caustic pool, the path and floor scar running back to the caster, bodies struck; f70 the cracked prism still turning over coloured seals on a dark glass floor, the scar draining. Before (regrade-b): travel invisible, 1 m prism, flat white rings (6). After: 8. Short: the refracted beams are short (targets stand 1–2 m from the prism) and read mostly as flashes at 8 m.
+
+## Fix-up (fix-3) — deep indigo prism, three beams that read at 8 m
+- **Prism body**: the refracted sky is filtered through the deep stop (`glassBody` 0.35, lighter tint only at grazing), sky reflection `glassReflect` 0.45, opacity 0.78, glass #5b6cff / deep #0a0f46; the strike flood is rim-only (chargeGlow 0.8); cracks thinner and blue (#4fa8ff, glow 1.5). Bright only on edges and cracks.
+- **Beams**: a solid shaft of the beam colour (`beamShaft` 0.75 flattens the profile), half-width 0.55 m, the hot core only a 0.1 sliver mixed 25 % toward white, deeper hues (#1fb4ff / #8a5cff / #1fe08a). They now leave **high on the prism face** (`beamLift` 0.8 × half-span) and **bow up** (`beamArc` 1.0 m) so the shaft is seen above the crystal instead of hidden behind it. Start and end points — and so the targeting — are unchanged.
+- **Floor burn** (`createRefractorBeamBurnMaterial`, new): each beam's path burned flat from the prism's foot to its landing — a charred deep-indigo band with ragged edges and a molten seam + embers in the beam hue; it follows the tip out, flares on landing, cools to embers and wipes over the sigil's life.
+- Impact shells tinted with the beam colour (no white AIR shell); strike shell 1.4 → 0.8, burst colours #6f8cff / #5fc8ff.
+- New settings (8): glassBody, glassReflect, beamShaft, beamLift, beamArc, burnWidth, burnFill, burnGlow. Gameplay and timing unchanged.

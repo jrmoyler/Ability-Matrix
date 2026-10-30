@@ -18,16 +18,18 @@ const RIBBON_VERTEX = /* glsl */ `
   uniform float uWidth;
   uniform float uTaperTail;
   uniform float uTaperHead;
+  uniform float uArc;
 
   varying vec2  vParam;
   varying float vLength;
 
   void main() {
     float t = aParam.x;
-    vec3 p = mix(uFrom, uTo, t);
+    // uArc (metres) bows the ribbon up into an arc over its span (beams only).
+    vec3 p = mix(uFrom, uTo, t) + vec3(0.0, uArc * 4.0 * t * (1.0 - t), 0.0);
     vec3 d = uTo - uFrom;
     float len = max(length(d), 1e-4);
-    vec3 tangent = d / len;
+    vec3 tangent = normalize(d + vec3(0.0, uArc * 4.0 * (1.0 - 2.0 * t), 0.0));
     vec3 toCamera = normalize(cameraPosition - p);
     vec3 across = cross(tangent, toCamera);
     float l = length(across);
@@ -125,6 +127,7 @@ export function createRefractorLanceMaterial() {
       uWidth: { value: 0.16 },
       uTaperTail: { value: 0.7 },
       uTaperHead: { value: 0.06 },
+      uArc: { value: 0 },
       uCharge: { value: 0 },
       uCore: { value: 0.22 },
       uIntensity: { value: 4.5 },
@@ -238,6 +241,8 @@ const CRYSTAL_FRAGMENT = /* glsl */ `
   uniform float uCrackScale;
   uniform float uCrackWidth;
   uniform float uCrackGlow;
+  uniform float uBody;
+  uniform float uReflect;
   uniform vec3  uColorGlass;
   uniform vec3  uColorDeep;
   uniform vec3  uColorEdge;
@@ -304,7 +309,9 @@ const CRYSTAL_FRAGMENT = /* glsl */ `
     vec3 tR = refract(-V, N, 0.70);
     vec3 tG = refract(-V, N, 0.66);
     vec3 tB = refract(-V, N, 0.62);
-    vec3 through = vec3(sky(tR).r, sky(tG).g, sky(tB).b) * mix(uColorDeep, uColorGlass, 0.3 + 0.7 * (1.0 - ndv));
+    // The body is deep indigo glass: the refracted sky is filtered hard
+    // through the deep stop, the lighter glass tint only toward grazing.
+    vec3 through = vec3(sky(tR).r, sky(tG).g, sky(tB).b) * mix(uColorDeep, uColorGlass, uBody * (0.15 + 0.85 * pow(1.0 - ndv, 2.0)));
 
     /* --- caustic bands sweeping up inside --- */
     float bandCoord = vLocal.y * uBands + dot(vLocal.xz, vec2(0.6, 0.4)) * 1.4 - uTime * uBandSpeed;
@@ -322,14 +329,14 @@ const CRYSTAL_FRAGMENT = /* glsl */ `
     // network grows cell by cell as each beam leaves.
     float crack = (1.0 - smoothstep(uCrackWidth, uCrackWidth + fwidth(vo.x) * 1.5, vo.x)) * step(vo.y, uCrack);
 
-    vec3 color = mix(through, refl, fres);
-    color += uColorGlass * bands * 0.8 * uGlobalGlow;
+    vec3 color = mix(through, refl * uReflect, fres);
+    color += uColorGlass * bands * 0.8 * uBody * uGlobalGlow;
     color += uColorEdge * edge * uEdgeGlow * (1.0 + uCharge) * uGlobalGlow;
-    color += uColorEdge * uCharge * uChargeGlow * (0.4 + 0.6 * (1.0 - ndv)) * uGlobalGlow;
+    color += uColorEdge * uCharge * uChargeGlow * pow(1.0 - ndv, 1.5) * uGlobalGlow;
     color += uColorCrack * (crack * uCrackGlow + shatterRim * uCrackGlow * 1.5) * uGlobalGlow;
     color += uColorEdge * scanLine * 4.0 * uGlobalGlow;
 
-    float alpha = clamp(uOpacity + fres * 0.45 + edge * 0.6 + uCharge * 0.3 + crack * 0.6 + scanLine + bands * 0.15, 0.0, 1.0);
+    float alpha = clamp(uOpacity + fres * 0.3 + edge * 0.6 + uCharge * 0.15 + crack * 0.6 + scanLine + bands * 0.1, 0.0, 1.0);
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(color, alpha);
   }
@@ -361,6 +368,8 @@ export function createRefractorCrystalMaterial() {
       uCrackScale: { value: 3.6 },
       uCrackWidth: { value: 0.05 },
       uCrackGlow: { value: 5 },
+      uBody: { value: 0.45 },
+      uReflect: { value: 0.5 },
       uColorGlass: { value: new Color(0.75, 0.97, 1) },
       uColorDeep: { value: new Color(0.02, 0.07, 0.13) },
       uColorEdge: { value: new Color(0.9, 1, 1) },
@@ -393,6 +402,8 @@ export function createRefractorCrystalMaterial() {
     u.uCrackScale.value = c.crackScale;
     u.uCrackWidth.value = c.crackWidth;
     u.uCrackGlow.value = c.crackGlow;
+    u.uBody.value = c.glassBody ?? 0.45;
+    u.uReflect.value = c.glassReflect ?? 0.5;
     u.uColorGlass.value.copy(getColor(c.colorGlass));
     u.uColorDeep.value.copy(getColor(c.colorGlassDeep));
     u.uColorEdge.value.copy(getColor(c.colorGlassEdge));
@@ -434,6 +445,7 @@ const BEAM_FRAGMENT = /* glsl */ `
   uniform float uPacketSpeed;
   uniform float uBands;
   uniform float uFlicker;
+  uniform float uShaft;
   uniform float uSeed;
   uniform vec3  uColor;
   uniform vec3  uColorCore;
@@ -452,7 +464,9 @@ const BEAM_FRAGMENT = /* glsl */ `
     if (across > 1.0) discard;
 
     float core = 1.0 - smoothstep(uCore * 0.6, uCore, across);
-    float glow = pow(clamp(1.0 - across, 0.0, 1.0), 1.8);
+    // A solid shaft of the beam's colour: flat across most of its width,
+    // falling off only at the edge; the white is a thin core.
+    float glow = pow(clamp(1.0 - across, 0.0, 1.0), mix(1.8, 0.45, uShaft));
 
     float d = t * vLength;
     float packets = pow(0.5 + 0.5 * sin((d * uPackets - uTime * uPacketSpeed * uPackets) * 6.28318 * 0.25), 12.0);
@@ -460,7 +474,8 @@ const BEAM_FRAGMENT = /* glsl */ `
     float tip = smoothstep(uReach - 0.08, uReach, t) * step(uReach, 0.999);
     float flick = 1.0 - uFlicker * step(0.78, hash11(floor(uTime * 28.0) + uSeed * 7.0));
 
-    vec3 color = uColor * glow * bands * (1.0 + packets * 1.6) + uColorCore * (core + tip * 2.0) * (1.0 + packets);
+    vec3 hot = mix(uColor, uColorCore, 0.25);
+    vec3 color = uColor * glow * bands * (1.0 + packets * 0.9) + hot * (core + tip * 1.5) * (1.0 + packets * 0.5);
     float energy = uLevel * flick;
     float alpha = clamp(max(glow, core) * energy, 0.0, 1.0) * uOpacity;
     if (alpha < 0.003) discard;
@@ -492,6 +507,8 @@ export function createRefractorBeamMaterial() {
       uPacketSpeed: { value: 22 },
       uBands: { value: 0.4 },
       uFlicker: { value: 0.2 },
+      uShaft: { value: 0.7 },
+      uArc: { value: 0 },
       uSeed: { value: Math.random() * 10 },
       uColor: { value: new Color(0.5, 0.95, 1) },
       uColorCore: { value: new Color(1, 1, 1) }
@@ -518,6 +535,8 @@ export function createRefractorBeamMaterial() {
     u.uPacketSpeed.value = c.beamPacketSpeed * g.animationSpeed / Math.max(0.1, c.beamPackets);
     u.uBands.value = c.beamBands * g.noiseStrength;
     u.uFlicker.value = c.beamFlicker * g.shaderIntensity;
+    u.uShaft.value = c.beamShaft ?? 0.7;
+    u.uArc.value = s.arc ?? 0;
     u.uColor.value.copy(s.color);
     u.uColorCore.value.copy(getColor(c.colorBeamCore));
   };
@@ -1071,6 +1090,118 @@ export function createRefractorPoolMaterial() {
     u.uColorC.value.copy(getColor(c.colorBeamC));
     u.uColorHot.value.copy(getColor(c.colorSigilHot));
     u.uColorDeep.value.copy(getColor(c.colorPoolDeep));
+  };
+
+  return material;
+}
+
+/* ====================================================================== */
+/* 8 · The beam burn — each refracted beam's path scorched on the floor    */
+/* ====================================================================== */
+
+/**
+ * Under every refracted beam, its path burned flat on the floor from the
+ * prism's foot to where it landed, so the three splits still read at 8 m
+ * when the shafts themselves are short or seen end-on.
+ *
+ * Normal-blended: a charred deep-glass band (`uColorDeep`, near-black indigo)
+ * with ragged edges, a molten seam of the beam's own hue down the middle and
+ * embers flickering in it. `uReach` follows the beam's tip out; `uLevel` its
+ * energy (flares on landing, settles to an ember glow); `uFade` wipes it out
+ * from the prism end over the sigil's life.
+ */
+const BURN_FRAGMENT = /* glsl */ `
+  precision highp float;
+
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+
+  uniform float uReach;
+  uniform float uLevel;
+  uniform float uFade;
+  uniform float uFill;
+  uniform float uIntensity;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uColor;
+  uniform vec3  uColorDeep;
+
+  varying vec2  vParam;
+  varying float vLength;
+
+  ${noiseGLSL}
+
+  void main() {
+    float t = vParam.x;
+    if (t > uReach || t < uFade) discard;
+    float d = t * vLength;
+    float n = snoise(vec3(d * 2.6, vParam.y * 1.5, uSeed));
+    float across = abs(vParam.y) + 0.18 * n * uShaderIntensity;
+    if (across > 1.0) discard;
+
+    float body = 1.0 - smoothstep(0.7, 1.0, across);
+    float seam = 1.0 - smoothstep(0.05, 0.3, abs(vParam.y + 0.1 * n));
+    float embers = smoothstep(0.55, 0.9, snoise(vec3(d * 5.0, vParam.y * 3.0, uTime * 1.6 + uSeed))) * (1.0 - smoothstep(0.2, 0.7, across));
+    float feather = smoothstep(uFade, uFade + 0.12, t) * smoothstep(0.0, 0.05, t);
+
+    float glow = (seam * 1.2 + embers * 0.8) * uLevel;
+    vec3 emit = uColor * glow * uIntensity * uGlobalGlow;
+    float ea = clamp(glow, 0.0, 1.0);
+    float da = body * uFill;
+    float a = clamp(ea + da * (1.0 - ea), 0.0, 1.0) * feather * uOpacity;
+    if (a < 0.003) discard;
+    vec3 color = (emit * ea + uColorDeep * da * (1.0 - ea)) / max(ea + da * (1.0 - ea), 1e-3);
+    gl_FragColor = vec4(color, a);
+  }
+`;
+
+export function createRefractorBeamBurnMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uFrom: { value: new Vector3() },
+      uTo: { value: new Vector3(0, 0, 1) },
+      uWidth: { value: 0.3 },
+      uFlat: { value: 1 },
+      uReach: { value: 0 },
+      uLevel: { value: 0 },
+      uFade: { value: 0 },
+      uFill: { value: 0.75 },
+      uIntensity: { value: 2 },
+      uOpacity: { value: 1 },
+      uSeed: { value: Math.random() * 10 },
+      uColor: { value: new Color() },
+      uColorDeep: { value: new Color(0.02, 0.03, 0.12) }
+    }),
+    vertexShader: PATH_VERTEX,
+    fragmentShader: BURN_FRAGMENT
+  });
+
+  /** @param {object} s { from, to, reach, level, fade, color } */
+  material.userData.sync = (s) => {
+    const c = settings.refractor;
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uFrom.value.copy(s.from);
+    u.uTo.value.copy(s.to);
+    u.uReach.value = s.reach;
+    u.uLevel.value = s.level;
+    u.uFade.value = s.fade;
+    u.uWidth.value = c.burnWidth;
+    u.uFill.value = c.burnFill;
+    u.uIntensity.value = c.burnGlow * g.glow;
+    u.uOpacity.value = g.opacity;
+    u.uColor.value.copy(s.color);
+    u.uColorDeep.value.copy(getColor(c.colorSigilDeep));
   };
 
   return material;

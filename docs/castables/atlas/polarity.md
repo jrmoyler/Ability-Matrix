@@ -34,3 +34,11 @@ plotContour, plotPlanted, poleRing, poleGlow, pillarHeight, pillarRadius, pillar
 
 ## What the capture shows (upgrade L)
 `/tmp/claude-0/-home-user-Ability-Matrix/8cc56224-c22f-51ae-821d-6da7489331c5/scratchpad/up-L/after3/atlas__polarity-sheet.jpg`: f8 big banded capsules tumbling out; f20 capsules planting with red/blue halos; f40 a ring of red and blue flux pillars over lit pylons with field lines and a lit field disc among the dummies; f70 the cascade under way — bursts, shock rings, pillars shooting up, bodies thrown. Before (regrade-a): 0.4 m dots, no impact in the window (6). After: 8. Short: the burst shells read near-white at the peak; flight frames put the capsules close to camera.
+
+## Fix-up (fix-3) — no white blow-out at the detonation
+The cascade used to stack a white-core star (glow 6), a white-rimmed STORM shell, a white shockwave edge, white-based pillars shooting up at 2.2× and a 0.16 flash, so the ring went white. Now:
+- **Burst star** (`createPolarityFlareMaterial`) is normal-blended: the charge collapses into a near-black heart (`flareDark`), a ring of the pole's colour races out round it, spikes in the pole's colour; white only as a first-instant pinpoint (`flareHot`).
+- **STORM shell + shockwave** in the pole's colour: rim `burstWhite` 0.15 toward white, body `burstDeep` 0.3 × the pole colour; `shockIntensity` 0.8.
+- **Pillars**: base whiteness `pillarCoreMix` 0.25 (was full white), blast brightness `pillarBlastGlow` 0.9 (was a fixed 2.2).
+- Flash 0.16 → 0.05, light punch 16 → 7, hull heat 5 → 2.5, spark head #ffe2c8.
+- New settings (7): flareDark, flareHot, burstWhite, burstDeep, shockIntensity, pillarBlastGlow, pillarCoreMix. Gameplay and timing unchanged.

@@ -13,7 +13,8 @@ import {
   createRefractorSigilMaterial,
   createRefractorWarpMaterial,
   createRefractorPathMaterial,
-  createRefractorPoolMaterial
+  createRefractorPoolMaterial,
+  createRefractorBeamBurnMaterial
 } from '../../materials/atlas/PrismRefractorMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -174,12 +175,24 @@ export class PrismRefractorAbility extends Ability {
       sigil.renderOrder = 3;
       sigil.visible = false;
 
-      this.group.add(mesh, sigil);
+      // The beam's path burned on the floor, prism foot → landing.
+      const burnMaterial = createRefractorBeamBurnMaterial();
+      const burn = new Mesh(this.ribbonGeometry, burnMaterial);
+      burn.name = `RefractorBeamBurn${i}`;
+      burn.layers.set(LAYER.VFX);
+      burn.frustumCulled = false;
+      burn.renderOrder = 4;
+      burn.visible = false;
+
+      this.group.add(mesh, sigil, burn);
       this.beams.push({
         mesh,
         material,
         sigil,
         sigilMaterial,
+        burn,
+        burnMaterial,
+        burnState: { from: new Vector3(), to: new Vector3(), reach: 0, level: 0, fade: 0, color: null },
         fired: false,
         landed: false,
         fireAge: 0,
@@ -189,7 +202,7 @@ export class PrismRefractorAbility extends Ability {
         target: new Vector3(),
         color: new Color(),
         spin: 0,
-        state: { from: new Vector3(), to: new Vector3(), reach: 0, level: 0, pinch: 0, widthScale: 1, color: null },
+        state: { from: new Vector3(), to: new Vector3(), reach: 0, level: 0, pinch: 0, widthScale: 1, arc: 0, color: null },
         sigilState: { stamp: 1, ring: 0, life: 0, spin: 0, color: null }
       });
     }
@@ -398,6 +411,7 @@ export class PrismRefractorAbility extends Ability {
       beam.dummy = null;
       beam.mesh.visible = false;
       beam.sigil.visible = false;
+      beam.burn.visible = false;
     }
 
     this._handPoint(this._hand);
@@ -578,11 +592,11 @@ export class PrismRefractorAbility extends Ability {
       radius: c.impactBurst * 0.15,
       endRadius: c.impactBurst * g.explosionIntensity,
       life: 0.3,
-      intensity: 2.4,
-      opacity: 0.5,
+      intensity: 1.4,
+      opacity: 0.35,
       fresnel: 2.6,
       displace: 0.2,
-      colorA: getColor(c.colorBurstA),
+      colorA: beam.color,
       colorB: beam.color,
       colorC: getColor(c.colorBurstC)
     });
@@ -916,8 +930,12 @@ export class PrismRefractorAbility extends Ability {
         _dir.y = 0;
         if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
         _dir.normalize();
+        // ...from high on that face, bowing up over the bodies so the shaft
+        // is seen above the crystal rather than hidden behind it.
         s.from.copy(this._prismPoint).addScaledVector(_dir, c.prismRadius * 0.6);
+        s.from.y += (c.prismHeight * 0.5 + c.prismCap) * c.beamLift;
         s.to.copy(beam.target);
+        s.arc = c.beamArc;
         s.reach = Easing.outQuad(saturate(a / grow)) * 1.0001;
         const punch = Math.exp(-10 * Math.max(0, a - grow));
         s.level = a < grow ? 1 : 1 + punch * 1.6;
@@ -930,6 +948,25 @@ export class PrismRefractorAbility extends Ability {
       } else {
         beam.mesh.visible = false;
         if (!beam.landed) this._land(i);
+      }
+
+      /* --- its floor burn: follows the tip out, flares, cools, wipes --- */
+      {
+        const bs = beam.burnState;
+        _dir.subVectors(beam.target, this._prismPoint);
+        _dir.y = 0;
+        if (_dir.lengthSq() < 1e-6) _dir.copy(this.direction);
+        _dir.normalize();
+        bs.from.set(this._prismPoint.x, 0.03, this._prismPoint.z).addScaledVector(_dir, c.prismRadius * 0.4);
+        bs.to.set(beam.target.x, 0.03, beam.target.z);
+        bs.reach = Easing.outQuad(saturate(a / grow)) * 1.0001;
+        const la = beam.landed ? this._strikeAge - beam.landAge : 0;
+        const burnLife = Math.max(0.1, c.sigilLife * g.lifetime);
+        bs.level = beam.landed ? 0.45 + 1.4 * Math.exp(-5 * la) : 0.8;
+        bs.fade = beam.landed ? Easing.inQuad(saturate((la / burnLife - 0.5) / 0.5)) : 0;
+        bs.color = beam.color;
+        beam.burnMaterial.userData.sync(bs);
+        beam.burn.visible = bs.fade < 0.999 && c.burnWidth > 0.001;
       }
 
       /* --- its sigil --- */
@@ -989,6 +1026,7 @@ export class PrismRefractorAbility extends Ability {
     for (const beam of this.beams) {
       beam.mesh.visible = false;
       beam.sigil.visible = false;
+      beam.burn.visible = false;
       beam.fired = false;
       beam.landed = false;
       beam.dummy = null;
@@ -1007,6 +1045,7 @@ export class PrismRefractorAbility extends Ability {
     for (const beam of this.beams) {
       beam.material.dispose();
       beam.sigilMaterial.dispose();
+      beam.burnMaterial.dispose();
     }
     this.wakeMaterial.dispose();
     this.lensMaterial.dispose();
@@ -1092,6 +1131,8 @@ export function buildEditor(gui, c, Editor) {
   R(stone, c, 'prismTilt', 0, 1, 0.01, 'tilt (rad)');
   const glass = prism.addFolder('Glass');
   R(glass, c, 'glassOpacity', 0, 1, 0.01, 'opacity');
+  R(glass, c, 'glassBody', 0, 1, 0.01, 'body lightness (0 = deep indigo)');
+  R(glass, c, 'glassReflect', 0, 2, 0.01, 'sky reflection');
   R(glass, c, 'fresnel', 0, 6, 0.01, 'fresnel');
   R(glass, c, 'fresnelPower', 0.5, 8, 0.05, 'fresnel tightness');
   R(glass, c, 'envIntensity', 0, 4, 0.01, 'sky');
@@ -1115,7 +1156,13 @@ export function buildEditor(gui, c, Editor) {
 
   /* ---- layer 3 ---- */
   const beams = folder.addFolder('3 · Beams');
-  R(beams, c, 'beamWidth', 0.01, 1, 0.005, 'half-width (m)');
+  R(beams, c, 'beamWidth', 0.01, 1.5, 0.005, 'half-width (m)');
+  R(beams, c, 'beamShaft', 0, 1, 0.01, 'solid shaft (0 = soft glow)');
+  R(beams, c, 'beamLift', -1, 1, 0.01, 'leaves the prism at (× half-span)');
+  R(beams, c, 'beamArc', 0, 4, 0.05, 'arcs up over (m)');
+  R(beams, c, 'burnWidth', 0, 1.5, 0.01, 'floor burn half-width (m)');
+  R(beams, c, 'burnFill', 0, 1, 0.01, 'floor burn char');
+  R(beams, c, 'burnGlow', 0, 8, 0.05, 'floor burn seam glow');
   R(beams, c, 'beamCore', 0.02, 1, 0.01, 'core');
   R(beams, c, 'beamIntensity', 0, 15, 0.05, 'intensity');
   R(beams, c, 'beamGrow', 0.01, 1, 0.005, 'reaches target in (s)');

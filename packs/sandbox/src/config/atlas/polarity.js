@@ -64,7 +64,7 @@ export default {
     blinkRate: 1.6, // blinks / second when it first lands
     blinkArmed: 9.0, // blinks / second just before it goes
     blinkDuty: 0.35, // fraction of each blink the beacon is lit
-    heatGlow: 5.0, // how white-hot the hull flares on its last instant
+    heatGlow: 2.5, // how white-hot the hull flares on its last instant
     colorHull: '#3d4a5c',
     colorHullDeep: '#0b0f15',
     colorHullSpec: '#d9e7ff',
@@ -111,6 +111,8 @@ export default {
     pillarRise: 0.3, // seconds a pillar takes to rise once planted
     pillarBlast: 0.4, // seconds it takes to burn out when its capsule goes
     pillarBlastHeight: 1.6, // how far it shoots up on detonation, × height
+    pillarBlastGlow: 0.9, // brightness of the pillar as it shoots up (was 2.2 — blew the ring out)
+    pillarCoreMix: 0.25, // how far the pillar base goes toward white (0 = pure pole colour)
 
     /* ================================================================ */
     /* 3 · CASCADE — the ordered detonations                               */
@@ -128,17 +130,22 @@ export default {
     flareSize: 1.8, // metres — the detonation star
     flareLife: 0.32, // seconds
     flareSpikes: 6, // spikes on the star
-    flareGlow: 6.0,
+    flareGlow: 1.6, // emissive of the burst ring/spikes in the pole colour
+    flareDark: 0.85, // the near-black heart the charge collapses into
+    flareHot: 0.5, // white pinpoint in the first instant only
     burstRadius: 1.6, // metres — the burst shell
     burstLife: 0.45,
-    burstIntensity: 1.6,
+    burstIntensity: 0.9,
+    burstWhite: 0.15, // how far the burst rim leans toward white
+    burstDeep: 0.3, // burst body, × the pole colour
+    shockIntensity: 0.8,
     shockRadius: 3.0, // metres — shockwave ring per detonation
     shockLife: 0.55,
     scorchRadius: 1.2, // metres
     scorchLife: 5.0,
     detonationShake: 0.22,
-    detonationFlash: 0.16,
-    detonationLight: 16,
+    detonationFlash: 0.05,
+    detonationLight: 7,
     lensStrength: 0.9, // screen warp of each shock ring
     lensSize: 1.8, // metres
     colorFlareCore: '#fffaf0',
@@ -154,7 +161,7 @@ export default {
     sparkSize: 0.09,
     sparkLife: 0.55,
     sparkGravity: -9,
-    colorSparkA: '#ffffff',
+    colorSparkA: '#ffe2c8',
     colorSparkB: '#ffd7a0',
     colorSparkC: '#ff6a2a',
     colorSparkD: '#3a1208',

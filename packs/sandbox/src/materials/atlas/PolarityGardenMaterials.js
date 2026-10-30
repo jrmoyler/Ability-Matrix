@@ -391,7 +391,7 @@ export function createPolarityTetherMaterial() {
 
 /**
  * The instant a capsule goes: a camera-facing star with `uSpikes` hard
- * spikes, a white core and a polarity-tinted halo, all collapsing over its
+ * spikes in the pole colour round a near-black heart (white only as a first-instant pinpoint), all collapsing over its
  * short life. Instanced; per instance `aCentre` and `aFlare = (age 0..1,
  * size, polarity, seed)`.
  */
@@ -415,6 +415,8 @@ const FLARE_VERTEX = /* glsl */ `
 const FLARE_FRAGMENT = /* glsl */ `
   uniform float uSpikes;
   uniform float uGlow;
+  uniform float uDark;
+  uniform float uHot;
   uniform vec3  uColorCore;
   uniform vec3  uColorPos;
   uniform vec3  uColorNeg;
@@ -431,14 +433,30 @@ const FLARE_FRAGMENT = /* glsl */ `
     float r = length(vLocal);
     float ang = atan(vLocal.y, vLocal.x) + vFlare.w * 6.2831853;
     float k = 1.0 - age;
-    float spikes = pow(abs(cos(ang * floor(uSpikes + 0.5) * 0.5)), 24.0) * (1.0 - smoothstep(0.0, k, r));
-    float core = exp(-r * r / max(0.02, 0.12 * k * k));
-    float halo = exp(-r * 3.5) * k;
     vec3 tint = vFlare.z > 0.0 ? uColorPos : uColorNeg;
-    vec3 color = uColorCore * (core * 2.0 + spikes) + tint * (halo + spikes * 0.4);
-    float a = clamp(core + spikes + halo, 0.0, 1.0) * k;
+
+    // A polarity-coloured burst with a dark heart, not a white star: the
+    // capsule's charge collapses inward (a near-black core disc), a ring of
+    // the pole's colour races out round it, and the spikes are the pole's
+    // colour too. White only as a pinpoint in the first instant.
+    float rr = mix(0.18, 0.82, sqrt(age));
+    float n = snoise(vec3(vLocal * 3.0, vFlare.w * 7.0 + age * 2.0));
+    float ring = exp(-pow((r - rr - n * 0.05) / (0.07 + 0.06 * age), 2.0)) * k;
+    float spikes = pow(abs(cos(ang * floor(uSpikes + 0.5) * 0.5)), 24.0) * (1.0 - smoothstep(rr * 0.6, rr + 0.25 * k, r)) * k;
+    float coreMask = (1.0 - smoothstep(rr * 0.55, rr * 0.95, r)) * smoothstep(0.0, 0.08, age) * (1.0 - age * age);
+    float hot = exp(-r * r / 0.006) * (1.0 - smoothstep(0.0, 0.22, age)) * uHot;
+    float halo = exp(-r * 4.0) * k * 0.3;
+
+    float glow = uGlow * uGlobalGlow;
+    vec3 pale = mix(tint, uColorCore, 0.35);
+    vec3 emit = tint * (ring * 1.7 + spikes * 1.1 + halo) * glow + pale * hot * 1.6;
+    float ea = clamp(ring + spikes + hot + halo, 0.0, 1.0);
+    vec3 dark = tint * 0.05 + vec3(0.012);
+    float da = coreMask * uDark;
+    float a = clamp(ea + da * (1.0 - ea), 0.0, 1.0);
     if (a < 0.003) discard;
-    gl_FragColor = vec4(color * uGlow * uGlobalGlow * k, a);
+    vec3 color = (emit * ea + dark * da * (1.0 - ea)) / max(a, 1e-3);
+    gl_FragColor = vec4(color, a);
   }
 `;
 
@@ -447,12 +465,14 @@ export function createPolarityFlareMaterial() {
     transparent: true,
     depthWrite: false,
     depthTest: true,
-    blending: AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
       uSpikes: { value: 6 },
       uGlow: { value: 6 },
+      uDark: { value: 0.85 },
+      uHot: { value: 0.6 },
       uColorCore: { value: new Color() },
       uColorPos: { value: new Color() },
       uColorNeg: { value: new Color() }
@@ -467,6 +487,8 @@ export function createPolarityFlareMaterial() {
     const u = material.uniforms;
     u.uSpikes.value = c.flareSpikes;
     u.uGlow.value = c.flareGlow * g.glow * g.explosionIntensity;
+    u.uDark.value = c.flareDark ?? 0.85;
+    u.uHot.value = c.flareHot ?? 0.6;
     u.uColorCore.value.copy(getColor(c.colorFlareCore));
     u.uColorPos.value.copy(getColor(c.colorPositive));
     u.uColorNeg.value.copy(getColor(c.colorNegative));
@@ -737,6 +759,7 @@ const PILLAR_FRAGMENT = /* glsl */ `
   uniform float uTwist;
   uniform float uFlow;
   uniform float uOpacity;
+  uniform float uCoreMix;
   uniform vec3  uColorPos;
   uniform vec3  uColorNeg;
   uniform vec3  uColorCore;
@@ -770,9 +793,9 @@ const PILLAR_FRAGMENT = /* glsl */ `
     float base = smoothstep(0.0, 0.06, y);
 
     // Four stops along the height: core → pale → body → deep.
-    vec3 pale = mix(tint, uColorCore, 0.55);
+    vec3 pale = mix(tint, uColorCore, 0.3 * uCoreMix);
     vec3 deep = tint * 0.22;
-    vec3 ramp = mix(uColorCore, pale, smoothstep(0.0, 0.18, y));
+    vec3 ramp = mix(mix(tint, uColorCore, uCoreMix), pale, smoothstep(0.0, 0.18, y));
     ramp = mix(ramp, tint, smoothstep(0.18, 0.5, y));
     ramp = mix(ramp, deep, smoothstep(0.55, 1.0, y));
 
@@ -799,6 +822,7 @@ export function createPolarityPillarMaterial() {
       uTwist: { value: 1.2 },
       uFlow: { value: 1.2 },
       uOpacity: { value: 1 },
+      uCoreMix: { value: 0.45 },
       uColorPos: { value: new Color() },
       uColorNeg: { value: new Color() },
       uColorCore: { value: new Color() }
@@ -818,6 +842,7 @@ export function createPolarityPillarMaterial() {
     u.uTwist.value = c.pillarTwist;
     u.uFlow.value = c.pillarFlow * g.animationSpeed;
     u.uOpacity.value = g.opacity;
+    u.uCoreMix.value = c.pillarCoreMix ?? 0.45;
     u.uColorPos.value.copy(getColor(c.colorPositive));
     u.uColorNeg.value.copy(getColor(c.colorNegative));
     u.uColorCore.value.copy(getColor(c.colorTetherCore));

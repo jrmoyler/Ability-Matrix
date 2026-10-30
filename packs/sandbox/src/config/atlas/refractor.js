@@ -85,21 +85,23 @@ export default {
     prismSpinStruck: 1.6, // turns/second after the lance hits
     prismBob: 0.08, // metres
     prismTilt: 0.12, // radians
-    glassOpacity: 0.55,
+    glassOpacity: 0.78, // a dense deep body, not a pale shell
+    glassBody: 0.35, // how far the body lifts from the deep stop toward the glass tint (grazing only)
+    glassReflect: 0.45, // sky in the facets
     fresnel: 2.2,
     fresnelPower: 2.6,
-    envIntensity: 1.0,
+    envIntensity: 0.7,
     innerBands: 3.0, // caustic bands inside the crystal
     bandSpeed: 1.2,
-    edgeGlow: 2.0, // facet edges
-    chargeGlow: 1.6, // the flood when the lance hits
+    edgeGlow: 1.6, // facet edges
+    chargeGlow: 0.8, // the flood when the lance hits (rim only)
     crackScale: 3.6, // crack cells per metre
-    crackWidth: 0.05,
-    crackGlow: 3.0,
-    colorGlass: '#9fe9ff',
-    colorGlassDeep: '#0b1450',
-    colorGlassEdge: '#7fe2ff',
-    colorCrack: '#c8f4ff',
+    crackWidth: 0.035,
+    crackGlow: 1.5,
+    colorGlass: '#5b6cff',
+    colorGlassDeep: '#0a0f46',
+    colorGlassEdge: '#6fd8ff',
+    colorCrack: '#4fa8ff',
 
     /* --- the caustic pool the prism throws on the floor --- */
     poolRadius: 2.4, // metres
@@ -111,9 +113,15 @@ export default {
     /* ================================================================ */
     /* 3 · BEAMS — the three refracted paths                             */
     /* ================================================================ */
-    beamWidth: 0.42, // half-width of the glow, metres
-    beamCore: 0.16, // white core, × width
-    beamIntensity: 6.0,
+    beamWidth: 0.55, // half-width of the shaft, metres
+    beamShaft: 0.75, // 0 = soft glow, 1 = flat solid shaft of the beam colour
+    beamLift: 0.8, // where on the prism face it leaves, × half-span above the centre (near the apex)
+    beamArc: 1.0, // metres the shaft bows up over its span (presentation only — it lands on the same point)
+    burnWidth: 0.42, // half-width of the beam's path burned on the floor, metres
+    burnFill: 0.8, // how dark that char band is
+    burnGlow: 2.2, // the molten seam down its middle
+    beamCore: 0.1, // hot core, × width
+    beamIntensity: 1.8,
     beamGrow: 0.08, // seconds a beam takes to reach its target
     beamHold: 0.5, // seconds it holds at full
     beamPinch: 0.22, // seconds it takes to pinch out
@@ -122,9 +130,9 @@ export default {
     beamBands: 0.4, // refraction bands along the beam
     beamFlicker: 0.2,
     colorBeamCore: '#ffffff',
-    colorBeamA: '#3fe6ff', // first beam
-    colorBeamB: '#a07bff', // second beam
-    colorBeamC: '#45ffb8', // third beam
+    colorBeamA: '#1fb4ff', // first beam
+    colorBeamB: '#8a5cff', // second beam
+    colorBeamC: '#1fe08a', // third beam
 
     /* ================================================================ */
     /* 4 · IMPACT SIGILS + SHOCK RINGS                                   */
@@ -146,8 +154,8 @@ export default {
     scorchRadius: 0.9, // SCORCH decal per landing, metres
     scorchLife: 2.4,
     impactBurst: 1.5, // AIR shell per landing, metres
-    colorBurstA: '#ffffff',
-    colorBurstB: '#a3f6ff',
+    colorBurstA: '#6f8cff',
+    colorBurstB: '#5fc8ff',
     colorBurstC: '#2b3bd6',
     colorScorch: '#0b0f2a',
 
@@ -193,7 +201,7 @@ export default {
     lightRadius: 10,
     strikeLight: 30, // light punch when the lance hits the prism
     beamLight: 14, // light punch per landing
-    strikeShell: 1.4, // intensity of the light shell when the lance hits the prism
+    strikeShell: 0.8, // intensity of the light shell when the lance hits the prism
     strikeShellSize: 1.0, // its size, × impactBurst
     strikeShake: 0.3,
     strikeFlash: 0.22,
