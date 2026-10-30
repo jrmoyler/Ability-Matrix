@@ -8,12 +8,13 @@ import {
   Vector3
 } from 'three';
 import { Ability, AbilityPhase } from '../Ability.js';
-import { createIcicleGeometry, createCloudGeometry, createStripGeometry } from '../../assets/codex/WhiteoutNeedleGeometry.js';
+import { createIcicleGeometry, createCloudGeometry, createStripGeometry, createBlizzardGeometry } from '../../assets/codex/WhiteoutNeedleGeometry.js';
 import {
   createIcicleMaterial,
   createCloudMaterial,
   createDriftMaterial,
-  createColdSheetMaterial
+  createColdSheetMaterial,
+  createBlizzardMaterial
 } from '../../materials/codex/WhiteoutNeedleMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -61,6 +62,7 @@ const NOMINAL = { slantD: 0.5, yawD: 0.5 };
 const _cloudState = { length: 10, width: 5, lead: 0, seed: 0, fade: 0, flash: 0 };
 const _driftState = { length: 10, width: 3, front: 0, seed: 0, erode: 0, start: 0 };
 const _coldState = { length: 10, width: 3, front: 0, strength: 0 };
+const _blizState = { origin: new Vector3(), dir: new Vector3(1, 0, 0), across: new Vector3(0, 0, 1), length: 10, width: 5, start: 0, front: 0, fade: 0, flash: 0, seed: 0 };
 
 function syncSystem(p, a, b, cc, d, size, glow, turb) {
   const g = settings.global;
@@ -110,6 +112,13 @@ function syncSystem(p, a, b, cc, d, size, glow, turb) {
  *   4. **the snowed floor** — the lane combed white behind the front, a
  *      drift heaped round the end; the same strip lifted on
  *      `LAYER.DISTORTION` for the cold air.
+ *   8. **the blizzard** — `createBlizzardMaterial`, the storm's vertical
+ *      body: a box over the lane (3.6 m tall) raymarched through
+ *      wind-advected fbm — thick and navy at the floor, tearing into steel
+ *      and pale-ice gusts above, white driving streaks racing through it. It
+ *      is revealed behind the front with the drift and keeps rolling down the
+ *      line all through the hold, so the linger never stands still; a ground
+ *      blizzard of puffs keeps running down the whole lane with it.
  *   5. **strikes** — a puff, ice chips and (every nth) a FROST decal where
  *      each icicle lands, and a tick of shake; a FROST burst, a SHOCKWAVE,
  *      flash and a light punch for the volley.
@@ -206,6 +215,16 @@ export class WhiteoutNeedleAbility extends Ability {
     this.drift.visible = false;
     this.group.add(this.drift);
 
+    /* ---- layer 8: the blizzard ---- */
+    this.blizzardGeometry = createBlizzardGeometry();
+    this.blizzardMaterial = createBlizzardMaterial();
+    this.blizzard = new Mesh(this.blizzardGeometry, this.blizzardMaterial);
+    this.blizzard.name = 'WhiteoutBlizzard';
+    this.blizzard.frustumCulled = false;
+    this.blizzard.renderOrder = 5;
+    this.blizzard.visible = false;
+    this.group.add(this.blizzard);
+
     this.coldMaterial = createColdSheetMaterial();
     this.cold = new Mesh(this.stripGeometry, this.coldMaterial);
     this.cold.name = 'WhiteoutColdAir';
@@ -262,6 +281,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this.snowEmitter = new RateEmitter();
     this.flakeEmitter = new RateEmitter();
     this.hazeEmitter = new RateEmitter();
+    this.lingerEmitter = new RateEmitter();
   }
 
   /* ------------------------------------------------------------------ */
@@ -305,6 +325,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this.snowEmitter.reset();
     this.flakeEmitter.reset();
     this.hazeEmitter.reset();
+    this.lingerEmitter.reset();
     this._releasePins();
     for (let i = 0; i < MAX_NEEDLES; i++) {
       const r = this.recs[i];
@@ -331,6 +352,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this.cloud.visible = false;
     this.drift.visible = false;
     this.cold.visible = false;
+    this.blizzard.visible = false;
   }
 
   _sync() {
@@ -529,6 +551,26 @@ export class WhiteoutNeedleAbility extends Ability {
     _driftState.start = Math.min(c.laneStart, L * 0.5);
     this.driftMaterial.userData.sync(_driftState);
     this.drift.visible = true;
+
+    /* the blizzard: the storm's body, standing over the lane */
+    const bw = width + 2 * c.blizzardWidth;
+    this.blizzard.position.copy(this.origin);
+    this.blizzard.position.y = 0;
+    this.blizzard.rotation.set(0, yaw, 0);
+    this.blizzard.scale.set(reach, Math.max(0.2, c.blizzardHeight), bw);
+    _blizState.origin.copy(this.origin).setY(0);
+    _blizState.dir.set(this.direction.x, 0, this.direction.z).normalize();
+    // The box's own +z under this yaw: (−dir.z, 0, dir.x).
+    _blizState.across.set(-_blizState.dir.z, 0, _blizState.dir.x);
+    _blizState.length = reach;
+    _blizState.width = bw;
+    _blizState.start = _driftState.start;
+    _blizState.front = _driftState.front;
+    _blizState.fade = fadeK;
+    _blizState.flash = this._flash;
+    _blizState.seed = this._seed;
+    this.blizzardMaterial.userData.sync(_blizState);
+    this.blizzard.visible = fadeK < 0.999;
 
     /* cold air at waist height */
     this.cold.position.copy(this.origin);
@@ -772,6 +814,35 @@ export class WhiteoutNeedleAbility extends Ability {
     }
   }
 
+  /** While the field stands, the ground blizzard keeps running down the whole lane. */
+  _lingerHaze(dt, c, g, k) {
+    const n = Math.round(this.lingerEmitter.tick(dt, c.lingerHazeRate * k) * g.particleCount);
+    if (n <= 0) return;
+    const L = this.length;
+    const s0 = Math.min(c.laneStart, L * 0.5);
+    _emit.radius = 0.3;
+    _emit.direction = this.direction;
+    _emit.speed = c.blizzardWind * 0.6;
+    _emit.speedVariance = 0.4;
+    _emit.spread = 0.35;
+    _emit.inherit = null;
+    _emit.anchor = null;
+    _emit.size = 0.7;
+    _emit.sizeVariance = 0.5;
+    _emit.life = c.puffLifetime * 1.3;
+    _emit.lifeVariance = 0.4;
+    _emit.spin = 0.5;
+    _emit.tint = null;
+    _emit.time = frame.uTime.value;
+    for (let k2 = 0; k2 < n; k2++) {
+      const s = s0 + Math.random() * Math.max(0.5, L - s0);
+      this.pointAt(saturate(s / L), _pos).addScaledVector(this.side, (Math.random() * 2 - 1) * (c.laneWidth + 0.6));
+      _pos.y = 0.3 + Math.random() * 0.6;
+      _emit.position = _pos;
+      this.puffs.emit(1, _emit);
+    }
+  }
+
   _volley(c, g) {
     this._volleyed = true;
     this._volleyAt = this.age;
@@ -860,6 +931,7 @@ export class WhiteoutNeedleAbility extends Ability {
     const storm = this.phase === AbilityPhase.IMPACT ? 1 - smoothstep(0.5, 1, t) : 0;
     const L = this.length;
     this._snowFx(dt, c, g, L - c.snowSpan * 0.5, L + c.volleyRadius, storm);
+    this._lingerHaze(dt, c, g, 1 - smoothstep(0.2, 0.8, fadeK));
     this._holdPins(fadeK);
     this.pointAt(1, _end);
     this.position.set(_end.x, 1.6, _end.z);
@@ -873,6 +945,7 @@ export class WhiteoutNeedleAbility extends Ability {
     this.cloud.visible = false;
     this.drift.visible = false;
     this.cold.visible = false;
+    this.blizzard.visible = false;
     this._found.length = 0;
   }
 
@@ -884,6 +957,8 @@ export class WhiteoutNeedleAbility extends Ability {
     this.cloudMaterial.dispose();
     this.driftMaterial.dispose();
     this.coldMaterial.dispose();
+    this.blizzardGeometry.dispose();
+    this.blizzardMaterial.dispose();
     this.icicles.dispose();
     super.dispose();
   }
@@ -969,6 +1044,8 @@ export function buildEditor(gui, c, Editor) {
   R(fl, c, 'driftOpacity', 0, 1, 0.01, 'opacity');
   fl.addColor(c, 'colorSnow').name('snow');
   fl.addColor(c, 'colorSnowShade').name('snow, shade');
+  fl.addColor(c, 'colorSnowCrest').name('snow, crests');
+  R(fl, c, 'driftWind', 0, 8, 0.05, 'streaks run (m/s)');
   R(fl, c, 'coldWarp', 0, 3, 0.01, 'cold air distortion');
   R(fl, c, 'coldScale', 0.1, 5, 0.05, 'cold air scale');
 
@@ -1017,6 +1094,21 @@ export function buildEditor(gui, c, Editor) {
   R(beat, c, 'shockLife', 0.05, 3, 0.01, 'shock ring life');
   beat.addColor(c, 'colorShockA').name('shock ring');
   beat.addColor(c, 'colorShockB').name('shock ring, hot');
+
+  const bz = folder.addFolder('8 · Blizzard');
+  R(bz, c, 'blizzardHeight', 0.2, 10, 0.05, 'height (m)');
+  R(bz, c, 'blizzardWidth', 0, 5, 0.05, 'beyond the lane (m)');
+  R(bz, c, 'blizzardDensity', 0, 4, 0.01, 'density');
+  R(bz, c, 'blizzardScale', 0.05, 3, 0.01, 'noise / m');
+  R(bz, c, 'blizzardWind', 0, 20, 0.05, 'wind (m/s)');
+  R(bz, c, 'blizzardGust', 0, 1, 0.01, 'gusts');
+  R(bz, c, 'blizzardStreakGlow', 0, 8, 0.05, 'driving streaks');
+  R(bz, c, 'blizzardOpacity', 0, 1, 0.01, 'opacity');
+  R(bz, c, 'lingerHazeRate', 0, 200, 1, 'ground blizzard while it stands / s');
+  bz.addColor(c, 'colorBlizzardCore').name('streaks (core)');
+  bz.addColor(c, 'colorBlizzardPale').name('thin (pale)');
+  bz.addColor(c, 'colorBlizzardBody').name('body');
+  bz.addColor(c, 'colorBlizzardDeep').name('thick (deep)');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

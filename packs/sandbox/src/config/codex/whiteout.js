@@ -32,7 +32,7 @@ export default {
     zoneRadius: 0, // a line cast — unused, kept for the shared aim code
 
     /* --- light --- */
-    lightColor: '#e6f6ff',
+    lightColor: '#9fcaf0',
     lightIntensity: 5, // the storm's glow (the light rides the front)
     lightRadius: 9,
 
@@ -50,7 +50,7 @@ export default {
     laneWidth: 1.5, // metres either side of the line they land in
     laneStart: 2.5, // metres ahead of the caster the storm begins, so it never buries them
     needleLength: 1.7, // metres, longest
-    needleWidth: 0.09, // metres at the root
+    needleWidth: 0.12, // metres at the root
     needleJitter: 0.45, // 0..1 length variety
     embed: 0.3, // share of its length driven into the floor
     slant: 0.42, // radians from vertical — they come down leaning down the line
@@ -59,14 +59,14 @@ export default {
     quiverAmp: 0.12, // radians it shudders when it lands
     quiverFreq: 26, // shudders per second (× 2π)
     quiverDamp: 7, // how fast the shudder dies
-    iceEnv: 0.55, // sky reflection
-    iceRimGlow: 1.1,
-    iceCoreGlow: 0.6,
+    iceEnv: 0.3, // sky reflection
+    iceRimGlow: 0.8,
+    iceCoreGlow: 0.25,
     trailGlow: 5, // the burning root while it falls
     landGlow: 3.5, // the flash as it strikes
-    colorIce: '#a9d4f2',
-    colorIceMilk: '#eef8ff',
-    colorIceGlow: '#bfeaff',
+    colorIce: '#6fa6d6', // saturated body of the ice
+    colorIceMilk: '#a9cdeb', // pale tint at the milky root
+    colorIceGlow: '#a8dcff', // the hot stop (HDR only in glow terms)
 
     /* the last volley at the end of the line */
     volleyCount: 18, // max 32
@@ -76,7 +76,7 @@ export default {
     /* ================================================================ */
     /* 2 · THE CLOUD                                                     */
     /* ================================================================ */
-    cloudHeight: 6.5, // metres off the floor
+    cloudHeight: 4.0, // metres off the floor (low enough to sit in the 8 m chase shot)
     cloudWidth: 5.5, // metres across
     cloudStart: 3.5, // metres ahead of the caster it begins (behind them it blocks the camera)
     cloudLead: 3, // metres it runs ahead of the front
@@ -84,8 +84,8 @@ export default {
     cloudScale: 0.35, // billows per metre
     cloudWind: 1.6, // metres/second the billows roll down the line
     cloudOpacity: 0.85,
-    colorCloudBelly: '#3a4a5e',
-    colorCloudLit: '#e4eef7',
+    colorCloudBelly: '#0f1e38', // deep navy belly
+    colorCloudLit: '#7f9fc4', // steel-blue lit lobes
 
     /* ================================================================ */
     /* 3 · THE SNOW                                                      */
@@ -100,9 +100,9 @@ export default {
     flakeSize: 0.05,
     flakeLifetime: 1.6,
     colorSnowA: '#ffffff',
-    colorSnowB: '#eaf6ff',
-    colorSnowC: '#a9d2f0',
-    colorSnowD: '#4d7da6',
+    colorSnowB: '#cfe6fb',
+    colorSnowC: '#5f8fc0',
+    colorSnowD: '#16294a',
 
     /* ================================================================ */
     /* 4 · THE SNOWED FLOOR                                              */
@@ -111,8 +111,10 @@ export default {
     driftEdgeGlow: 1.6, // the powdery leading edge
     driftSparkle: 2,
     driftOpacity: 0.85,
-    colorSnow: '#e9f4fc',
-    colorSnowShade: '#6f93b5',
+    colorSnow: '#8fb4dc', // the drift's steel-blue body
+    colorSnowShade: '#1c3658', // deep navy troughs
+    colorSnowCrest: '#d6e9f8', // only the combed crests go pale
+    driftWind: 1.6, // metres/second the combed streaks keep running down the line
 
     /* ================================================================ */
     /* 5 · STRIKES                                                       */
@@ -130,11 +132,11 @@ export default {
     strikeDecalEvery: 3, // a frost decal under every nth strike
     strikeDecalRadius: 0.45,
     hazeRate: 18, // ground blizzard rolling with the front
-    colorPuffA: '#ffffff',
-    colorPuffB: '#e2f0fb',
-    colorPuffC: '#a4c3dc',
-    colorPuffD: '#5a7c9a',
-    coldWarp: 0.7, // cold air shimmer over the lane
+    colorPuffA: '#e8f4ff',
+    colorPuffB: '#9dbfe0',
+    colorPuffC: '#4a6f99',
+    colorPuffD: '#14274a',
+    coldWarp: 0.12, // cold air shimmer over the lane (kept low: higher smears the icicles into a white sheet)
     coldScale: 1.2,
 
     /* ================================================================ */
@@ -161,14 +163,31 @@ export default {
     strikeShake: 0.05, // per strike
     stormRumble: 0.12, // while the front runs
     volleyShake: 0.45,
-    volleyFlash: 0.3,
-    volleyLight: 30,
-    colorFlash: '#e6f6ff',
+    volleyFlash: 0.18,
+    volleyLight: 18,
+    colorFlash: '#8fc4f0',
     burstRadius: 2.4,
     burstLife: 0.6,
-    colorShockA: '#cdeeff',
-    colorShockB: '#ffffff',
+    colorShockA: '#4f86c0',
+    colorShockB: '#cfe8ff',
     shockRadius: 4,
-    shockLife: 0.5
+    shockLife: 0.5,
+
+    /* ================================================================ */
+    /* 8 · THE BLIZZARD (the storm's vertical body)                      */
+    /* ================================================================ */
+    blizzardHeight: 3.6, // metres the blowing snow stands off the floor
+    blizzardWidth: 0.6, // metres either side beyond the lane
+    blizzardDensity: 1.6, // how thick it blows
+    blizzardScale: 0.75, // noise cells per metre
+    blizzardWind: 5.5, // metres/second it rides down the line
+    blizzardGust: 0.35, // slow thick pulses running down the line
+    blizzardStreakGlow: 1.6, // the white driving streaks inside it
+    blizzardOpacity: 0.85,
+    lingerHazeRate: 26, // puffs/second of ground blizzard over the whole lane while the field stands
+    colorBlizzardCore: '#eef7ff', // driving streaks only
+    colorBlizzardPale: '#9fc1e2', // where it thins
+    colorBlizzardBody: '#3a6292', // steel-blue body
+    colorBlizzardDeep: '#0a1631' // thick and low: deep navy
   }
 };
