@@ -25,7 +25,15 @@ A dark ribbed seed pod is lobbed on a venom stream into the circle; it bursts on
 A claw of diseased growth that closes over its victim one generation at a time.
 
 ## Palette
-core #e4ff93, tint #9be641, body #2f6a17 (toxin × 0.2–0.45 lit), deep #0b1806
+core #e4ff93, tint #9be641, body ≈ toxin × 0.03–0.12 lit over the deep stop, deep #0b1806, stain #0e1a08. The deep stop owns every surface (tendril flesh, sac, rind, stream body, floor rot); tint only in veins, pustules, seams, and core only on tips, cysts and pulse peaks.
 
 ## Gameplay
 Unchanged. `handlesOwnHits`; nearest live enemy in `zoneRadius` (ID tie-break); up to `maxStages` poison hits every `stagePeriod`, damage × (1 + 0.4 × stage); only accepted strikes grow visuals; host lost on death/replacement/escape past `tetherRange`. No host → presentation-only dormant colony.
+
+## Second pass (value structure)
+- Tendrils: flesh = deep → toxin × `tendrilBodyTone` (0.03) on the lit side only, thin dim bile rim, tighter spec; veins rest at `tendrilVeinBase` (0.04) and light only when a pulse runs up them; pustules narrowed to the knob crowns.
+- Membrane: flesh × `membraneBodyTone` (0.08), veins/cysts/rib/rim weights cut, glow 0.25, veins sharper (16).
+- Vessel rind and venom stream body pushed down to toxin × 0.12–0.14.
+- Floor: blight is now a *filled* rot (`blightFill`, densest round the host) with a dim edge (`blightRimGlow` 0.15) and thinner body-coloured veins; pool is a mottled deep-stain fill with thin seams and a dim creeping front (`poolEdgeGlow`, `poolDarken` 0.9). Stage crowns' additive base cut to 0.05; light 3.5 × #a6dc55.
+- New keys: tendrilBodyTone, tendrilVeinBase, membraneBodyTone, poolEdgeGlow, blightFill, blightRimGlow (all sliders).
+- Known short: when the host dies early the whole cast (floor included) withers with it (gameplay-tied host loss).

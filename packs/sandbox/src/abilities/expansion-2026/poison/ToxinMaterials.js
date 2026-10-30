@@ -92,6 +92,7 @@ const MEMBRANE_FRAGMENT = /* glsl */ `
   uniform vec3  uDeep;
   uniform vec3  uLightDir;
   uniform float uBodyAlpha;
+  uniform float uBodyTone;
   uniform sampler2D uSceneDepth;
   uniform vec2  uResolution;
   uniform float uCameraNear;
@@ -129,11 +130,11 @@ const MEMBRANE_FRAGMENT = /* glsl */ `
     vec3 L = normalize(uLightDir);
     float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
     float mottle = 0.6 + 0.4 * fbm3(vec3(vUv * vec2(7.0, 5.0), uStage * 0.3 + 1.1));
-    vec3 skin = mix(uDeep, uColor * 0.42, wrap * wrap * mottle);
+    vec3 skin = mix(uDeep, uColor * uBodyTone, wrap * wrap * mottle);
     skin *= 0.65 + 0.35 * smoothstep(0.0, 0.35, vUv.y);
     float spec = pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 48.0) * 0.55;
     float heat = clamp(veins * 0.7 + vCyst * 0.8 + uPulse * 0.35, 0.0, 1.0);
-    vec3 light = mix(uColor, uCore, clamp(vCyst + uPulse * 0.5, 0.0, 1.0)) * (veins * 0.85 + vCyst * 1.2 + rib * 0.2 + rim * 0.35);
+    vec3 light = mix(uColor, uCore, clamp(vCyst + uPulse * 0.5, 0.0, 1.0)) * (veins * 0.45 + vCyst * 0.9 + rib * 0.08 + rim * 0.1);
     vec3 col = skin + vec3(spec) * mix(vec3(1.0), uCore, 0.4);
     col += light * uGlow * uGlobalGlow * (1.0 + uPulse * 0.8);
     col += uCore * burn * 2.5;
@@ -160,6 +161,7 @@ export function createMembraneMaterial() {
       uTime: { value: 0 },
       uDeep: { value: new Color('#0b1806') },
       uBodyAlpha: { value: 0.62 },
+      uBodyTone: { value: 0.08 },
       uStage: { value: 0 },
       uPulse: { value: 0 },
       uFade: { value: 1 },
@@ -195,6 +197,7 @@ export function createMembraneMaterial() {
     u.uOpacity.value = g.opacity;
     u.uSoftFade.value = c.softFade;
     u.uBodyAlpha.value = c.membraneOpacity ?? 0.62;
+    u.uBodyTone.value = c.membraneBodyTone ?? 0.08;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
     copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
@@ -254,9 +257,9 @@ const VESSEL_FRAGMENT = /* glsl */ `
     if (dot(N, V) < 0.0) N = -N;
     vec3 L = normalize(uLightDir);
     float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
-    vec3 rind = mix(uDeep, uColor * 0.45, wrap * wrap) * (0.75 + 0.25 * (1.0 - ribs));
+    vec3 rind = mix(uDeep, uColor * 0.12, wrap * wrap) * (0.75 + 0.25 * (1.0 - ribs));
     float spec = pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 40.0) * 0.6;
-    vec3 glow = mix(uColor, uCore, clamp(seed * 0.8 + rim * 0.2, 0.0, 1.0)) * (seed * 0.9 + ribs * 0.35 + rim * 0.4);
+    vec3 glow = mix(uColor, uCore, clamp(seed * 0.8 + rim * 0.2, 0.0, 1.0)) * (seed * 0.9 + ribs * 0.18 + rim * 0.15);
     vec3 col = rind + vec3(spec) + glow * uGlow * uGlobalGlow;
     gl_FragColor = vec4(col, uFade);
   }
@@ -457,6 +460,7 @@ const POOL_FRAGMENT = /* glsl */ `
   uniform vec3  uColor;
   uniform vec3  uCore;
   uniform vec3  uStain;
+  uniform float uEdgeGlow;
   varying vec2 vUv;
   varying vec3 vWorld;
 
@@ -473,15 +477,19 @@ const POOL_FRAGMENT = /* glsl */ `
 
     // Wet cells of toxin, with glowing seams between them.
     vec2 cell = voronoi2(p * uCells + vec2(uTime * 0.05, 0.0));
-    float seam = 1.0 - smoothstep(0.05, 0.22, cell.x);
+    float seam = 1.0 - smoothstep(0.03, 0.12, cell.x);
     float bubbling = 0.6 + 0.4 * sin(uTime * 2.0 + cell.y * 30.0);
     // A ring of brighter growth riding the advancing front.
     float edge = exp(-abs(r - front + 0.06) * 18.0);
     // Six-fold sigil cells that brighten per stage (the old ring glyph).
     float sigil = pow(max(0.0, cos(a * 6.0 + sin(r * 10.0 - uTime))), 16.0) * smoothstep(0.25, 0.5, r) * min(uStage, 3.0) / 3.0;
 
-    float glow = clamp(seam * bubbling * 0.6 + edge * 0.8 + sigil * 0.5, 0.0, 1.0);
-    vec3 col = mix(uStain, mix(uColor, uCore, edge) * uGlow * uGlobalGlow, glow);
+    float glow = clamp(seam * bubbling * 0.45 + edge * uEdgeGlow + sigil * 0.25, 0.0, 1.0);
+    // The rot itself is the deep stop, mottled wet: it fills the stain, it is
+    // not an outline. Seams carry the body colour; only bubbling peaks go hot.
+    float wet = 0.7 + 0.3 * fbm3(vec3(p * 3.1, 2.0));
+    vec3 lit = mix(uColor * 0.55, uCore, clamp(edge * 0.4 + (bubbling - 0.6) * 1.2, 0.0, 1.0) * seam) * uGlow * uGlobalGlow;
+    vec3 col = mix(uStain * wet, lit, glow);
     float alpha = body * mix(uDarken, 1.0, glow) * uFade * uOpacity;
     if (alpha < 0.003) discard;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
@@ -505,6 +513,7 @@ export function createPoolMaterial() {
       uCells: { value: 4 },
       uGlow: { value: 1.5 },
       uDarken: { value: 0.55 },
+      uEdgeGlow: { value: 0.2 },
       uOpacity: { value: 1 },
       uColor: { value: new Color('#9be641') },
       uCore: { value: new Color('#e4ff93') },
@@ -523,6 +532,7 @@ export function createPoolMaterial() {
     u.uCells.value = c.poolCells * g.noiseFrequency;
     u.uGlow.value = c.poolGlow * g.glow;
     u.uDarken.value = c.poolDarken;
+    u.uEdgeGlow.value = c.poolEdgeGlow ?? 0.2;
     u.uOpacity.value = g.opacity;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
@@ -624,6 +634,8 @@ const BLIGHT_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform float uGlobalGlow;
   uniform vec2  uHost;       // host offset in disc space (0 = centre)
+  uniform float uFill;       // how solidly the rot fills the grown circle between veins
+  uniform float uRimGlow;    // the search circle's lit edge
   uniform vec3  uColor;
   uniform vec3  uCore;
   uniform vec3  uStain;
@@ -654,11 +666,12 @@ const BLIGHT_FRAGMENT = /* glsl */ `
     // Toxin pulses ride the veins inward toward the host.
     float pulse = pow(max(0.0, sin(hr * 14.0 + uTime * 5.0)), 6.0) * (0.35 + uPulse * 1.5);
     float lines = max(vein, shoot * 0.7) * grown;
-    float glow = clamp(lines * (0.45 + pulse) + rim * 0.6 * uReach, 0.0, 1.5);
-    float mottle = 0.75 + 0.25 * snoise(vec3(vWorld.xz * 1.6, 0.5));
-    vec3 col = mix(uStain * mottle, mix(uColor, uCore, clamp(pulse * lines + rim * 0.5, 0.0, 1.0)) * uGlow * uGlobalGlow, clamp(glow, 0.0, 1.0));
-    float dark = (band * 0.55 + lines * 0.6 + smoothstep(1.0, 0.0, hr) * 0.35 * uStage / 3.0) * grown;
-    float alpha = max(dark * uDarken, glow) * uFade * uOpacity * smoothstep(1.02, 0.97, r);
+    float glow = clamp(lines * (0.2 + pulse * 0.8) + rim * uRimGlow * uReach, 0.0, 1.0);
+    float mottle = 0.6 + 0.4 * snoise(vec3(vWorld.xz * 1.6, 0.5));
+    vec3 col = mix(uStain * mottle, mix(uColor * 0.5, uCore, clamp(pulse * lines * 0.8 + rim * 0.3, 0.0, 1.0)) * uGlow * uGlobalGlow, glow);
+    // A filled rot, densest round the host, never just an outline.
+    float dark = (uFill * (0.55 + 0.45 * smoothstep(1.0, 0.1, hr)) + band * 0.3 + lines * 0.4 + smoothstep(1.0, 0.0, hr) * 0.3 * uStage / 3.0) * grown;
+    float alpha = max(min(1.0, dark) * uDarken, glow) * uFade * uOpacity * smoothstep(1.02, 0.97, r);
     if (alpha < 0.003) discard;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
@@ -692,6 +705,8 @@ export function createBlightMaterial() {
       uDarken: { value: 0.5 },
       uOpacity: { value: 1 },
       uHost: { value: new Vector2() },
+      uFill: { value: 0.8 },
+      uRimGlow: { value: 0.15 },
       uColor: { value: new Color('#9be641') },
       uCore: { value: new Color('#e4ff93') },
       uStain: { value: new Color('#16260f') }
@@ -714,6 +729,8 @@ export function createBlightMaterial() {
     u.uDarken.value = c.blightDarken ?? 0.5;
     u.uOpacity.value = g.opacity;
     u.uHost.value.set(state.hostX, state.hostZ);
+    u.uFill.value = c.blightFill ?? 0.8;
+    u.uRimGlow.value = c.blightRimGlow ?? 0.15;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
     copyColor(u.uStain.value, c.stainColor);
@@ -806,6 +823,8 @@ const TENDRIL_FRAGMENT = /* glsl */ `
   uniform vec3  uColor;      // saturated body
   uniform vec3  uCore;       // white-hot pustules
   uniform vec3  uDeep;       // the dark stop it roots in
+  uniform float uBodyTone;   // how far the lit flesh climbs from deep toward the body colour
+  uniform float uVeinBase;   // veins' resting glow between pulses
 
   varying vec2  vUv;
   varying vec3  vNormalW;
@@ -838,23 +857,26 @@ const TENDRIL_FRAGMENT = /* glsl */ `
     float ang = vUv.x * 6.2831853;
     vec2 ring = vec2(cos(ang), sin(ang));
     float mottle = fbm3(vec3(ring * 1.3, vT * 6.0 + vSeed * 4.0)) * 0.5 + 0.5;
-    vec3 skin = mix(uDeep, uColor * 0.2, smoothstep(0.0, 0.5, vT) * (0.35 + 0.65 * mottle));
-    skin = mix(skin, uDeep, (1.0 - uFade) * 0.7);              // withering goes black
-    vec3 col = skin * (0.3 + 1.1 * wrap * wrap);
+    // The deep stop owns the flesh: near-black bile green, only lifted a little
+    // toward the body colour on the lit side, so the claw reads as a dark mass
+    // that the bright veins, pustules and tips are cut into.
+    vec3 skin = mix(uDeep, uColor * uBodyTone, smoothstep(0.0, 0.6, vT) * (0.25 + 0.75 * mottle));
+    skin = mix(skin, uDeep * 0.4, (1.0 - uFade) * 0.8);        // withering goes black
+    vec3 col = skin * (0.35 + 1.0 * wrap * wrap);
 
-    // Wet: a tight highlight and a lime rim.
+    // Wet: a tight highlight and a thin, dim bile rim.
     vec3 H = normalize(L + V);
-    col += vec3(pow(clamp(dot(N, H), 0.0, 1.0), 42.0) * uSpecular) * mix(vec3(1.0), uCore, 0.3);
-    col += uColor * pow(1.0 - ndv, 4.0) * uRim;
+    col += vec3(pow(clamp(dot(N, H), 0.0, 1.0), 56.0) * uSpecular) * mix(vec3(1.0), uCore, 0.3);
+    col += uColor * 0.35 * pow(1.0 - ndv, 5.0) * uRim;
 
     // Veins, with toxin pulses running up them from the host's stain.
     float vein = pow(1.0 - abs(snoise(vec3(ring * 1.8, vT * 7.0 + vSeed * 9.0))), 16.0);
-    float flow = pow(max(0.0, sin((vT * 3.0 - uTime * uVeinSpeed + vSeed) * 6.2831)), 6.0);
-    float veinLight = vein * (0.15 + 0.9 * flow + vPulse * 1.2) * uVeinGlow;
+    float flow = pow(max(0.0, sin((vT * 3.0 - uTime * uVeinSpeed + vSeed) * 6.2831)), 12.0);
+    float veinLight = vein * (uVeinBase + 0.9 * flow + vPulse * 1.0) * uVeinGlow;
     // Pustules ripen: a hot white core in a lime sac, beating.
     float beat = 0.7 + 0.3 * sin(uTime * 4.0 + vSeed * 11.0 + vT * 9.0);
-    float sac = smoothstep(0.5, 0.95, vKnob);
-    vec3 glow = uColor * veinLight + mix(uColor, uCore, sac) * sac * beat * (1.0 + vPulse) * uPustuleGlow;
+    float sac = smoothstep(0.62, 0.97, vKnob);
+    vec3 glow = uColor * veinLight + mix(uColor, uCore, sac) * sac * sac * beat * (1.0 + vPulse) * uPustuleGlow;
     // The tip: a hooked barb glowing hot.
     glow += uCore * smoothstep(0.93, 1.0, vT / max(0.05, front)) * 0.6 * uPustuleGlow;
     glow += uCore * lip * 1.2 * step(vGrow, 0.995);
@@ -891,6 +913,8 @@ export function createTendrilMaterial() {
       uVeinSpeed: { value: 0.8 },
       uSpecular: { value: 0.6 },
       uRim: { value: 0.5 },
+      uBodyTone: { value: 0.07 },
+      uVeinBase: { value: 0.04 },
       uColor: { value: new Color('#9be641') },
       uCore: { value: new Color('#e4ff93') },
       uDeep: { value: new Color('#0b1806') }
@@ -915,6 +939,8 @@ export function createTendrilMaterial() {
     u.uVeinSpeed.value = c.tendrilVeinSpeed ?? 0.8;
     u.uSpecular.value = c.tendrilSpecular ?? 0.6;
     u.uRim.value = (c.tendrilRim ?? 0.5) * g.fresnel;
+    u.uBodyTone.value = c.tendrilBodyTone ?? 0.07;
+    u.uVeinBase.value = c.tendrilVeinBase ?? 0.04;
     copyColor(u.uColor.value, c.toxinColor);
     copyColor(u.uCore.value, c.coreColor);
     copyColor(u.uDeep.value, c.deepColor ?? '#0b1806');
@@ -995,7 +1021,7 @@ const TRAIL_FRAGMENT = /* glsl */ `
     vec3 L = normalize(uLightDir);
     float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
     float ndv = clamp(dot(N, V), 0.0, 1.0);
-    vec3 col = mix(uDeep, uColor * 0.5, wrap * wrap);
+    vec3 col = mix(uDeep, uColor * 0.14, wrap * wrap);
     col += vec3(pow(clamp(dot(N, normalize(L + V)), 0.0, 1.0), 36.0) * 0.5);
     // A hot thread down the middle, beads of light running in it, hottest at the head.
     float core = pow(ndv, 3.0);

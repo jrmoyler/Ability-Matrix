@@ -24,7 +24,14 @@ A small storm is thrown on a crackling leash, heaps up into a 4.4 m bruise-dark 
 A living weather system on a body: a black, boiling thunderhead that follows its host and eats it in bites.
 
 ## Palette
-core #ffffff / #c9c4ff, tint #8790e0, body #272a6c, deep #040410
+core #ffffff / #c9c4ff, tint #6a73b4, body #1d2145, deep #020208
 
 ## Gameplay
 `handlesOwnHits`; on arrival attaches to the nearest live enemy within `attachRadius` and subscribes to `hit` / `cast-start`; each host-owned event (deduped, `reactionCooldown`) emits one storm hit of `retaliation`. The bite and feeding bolts are presentation only and emit nothing.
+
+## Second pass (size and value)
+- Size from the zone: `cloudZoneSpan` (1.4) × the attach circle's diameter → ≈ 7 m across over the 2.5 m circle (`cloudSize` is now the minimum; the stormlet in flight still uses `cloudSize`). The cloud rises by its extra belly depth so the belly stays at `cloudHeight`; `cloudFlatten` 0.72 so it spreads wide over the 7-dummy cluster.
+- Value: body slate-indigo #1d2145 × `cloudShade` (0.62), base near-black (lower 45 % of the tower multiplied down to 0.3, deep #020208), crown tint held to the very top sun faces (`cloudCrownLight` 0.2, tint #6a73b4), thinner lining, `cloudSkyFill` 0.15.
+- Lightning only through the gaps: crevice = buried vertex × facing away (`aOcc` × (1−n·v)^1.5); dense faces take only `cloudFlashWash` (0.03) of a flash; a harder soft-clip. A bolt no longer washes the cloud lavender — the gaps and belly rim light, the lobes stay black against it.
+- Downdraft warp 0.18, strike warp kick 0.6, so the bolt stays a crisp line through the warp.
+- New keys: cloudZoneSpan, cloudShade, cloudSkyFill, cloudFlashWash (all sliders).

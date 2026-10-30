@@ -994,6 +994,7 @@ export function buildEditor(gui, c, Editor) {
   R(membrane, 'softFade', 0.01, 1, 0.01, 'soft fade (m)');
 
   R(membrane, 'membraneOpacity', 0, 1, 0.01, 'body density');
+  R(membrane, 'membraneBodyTone', 0, 0.6, 0.005, 'lit flesh tone (× body colour)');
 
   const tendrils = sub(folder, '2b · The blight tendrils (hero)');
   R(tendrils, 'tendrilCount', 0, MAX_TENDRILS, 1, 'erupt on arrival');
@@ -1013,6 +1014,8 @@ export function buildEditor(gui, c, Editor) {
   R(tendrils, 'tendrilPustuleGlow', 0, 5, 0.05, 'pustule glow');
   R(tendrils, 'tendrilSpecular', 0, 2, 0.01, 'wet highlight');
   R(tendrils, 'tendrilRim', 0, 2, 0.01, 'rim light');
+  R(tendrils, 'tendrilBodyTone', 0, 0.6, 0.005, 'lit flesh tone (× body colour)');
+  R(tendrils, 'tendrilVeinBase', 0, 0.6, 0.005, 'vein resting glow');
 
   const coils = sub(folder, '3 · The coils');
   R(coils, 'coilGrowTime', 0.1, 2, 0.05, 'wind up over');
@@ -1033,6 +1036,7 @@ export function buildEditor(gui, c, Editor) {
   R(pool, 'poolCells', 1, 12, 0.1, 'cell density');
   R(pool, 'poolGlow', 0, 6, 0.05, 'seam glow');
   R(pool, 'poolDarken', 0, 1, 0.01, 'floor darkening');
+  R(pool, 'poolEdgeGlow', 0, 1.5, 0.01, 'creeping-front glow');
 
   const blight = sub(folder, '5b · The blight (search circle)');
   R(blight, 'blightScale', 0.25, 1.5, 0.01, 'size (× search radius)');
@@ -1041,6 +1045,8 @@ export function buildEditor(gui, c, Editor) {
   R(blight, 'blightSharp', 2, 30, 0.5, 'vein thinness');
   R(blight, 'blightGlow', 0, 4, 0.05, 'vein glow');
   R(blight, 'blightDarken', 0, 1, 0.01, 'rot darkness');
+  R(blight, 'blightFill', 0, 1.5, 0.01, 'rot fill between veins');
+  R(blight, 'blightRimGlow', 0, 1.5, 0.01, 'search-circle edge glow');
 
   const spores = sub(folder, '6 · The spores');
   R(spores, 'sporeOrbit', 0.2, 2, 0.05, 'orbit radius (m)');

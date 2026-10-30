@@ -117,6 +117,9 @@ const CLOUD_FRAGMENT = /* glsl */ `
   uniform float uCrown;
   uniform float uLining;
   uniform float uEmber;
+  uniform float uShade;       // overall body brightness before any lightning
+  uniform float uSkyFill;     // sky catching the lobe tops
+  uniform float uFlashWash;   // how much a flash lights the dense faces (gaps always light)
   uniform vec2      uResolution;
   uniform sampler2D uSceneDepth;
   uniform float     uCameraNear;
@@ -158,33 +161,43 @@ const CLOUD_FRAGMENT = /* glsl */ `
     vec3 L = normalize(uLightDir);
     float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
     float open = 1.0 - vOcc;
-    vec3 color = mix(uColorDark, uColorMid, smoothstep(0.05, 0.6, vHeight) * (0.35 + 0.65 * open));
-    color = mix(color, uColorLit, pow(wrap, 3.0) * smoothstep(0.35, 1.0, vHeight) * open * uCrown);
-    color *= (0.55 + 0.45 * open) * (0.85 + 0.3 * vLobe);
-    // A thin silver lining where a lobe turns away against the sky.
-    float lining = pow(1.0 - ndv, 3.0) * (0.35 + 0.65 * wrap) * smoothstep(0.2, 0.9, vHeight) * open;
+    // Heavy: the lower half of the cloud is all deep stop, the slate-indigo
+    // body only owns the upper lobes, and the tint is held to the few faces
+    // that turn square to the sun at the very top.
+    vec3 color = mix(uColorDark, uColorMid, smoothstep(0.2, 0.85, vHeight) * (0.2 + 0.8 * open));
+    color = mix(color, uColorLit, pow(wrap, 5.0) * smoothstep(0.6, 1.0, vHeight) * open * uCrown);
+    color *= (0.45 + 0.55 * open) * (0.8 + 0.3 * vLobe) * uShade;
+    // Near-black base: the belly reads as the underside of a storm.
+    color *= mix(0.3, 1.0, smoothstep(0.0, 0.45, vHeight));
+    // A thin silver lining only where a lobe turns away against the sky.
+    float lining = pow(1.0 - ndv, 5.0) * (0.25 + 0.75 * wrap) * smoothstep(0.35, 0.95, vHeight) * open;
     color += uColorLit * lining * uLining;
-    // Sky fill: the tops of the lobes catch a little of the sky whatever the
-    // sun does, so the heaped crown reads against a black backdrop.
-    color += uColorMid * max(0.0, N.y) * open * smoothstep(0.2, 0.8, vHeight) * 0.6;
+    // Sky fill: a little on the lobe tops so the heaped crown separates
+    // from a black backdrop.
+    color += uColorMid * max(0.0, N.y) * open * smoothstep(0.4, 0.9, vHeight) * uSkyFill;
     // Embers of the storm: the crevices smoulder violet between flashes, each
     // lobe on its own flicker — the cloud is alive inside even when it is dark.
-    float ember = vOcc * (0.55 + 0.45 * sin(uTime * (3.0 + vLobe * 5.0) + vLobe * 40.0)) * (1.0 - 0.6 * vHeight);
+    // Only the deep crevices between lobes carry light of their own; the
+    // half-buried faces stay dark.
+    // A crevice is a buried vertex on a face turning away from the eye: the
+    // seam where one lobe disappears behind the next, not the lobe's face.
+    float gap = smoothstep(0.55, 0.95, vOcc) * pow(1.0 - ndv, 1.5);
+    float ember = gap * (0.55 + 0.45 * sin(uTime * (3.0 + vLobe * 5.0) + vLobe * 40.0)) * (1.0 - 0.6 * vHeight);
     color += uColorFlash * ember * uEmber * uGlobalGlow;
 
     // Sheet lightning: lit from inside, so it falls off with distance from a
     // point within the cluster and leaks out through the thin silhouette and
     // the gaps between lobes — the crevices light up, the faces stay dark.
     float d = length(vLocal - uSheetPos);
-    float inner = exp(-d * d * 5.0) * (0.1 + 0.35 * (1.0 - ndv) + 0.9 * vOcc);
+    float inner = exp(-d * d * 7.0) * (uFlashWash + 0.3 * pow(1.0 - ndv, 4.0) + 1.2 * gap);
     // A strike floods the cloud from its belly, where the bolt leaves — again
     // mostly through the gaps, so the lobes stand out dark against their own
     // lightning instead of the cloud turning into a white blob.
     float belly = pow(1.0 - vHeight, 3.0);
-    float flood = uFlash * belly * (0.15 + 0.35 * (1.0 - ndv) + 0.7 * vOcc);
+    float flood = uFlash * belly * (uFlashWash + 0.3 * pow(1.0 - ndv, 4.0) + 1.1 * gap);
     vec3 lit = uColorFlash * (inner * uSheet + flood) * uFlashGlow * uGlobalGlow * uShaderIntensity * 0.45;
     // Soft-clip so stacked flashes roll off instead of clipping to white.
-    color += lit / (1.0 + 0.35 * dot(lit, vec3(0.333)));
+    color += lit / (1.0 + 1.1 * dot(lit, vec3(0.333)));
 
     float alpha = body * formed * uOpacity;
     vec2 screenUV = gl_FragCoord.xy / uResolution;
@@ -214,6 +227,9 @@ export function createCloudMaterial() {
       uCrown: { value: 0.7 },
       uEmber: { value: 0.25 },
       uLining: { value: 0.6 },
+      uShade: { value: 0.6 },
+      uSkyFill: { value: 0.15 },
+      uFlashWash: { value: 0.03 },
       uOpacity: { value: 0.92 },
       uEdge: { value: 1.6 },
       uForm: { value: 1 },
@@ -246,6 +262,9 @@ export function createCloudMaterial() {
     u.uCrown.value = c.cloudCrownLight ?? 0.7;
     u.uEmber.value = (c.cloudEmber ?? 0.25) * state.fade;
     u.uLining.value = (c.cloudLining ?? 0.6) * g.fresnel;
+    u.uShade.value = c.cloudShade ?? 0.6;
+    u.uSkyFill.value = c.cloudSkyFill ?? 0.15;
+    u.uFlashWash.value = c.cloudFlashWash ?? 0.03;
     u.uOpacity.value = c.cloudOpacity * g.opacity * state.fade;
     u.uEdge.value = c.cloudEdge * g.fresnel;
     u.uForm.value = state.form;

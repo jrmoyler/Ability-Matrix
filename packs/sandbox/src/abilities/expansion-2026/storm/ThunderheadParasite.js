@@ -70,8 +70,9 @@ export const CONFIG = Object.freeze({
     /* 1 · THE THUNDERHEAD                                               */
     /* ================================================================ */
     cloudHeight: 3.0, // metres above the host's feet (the belly hangs well over a 1.8 m body)
-    cloudSize: 1.5, // scale of the cluster (≈ 2.9 m across at 1, ≈ 4.4 m at the default)
-    cloudFlatten: 0.85, // vertical squash
+    cloudSize: 1.5, // minimum scale of the cluster (≈ 2.9 m across at 1)
+    cloudZoneSpan: 1.4, // cloud width × the attach circle's diameter (≈ 7 m over the 2.5 m circle); 0 = use size only
+    cloudFlatten: 0.72, // vertical squash
     cloudBillow: 0.12, // metres of fine billow on every lobe
     cloudBillowScale: 1.6, // billow noise frequency
     cloudDrift: 0.35, // billow noise speed
@@ -83,8 +84,11 @@ export const CONFIG = Object.freeze({
     cloudAnvil: 1, // how far the anvil spreads out over the ride (0..1.5)
     cloudSwell: 0.14, // the cloud grows by this share as it feeds, across the ride
     cloudSurge: 0.06, // lobes heave out on every bolt (× bolt power)
-    cloudCrownLight: 1, // how far the sun-facing upper lobes reach the crown tint
-    cloudLining: 1.3, // the thin silver lining on the lobes' edges
+    cloudShade: 0.62, // overall body brightness before lightning (low = a black storm)
+    cloudSkyFill: 0.15, // sky catching the lobe tops
+    cloudFlashWash: 0.03, // how much a flash lights the dense faces (the gaps always light)
+    cloudCrownLight: 0.2, // how far the sun-facing upper lobes reach the crown tint
+    cloudLining: 0.7, // the thin silver lining on the lobes' edges
     cloudEmber: 0.3, // violet smoulder in the crevices between flashes
     cloudEdge: 1.6, // how deep the silhouette is torn into wisps
     cloudFollow: 6, // how tightly it trails its host (1/s)
@@ -94,9 +98,9 @@ export const CONFIG = Object.freeze({
     softFade: 0.5, // metres of soft intersection with the scene
     flashGlow: 1.7, // brightness of lightning inside the cloud
     idleFlash: 1.6, // ambient sheet-lightning flickers per second
-    colorCloudDark: '#040410', // deep: the belly
-    colorCloudMid: '#272a6c', // body
-    colorCloudLit: '#8790e0', // tint: the sun-lit crown
+    colorCloudDark: '#020208', // deep: the belly
+    colorCloudMid: '#1d2145', // body (slate indigo)
+    colorCloudLit: '#6a73b4', // tint: the sun-lit crown
     colorCloudFlash: '#c9c4ff', // core: lightning inside it
 
     /* ================================================================ */
@@ -130,7 +134,7 @@ export const CONFIG = Object.freeze({
     strikeBurst: 1.2, // metres, the ionised shell on the host
     strikeMark: 1.2, // metres, the branching burn under the host
     strikeMarkLife: 3.5, // the burn stays through the linger
-    strikeWarp: 1.5, // distortion kick per strike
+    strikeWarp: 0.6, // distortion kick per strike (kept low so the bolt stays a crisp line)
     latchStrength: 1, // the bite on arrival: a full bolt onto the host (or the ground) — presentation only
     feedInterval: 0.85, // seconds between feeding bolts while it rides the host (0 = none) — presentation only
     feedJitter: 0.5, // ± share of that interval, so the feeding is irregular
@@ -203,7 +207,7 @@ export const CONFIG = Object.freeze({
     shadowWet: 0.6, // cold sheen on the pool's rim
     colorShadow: '#05060f',
     colorWet: '#8d9cff',
-    warpStrength: 0.35,
+    warpStrength: 0.18,
     warpScale: 1.4,
     warpSpeed: 0.6
   }
@@ -719,7 +723,12 @@ export class ThunderheadParasiteAbility extends Ability {
     const grow = travelling ? 0 : Easing.outBack(saturate(since / Math.max(0.05, c.formTime)));
     // It feeds and grows: swelling across the whole ride, not just on arrival.
     const ride = travelling ? 0 : saturate(since / Math.max(0.2, this.impactDuration));
-    let scale = c.cloudSize * (c.seedScale + (1 - c.seedScale) * grow) * (1 + (c.cloudSwell ?? 0) * ride);
+    // Sized off the zone it hunts in, so the storm always roofs the crowd it
+    // landed on: `cloudZoneSpan` × the attach circle's diameter (the authored
+    // cluster is ≈ 2.9 m across at scale 1); `cloudSize` is the floor.
+    const zoneSize = Math.max(0, c.cloudZoneSpan ?? 0) * 2 * Math.max(0, c.attachRadius) / 2.9;
+    const baseSize = travelling ? c.cloudSize : Math.max(c.cloudSize, zoneSize);
+    let scale = baseSize * (c.seedScale + (1 - c.seedScale) * grow) * (1 + (c.cloudSwell ?? 0) * ride);
     // In flight the stormlet condenses out of nothing over its first moments
     // (form 0 on the first frame), then on arrival heaps up to fully formed.
     let form = travelling ? 0.8 * Easing.outCubic(saturate(this.age / Math.max(0.05, c.formTime * 0.5))) : Math.min(1, 0.8 + 0.2 * grow);
@@ -732,7 +741,9 @@ export class ThunderheadParasiteAbility extends Ability {
       scale *= 1 + ft * 0.25;
     }
     const bob = this._reduced ? 0 : Math.sin(this.age * 1.3 + this._seed) * c.cloudBob;
-    const height = c.cloudHeight + bob;
+    // A bigger cloud rides higher by just its extra belly depth, so the belly
+    // stays where `cloudHeight` put it and the mass towers up, not down.
+    const height = c.cloudHeight + Math.max(0, baseSize - c.cloudSize) * 0.37 * c.cloudFlatten + bob;
     this.cloud.position.set(this.cloudPosition.x, height, this.cloudPosition.z);
     this.cloud.scale.set(scale, scale * c.cloudFlatten, scale);
     this.cloud.rotation.y = this._spin;
@@ -1121,7 +1132,11 @@ export function buildEditor(gui, c, Editor) {
 
   const cloud = section(folder, '1 · Thunderhead');
   R(cloud, c, 'cloudHeight', 0.8, 8, 0.05, 'height (m)');
-  R(cloud, c, 'cloudSize', 0.2, 4, 0.01, 'size');
+  R(cloud, c, 'cloudSize', 0.2, 4, 0.01, 'size (minimum)');
+  R(cloud, c, 'cloudZoneSpan', 0, 2.5, 0.01, 'width × zone diameter');
+  R(cloud, c, 'cloudShade', 0, 1.5, 0.01, 'body brightness');
+  R(cloud, c, 'cloudSkyFill', 0, 1, 0.01, 'sky fill on tops');
+  R(cloud, c, 'cloudFlashWash', 0, 0.5, 0.005, 'flash on dense faces');
   R(cloud, c, 'cloudFlatten', 0.3, 1.5, 0.01, 'flatten');
   R(cloud, c, 'cloudBillow', 0, 0.6, 0.005, 'billow (m)');
   R(cloud, c, 'cloudBillowScale', 0.2, 6, 0.05, 'billow scale');

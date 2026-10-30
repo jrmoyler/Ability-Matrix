@@ -97,7 +97,7 @@ const STAGE_FRAGMENT = /* glsl */ `
     float n = snoise01(vec3(p * 5.0, uStage * 3.1));
     if (n < uProgress * uProgress * 0.9 - (0.6 - r)) discard;
     vec3 color = mix(uColor, uCore, clamp(ridges * 0.5 + rim * 0.3 + uStage * 0.08 + vHeight, 0.0, 1.0)) * uGlobalGlow;
-    gl_FragColor = vec4(color, clamp((0.16 + ridges * 0.45 + rim * 0.3) * uFade, 0.0, 1.0));
+    gl_FragColor = vec4(color, clamp((0.05 + ridges * 0.4 + rim * 0.25) * uFade, 0.0, 1.0));
   }
 `;
 
