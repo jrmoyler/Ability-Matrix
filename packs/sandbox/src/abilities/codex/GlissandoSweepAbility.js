@@ -1,10 +1,11 @@
-import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
 import { createGlissandoSweepPieceGeometry, createGlissandoSweepHeroGeometry } from '../../assets/codex/GlissandoSweepGeometry.js';
+import { createGlissandoSweepPipeGeometry, createGlissandoSweepChestGeometry } from '../../assets/codex/GlissandoSweepSignatureGeometry.js';
 import {
   createGlissandoSweepBodyMaterial,
   createGlissandoSweepLensMaterial,
@@ -13,7 +14,10 @@ import {
   createGlissandoSweepDetailMaterial,
   createGlissandoSweepTrailMaterial,
   createGlissandoSweepScarMaterial,
-  createGlissandoSweepSheetMaterial
+  createGlissandoSweepSheetMaterial,
+  createGlissandoSweepPipeMaterial,
+  createGlissandoSweepPressureMaterial,
+  createGlissandoSweepPressureLensMaterial
 } from '../../materials/codex/GlissandoSweepMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -52,6 +56,17 @@ const _up = new Vector3(0, 1, 0);
 const MAX_SHEETS = 4;
 const _sheetPose = { dir: new Vector3(), side: new Vector3(), height: 1, amp: 0, f0: 1, f1: 1 };
 
+/** The pipe rank and the pressure ripples it throws. */
+const MAX_PIPES = 16;
+const MAX_PRESS = 48;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _q2 = new Quaternion();
+const _scale = new Vector3();
+const _bx = new Vector3();
+const _bz = new Vector3();
+const _tmp = new Vector3();
+
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
@@ -87,6 +102,24 @@ const MAX_MARKS = 12;
  *      late; after the beat it keeps gliding (`lateGlide`, `lateSlide`) and
  *      ringing, its ridges decaying, two dimmer echoes behind it, then it
  *      tears into strips and sinks. Dust is scoured off its foot all the way.
+ *      The lime wall itself is now off by default (`sheetOpacity` 0): it
+ *      read as a neon fence. Its motion still drives the instrument below.
+ *  12. **the pipe rank** (cast-local hero, editor folder 16) — the sound has a
+ *      solid source: a rank of lathed bronze organ pipes on a moulded wind
+ *      chest (`GlissandoSweepSignatureGeometry.js`, lit, shadow-casting, on
+ *      LAYER.SHAPED), standing where the sheet would be and carrying its
+ *      rise, late slide, glide and shear (as a lean). Pipes run long-and-low
+ *      to short-and-high across the line. A run of speech climbs the rank
+ *      over and over, faster as the pitch climbs (`speakRate` × `chirpClimb`):
+ *      that run is the glissando. A speaking pipe shivers in a standing wave
+ *      (shorter pipes faster) and its mouth lights lime; on the beat every
+ *      pipe speaks at once and the bronze flares. It sinks into the floor
+ *      on the tear (`rankSink`).
+ *  13. **pressure ripples** (editor folder 17) — each pipe the run passes
+ *      throws a curved, heat-hazed band of air that rolls out toward the
+ *      caster: a dark translucent body with a short-lived thin lime crest,
+ *      also written into the distortion buffer (`pressWarp`). Records hold
+ *      only a birth time and a pipe index; the pool is fixed (`MAX_PRESS`).
  *  11. **mark** — a felled body is left ringing: `corrode` stains it toward the
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
@@ -196,6 +229,214 @@ export class GlissandoSweepAbility extends Ability {
     this._sheetAt = new Vector3();
     this._footEmitter = new RateEmitter();
     this._grooveAt = 0;
+    this._buildRank();
+  }
+
+  /** The instrument: a rank of bronze organ pipes on a wind chest, and the ripple pool. */
+  _buildRank() {
+    this.pipeMaterial = createGlissandoSweepPipeMaterial();
+    const solid = (geometry, count) => {
+      const attr = new InstancedBufferAttribute(new Float32Array(count * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aPipe', attr);
+      const mesh = new InstancedMesh(geometry, this.pipeMaterial, count);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.pipeGeometry = createGlissandoSweepPipeGeometry();
+    this.chestGeometry = createGlissandoSweepChestGeometry();
+    this.pipes = solid(this.pipeGeometry, MAX_PIPES);
+    this.chest = solid(this.chestGeometry, 1);
+    this.pressGeometry = new PlaneGeometry(1, 1, 36, 10);
+    for (const name of ['aRip', 'aRip2']) {
+      const attr = new InstancedBufferAttribute(new Float32Array(MAX_PRESS * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      this.pressGeometry.setAttribute(name, attr);
+    }
+    this.pressMaterial = createGlissandoSweepPressureMaterial();
+    this.pressLensMaterial = createGlissandoSweepPressureLensMaterial();
+    this.press = new InstancedMesh(this.pressGeometry, this.pressMaterial, MAX_PRESS);
+    this.press.layers.set(LAYER.VFX);
+    this.press.renderOrder = 16;
+    this.pressLens = new InstancedMesh(this.pressGeometry, this.pressLensMaterial, MAX_PRESS);
+    this.pressLens.layers.set(LAYER.DISTORTION);
+    for (const m of [this.press, this.pressLens]) {
+      m.frustumCulled = false;
+      m.visible = false;
+      this.group.add(m);
+    }
+    this._rk = { appear: 0, tear: 0, pitch: 0, ring: 1, shear: 0, since: -1 };
+    this._rankVisible = false;
+    this._rankClock = 0;
+    this._play = 0;
+    this._playIdx = -99;
+    this._chorded = false;
+    this._pipeX = new Float32Array(MAX_PIPES);
+    this._pipeY = new Float32Array(MAX_PIPES);
+    this._pipeZ = new Float32Array(MAX_PIPES);
+    this._pipeH = new Float32Array(MAX_PIPES);
+    this._pipeR = new Float32Array(MAX_PIPES);
+    this._pipeN = 0;
+    this._pressBorn = new Float32Array(MAX_PRESS).fill(-1);
+    this._pressPipe = new Uint8Array(MAX_PRESS);
+    this._pressNext = 0;
+  }
+
+  _hideRank() {
+    this._rankVisible = false;
+    this.pipes.visible = false;
+    this.chest.visible = false;
+    this.press.visible = false;
+    this.pressLens.visible = false;
+  }
+
+  /** A speaking pipe throws a pressure ripple (records keep only its birth time and pipe). */
+  _throw(i) {
+    const cap = Math.max(1, Math.min(MAX_PRESS, Math.round(settings[ID].pressMax)));
+    const j = this._pressNext % cap;
+    this._pressBorn[j] = this.age;
+    this._pressPipe[j] = i;
+    this._pressNext = (j + 1) % cap;
+  }
+
+  /**
+   * Stand the rank where the sweep is: the chest across the line, the pipes on
+   * it running long-and-low to short-and-high, leaning with the shear. It
+   * rises out of the floor on the sweep's `appear`, sinks back on its tear.
+   * A run of speech climbs the rank (the glissando) faster as the pitch
+   * climbs; each pipe it passes swells, shivers and throws a ripple. On the
+   * beat every pipe speaks at once.
+   */
+  _rankUpdate() {
+    const c = settings[ID];
+    const g = settings.global;
+    const rk = this._rk;
+    const dt = Math.max(0, this.age - this._rankClock);
+    this._rankClock = this.age;
+    const N = Math.max(2, Math.min(MAX_PIPES, Math.round(c.pipeCount)));
+    const tall = Math.max(0.1, c.pipeTall);
+    const short = Math.max(0.05, Math.min(tall, c.pipeShort));
+    const chestH = Math.max(0.02, c.chestHeight);
+    const total = tall + chestH;
+    const rise = Easing.outBack(saturate(rk.appear));
+    const y0 = -(1 - rise) * total - rk.tear * total * c.rankSink;
+    if (rk.appear <= 0 || rk.tear >= 0.999 || y0 <= -total) {
+      this._hideRank();
+      return;
+    }
+    this._rankVisible = true;
+    // Mouths face the caster: local +Z is back along the line.
+    _bz.copy(this.direction).negate();
+    _bx.copy(this.side);
+    if (_tmp.crossVectors(_bx, _up).dot(_bz) < 0) _bx.negate();
+    _m4.makeBasis(_bx, _up, _bz);
+    _q.setFromRotationMatrix(_m4);
+    const W = Math.max(0.3, c.sheetWidth * c.pipeSpan);
+    const r0 = Math.max(0.01, c.pipeRadius);
+    const flash = rk.since < 0 ? 0 : Math.exp(-rk.since * 5);
+    _pos.copy(this._sheetAt);
+    _pos.y = y0;
+    _scale.set(W + r0 * 4, chestH, Math.max(0.05, c.chestDepth));
+    _m4.compose(_pos, _q, _scale);
+    this.chest.setMatrixAt(0, _m4);
+    this.chest.count = 1;
+    this.chest.geometry.getAttribute('aPipe').setXYZW(0, 0, 0, this._seed, flash);
+    this.chest.geometry.getAttribute('aPipe').needsUpdate = true;
+    this.chest.instanceMatrix.needsUpdate = true;
+    this.chest.visible = true;
+    // Lean with the shear.
+    const lean = Math.atan2(rk.shear * c.rankLean, tall);
+    _q2.setFromAxisAngle(this.direction, lean).multiply(_q);
+    // The run up the rank.
+    const rate = c.speakRate * g.animationSpeed * (1 + rk.pitch * c.chirpClimb);
+    this._play += dt * rate;
+    const w = Math.max(0.2, c.speakWidth);
+    const head = (this._play % 1) * (N - 1 + 2 * w) - w;
+    const idx = Math.floor(head + 0.5);
+    if (idx !== this._playIdx) {
+      if (idx >= 0 && idx < N && rk.appear > 0.5) this._throw(idx);
+      this._playIdx = idx;
+    }
+    if (!this._chorded && rk.since >= 0) {
+      this._chorded = true;
+      if (c.speakChord > 0.01) for (let i = 0; i < N; i++) this._throw(i);
+    }
+    const chord = rk.since < 0 ? 0 : c.speakChord * Math.exp(-rk.since * 3);
+    const hum = c.speakHum * (rk.since < 0 ? 0.5 : rk.ring);
+    const voice = 1 - rk.tear;
+    const aP = this.pipes.geometry.getAttribute('aPipe');
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const h = tall * Math.pow(short / tall, t);
+      const r = r0 * Math.pow(h / tall, 0.6);
+      const bow = c.rankBow * (1 - 4 * (t - 0.5) * (t - 0.5));
+      _pos.copy(this._sheetAt).addScaledVector(this.side, (t - 0.5) * W * this._sheetSide).addScaledVector(this.direction, bow);
+      // The toe sits down in the chest's toe-board.
+      _pos.y = y0 + chestH * 0.98 - h * 0.035;
+      _scale.set(r, h, r);
+      _m4.compose(_pos, _q2, _scale);
+      this.pipes.setMatrixAt(i, _m4);
+      const d = (i - head) / w;
+      const run = Math.exp(-d * d) * (0.55 + 0.45 * rk.ring);
+      const speak = Math.min(1, Math.max(run, chord, hum)) * voice;
+      aP.setXYZW(i, speak, (c.vibFreq * tall) / h, this._seed * 1.7 + i * 2.39, flash);
+      this._pipeX[i] = _pos.x;
+      this._pipeY[i] = _pos.y;
+      this._pipeZ[i] = _pos.z;
+      this._pipeH[i] = h;
+      this._pipeR[i] = r;
+    }
+    this._pipeN = N;
+    this.pipes.count = N;
+    this.pipes.instanceMatrix.needsUpdate = true;
+    aP.needsUpdate = true;
+    this.pipes.visible = true;
+    this.pipeMaterial.userData.sync();
+    this._pressUpdate();
+  }
+
+  /** Each live ripple rolls out from its pipe, swells, warps and thins; only its crest is lime. */
+  _pressUpdate() {
+    const c = settings[ID];
+    const g = settings.global;
+    const life = Math.max(0.05, c.pressLife * g.lifetime);
+    const fade = 1 - this._rk.tear;
+    const aR = this.pressGeometry.getAttribute('aRip');
+    const aR2 = this.pressGeometry.getAttribute('aRip2');
+    let k = 0;
+    for (let j = 0; j < MAX_PRESS; j++) {
+      const born = this._pressBorn[j];
+      if (born < 0) continue;
+      const age = this.age - born;
+      if (age > life || age < 0) {
+        this._pressBorn[j] = -1;
+        continue;
+      }
+      const i = this._pressPipe[j];
+      if (i >= this._pipeN) continue;
+      const t = age / life;
+      const alpha = saturate(t / 0.08) * Math.pow(1 - t, 1.4) * fade;
+      const radius = this._pipeR[i] * 1.2 + c.pressStart + c.pressSpeed * age;
+      const height = this._pipeH[i] * c.pressHeight * (1 + 0.25 * t);
+      aR.setXYZW(k, this._pipeX[i], this._pipeY[i], this._pipeZ[i], alpha);
+      aR2.setXYZW(k, radius, height, c.pressArc, ((j * 0.618) % 1) * 6.283);
+      k++;
+    }
+    this.press.count = k;
+    this.pressLens.count = k;
+    this.press.visible = k > 0 && c.pressBody + c.pressCrest > 0.001;
+    this.pressLens.visible = k > 0 && c.pressWarp > 0.001;
+    aR.needsUpdate = true;
+    aR2.needsUpdate = true;
+    this.pressMaterial.userData.sync(this.direction, this.side);
+    this.pressLensMaterial.userData.sync(this.direction, this.side);
   }
 
   /**
@@ -211,8 +452,10 @@ export class GlissandoSweepAbility extends Ability {
     const lag = Math.min(0.9, Math.max(0, c.sheetLag));
     const a = committed ? 1 : saturate((this.u - lag) / (1 - lag));
     const appear = committed ? 1 : saturate((this.u - lag * 0.6) / Math.max(0.01, lag * 0.4 + 0.05));
-    if (appear <= 0 || c.sheetOpacity <= 0.001) {
+    this._rk.appear = appear;
+    if (appear <= 0) {
       this.sheet.visible = false;
+      this._hideRank();
       return;
     }
     const start = Math.min(this.length * 0.6, Math.max(0, c.sheetStart));
@@ -231,6 +474,17 @@ export class GlissandoSweepAbility extends Ability {
     _sheetPose.f0 = c.chirpStart * (1 + pitch);
     _sheetPose.f1 = c.chirpEnd * (1 + pitch * c.chirpClimb);
     const shear = (c.sheetShear * (1 - a) + c.lateShear * glide) * this._sheetSide;
+    const rk = this._rk;
+    rk.tear = tear;
+    rk.pitch = pitch;
+    rk.ring = ring;
+    rk.shear = shear;
+    rk.since = since;
+    this._rankUpdate();
+    if (c.sheetOpacity <= 0.001) {
+      this.sheet.visible = false;
+      return;
+    }
     const echoes = Math.max(0, Math.min(MAX_SHEETS - 1, Math.round(c.echoes)));
     const aC = this.sheetGeometry.getAttribute('aCentre');
     const aS = this.sheetGeometry.getAttribute('aSheet');
@@ -253,7 +507,7 @@ export class GlissandoSweepAbility extends Ability {
 
   /** Dust scoured off the sheet's foot as it slides, and the scoured floor it leaves. */
   _sheetShed(dt) {
-    if (!this.sheet.visible) return;
+    if (!this.sheet.visible && !this._rankVisible) return;
     const c = settings[ID];
     const g = settings.global;
     if (c.grooveSpacing > 0.05) {
@@ -370,6 +624,16 @@ export class GlissandoSweepAbility extends Ability {
     // The scour starts once the sweep has slid in over the line.
     this._grooveAt = settings[ID].sheetStart + settings[ID].grooveSpacing;
     this.sheet.visible = false;
+    this._hideRank();
+    this._rk.appear = 0;
+    this._rk.tear = 0;
+    this._rk.since = -1;
+    this._rankClock = this.age;
+    this._play = 0;
+    this._playIdx = -99;
+    this._chorded = false;
+    this._pressBorn.fill(-1);
+    this._pressNext = 0;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -964,9 +1228,20 @@ export class GlissandoSweepAbility extends Ability {
     this.rig.hide();
     this.trail.hide();
     this.sheet.visible = false;
+    this._hideRank();
   }
 
   dispose() {
+    this.pipeGeometry.dispose();
+    this.chestGeometry.dispose();
+    this.pipeMaterial.dispose();
+    this.pressGeometry.dispose();
+    this.pressMaterial.dispose();
+    this.pressLensMaterial.dispose();
+    this.pipes.dispose();
+    this.chest.dispose();
+    this.press.dispose();
+    this.pressLens.dispose();
     this.sheetGeometry.dispose();
     this.sheetMaterial.dispose();
     this.trail.dispose();
@@ -1209,6 +1484,49 @@ export function buildEditor(gui, c, Editor) {
   sheet.addColor(c, 'colorSheetTint').name('tint');
   sheet.addColor(c, 'colorSheetBody').name('body');
   sheet.addColor(c, 'colorSheetDeep').name('deep');
+
+  const rank = folder.addFolder('16 · The pipe rank');
+  R(rank, c, 'pipeCount', 2, 16, 1, 'pipes');
+  R(rank, c, 'pipeTall', 0.3, 6, 0.05, 'longest pipe (m)');
+  R(rank, c, 'pipeShort', 0.1, 4, 0.05, 'shortest pipe (m)');
+  R(rank, c, 'pipeRadius', 0.03, 0.8, 0.01, 'pipe radius (m)');
+  R(rank, c, 'pipeSpan', 0.2, 1.5, 0.01, 'span, × sheet width');
+  R(rank, c, 'rankBow', -3, 3, 0.05, 'bow (m)');
+  R(rank, c, 'chestHeight', 0.05, 2, 0.01, 'chest height (m)');
+  R(rank, c, 'chestDepth', 0.1, 3, 0.01, 'chest depth (m)');
+  R(rank, c, 'rankLean', -3, 3, 0.05, 'lean, × shear');
+  R(rank, c, 'rankSink', 0, 2, 0.01, 'sinks, × height');
+  R(rank, c, 'speakRate', 0, 8, 0.05, 'runs / s');
+  R(rank, c, 'speakWidth', 0.2, 6, 0.05, 'pipes speaking');
+  R(rank, c, 'speakHum', 0, 1, 0.01, 'hum');
+  R(rank, c, 'speakChord', 0, 1, 0.01, 'chord on the beat');
+  R(rank, c, 'vibAmp', 0, 1, 0.01, 'shiver, × radius');
+  R(rank, c, 'vibFreq', 0, 120, 0.5, 'shiver rate');
+  R(rank, c, 'vibNodes', 0.5, 8, 0.25, 'wave loops');
+  R(rank, c, 'mouthGlow', 0, 8, 0.05, 'mouth glow');
+  R(rank, c, 'pipeRim', 0, 3, 0.01, 'lime rim');
+  R(rank, c, 'pipeSpecular', 0, 4, 0.05, 'polish');
+  R(rank, c, 'pipeFlash', 0, 4, 0.05, 'flare on the beat');
+  rank.addColor(c, 'colorPipe').name('bronze');
+  rank.addColor(c, 'colorPipeShine').name('polished');
+  rank.addColor(c, 'colorPipeDeep').name('bronze, deep');
+  rank.addColor(c, 'colorPipeMouth').name('mouth');
+  rank.addColor(c, 'colorPipeHot').name('mouth, hot');
+
+  const press = folder.addFolder('17 · Pressure ripples');
+  R(press, c, 'pressLife', 0.05, 3, 0.01, 'life (s)');
+  R(press, c, 'pressSpeed', 0, 12, 0.05, 'rolls out (m/s)');
+  R(press, c, 'pressStart', 0, 2, 0.01, 'leaves at (m)');
+  R(press, c, 'pressArc', 0.2, 6.28, 0.01, 'arc (rad)');
+  R(press, c, 'pressHeight', 0.1, 2, 0.01, 'height, × pipe');
+  R(press, c, 'pressBody', 0, 1, 0.01, 'dark body');
+  R(press, c, 'pressCrest', 0, 8, 0.05, 'lime crest');
+  R(press, c, 'pressCrestWidth', 0.005, 0.3, 0.005, 'crest width');
+  R(press, c, 'pressWobble', 0, 0.6, 0.01, 'haze warp');
+  R(press, c, 'pressWarp', 0, 4, 0.05, 'screen warp');
+  R(press, c, 'pressMax', 1, 48, 1, 'ripples alive');
+  press.addColor(c, 'colorPressBody').name('body');
+  press.addColor(c, 'colorPressCrest').name('crest');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

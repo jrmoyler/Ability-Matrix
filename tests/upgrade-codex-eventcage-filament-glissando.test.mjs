@@ -181,7 +181,7 @@ test('filament: bolts draw arc by arc, barbs plant where hits land, the stitch c
 import { GlissandoSweepAbility, buildEditor as buildGliss } from '../packs/sandbox/src/abilities/codex/GlissandoSweepAbility.js';
 import glissando from '../packs/sandbox/src/config/codex/glissando.js';
 
-test('glissando: one wall of sound rises ahead of the caster, slides in late, rings, tears, the cast ends', () => {
+test('glissando: a bronze pipe rank rises ahead of the caster, slides in late, plays a rising run, sinks, the cast ends', () => {
   settings.glissando ??= structuredClone(glissando.settings);
   const c = settings.glissando;
   const bodies = [body(0, 11), body(0.6, 6), body(5, 6)];
@@ -192,29 +192,42 @@ test('glissando: one wall of sound rises ahead of the caster, slides in late, ri
   let maxAhead = 0;
   let sawInTravel = false;
   let tore = false;
+  let ripples = 0;
+  let maxSpeak = 0;
   while (a.isActive && frames < 900) {
     a.update(1 / 30);
-    if (a.sheet.visible) {
+    if (a.pipes.visible) {
       const ahead = a._sheetAt.z;
       minAhead = Math.min(minAhead, ahead);
       maxAhead = Math.max(maxAhead, ahead);
       if (a.phase === 'travel') sawInTravel = true;
-      assert.ok(finite(a.sheetGeometry.getAttribute('aCentre').array), 'sheet finite');
-      if (a.sheetGeometry.getAttribute('aSheet').getW(0) > 0.5) tore = true;
+      assert.ok(finite(a.pipes.instanceMatrix.array), 'rank finite');
+      assert.ok(finite(a.pressGeometry.getAttribute('aRip').array), 'ripples finite');
+      assert.ok(a.pipes.count <= 16 && a.press.count <= 48, 'pools bounded');
+      ripples = Math.max(ripples, a.press.count);
+      for (let i = 0; i < a.pipes.count; i++) maxSpeak = Math.max(maxSpeak, a.pipes.geometry.getAttribute('aPipe').getX(i));
+      if (a._rk.tear > 0.5) tore = true;
     }
     frames++;
   }
   const seconds = frames / 30;
   assert.ok(seconds > 1.5 && seconds < 5, `screen time ${seconds}`);
-  assert.ok(sawInTravel, 'the sheet is seen travelling');
+  assert.ok(sawInTravel, 'the rank is seen travelling');
   assert.ok(minAhead >= c.sheetStart - 1e-6, `it never stands over the caster (${minAhead})`);
   assert.ok(maxAhead > 12, 'it glides on past the end, late');
-  assert.ok(tore, 'it tears at the end');
+  assert.ok(tore, 'it sinks at the end');
+  assert.ok(ripples > 0, 'speaking pipes throw pressure ripples');
+  assert.ok(maxSpeak > 0.8, 'the run reaches full voice');
   assert.ok(bodies.every((b) => b.kills <= 1));
   assert.equal(bodies[2].kills, 0, 'well off the line is untouched');
   const keys = editorKeys(buildGliss, c);
   for (const k of Object.keys(glissando.settings)) if (k !== 'zoneRadius') assert.ok(keys.has(k), `editor exposes ${k}`);
   a.destroy();
   assert.equal(a.sheet.visible, false);
+  assert.equal(a.pipes.visible, false);
+  assert.equal(a.press.visible, false);
+  a.spawn(new Vector3(), new Vector3(0, 0, 1), 12);
+  assert.ok(Array.from(a._pressBorn).every((t) => t === -1), 'spawn resets the ripples');
+  a.destroy();
   a.dispose();
 });

@@ -1164,3 +1164,312 @@ export function createGlissandoSweepSheetMaterial() {
   };
   return material;
 }
+
+/**
+ * The pipe rank: cast bronze, lit by the scene sun (opaque, on the shaped
+ * layer, casting shadows). Instanced: `instanceMatrix` stands and scales each
+ * pipe, `aPipe` = (speak 0..1, shiver rate rad/s, seed, flash). A speaking
+ * pipe swells and shivers in a standing wave along its length (`uNodes`
+ * loops) and its mouth lights lime; the rest of the metal stays a dark,
+ * specular bronze with polished bands and rim. `aKind` per vertex: 0 bronze,
+ * 1 mouth, 2 polished, 3 the bore. The chest uses the same material.
+ */
+const PIPE_VERTEX = /* glsl */ `
+  attribute float aKind;
+  attribute vec4 aPipe;
+  uniform float uTime;
+  uniform float uVib;
+  uniform float uNodes;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vKind;
+  varying vec4 vPipe;
+  void main() {
+    vec3 p = position;
+    float speak = aPipe.x;
+    // Standing wave along the pipe: loops swell and pinch as it sounds.
+    float wave = sin(3.14159265 * uNodes * p.y + aPipe.z) * sin(uTime * aPipe.y + aPipe.z * 3.0);
+    float swell = 1.0 + uVib * speak * wave * smoothstep(0.12, 0.3, p.y);
+    p.xz *= swell;
+    mat4 m = modelMatrix;
+    vec3 n = normal;
+    #ifdef USE_INSTANCING
+      m = modelMatrix * instanceMatrix;
+      vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+      n = mat3(instanceMatrix) * (normal / max(sc * sc, vec3(1e-6)));
+    #endif
+    vec4 world = m * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vLocal = position;
+    vKind = aKind;
+    vPipe = aPipe;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const PIPE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3 uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3 uDeep;
+  uniform vec3 uBody;
+  uniform vec3 uShine;
+  uniform vec3 uMouth;
+  uniform vec3 uHot;
+  uniform float uMouthGlow;
+  uniform float uRim;
+  uniform float uSpecular;
+  uniform float uFlash;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vKind;
+  varying vec4 vPipe;
+  ${noiseGLSL}
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+    float speak = vPipe.x;
+
+    float mouth = smoothstep(0.5, 0.9, vKind) * (1.0 - smoothstep(1.1, 1.5, vKind));
+    float shine = smoothstep(1.5, 1.9, vKind) * (1.0 - smoothstep(2.1, 2.5, vKind));
+    float bore = smoothstep(2.5, 2.9, vKind);
+
+    // Cast bronze: hammered grain running up the pipe, darker toward the foot.
+    float grain = snoise01(vec3(atan(vLocal.x, vLocal.z) * 5.0, vLocal.y * 34.0, vPipe.z));
+    float patina = snoise01(vec3(vLocal.x * 3.0, vLocal.y * 6.0, vLocal.z * 3.0 + vPipe.z * 2.0));
+    vec3 albedo = mix(uDeep, uBody, 0.35 + 0.45 * grain);
+    albedo = mix(albedo, uDeep, 0.35 * smoothstep(0.55, 0.85, patina));
+    albedo = mix(albedo, uShine, shine * 0.8);
+    float spec = uSpecular * (1.0 + shine * 1.5);
+    // Metal: little diffuse, the rest is the world reflected in bronze — a
+    // dark night ground below, the pale sky band above — plus the sun.
+    vec3 Rf = reflect(-V, N);
+    // Night: the bright band is the horizon, the zenith is dark.
+    float sky = smoothstep(-0.2, 0.08, Rf.y) * (1.0 - smoothstep(0.3, 0.85, Rf.y));
+    vec3 env = mix(uDeep * 0.5, uShine * 1.15, sky * sky);
+    float fres = 0.45 + 0.55 * pow(1.0 - ndv, 2.0);
+    vec3 color = albedo * (0.06 + 0.45 * ndl);
+    color += albedo * 0.1 * (0.5 + 0.5 * N.y);
+    color += env * fres * (0.7 + 0.5 * shine);
+    color += mix(uBody, uShine, 0.8) * pow(max(dot(N, H), 0.0), 60.0) * spec * 1.4;
+    color += uShine * pow(max(dot(N, H), 0.0), 12.0) * spec * 0.1;
+    // The bore is dark; it glows faintly as the pipe speaks.
+    color = mix(color, uDeep * 0.25 + uMouth * speak * 0.25 * uGlobalGlow, bore);
+    // The mouth: a dark slit that lights lime, white-hot at full voice.
+    float flick = 0.8 + 0.2 * sin(uTime * vPipe.y * 0.5 + vLocal.x * 9.0);
+    vec3 voice = mix(uMouth, uHot * 1.3, 0.5 * smoothstep(0.85, 1.0, speak));
+    color = mix(color, uDeep * 0.3 + voice * uMouthGlow * (0.06 + speak * flick) * uGlobalGlow, mouth);
+    // A thin lime rim on a sounding pipe, and the bronze flare on the beat.
+    color += uMouth * pow(1.0 - ndv, 3.0) * uRim * speak * uGlobalGlow;
+    color += uShine * vPipe.w * uFlash * (0.3 + shine) * (0.4 + 0.6 * ndl);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createGlissandoSweepPipeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uVib: { value: 0.2 },
+      uNodes: { value: 3 },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uShine: { value: new Color() },
+      uMouth: { value: new Color() },
+      uHot: { value: new Color() },
+      uMouthGlow: { value: 2 },
+      uRim: { value: 0.3 },
+      uSpecular: { value: 1 },
+      uFlash: { value: 1 }
+    }),
+    vertexShader: PIPE_VERTEX,
+    fragmentShader: PIPE_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uVib.value = c.vibAmp * g.turbulence;
+    u.uNodes.value = c.vibNodes;
+    u.uDeep.value.copy(getColor(c.colorPipeDeep));
+    u.uBody.value.copy(getColor(c.colorPipe));
+    u.uShine.value.copy(getColor(c.colorPipeShine));
+    u.uMouth.value.copy(getColor(c.colorPipeMouth));
+    u.uHot.value.copy(getColor(c.colorPipeHot));
+    u.uMouthGlow.value = c.mouthGlow * g.shaderIntensity;
+    u.uRim.value = c.pipeRim * g.fresnel;
+    u.uSpecular.value = c.pipeSpecular;
+    u.uFlash.value = c.pipeFlash * g.explosionIntensity;
+  };
+  return material;
+}
+
+/**
+ * Pressure ripples: each speaking pipe throws a curved band of air that rolls
+ * out from it — an arc of a cylinder (x around the arc, y up), warped like
+ * heat haze. Per ripple `aRip` = (floor centre xyz, alpha) and `aRip2` =
+ * (radius, height, arc radians, seed). The body is a dark translucent band
+ * (it darkens what is behind it); only its thin top crest is lime. The same
+ * vertex stage writes the ripple into the distortion buffer.
+ */
+const PRESS_VERTEX = /* glsl */ `
+  attribute vec4 aRip;
+  attribute vec4 aRip2;
+  uniform float uTime;
+  uniform vec3 uDir;
+  uniform vec3 uSide;
+  uniform float uWobble;
+  varying vec2 vUv;
+  varying vec4 vRip;
+  varying vec4 vRip2;
+  varying vec3 vWorld;
+  varying float vCrestLife;
+  void main() {
+    float x = position.x + 0.5;
+    float y = position.y + 0.5;
+    float ang = (x - 0.5) * aRip2.z;
+    // Bulged at mid height and warped like heat haze.
+    float warp = sin(y * 7.0 + uTime * 9.0 + aRip2.w * 5.0 + x * 4.0) * 0.6 + sin(x * 13.0 - uTime * 6.0 + aRip2.w) * 0.4;
+    float R = aRip2.x * (1.0 + 0.1 * sin(3.14159265 * y) + uWobble * warp);
+    vec3 out_ = -uDir * cos(ang) + uSide * sin(ang);
+    vec3 p = aRip.xyz + out_ * R + vec3(0.0, y * aRip2.y, 0.0);
+    vUv = vec2(x, y);
+    vRip = aRip;
+    vRip2 = aRip2;
+    vCrestLife = aRip.w * aRip.w;
+    vWorld = p;
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const PRESS_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform vec3 uBody;
+  uniform vec3 uCrest;
+  uniform float uBodyAlpha;
+  uniform float uCrestGlow;
+  uniform float uCrestWidth;
+  varying vec2 vUv;
+  varying vec4 vRip;
+  varying vec4 vRip2;
+  varying vec3 vWorld;
+  varying float vCrestLife;
+  ${noiseGLSL}
+  void main() {
+    float sides = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x);
+    float foot = smoothstep(0.0, 0.12, vUv.y);
+    float haze = snoise01(vec3(vUv.x * 9.0, vUv.y * 4.0 - uTime * 2.0, vRip2.w));
+    // The crest wanders a little, like a wave top.
+    float topY = 1.0 - uCrestWidth * (0.6 + 0.4 * sin(vUv.x * 9.0 + uTime * 5.0 + vRip2.w * 4.0));
+    float crest = smoothstep(topY - uCrestWidth, topY, vUv.y) * (1.0 - smoothstep(topY, min(1.0, topY + uCrestWidth * 0.6), vUv.y));
+    // The crest is a flick: bright as the ripple leaves the pipe, gone well
+    // before the dark band has rolled out (aRip2 carries no age, so the
+    // radius stands in for it).
+    crest *= vCrestLife;
+    float body = foot * (1.0 - smoothstep(topY - uCrestWidth * 0.5, topY, vUv.y)) * (0.55 + 0.45 * haze);
+    vec3 col = uBody * (0.7 + 0.6 * haze);
+    col = mix(col, uCrest * uCrestGlow * uGlobalGlow, crest);
+    float alpha = (body * uBodyAlpha + crest) * sides * vRip.w;
+    if (alpha < 0.005) discard;
+    gl_FragColor = vec4(col, min(1.0, alpha));
+  }
+`;
+
+const PRESS_LENS_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uWarp;
+  varying vec2 vUv;
+  varying vec4 vRip;
+  varying vec4 vRip2;
+  void main() {
+    float mask = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x) * smoothstep(0.0, 0.15, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+    float s = uWarp * mask * vRip.w;
+    if (s < 0.01) discard;
+    float a = sin(vUv.y * 21.0 + uTime * 11.0 + vRip2.w * 3.0) * 1.6 + vUv.x * 6.0;
+    vec2 dir = vec2(cos(a), sin(a));
+    gl_FragColor = vec4(dir * 0.5 + 0.5, s, mask);
+  }
+`;
+
+function pressUniforms() {
+  return {
+    uDir: { value: new Vector3(0, 0, 1) },
+    uSide: { value: new Vector3(1, 0, 0) },
+    uWobble: { value: 0.1 }
+  };
+}
+
+export function createGlissandoSweepPressureMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      ...pressUniforms(),
+      uBody: { value: new Color() },
+      uCrest: { value: new Color() },
+      uBodyAlpha: { value: 0.5 },
+      uCrestGlow: { value: 2 },
+      uCrestWidth: { value: 0.05 }
+    }),
+    vertexShader: PRESS_VERTEX,
+    fragmentShader: PRESS_FRAGMENT
+  });
+  material.userData.sync = (dir, side) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDir.value.copy(dir);
+    u.uSide.value.copy(side);
+    u.uWobble.value = c.pressWobble * g.noiseStrength;
+    u.uBody.value.copy(getColor(c.colorPressBody));
+    u.uCrest.value.copy(getColor(c.colorPressCrest));
+    u.uBodyAlpha.value = c.pressBody * g.opacity;
+    u.uCrestGlow.value = c.pressCrest * g.glow * g.shaderIntensity;
+    u.uCrestWidth.value = Math.max(0.005, c.pressCrestWidth);
+  };
+  return material;
+}
+
+export function createGlissandoSweepPressureLensMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({ ...pressUniforms(), uWarp: { value: 1 } }),
+    vertexShader: PRESS_VERTEX,
+    fragmentShader: PRESS_LENS_FRAGMENT
+  });
+  material.userData.sync = (dir, side) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDir.value.copy(dir);
+    u.uSide.value.copy(side);
+    u.uWobble.value = c.pressWobble * g.noiseStrength;
+    u.uWarp.value = c.pressWarp * g.distortion * g.shaderIntensity;
+  };
+  return material;
+}

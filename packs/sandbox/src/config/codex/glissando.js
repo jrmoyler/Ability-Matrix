@@ -158,7 +158,7 @@ export default {
     colorFlash: '#f4ffd4',
     burstRadius: 2.6, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.15, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.04, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 5, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -198,14 +198,14 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.68, // ribbon width at the head, metres
     trailLife: 1.3, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.2, // strength of the ribbon
+    trailOpacity: 0.06, // strength of the ribbon
     trailGlow: 1.1, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 1.4, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
     scarOpacity: 0.7, // strength of the scar
-    scarGlow: 1.6, // brightness of its hot seam
+    scarGlow: 0.5, // brightness of its hot seam
     colorScarA: '#b6e33b',
     colorScarB: '#314007',
     wakeSpacing: 2, // metres between wake decals along the path (0 = none)
@@ -241,16 +241,59 @@ export default {
     echoScale: 0.8, // size of each echo, × the one before
     sheetGlow: 1, // overall brightness
     sheetCore: 2, // HDR gain of the white-hot crests
-    sheetOpacity: 0.95,
+    sheetOpacity: 0, // the old lime wall (off: the pipe rank and its pressure ripples carry the read)
     sheetFoot: 1, // glow where it scours the floor
-    footDust: 140, // dust and sparks per second scoured off its foot
+    footDust: 50, // dust and sparks per second scoured off its foot
     grooveSpacing: 1.1, // metres between the scoured patches it leaves on the floor (0 = none)
     grooveRadius: 1.1, // size of each scoured patch, metres
     grooveLife: 3.2, // seconds the scouring stays, × global lifetime
     colorGroove: '#0d1600', // the dark the floor is scoured to
     colorSheetCore: '#ffffff', // white-hot crest
     colorSheetTint: '#b6e33b', // pale tint
-    colorSheetBody: '#2f5410', // saturated body
-    colorSheetDeep: '#04110e' // dark deep in the troughs
+    colorSheetBody: '#1c3008', // saturated body (also tints the scoured floor)
+    colorSheetDeep: '#04110e', // dark deep in the troughs
+
+    /* --- 16 · the pipe rank (the instrument the sound comes from) --- */
+    pipeCount: 11, // pipes in the rank (max 16)
+    pipeTall: 3.1, // the longest, lowest pipe, metres
+    pipeShort: 0.95, // the shortest, highest pipe, metres
+    pipeRadius: 0.24, // radius of the longest pipe, metres (shorter pipes are narrower)
+    pipeSpan: 0.92, // share of the sheet width the pipes stand across
+    rankBow: 0.6, // how far the middle of the rank bows toward the targets, metres
+    chestHeight: 0.5, // height of the wind chest the pipes stand on, metres
+    chestDepth: 0.75, // depth of the wind chest, metres
+    rankLean: 0.6, // how far the pipes lean with the shear, × the sheet shear
+    rankSink: 1.05, // how deep the rank sinks into the floor as it goes, × its height
+    speakRate: 1.3, // runs up the rank per second (the glissando), before the pitch climbs
+    speakWidth: 1.1, // pipes speaking at once around the run
+    speakHum: 0.18, // how much every pipe keeps sounding under the run
+    speakChord: 1, // all pipes speak together on the beat
+    vibAmp: 0.09, // how far a speaking pipe swells and shivers, × its radius
+    vibFreq: 26, // shiver rate of the longest pipe, radians/second (shorter pipes shiver faster)
+    vibNodes: 4, // standing-wave loops along a pipe
+    mouthGlow: 2, // lime light in a speaking pipe's mouth
+    pipeRim: 0.35, // lime fresnel on a speaking pipe
+    pipeSpecular: 1.1, // polish on the bronze
+    pipeFlash: 0.35, // the bronze flares on the beat
+    colorPipe: '#4f3f20', // cast bronze
+    colorPipeShine: '#c08f4c', // polished bronze (bands, rims, mouldings)
+    colorPipeDeep: '#0d0805', // bronze in shadow
+    colorPipeMouth: '#b6e33b', // the lime of a speaking mouth
+    colorPipeHot: '#f4ffd4', // the hottest mouth
+
+    /* --- 17 · pressure ripples (thrown off each speaking pipe) --- */
+    pressLife: 0.65, // seconds a ripple lives, × global lifetime
+    pressSpeed: 3.2, // metres/second a ripple rolls out
+    pressStart: 0.35, // radius a ripple leaves the pipe at, metres
+    pressArc: 2.5, // radians of arc each ripple spans, centred on the caster side
+    pressHeight: 0.85, // ripple height, × its pipe
+    pressBody: 0.55, // opacity of the dark pressure body
+    pressCrest: 2.2, // brightness of the thin lime crest
+    pressCrestWidth: 0.05, // crest width, share of the ripple height
+    pressWobble: 0.05, // heat-haze warp of the ripple, × its radius
+    pressWarp: 0.05, // screen distortion the ripple writes
+    pressMax: 28, // ripples alive at once (max 48)
+    colorPressBody: '#111906', // the dark of the pressure band
+    colorPressCrest: '#b6e33b' // the lime of its crest
   }
 };
