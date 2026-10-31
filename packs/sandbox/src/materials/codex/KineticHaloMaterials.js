@@ -757,3 +757,264 @@ export function createKineticHaloDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ==================================================================== */
+/* The signature — the flywheel, its speed smear and the scraped floor   */
+/* ==================================================================== */
+/*
+ * Three more shaders, written for this cast:
+ *   wheel  — machined red steel (MeshStandardMaterial, patched): sun-lit and
+ *            shadow-casting; the teeth run hot with friction, and dashes of
+ *            stored momentum race round a channel in the top face faster than
+ *            the rim itself turns.
+ *   smear  — the speed blur: an additive sheet in the wheel's plane, streaks
+ *            trailing each tooth, as strong as the wheel is fast.
+ *   scrape — the floor: a filled disc, scorched dark, with a bright groove
+ *            where the rim has just dragged and tangential score marks.
+ */
+
+const WHEEL_VERTEX_PARS = /* glsl */ `
+  attribute vec3 aWheel;
+  varying vec3 vWheel;
+  varying vec3 vWheelLocal;
+`;
+const WHEEL_FRAGMENT_PARS = /* glsl */ `
+  uniform float uHeat;
+  uniform float uFlow;
+  uniform float uFlowGlow;
+  uniform float uToothGlow;
+  uniform float uRimGlow;
+  uniform float uTeeth;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec3  vWheel;
+  varying vec3  vWheelLocal;
+  ${noiseGLSL}
+`;
+const WHEEL_COLOR = /* glsl */ `
+  {
+    float face = floor(vWheel.y + 0.5);
+    float grain = snoise(vec3(vWheel.x * 90.0, vWheelLocal.y * 6.0, face)) * 0.5 + 0.5;
+    // Top and bottom are the lit body, the faces round the edge go to the deep tone.
+    float lit = (face == 0.0 || face == 4.0) ? 1.0 : 0.35;
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, lit * (0.75 + 0.25 * grain));
+  }
+`;
+const WHEEL_EMISSIVE = /* glsl */ `
+  {
+    float face = floor(vWheel.y + 0.5);
+    float outer = (face >= 1.0 && face <= 3.0) ? 1.0 : 0.0;
+    // Friction: the teeth tips glow hottest.
+    float tip = pow(vWheel.z, 10.0);
+    vec3 hot = mix(uColorHot, uColorCore, tip * uHeat * 0.35);
+    totalEmissiveRadiance += hot * outer * (0.06 + 0.94 * tip) * uHeat * uToothGlow;
+    // Stored momentum: dashes racing round the channel in the top face.
+    if (face == 4.0) {
+      float dash = pow(fract(vWheel.x * uTeeth * 0.5 - uFlow), 4.0);
+      totalEmissiveRadiance += mix(uColorHot, uColorCore, dash) * dash * uFlowGlow;
+    }
+    vec3 nV = normalize(normal);
+    float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
+    totalEmissiveRadiance += uColorHot * rim * uRimGlow * uHeat;
+  }
+`;
+
+/** The flywheel: opaque, lit, shadow-casting machined steel; only friction and stored momentum glow. */
+export function createKineticHaloWheelMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0.75 });
+  const uniforms = {
+    uHeat: { value: 1 },
+    uFlow: { value: 0 },
+    uFlowGlow: { value: 1 },
+    uToothGlow: { value: 1 },
+    uRimGlow: { value: 1 },
+    uTeeth: { value: 16 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${WHEEL_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWheel = aWheel;\n  vWheelLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${WHEEL_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${WHEEL_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${WHEEL_EMISSIVE}`);
+    },
+    'kinethalo-wheel'
+  );
+  material.userData.uniforms = uniforms;
+  /** @param {number} heat 0..1 @param {number} flow the dash phase */
+  material.userData.sync = (heat, flow, teeth) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uFlow.value = flow;
+    uniforms.uTeeth.value = teeth;
+    uniforms.uFlowGlow.value = c.wheelFlowGlow * g.glow * heat;
+    uniforms.uToothGlow.value = c.wheelHeat * g.glow;
+    uniforms.uRimGlow.value = c.wheelRimGlow * g.fresnel * g.glow;
+    uniforms.uColorDeep.value.copy(getColor(c.colorWheelDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorWheelBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorWheelHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorWheelCore));
+    material.roughness = c.wheelRough;
+    material.metalness = c.wheelMetal;
+  };
+  return material;
+}
+
+const FLAT_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SMEAR_FRAGMENT = /* glsl */ `
+  uniform float uInner;
+  uniform float uOuter;
+  uniform float uPhase;
+  uniform float uTeeth;
+  uniform float uOpacity;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorBody;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0 || r < uInner) discard;
+    float band = smoothstep(uInner, mix(uInner, uOuter, 0.35), r) * (1.0 - smoothstep(mix(uInner, uOuter, 0.7), 1.0, r));
+    float a = atan(p.y, p.x) / 6.28318;
+    // A comet tail behind each tooth: bright at the tooth, dying away behind it.
+    float tail = pow(fract(a * uTeeth + uPhase), 6.0);
+    float n = snoise(vec3(a * 40.0, r * 8.0, uPhase * 0.2)) * 0.5 + 0.5;
+    vec3 col = mix(uColorBody, uColorHot, tail) * (0.4 + 0.8 * tail) * (0.7 + 0.3 * n);
+    gl_FragColor = vec4(col * band * uOpacity, 1.0);
+  }
+`;
+
+/** The speed smear: additive, in the wheel's plane, as strong as the wheel is fast. */
+export function createKineticHaloSmearMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    uniforms: sharedUniforms({
+      uInner: { value: 0.8 },
+      uOuter: { value: 1 },
+      uPhase: { value: 0 },
+      uTeeth: { value: 16 },
+      uOpacity: { value: 0 },
+      uColorHot: { value: new Color() },
+      uColorBody: { value: new Color() }
+    }),
+    vertexShader: FLAT_VERTEX,
+    fragmentShader: SMEAR_FRAGMENT
+  });
+  material.userData.sync = (inner, phase, teeth, strength) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uInner.value = inner;
+    u.uPhase.value = phase;
+    u.uTeeth.value = teeth;
+    u.uOpacity.value = strength * c.smearOpacity * g.opacity * g.glow;
+    u.uColorHot.value.copy(getColor(c.colorWheelHot));
+    u.uColorBody.value.copy(getColor(c.colorWheelBody));
+  };
+  return material;
+}
+
+const SCRAPE_FRAGMENT = /* glsl */ `
+  uniform float uRing;
+  uniform float uBand;
+  uniform float uContact;
+  uniform float uScore;
+  uniform float uHeat;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uSpin;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    float a = atan(p.y, p.x);
+    // Tangential score marks: noise stretched round the circle, swept by the spin.
+    float score = snoise(vec3(a * 2.0 + uSpin, r * 26.0, uSeed));
+    score = smoothstep(0.35, 0.9, score) * uScore;
+    float scorch = snoise(vec3(p * 2.5, uSeed)) * 0.5 + 0.5;
+    vec3 col = mix(uColorDeep, uColorBody * 0.6, scorch * 0.5 + score * 0.6);
+    // The groove the rim drags: hottest just behind the contact, cooling round.
+    float groove = 1.0 - smoothstep(0.0, uBand, abs(r - uRing));
+    float behind = mod(uContact - a + 6.28318, 6.28318);
+    float trail = exp(-behind * 1.4) * uHeat;
+    float fresh = 1.0 - smoothstep(0.0, 0.35, behind);
+    col += mix(uColorHot, uColorCore, fresh) * groove * (0.3 * uHeat + trail * 2.2) * uGlow;
+    col += uColorHot * score * groove * 0.6 * uGlow * uHeat;
+    float alpha = uOpacity * (1.0 - smoothstep(0.88, 1.0, r)) * (0.55 + 0.45 * scorch + groove * 0.4);
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The scraped floor: a filled scorched disc with the rim's hot groove. */
+export function createKineticHaloScrapeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    uniforms: sharedUniforms({
+      uRing: { value: 0.8 },
+      uBand: { value: 0.06 },
+      uContact: { value: 0 },
+      uScore: { value: 1 },
+      uHeat: { value: 1 },
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uSpin: { value: 0 },
+      uSeed: { value: 0 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorHot: { value: new Color() },
+      uColorCore: { value: new Color() }
+    }),
+    vertexShader: FLAT_VERTEX,
+    fragmentShader: SCRAPE_FRAGMENT
+  });
+  material.userData.sync = (ring, band, contact, heat, opacity, spin, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRing.value = ring;
+    u.uBand.value = band;
+    u.uContact.value = contact;
+    u.uHeat.value = heat;
+    u.uOpacity.value = opacity * c.scrapeOpacity * g.opacity;
+    u.uGlow.value = c.scrapeGlow * g.glow;
+    u.uScore.value = c.scrapeScore;
+    u.uSpin.value = spin;
+    u.uSeed.value = seed;
+    u.uColorDeep.value.copy(getColor(c.colorScrapeDeep));
+    u.uColorBody.value.copy(getColor(c.colorWheelBody));
+    u.uColorHot.value.copy(getColor(c.colorWheelHot));
+    u.uColorCore.value.copy(getColor(c.colorWheelCore));
+  };
+  return material;
+}

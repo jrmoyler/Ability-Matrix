@@ -1,15 +1,22 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Group, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
-import { createKineticHaloPieceGeometry, createKineticHaloHeroGeometry } from '../../assets/codex/KineticHaloGeometry.js';
+import {
+  createKineticHaloPieceGeometry,
+  createKineticHaloHeroGeometry
+} from '../../assets/codex/KineticHaloGeometry.js';
+import { createKineticHaloWheelGeometry, writeKineticHaloWheel } from '../../assets/codex/KineticHaloSignatureGeometry.js';
 import {
   createKineticHaloBodyMaterial,
   createKineticHaloLensMaterial,
   createKineticHaloGroundMaterial,
   createKineticHaloVoiceMaterial,
-  createKineticHaloDetailMaterial
+  createKineticHaloDetailMaterial,
+  createKineticHaloWheelMaterial,
+  createKineticHaloSmearMaterial,
+  createKineticHaloScrapeMaterial
 } from '../../materials/codex/KineticHaloMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -43,6 +50,16 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _hub = new Vector3();
+const _hand = new Vector3();
+const _axis = new Vector3();
+const _normal = new Vector3();
+const _contact = new Vector3();
+const _tangent = new Vector3();
+const _quat = new Quaternion();
+
+/** Teeth on the flywheel (authored into its geometry). */
+const WHEEL_TEETH = 16;
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +89,33 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The signature — the flywheel (layers 11–14, this cast's own)
+ *
+ * The template sigil, rig and pieces are turned down; the read is one heavy
+ * machined flywheel that stores the cast's momentum and gives it back:
+ *
+ *  11. **flywheel** — a ratchet-toothed rim of dark red steel
+ *      (`createKineticHaloWheelGeometry`, rewritten in place to its size in
+ *      metres), sun-lit and shadow-casting on LAYER.WORLD. It leaves the hand
+ *      as a `wheelThrowRadius` wheel *rolling on edge* down the line, tips as it
+ *      arrives and grows to `wheelFit` of the circle, and lands flat on the
+ *      beat. Then it behaves like a coin set spinning on a table (Euler's disk):
+ *      it tilts `wheelWobble` off the floor, its rim rolling round the circle,
+ *      the wobble shrinking and its rate climbing (`wheelChirp`) until it
+ *      slaps flat at `wheelSettleAt`, cools, and sinks into the floor
+ *      (`wheelSink`) — the exit. Friction heats the teeth; dashes of stored
+ *      momentum race round a channel in its top face faster than it turns.
+ *  12. **smear** — an additive sheet in the wheel's plane with a comet tail
+ *      behind each tooth, as strong as the wheel is fast.
+ *  13. **scrape** — the floor: a filled scorched disc under the wheel, scored
+ *      tangentially, with a hot groove that glows just behind wherever the
+ *      rim is touching down. It stays to the end.
+ *  14. **sparks** — streaks thrown *tangent* off the contact point, the way
+ *      the cast dumps its momentum (`sparkRate`, `sparkSpeed`).
+ *
+ * The wheel's records are an integrated spin and precession angle; every size
+ * is read from settings each frame. Presentation only: hits are the template's.
  *
  * Every metre, rate and colour is read from `settings.kinethalo` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +195,163 @@ export class KineticHaloAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this._buildWheel();
+  }
+
+  /** The flywheel, its smear, and the scraped floor under it. */
+  _buildWheel() {
+    this.wheelGeometry = createKineticHaloWheelGeometry(192, WHEEL_TEETH);
+    this.wheelMaterial = createKineticHaloWheelMaterial();
+    this.wheel = new Mesh(this.wheelGeometry, this.wheelMaterial);
+    this.wheel.layers.set(LAYER.WORLD);
+    this.wheel.castShadow = true;
+    this.wheel.receiveShadow = true;
+    this.wheel.frustumCulled = false;
+    this.wheel.renderOrder = 4;
+    this.smearGeometry = new PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    this.smearMaterial = createKineticHaloSmearMaterial();
+    this.smear = new Mesh(this.smearGeometry, this.smearMaterial);
+    this.smear.layers.set(LAYER.VFX);
+    this.smear.renderOrder = 15;
+    this.smear.frustumCulled = false;
+    this.hub = new Group();
+    this.hub.add(this.wheel, this.smear);
+    this.hub.visible = false;
+    this.group.add(this.hub);
+    this.scrapeMaterial = createKineticHaloScrapeMaterial();
+    this.scrape = this._mesh(this.smearGeometry, this.scrapeMaterial, LAYER.VFX, 2);
+    this._wheelShape = [0, 0, 0, 0];
+    this._wheelSpin = 0;
+    this._wheelPhi = 0;
+    this._wheelFlow = 0;
+    this._sparkEmitter = new RateEmitter();
+  }
+
+  _resetWheel() {
+    this._wheelSpin = Math.random() * Math.PI * 2;
+    this._wheelPhi = Math.atan2(this.direction.z, this.direction.x);
+    this._wheelFlow = 0;
+    this._sparkEmitter.reset();
+    this.hub.visible = false;
+    this.scrape.visible = false;
+  }
+
+  /** Seconds since the beat, from the 0..2 impact + fade clock. */
+  _since(fadeT) {
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Throw, roll, slam, wobble, settle, sink. `committed` false is the travel;
+   * `fadeT` the 0..2 clock after the beat. Sizes are resolved from settings
+   * every frame, so the circle slider re-fits the wheel mid-cast.
+   */
+  _updateWheel(dt, committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const anim = g.animationSpeed;
+    this.pointAt(1, _hub);
+    const landR = Math.max(0.3, c.zoneRadius * c.wheelFit);
+    const half = Math.max(0.02, c.wheelRim);
+    const height = Math.max(0.02, c.wheelHeight);
+    const tooth = Math.max(0, c.wheelTooth);
+    let R;
+    let y;
+    let tilt;
+    let omega;
+    let heat;
+    let sink = 0;
+    let groundT = 0;
+    if (!committed) {
+      // Thrown: a small wheel rolling on edge down the line, tipping over and
+      // swelling to the circle as it arrives.
+      const u = this.u;
+      const tip = Easing.inCubic(saturate((u - 0.45) / 0.55));
+      R = c.wheelThrowRadius + (landR - c.wheelThrowRadius) * Easing.inCubic(saturate((u - 0.3) / 0.7));
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      // Linear-to-late along the line, so the roll from the hand is seen.
+      _hub.lerpVectors(_hand.setY(0), _hub, Math.pow(u, c.wheelThrowEase));
+      const rolling = R + half + tooth;
+      y = (c.handHeight + (rolling - c.handHeight) * Easing.outQuad(saturate(u * 2))) * (1 - tip) + (c.wheelHover + height) * tip;
+      y += c.wheelThrowArc * Math.sin(Math.PI * u);
+      _axis.copy(this.direction);
+      tilt = (Math.PI / 2) * (1 - tip) + c.wheelWobble * tip;
+      omega = c.wheelSpin * 1.3;
+      heat = 0.55 + 0.45 * u;
+    } else {
+      const since = this._since(fadeT);
+      const settle = Math.max(0.1, c.wheelSettleAt);
+      const q = saturate(fadeT / settle);
+      R = landR;
+      tilt = c.wheelWobble * Math.pow(1 - q, 1.35);
+      // The rim rolls round the circle: precession speeding up as it lies down.
+      this._wheelPhi += c.wheelWobbleRate * (1 + c.wheelChirp * q * q) * dt * anim;
+      _axis.set(Math.cos(this._wheelPhi), 0, Math.sin(this._wheelPhi));
+      const contactY = (R + half) * Math.sin(tilt) + height * Math.cos(tilt);
+      const drop = Math.max(0, 1 - since / 0.12);
+      const bounce = c.wheelBounce * Math.abs(Math.sin((since / 0.32) * Math.PI)) * Math.exp(-since * 5);
+      sink = c.wheelSink * Easing.inQuad(saturate((fadeT - settle) / Math.max(0.05, 2 - settle)));
+      y = contactY + c.wheelHover * drop * drop + bounce - sink;
+      omega = c.wheelSpin * (1 - (1 - c.wheelSpinKeep) * Easing.outQuad(saturate(fadeT / 2)));
+      heat = 1 - 0.8 * saturate((fadeT - settle * 0.7) / Math.max(0.05, 2 - settle * 0.7));
+      groundT = since;
+    }
+    this._wheelSpin += omega * dt * anim;
+    this._wheelFlow += omega * dt * anim * c.wheelFlowRate;
+    // Re-lay the rim only when its size changes (every travel frame; rarely after).
+    const shape = this._wheelShape;
+    if (shape[0] !== R || shape[1] !== half || shape[2] !== height || shape[3] !== tooth) {
+      shape[0] = R;
+      shape[1] = half;
+      shape[2] = height;
+      shape[3] = tooth;
+      writeKineticHaloWheel(this.wheelGeometry, R, half, height, tooth);
+    }
+    this.hub.visible = y > -height * 2 && c.wheelOpacity > 0.01;
+    this.hub.position.set(_hub.x, y, _hub.z);
+    _quat.setFromAxisAngle(_axis, tilt);
+    this.hub.quaternion.copy(_quat);
+    this.wheel.rotation.y = this._wheelSpin;
+    this.wheel.castShadow = c.wheelShadow > 0.5;
+    this.wheelMaterial.userData.sync(heat, this._wheelFlow, WHEEL_TEETH);
+    const outer = R + half + tooth;
+    this.smear.scale.setScalar(outer * 1.04);
+    const strength = saturate(omega / Math.max(0.1, c.wheelSpin)) * (0.35 + 0.65 * heat);
+    this.smearMaterial.userData.sync((R + half * 0.7) / (outer * 1.04), (-this._wheelSpin * WHEEL_TEETH) / (Math.PI * 2), WHEEL_TEETH, strength);
+    this.smear.visible = strength > 0.02 && c.smearOpacity > 0.01;
+    // Where the rim touches down: the lowest point of the tilted circle.
+    _normal.set(0, 1, 0).applyQuaternion(_quat);
+    _contact.set(0, -1, 0).addScaledVector(_normal, _normal.y);
+    if (_contact.lengthSq() < 1e-6) _contact.copy(this.direction);
+    _contact.normalize();
+    const contactAngle = Math.atan2(-_contact.z, _contact.x);
+    _tangent.crossVectors(_normal, _contact).normalize();
+    _contact.multiplyScalar(outer).add(this.hub.position);
+    // The floor under it: scorched, scored, with the hot groove behind the contact.
+    if (committed) {
+      const disc = outer + c.scrapeReach;
+      const open = Easing.outCubic(saturate(groundT / 0.18));
+      const gone = 1 - Easing.inQuad(saturate((fadeT - 1.75) / 0.25));
+      this.scrape.visible = open * gone > 0.01 && c.scrapeOpacity > 0.01;
+      this.scrape.position.set(_hub.x, 0.03, _hub.z);
+      this.scrape.scale.setScalar(disc * (0.6 + 0.4 * open));
+      this.scrapeMaterial.userData.sync(R / disc, (half * 1.6) / disc, contactAngle, heat, open * gone, 0, this._seed);
+      if (tilt > 0.01 && sink < 0.05) this._sparks(dt, saturate(tilt / Math.max(0.01, c.wheelWobble)) * 0.8 + 0.2, strength);
+    } else {
+      this.scrape.visible = false;
+    }
+  }
+
+  /** Streaks thrown tangent off the rim where it drags on the floor. */
+  _sparks(dt, wobble, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this._sparkEmitter.tick(dt, c.sparkRate * wobble * strength) * g.particleCount);
+    if (n <= 0) return;
+    _pos.copy(_contact).setY(0.06);
+    _dir.copy(_tangent).multiplyScalar(Math.sign(c.wheelSpin) || 1).setY(c.sparkLift);
+    this._fillEmit(_pos, 0.12, _dir, c.sparkSpeed, 0.35, c.sparkSize, c.sparkLife, 0);
+    this.sparks.emit(n, _emit);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -196,6 +397,13 @@ export class KineticHaloAbility extends Ability {
     this.streakEmitter = new RateEmitter();
     this.chipEmitter = new RateEmitter();
     this.moteEmitter = new RateEmitter();
+    this.sparks = particles.get('kinethalo.spark', {
+      capacity: 900,
+      shape: ParticleShape.STREAK,
+      additive: true,
+      stretch: true,
+      softFade: 0.1
+    });
   }
 
   get impactDuration() {
@@ -225,6 +433,7 @@ export class KineticHaloAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this._resetWheel();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -387,6 +596,8 @@ export class KineticHaloAbility extends Ability {
     sync(this.motes, c.colorMoteA, c.colorMoteB, c.colorMoteC, c.colorMoteD, c.moteSize, 1.6 * g.glow, 0.5);
     this.motes.uniforms.uOpacity.value = 0.9 * g.opacity;
     sync(this.chips, c.colorChipA, c.colorChipB, c.colorChipC, c.colorChipD, c.chipSize, 1, -9);
+    sync(this.sparks, c.colorSparkA, c.colorSparkB, c.colorSparkC, c.colorSparkD, c.sparkSize, 2.2 * g.glow, -6);
+    this.sparks.uniforms.uStretch.value = c.sparkStretch;
   }
 
   _fillEmit(position, radius, direction, speed, spread, size, life, spin) {
@@ -745,6 +956,7 @@ export class KineticHaloAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._updateWheel(dt, false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
@@ -763,6 +975,7 @@ export class KineticHaloAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._updateWheel(dt, true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
@@ -788,9 +1001,16 @@ export class KineticHaloAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.hub.visible = false;
+    this.scrape.visible = false;
   }
 
   dispose() {
+    this.wheelGeometry.dispose();
+    this.wheelMaterial.dispose();
+    this.smearGeometry.dispose();
+    this.smearMaterial.dispose();
+    this.scrapeMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -977,6 +1197,51 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const wheel = folder.addFolder('14 · Flywheel');
+  R(wheel, c, 'wheelFit', 0.2, 1.4, 0.01, 'fit to circle');
+  R(wheel, c, 'wheelRim', 0.05, 1.5, 0.01, 'rim half-width (m)');
+  R(wheel, c, 'wheelHeight', 0.05, 1, 0.01, 'rim half-height (m)');
+  R(wheel, c, 'wheelTooth', 0, 0.8, 0.01, 'tooth (m)');
+  R(wheel, c, 'wheelThrowRadius', 0.2, 3, 0.01, 'thrown radius (m)');
+  R(wheel, c, 'wheelThrowArc', 0, 4, 0.05, 'throw arc (m)');
+  R(wheel, c, 'wheelThrowEase', 0.3, 4, 0.01, 'lingers near the hand');
+  R(wheel, c, 'wheelHover', 0, 3, 0.01, 'drops from (m)');
+  R(wheel, c, 'wheelBounce', 0, 1, 0.01, 'bounce (m)');
+  R(wheel, c, 'wheelSpin', -40, 40, 0.1, 'spin (rad/s)');
+  R(wheel, c, 'wheelSpinKeep', 0, 1, 0.01, 'spin kept at the end');
+  R(wheel, c, 'wheelWobble', 0, 1, 0.01, 'wobble tilt (rad)');
+  R(wheel, c, 'wheelWobbleRate', 0, 30, 0.1, 'wobble rate (rad/s)');
+  R(wheel, c, 'wheelChirp', 0, 10, 0.05, 'wobble speeds up ×');
+  R(wheel, c, 'wheelSettleAt', 0.2, 2, 0.01, 'lies flat at');
+  R(wheel, c, 'wheelSink', 0, 2, 0.01, 'sinks (m)');
+  R(wheel, c, 'wheelHeat', 0, 8, 0.05, 'teeth heat');
+  R(wheel, c, 'wheelFlowGlow', 0, 8, 0.05, 'momentum dashes');
+  R(wheel, c, 'wheelFlowRate', 0, 4, 0.01, 'dash speed × spin');
+  R(wheel, c, 'wheelRimGlow', 0, 4, 0.05, 'limb glow');
+  R(wheel, c, 'wheelRough', 0, 1, 0.01, 'roughness');
+  R(wheel, c, 'wheelMetal', 0, 1, 0.01, 'metalness');
+  R(wheel, c, 'wheelOpacity', 0, 1, 1, 'show');
+  R(wheel, c, 'wheelShadow', 0, 1, 1, 'cast shadow');
+  wheel.addColor(c, 'colorWheelDeep').name('steel, deep');
+  wheel.addColor(c, 'colorWheelBody').name('steel, lit');
+  wheel.addColor(c, 'colorWheelHot').name('hot');
+  wheel.addColor(c, 'colorWheelCore').name('white-hot');
+  R(wheel, c, 'smearOpacity', 0, 3, 0.01, 'speed smear');
+
+  const scrape = folder.addFolder('15 · Scraped floor');
+  R(scrape, c, 'scrapeOpacity', 0, 1.5, 0.01, 'opacity');
+  R(scrape, c, 'scrapeGlow', 0, 6, 0.05, 'groove glow');
+  R(scrape, c, 'scrapeScore', 0, 2, 0.01, 'score marks');
+  R(scrape, c, 'scrapeReach', 0, 3, 0.01, 'reach past the rim (m)');
+  scrape.addColor(c, 'colorScrapeDeep').name('scorch');
+  R(scrape, c, 'sparkRate', 0, 600, 1, 'sparks / s');
+  R(scrape, c, 'sparkSpeed', 0, 30, 0.1, 'spark speed');
+  R(scrape, c, 'sparkSize', 0.01, 0.4, 0.005, 'spark size');
+  R(scrape, c, 'sparkLife', 0.05, 2, 0.01, 'spark life');
+  R(scrape, c, 'sparkLift', 0, 2, 0.01, 'spark lift');
+  R(scrape, c, 'sparkStretch', 0, 4, 0.01, 'spark stretch');
+  Editor.gradient(scrape, c, 'colorSpark', 'spark colour');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

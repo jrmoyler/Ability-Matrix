@@ -33,10 +33,10 @@ export default {
 
     /* --- light --- */
     lightColor: '#fa5b38',
-    lightIntensity: 8, // the glow riding the cast
+    lightIntensity: 2.6, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.3, // 0..1 how much it shimmers
-    impactLight: 8.8, // extra light on the beat, decays on its own
+    impactLight: 4, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0.05, // the template sigil: a trace only, the flywheel carries the read
     edgeGlow: 1.16,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.32,
@@ -65,7 +65,7 @@ export default {
     lensWarp: 1.1, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#fa5b38',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.25, // strength of the field (under the scraped floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.1, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#2a2a30', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: they sat on the disc as clutter
     detailSize: 0.5, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -111,7 +111,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the flywheel is the hero now
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -166,7 +166,7 @@ export default {
     colorFlash: '#ffe6d4',
     burstRadius: 3.8, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 24, // fragments thrown up and out on the beat
     impactDust: 23, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -174,7 +174,7 @@ export default {
     colorBurstC: '#5e1708',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#fa5b38',
     colorShockB: '#ffffff',
 
@@ -201,6 +201,54 @@ export default {
     markRimGlow: 1.6, // rim light on a marked body
     colorMarkEdge: '#ffe6d4',
     markEdgeGlow: 2.6, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the flywheel (the signature) --- */
+    wheelFit: 0.78, // landed radius of the rim's centre line, × the circle
+    wheelRim: 0.3, // radial half-width of the rim, metres
+    wheelHeight: 0.28, // half-height of the rim, metres
+    wheelTooth: 0.26, // how far a ratchet tooth stands proud, metres
+    wheelThrowRadius: 0.75, // radius while it rolls down the line, metres
+    wheelThrowEase: 1.8, // >1: the wheel spends more of the throw near the hand (presentation only)
+    wheelThrowArc: 0.6, // extra height at the middle of the throw, metres
+    wheelHover: 0.9, // height it drops from on the beat, metres
+    wheelBounce: 0.22, // the bounce after the slam, metres
+    wheelSpin: 9, // radians/second it turns on landing
+    wheelSpinKeep: 0.25, // share of the spin left at the end
+    wheelWobble: 0.34, // radians it tilts off the floor after the slam
+    wheelWobbleRate: 3.2, // radians/second the tilt rolls round at first
+    wheelChirp: 3.2, // how many times faster the roll gets as it lies down
+    wheelSettleAt: 1.45, // clock (0..2: impact then fade) it slaps flat at
+    wheelSink: 0.7, // metres it sinks into the floor after it settles
+    wheelHeat: 0.9, // friction glow on the teeth
+    wheelFlowGlow: 0, // the momentum dashes in the top channel
+    wheelFlowRate: 0.35, // dash speed, × spin
+    wheelRimGlow: 0, // hot limb
+    wheelRough: 0.42,
+    wheelMetal: 0.6,
+    wheelOpacity: 1, // 0 hides the wheel
+    wheelShadow: 1, // 1 = the wheel casts shadows
+    colorWheelDeep: '#111216', // deep: the steel in shadow
+    colorWheelBody: '#3b3d44', // body: the steel in the sun
+    colorWheelHot: '#fa5b38', // tint: friction
+    colorWheelCore: '#ffe6d4', // core: white-hot dashes
+    smearOpacity: 0.3, // the speed smear in the wheel's plane
+
+    /* --- 15 · the scraped floor --- */
+    scrapeOpacity: 0.9,
+    scrapeGlow: 1.6, // the hot groove behind the contact
+    scrapeScore: 1, // tangential score marks
+    scrapeReach: 0.9, // metres the scorch reaches past the rim
+    colorScrapeDeep: '#0e0302',
+    sparkRate: 160, // sparks per second off the contact point at full wobble
+    sparkSpeed: 9,
+    sparkSize: 0.05,
+    sparkLife: 0.4,
+    sparkLift: 0.35, // how much they climb as they fly off tangent
+    sparkStretch: 1.6,
+    colorSparkA: '#ffe6d4',
+    colorSparkB: '#fa5b38',
+    colorSparkC: '#a3200f',
+    colorSparkD: '#2a0603'
   }
 };
