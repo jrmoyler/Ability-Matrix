@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, Shape, Vector2, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +9,9 @@ import {
   createVectorHaloLensMaterial,
   createVectorHaloGroundMaterial,
   createVectorHaloVoiceMaterial,
-  createVectorHaloDetailMaterial
+  createVectorHaloDetailMaterial,
+  createVectorHaloArrowMaterial,
+  createVectorHaloSweepMaterial
 } from '../../materials/codex/VectorHaloMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -19,7 +21,7 @@ import { LAYER } from '../../core/Layers.js';
 import { frame } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-import { saturate, Easing } from '../../utils/math.js';
+import { saturate, lerp, Easing } from '../../utils/math.js';
 
 export const ID = 'vectorhalo';
 
@@ -46,6 +48,56 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Vectors the ring can carry (the arrow is instanced once). */
+const MAX_VECTORS = 16;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _qb = new Quaternion();
+const _scale = new Vector3();
+const _hand = new Vector3();
+const _slot = new Vector3();
+const _ctrl = new Vector3();
+const _at = new Vector3();
+const _vel = new Vector3();
+const _tan = new Vector3();
+const _rad = new Vector3();
+const _xAxis = new Vector3(1, 0, 0);
+const _zAxis = new Vector3(0, 0, 1);
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/** A stable 0..1 die per vector from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Authored half-height of the arrow outline and its extruded depth (both before scaling). */
+const ARROW_HALF = 0.3;
+const ARROW_DEPTH = 0.13;
+
+/**
+ * One vector: a forged arrow one unit long along +X (notched tail at 0, tip
+ * at 1), standing in the XY plane — a broad barbed head, a square shaft and
+ * a split fletch — extruded with a bevel so its arrises catch the sun.
+ * `aEdge` runs 0 at the tail to 1 at the tip (the shader's forge heat).
+ */
+export function createVectorHaloArrowGeometry() {
+  const outline = [
+    [1.0, 0], [0.5, 0.3], [0.6, 0.085], [0.24, 0.085], [0.11, 0.21], [-0.03, 0.21], [0.08, 0],
+    [-0.03, -0.21], [0.11, -0.21], [0.24, -0.085], [0.6, -0.085], [0.5, -0.3]
+  ];
+  const shape = new Shape(outline.map(([x, y]) => new Vector2(x, y)));
+  const g = new ExtrudeGeometry(shape, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 1, curveSegments: 1, steps: 1 });
+  g.translate(-0.5, 0, -0.035);
+  const pos = g.getAttribute('position');
+  const edge = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) edge[i] = Math.min(1, Math.max(0, (pos.getX(i) + 0.5 - 0.42) / 0.58));
+  g.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  g.computeBoundingSphere();
+  return g;
+}
 
 /**
  * VECTOR HALO — force, zone cast.
@@ -72,6 +124,29 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The vectors (the hero, cast-local — sections 14–15 of the editor)
+ *
+ * The shared template layers (body, voice, the flat rig ring, the shard
+ * pieces, lens) are switched off in the config; the spell is carried by
+ * `vectorCount` forged arrows (`createVectorHaloArrowGeometry`, extruded and
+ * bevelled; `LAYER.WORLD`, lit, shadows):
+ *
+ *   - **the stream** — the vectors leave the hand one after another on arcs
+ *     and fall into a ring at the rim, banked, nose to tail, which walks
+ *     round as it fills.
+ *   - **the lock** — on the beat the ring locks: every vector snaps forward
+ *     into its slot, tangent, and floods with charge, quivering (`lock*`).
+ *   - **the release** — after `lockHold` every vector is released along its
+ *     own tangent at once — a pinwheel — and flies out, dipping, streaming
+ *     sparks, to stab nose-first into the floor (scorch, chips, dust, a light
+ *     and camera tick), where it quivers and cools from ember to iron.
+ *   - **the floor** — the disc under the ring is scoured to char and a gouge
+ *     is cut along every flight (`createVectorHaloSweepMaterial`).
+ *   - **the exit** — the vectors shatter along voronoi cells and sink; the
+ *     stain and scorches stay.
+ *
+ * All of it is presentation: hits still land once, on the beat (`_strike`).
  *
  * Every metre, rate and colour is read from `settings.vectorhalo` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +182,7 @@ export class VectorHaloAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildVectors();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +227,239 @@ export class VectorHaloAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The cast-local hero: the instanced vectors and the pinwheel they tear into the floor. */
+  _buildVectors() {
+    this.arrowGeometry = createVectorHaloArrowGeometry();
+    this.arrowMaterial = createVectorHaloArrowMaterial();
+    this.arrows = new InstancedMesh(this.arrowGeometry, this.arrowMaterial, MAX_VECTORS);
+    const attr = new InstancedBufferAttribute(new Float32Array(MAX_VECTORS * 4), 4);
+    attr.setUsage(DynamicDrawUsage);
+    this.arrowGeometry.setAttribute('aVec', attr);
+    this.arrows.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.arrows.layers.set(LAYER.WORLD);
+    this.arrows.castShadow = true;
+    this.arrows.receiveShadow = true;
+    this.arrows.frustumCulled = false;
+    this.arrows.visible = false;
+    this.group.add(this.arrows);
+    this.sweepGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.sweepMaterial = createVectorHaloSweepMaterial();
+    this.sweep = this._mesh(this.sweepGeometry, this.sweepMaterial, LAYER.VFX, 2);
+    this.sweep.rotation.x = -Math.PI / 2;
+    this._landed = new Uint8Array(MAX_VECTORS);
+    this._orbit = 0;
+    this._ring0 = 0;
+    this._landings = 0;
+    this._maxOut = 0;
+    this._inFlight = 0;
+    this._gone = 0;
+    this._wakeEmitter = new RateEmitter();
+  }
+
+  _hideVectors() {
+    this.arrows.visible = false;
+    this.sweep.visible = false;
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Place vector `i` at `pos`, nose along the flat direction `dir`, pitched nose-down by `pitch`, banked by `bank`. */
+  _placeArrow(i, pos, dir, pitch, bank, len, span, thick) {
+    _qa.setFromAxisAngle(_up, Math.atan2(-dir.z, dir.x));
+    _qb.setFromAxisAngle(_zAxis, -pitch);
+    _q.copy(_qa).multiply(_qb);
+    _qb.setFromAxisAngle(_xAxis, bank);
+    _q.multiply(_qb);
+    _scale.set(len, span / (2 * ARROW_HALF), thick / ARROW_DEPTH);
+    _m4.compose(pos, _q, _scale);
+    this.arrows.setMatrixAt(i, _m4);
+  }
+
+  /**
+   * Fly, ring, lock, release, embed, cool. Before the beat the vectors
+   * stream out of the hand one after another on arcs and fall into a ring
+   * at the rim, which walks round as it fills. On the beat the ring locks:
+   * every vector snaps to its slot, tangent, and glows with charge; it
+   * quivers for `lockHold`, then every vector is released along its own
+   * tangent at once — a pinwheel — and flies out, dipping, to stab
+   * nose-first into the floor where it quivers and cools from ember to
+   * iron. On the exit they shatter. The floor under the ring is scoured and
+   * the gouges are cut along each flight. All dimensions from settings each
+   * frame; the cast keeps its seed, the ring's phase and which have landed.
+   */
+  _vectors(committed, fadeT, dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(1, _end);
+    const n = Math.max(3, Math.min(MAX_VECTORS, Math.round(c.vectorCount)));
+    const R = Math.max(0.3, c.zoneRadius * c.ringFit);
+    const H = c.ringHeight;
+    const len = Math.max(0.1, c.arrowLength);
+    const span = Math.max(0.05, c.arrowSpan);
+    const thick = Math.max(0.01, c.arrowThick);
+    const hold = Math.max(0, c.lockHold * L);
+    const flight = Math.max(0.05, c.flightTime * L);
+    const exitAt = total - Math.max(0.05, c.vectorExit * L);
+    if (!committed) this._orbit += dt * c.ringWalk * g.animationSpeed;
+    const attr = this.arrowGeometry.getAttribute('aVec');
+    let inFlight = 0;
+    let maxOut = 0;
+    let any = false;
+    const dissolve = since < 0 ? 0 : saturate((since - exitAt) / Math.max(0.05, c.vectorExit * L));
+    this._gone = dissolve;
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      const slotAng = this._ring0 + this._orbit + (TAU * i) / n;
+      _rad.set(Math.cos(slotAng), 0, Math.sin(slotAng));
+      _tan.set(-Math.sin(slotAng), 0, Math.cos(slotAng));
+      _slot.copy(_end).addScaledVector(_rad, R);
+      _slot.y = H;
+      let heat = 0;
+      let cool = 0;
+      if (!committed) {
+        // Streamed out of the hand one after another, each on its own arc.
+        const leave = c.streamSpread * (i / n);
+        const t = saturate((this.u - leave) / Math.max(0.05, c.streamTime));
+        if (t <= 0) {
+          this.arrows.setMatrixAt(i, _zero);
+          attr.setXYZW(i, d * 10, 0, 0, 0);
+          continue;
+        }
+        any = true;
+        const e = Easing.outCubic(t);
+        _ctrl.addVectors(_hand, _slot).multiplyScalar(0.5);
+        _ctrl.addScaledVector(_rad, R * 0.35);
+        _ctrl.y = Math.max(_hand.y, H) + c.streamArc;
+        // Quadratic bezier and its tangent (the flight direction).
+        const a = (1 - e) * (1 - e);
+        const b = 2 * (1 - e) * e;
+        const cc = e * e;
+        _at.set(0, 0, 0).addScaledVector(_hand, a).addScaledVector(_ctrl, b).addScaledVector(_slot, cc);
+        _vel.subVectors(_ctrl, _hand).multiplyScalar(2 * (1 - e));
+        _pos.subVectors(_slot, _ctrl).multiplyScalar(2 * e);
+        _vel.add(_pos);
+        // Settle into the tangent as it arrives.
+        _vel.y = 0;
+        if (_vel.lengthSq() < 1e-6) _vel.copy(_tan);
+        _vel.normalize().lerp(_tan, Easing.inQuad(e)).normalize();
+        const s = lerp(c.streamScale, 1, e);
+        this._placeArrow(i, _at, _vel, 0, c.arrowBank * e, len * s, span * s, thick * s);
+        heat = 0.25 + 0.35 * e;
+      } else if (since < hold) {
+        // Locked: snapped to its slot, tangent, quivering with charge.
+        any = true;
+        const snap = Easing.outBack(saturate(since / 0.1));
+        const q = c.lockQuiver * Math.sin(since * 70 + d * 6) * (0.4 + 0.6 * saturate(since / Math.max(0.01, hold)));
+        _at.copy(_slot).addScaledVector(_tan, -c.lockKick * (1 - snap));
+        _at.y += q * 0.5;
+        this._placeArrow(i, _at, _tan, q, c.arrowBank, len, span, thick);
+        heat = 0.6 + 0.4 * saturate(since / Math.max(0.01, hold));
+      } else {
+        // Released along the tangent: out, dipping, nose-first into the floor.
+        any = true;
+        const t = saturate((since - hold) / flight);
+        if (t < 1) inFlight++;
+        const e = t * t * (1.6 - 0.6 * t);
+        const reach = c.flightReach;
+        _at.copy(_slot).addScaledVector(_tan, reach * e).addScaledVector(_rad, c.flightFlare * reach * e * e);
+        const pitchLand = c.embedPitch;
+        const pitch = pitchLand * Easing.inQuad(saturate((t - 0.35) / 0.65));
+        // Height: a small rise then down so the nose meets the floor at the end.
+        const nose = len * 0.5 * Math.sin(pitchLand) - c.embedDepth;
+        const yLand = nose;
+        _at.y = lerp(H, yLand, Easing.inQuad(t)) + c.flightRise * 4 * t * (1 - t);
+        if (t >= 1 && !this._landed[i]) {
+          this._landed[i] = 1;
+          this._land(i, _at, _tan);
+        }
+        const after = since - hold - flight;
+        const quiver = after > 0 ? c.embedQuiver * Math.exp(-after * 5) * Math.sin(after * 48 + d * 5) : 0;
+        // Flight direction bends a little outward with the flare.
+        _vel.copy(_tan).addScaledVector(_rad, c.flightFlare * 2 * e).normalize();
+        const sink = Easing.inQuad(dissolve) * len * 0.3;
+        _at.y -= sink;
+        this._placeArrow(i, _at, _vel, pitch + quiver, c.arrowBank * (1 - t), len, span, thick);
+        heat = t < 1 ? 1 : Math.exp(-after * c.coolRate / L);
+        cool = t < 1 ? 0 : 1 - Math.exp(-after * c.coolRate / L);
+        maxOut = Math.max(maxOut, _at.distanceTo(_end));
+        if (t < 1) this._streak(dt, _at, _vel);
+      }
+      attr.setXYZW(i, d * 10, heat, dissolve, cool);
+    }
+    this._inFlight = inFlight;
+    this._maxOut = maxOut;
+    this.arrows.count = n;
+    this.arrows.visible = any && dissolve < 0.999;
+    this.arrows.instanceMatrix.needsUpdate = true;
+    attr.needsUpdate = true;
+    this.arrowMaterial.userData.sync();
+
+    // The floor: the scoured disc under the ring, and the gouges cut along each flight.
+    const reach = c.flightReach;
+    const outer = Math.hypot(R + c.flightFlare * reach, reach) + 0.6;
+    const fill = committed ? 1 : Easing.outCubic(saturate((this.u - 0.5) / 0.5)) * 0.5;
+    const cut = since < hold ? 0 : saturate((since - hold) / flight);
+    const fresh = since < 0 ? 0.6 : since < hold + flight ? 1 : Math.exp(-(since - hold - flight) * c.coolRate * 0.6 / L);
+    const fadeOut = since < 0 ? 1 : 1 - Easing.inQuad(saturate((since - exitAt) / Math.max(0.05, c.vectorExit * L)));
+    if (c.sweepOpacity > 0.01 && fill > 0.01 && fadeOut > 0.001) {
+      this.sweep.visible = true;
+      this.sweep.position.set(_end.x, 0.03, _end.z);
+      this.sweep.scale.set(outer, outer, 1);
+      this.sweepMaterial.userData.sync(outer, R, reach, n, this._ring0 + this._orbit, cut, fresh, fill, c.sweepOpacity * fadeOut, this._seed);
+    } else this.sweep.visible = false;
+  }
+
+  /** Sparks streaming off a vector in flight. */
+  _streak(dt, at, dir) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = Math.round(this._wakeEmitter.tick(dt, c.flightSparks / Math.max(1, Math.round(c.vectorCount))) * g.particleCount);
+    if (k <= 0) return;
+    _dir.copy(dir).multiplyScalar(-1).setY(0.1);
+    this._fillEmit(at, 0.15, _dir, c.streakSpeed * 0.5, 0.25, 0.07, c.streakLife, 2);
+    this.streaks.emit(k, _emit);
+  }
+
+  /** A vector stabs into the floor: a scorch under it, chips and dust thrown back along its flight, a light tick. */
+  _land(i, at, dir) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._landings++;
+    _pos.copy(at).addScaledVector(dir, c.arrowLength * 0.45).setY(0);
+    this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+      radius: c.landScorch,
+      life: c.groundLife * g.lifetime,
+      width: 0.6,
+      intensity: 0.9,
+      colorA: getColor(c.colorGroundStain),
+      colorB: getColor(c.colorArrowBody),
+      height: 0.03
+    });
+    const chips = Math.round(c.landChips * g.particleCount);
+    if (chips > 0) {
+      _dir.copy(dir).multiplyScalar(-0.6).setY(1);
+      this._fillEmit(_pos.setY(0.1), 0.2, _dir, c.chipSpeed, 0.6, c.chipSize * 1.2, c.chipLife, 6);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.landDust * g.particleCount);
+    if (dust > 0) {
+      _dir.copy(dir).setY(0.2);
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed, 0.5, 0.5, c.dustLife, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+    this.lightBoost += c.landLight * g.explosionIntensity / Math.max(1, Math.round(c.vectorCount) * 0.25);
+    if (i === 0) this.ctx.shake.add(c.landShake * g.cameraShake * g.explosionIntensity, 4, 16);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +540,15 @@ export class VectorHaloAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._landed.fill(0);
+    this._orbit = 0;
+    this._ring0 = Math.random() * TAU;
+    this._landings = 0;
+    this._maxOut = 0;
+    this._inFlight = 0;
+    this._gone = 0;
+    this._wakeEmitter.reset();
+    this._hideVectors();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -745,6 +1063,7 @@ export class VectorHaloAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._vectors(false, 0, dt);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
@@ -763,6 +1082,7 @@ export class VectorHaloAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._vectors(true, t, dt);
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
@@ -788,9 +1108,15 @@ export class VectorHaloAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideVectors();
   }
 
   dispose() {
+    this.arrowGeometry.dispose();
+    this.arrowMaterial.dispose();
+    this.arrows.dispose();
+    this.sweepGeometry.dispose();
+    this.sweepMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -977,6 +1303,54 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const vec = folder.addFolder('14 · The vectors (hero)');
+  R(vec, c, 'vectorCount', 3, 16, 1, 'vectors');
+  R(vec, c, 'ringFit', 0.2, 1.4, 0.01, 'ring, × circle');
+  R(vec, c, 'ringHeight', 0.2, 3, 0.01, 'ring height (m)');
+  R(vec, c, 'ringWalk', -6, 6, 0.05, 'ring walk (rad/s)');
+  R(vec, c, 'arrowLength', 0.3, 4, 0.01, 'length (m)');
+  R(vec, c, 'arrowSpan', 0.1, 2, 0.01, 'head span (m)');
+  R(vec, c, 'arrowThick', 0.02, 0.5, 0.005, 'thickness (m)');
+  R(vec, c, 'arrowBank', -1.5, 1.5, 0.01, 'bank (rad)');
+  R(vec, c, 'streamSpread', 0, 0.9, 0.01, 'stream stagger, × travel');
+  R(vec, c, 'streamTime', 0.05, 1, 0.01, 'one flight to the ring, × travel');
+  R(vec, c, 'streamArc', 0, 5, 0.05, 'stream arc (m)');
+  R(vec, c, 'streamScale', 0.1, 1.5, 0.01, 'size leaving the hand');
+  R(vec, c, 'lockHold', 0, 1.5, 0.01, 'locked hold (s)');
+  R(vec, c, 'lockKick', 0, 2, 0.01, 'lock snap (m)');
+  R(vec, c, 'lockQuiver', 0, 0.4, 0.005, 'charged quiver (rad)');
+  R(vec, c, 'flightTime', 0.05, 1.5, 0.01, 'release flight (s)');
+  R(vec, c, 'flightReach', 0.5, 10, 0.05, 'tangent reach (m)');
+  R(vec, c, 'flightFlare', -0.5, 1, 0.01, 'outward flare');
+  R(vec, c, 'flightRise', 0, 2, 0.01, 'flight rise (m)');
+  R(vec, c, 'flightSparks', 0, 600, 1, 'flight sparks / s');
+  R(vec, c, 'embedPitch', 0, 1.4, 0.01, 'embed pitch (rad)');
+  R(vec, c, 'embedDepth', 0, 1, 0.01, 'embed depth (m)');
+  R(vec, c, 'embedQuiver', 0, 0.5, 0.005, 'embedded quiver (rad)');
+  R(vec, c, 'coolRate', 0, 6, 0.05, 'cooling rate');
+  R(vec, c, 'vectorExit', 0.05, 2, 0.01, 'shatter (s)');
+  R(vec, c, 'landScorch', 0, 3, 0.01, 'landing scorch (m)');
+  R(vec, c, 'landChips', 0, 40, 1, 'landing chips');
+  R(vec, c, 'landDust', 0, 40, 1, 'landing dust');
+  R(vec, c, 'landLight', 0, 20, 0.1, 'landing light');
+  R(vec, c, 'landShake', 0, 1, 0.01, 'landing punch');
+
+  const iron = folder.addFolder('15 · Forged iron and the floor');
+  R(iron, c, 'arrowSpecular', 0, 4, 0.01, 'specular');
+  R(iron, c, 'arrowFresnel', 0, 3, 0.01, 'fresnel');
+  R(iron, c, 'arrowAmbient', 0, 1, 0.01, 'ambient');
+  R(iron, c, 'arrowEdgeGlow', 0, 6, 0.05, 'forge heat (head)');
+  R(iron, c, 'arrowChargeGlow', 0, 6, 0.05, 'charge glow');
+  iron.addColor(c, 'colorArrowCore').name('core');
+  iron.addColor(c, 'colorArrowTint').name('tint');
+  iron.addColor(c, 'colorArrowBody').name('body');
+  iron.addColor(c, 'colorArrowDeep').name('deep');
+  iron.addColor(c, 'colorArrowIron').name('iron');
+  R(iron, c, 'sweepOpacity', 0, 1, 0.01, 'floor opacity');
+  R(iron, c, 'gougeWidth', 0.02, 1, 0.01, 'gouge half-width (m)');
+  R(iron, c, 'gougeGlow', 0, 4, 0.01, 'gouge glow');
+  iron.addColor(c, 'colorGougeChar').name('char');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');
