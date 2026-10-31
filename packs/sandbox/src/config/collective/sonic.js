@@ -88,6 +88,66 @@ export default {
     bodyMottleScale: 2.2, // size of those cells (higher = smaller)
     bodyShade: 0.5, // 0..1 how much the sun shades the lens like a volume
     bodyTone: 0.16, // 0..1 how far the filled body climbs from the deep stop toward the body violet
+    ringShellOpacity: 0.0, // 0..1 the old per-ring lens shells (end-on they read as a ring stack; the hull carries the train now)
+    ringWarp: 0.35, // refraction left at each ring, × warpStrength (the hull bends the frame now)
+
+    /* ================================================================ */
+    /* 1b · HULL — one travelling shock body that carries the train      */
+    /* ================================================================ */
+    /* A single lofted body of shoved air rides the lead ring: a blunt
+       bulge front, a long tapering sheath trailing behind it that breaks
+       into turbulence, and a bead of compression swelling through it for
+       every later ring. It is long along the line, so from the camera
+       behind the caster it reads as a volume, not as nested rims. */
+    hullOpacity: 1.0, // 0..1 opacity of the body at its front
+    hullLength: 5.6, // metres of sheath behind the front (the wake)
+    hullWidth: 0.9, // lateral half-width, × the rings' radius at that point
+    hullAspect: 0.72, // height / width of the cross-section (it hugs the floor)
+    hullSink: 0.42, // how deep the cruising body is buried, × its half-height
+    hullNose: 0.55, // length of the blunt front, × its radius
+    hullBulge: 0.22, // how much the front swells past the sheath, fraction
+    hullTailPow: 0.22, // <1 keeps the sheath fat to the tail, >1 tapers early
+    hullWakeSpread: 0.9, // how much wider the wake gets toward its tail — a bow wave opening behind the front
+    hullWakeFlat: 0.7, // 0..0.95 how much flatter it gets toward its tail (it lies down on the floor)
+    hullWake: 1.0, // 0..1 how much the sheath keeps the front's width instead of narrowing back toward the hand
+    hullTurb: 0.32, // turbulent displacement of the sheath, × its radius (grows toward the tail)
+    hullTurbScale: 1.1, // size of that turbulence (higher = smaller)
+    hullTurbSpeed: 3.2, // how fast it boils
+    hullFlow: 0.95, // 0..1 streaks of air running back along the body
+    hullFlowSpeed: 2.4, // how fast those streaks run back
+    hullLight: 0.7, // how far the sun-lit side lifts from the deep stop toward the hull colour
+    hullEdge: 0.04, // violet fresnel glow on the silhouette only
+    hullEdgePower: 3.6, // fresnel power of that edge
+    hullCrest: 3.5, // brightness of the hot crest round the bulge front
+    hullCrestWidth: 0.09, // width of that crest, × the front radius
+    hullDissolve: 0.34, // 0..1 how much of the tail breaks into ragged turbulence
+    hullBeads: 0.2, // how much each trailing ring swells the sheath as it runs through
+    hullBeadWidth: 0.55, // metres — length of one swell
+    hullCompress: 0.25, // 0..1 how much the body shortens as the train piles into the target
+    hullSwell: 0.15, // how much fatter it gets while it piles up, fraction
+    hullCollapse: 0.45, // seconds the body takes to burst outward and tear apart at the boom
+    hullBurst: 1.0, // 0..1 how hard it bursts (blows out, lies down, tears into holes)
+    hullWarp: 1.2, // refraction strength of the body's edge and front
+    hullSoftFade: 0.5, // metres it feathers out where it ploughs into the floor
+    colorHull: '#6e6152', // the lit mid tone of the shoved air (dusty, dark)
+    colorHullDeep: '#17130f', // the hull's own dark stop (dust-laden air, no violet)
+    hullCrestHot: 0.85, // 0..1 how far the crest goes from the tint stop to white-hot
+
+    /* --- dust peeled off the floor under the body --- */
+    peelSpacing: 0.45, // metres between peels under the front
+    peelCount: 7, // smoke puffs per side per peel
+    peelSpeed: 3.0, // metres/second
+    peelLift: 1.3, // upward share of the throw
+    peelBack: 0.9, // backward share (it streams into the wake)
+    peelSize: 0.9,
+    gritCount: 3, // grit chips per side per peel
+    gritSize: 0.09,
+    gritSpeed: 4.2,
+    gritLife: 0.9,
+    colorGritA: '#8c7a8f',
+    colorGritB: '#4f4258',
+    colorGritC: '#2b2233',
+    colorGritD: '#120c18',
 
     /* ================================================================ */
     /* 2 · WARP — the screen bends under every ring                      */
@@ -107,12 +167,12 @@ export default {
     dustSpeed: 1.8, // metres/second, outward from the ring's path
     dustRise: 0.45,
     dustDrag: 2.4,
-    dustOpacity: 0.28,
+    dustOpacity: 0.55,
     dustTurbulence: 1.0,
-    colorDustA: '#9a8aa6',
-    colorDustB: '#6a5a7a',
-    colorDustC: '#3e3150',
-    colorDustD: '#1c1428',
+    colorDustA: '#a09281',
+    colorDustB: '#6e6152',
+    colorDustC: '#3d342b',
+    colorDustD: '#16120e',
 
     /* ================================================================ */
     /* 4 · RIPPLES — the floor answering each ring                       */
@@ -122,51 +182,56 @@ export default {
     rippleRadius: 0.9, // ripple radius, × the ring's radius
     rippleLife: 1.2,
     rippleWidth: 0.07,
-    rippleIntensity: 0.22,
+    rippleIntensity: 0.0,
     colorRippleA: '#ffe6f6',
-    colorRippleB: '#8e1fe0',
+    colorRippleB: '#3a2060',
 
     /* ================================================================ */
     /* 5 · MUZZLE — little rings thrown off the hand per pulse           */
     /* ================================================================ */
-    muzzleRings: 3, // RING particles per pulse
+    muzzleRings: 1, // RING particles per pulse
     muzzleSize: 0.45,
     muzzleLife: 0.32,
     muzzleSpeed: 2.4,
-    muzzleGlow: 2.2,
-    colorMuzzleA: '#ffffff',
-    colorMuzzleB: '#ffd1f0',
-    colorMuzzleC: '#b98cff',
-    colorMuzzleD: '#3a2060',
+    muzzleGlow: 0.5,
+    colorMuzzleA: '#cbbfd6',
+    colorMuzzleB: '#6e6152',
+    colorMuzzleC: '#2e2720',
+    colorMuzzleD: '#0e0816',
 
     /* ================================================================ */
     /* 6 · BOOM — the train lands                                        */
     /* ================================================================ */
-    boomBurst: 3.4, // AIR shell end radius, metres (inside the domes)
-    boomBurstLife: 0.6,
-    boomBurstIntensity: 1.5,
-    boomBurstOpacity: 0.55,
-    colorBurstA: '#ffffff',
-    colorBurstB: '#ff6fd0',
-    colorBurstC: '#2c0b52',
+    boomBurst: 2.6, // dark pressure burst (dense dust ball) end radius, metres
+    boomBurstLife: 0.7,
+    boomBurstIntensity: 0.45,
+    boomBurstOpacity: 0.22,
+    colorBurstA: '#6e6152',
+    colorBurstB: '#2e2720',
+    colorBurstC: '#0e0b08',
     shockRadius: 6.5, // SHOCKWAVE decal radius, metres
     shockLife: 0.75,
+    shockIntensity: 0.0, // strength of the bright SHOCKWAVE outline (0 = off; the dust ring carries the boom)
     shockWidth: 0.07,
     colorShockA: '#ffffff',
     colorShockB: '#8e1fe0',
     floorRadius: 9.0, // how far the floor ripple runs, metres
-    floorTime: 1.2, // seconds it takes to get there
+    floorTime: 1.5, // seconds it takes to get there
     floorRings: 1, // wavelets in the ripple train (capped at 6)
     floorWavelength: 0.85, // metres between them
-    floorWidth: 0.14, // width of one wavelet, metres
-    floorIntensity: 0.9,
-    floorChroma: 0.03, // RGB split across a wavelet, metres
+    floorWidth: 0.4, // width of one wavelet, metres
+    floorIntensity: 0.2,
+    floorChroma: 0.0, // RGB split across a wavelet, metres
     floorWake: 0.9, // 0..1 opacity of the filled dark pressure band behind the crest
-    floorWakeLength: 2.6, // metres of that band
-    boomDust: 36, // dust thrown out by the boom
+    floorWakeLength: 3.4, // metres of that band
+    boomDust: 110, // dust thrown out by the boom
+    boomDustLow: 0.12, // upward share of that throw — low, so it rolls out as a ring
+    boomRingRadius: 6.0, // DUSTRING decal radius, metres
+    boomRingLife: 2.2,
+    boomRingIntensity: 1.4,
     boomShake: 0.55,
     boomShakeTime: 0.5, // seconds the kick takes to die
-    boomFlash: 0.3,
+    boomFlash: 0.18,
     boomLight: 22, // light punch
     pulseShake: 0.035, // a tick of shake per ring leaving
     colorFlash: '#ffe6f6',
@@ -187,6 +252,7 @@ export default {
     humFill: 0.8, // body fill, × the rings'
     boomDomeFill: 1.0, // body fill of the boom domes, × the rings'
     boomDomeGlow: 3.0, // body glow of the boom domes, × the rings' — the boom's light
+    boomDomeShow: 0.0, // 0..1 the old filled domes and hum (the boom is a dark burst + crater now)
 
     /* ================================================================ */
     /* 7 · CHLADNI PLATE — the floor sorts into the sound's figure       */
@@ -200,15 +266,30 @@ export default {
     plateLineWidth: 0.16, // width of the sand ridges, in pattern units
     plateGrain: 34, // sand grain frequency
     plateStain: 0.9, // dark stain where the floor shakes
-    plateGlow: 1.0, // ridge glow on each beat
-    plateBodyMix: 0.55, // 0..1 how far the stain lifts from the deep stop toward the body violet
-    plateRimGlow: 0.35, // glow of the pressed crater lip round the plate
+    plateGlow: 0.1, // ridge glow on each beat
+    plateBodyMix: 0.05, // 0..1 how far the stain lifts from the deep stop toward the body violet
+    plateRimGlow: 0.1, // glow of the pressed crater lip round the plate
     plateRimWidth: 0.06, // width of that lip, × the plate radius
     laneWidth: 0.85, // lane half-width, × the rings' end radius
     laneStripe: 0.9, // lane wavelength along the line, metres
     laneAcross: 0, // nodes across the lane (0 = ripples straight across)
-    laneStain: 0.95, // dark stain under the lane
-    laneLines: 0.2, // strength of the sorted ridges in the lane, × the plate's
+    laneStain: 0.22, // dark stain under the lane
+    laneLines: 0.0, // strength of the sorted ridges in the lane, × the plate's
+
+    /* ================================================================ */
+    /* 8 · CRATER — the floor heaved into a lip round the plate         */
+    /* ================================================================ */
+    craterRadius: 0.78, // crest of the lip, × plateRadius
+    craterWidth: 0.42, // width of the lip, × plateRadius
+    craterHeight: 0.65, // metres the lip stands
+    craterRise: 0.16, // seconds it takes to heave up
+    craterLump: 0.4, // 0..1 lumpiness of the heaved earth
+    craterLight: 0.75, // how far the sun-lit side lifts from the deep stop
+    craterGlow: 0.35, // violet in the cracks on each hum beat
+    craterBreath: 0.1, // how much the lip rises and falls with the hum, fraction
+    craterSink: 1.0, // 0..1 how far it sinks back on the way out
+    craterPuffs: 7, // dust puffs a second leaking off the lip through the linger
+    colorCrater: '#5e5246', // the lit earth tone of the lip
 
     /* --- the light --- */
     lightColor: '#ffd1f0',
