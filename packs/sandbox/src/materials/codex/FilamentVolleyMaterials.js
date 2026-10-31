@@ -995,3 +995,251 @@ export function createFilamentVolleyScarMaterial() {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The stitch — cast-local hero shaders                                  */
+/* -------------------------------------------------------------------- */
+
+/**
+ * One filament strand, instanced. The carrier is a flat grid (x along the
+ * strand, y round it); the vertex stage lays it along a parabolic arc from
+ * `aStart` to `aEnd`, braids it round its neighbours, twangs it sideways and
+ * tapers it at both ends. `aArc` = (arc height, drawn 0..1, radius, unravelled
+ * 0..1); `aStart.w` is the stitch index, `aEnd.w` the strand's braid phase.
+ */
+const FIL_VERTEX = /* glsl */ `
+  attribute vec4 aStart;
+  attribute vec4 aEnd;
+  attribute vec4 aArc;
+  uniform float uTime;
+  uniform float uBraid;
+  uniform float uBraidTurns;
+  uniform float uTwang;
+  uniform float uTwangFreq;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vS;
+  varying vec4 vArc;
+  varying float vIdx;
+
+  vec3 arcPoint(float s) {
+    vec3 p = mix(aStart.xyz, aEnd.xyz, s);
+    p.y += 4.0 * aArc.x * s * (1.0 - s);
+    return p;
+  }
+
+  void main() {
+    float s = position.x + 0.5;
+    float ang = (position.y + 0.5) * 6.2831853;
+    vec3 c = arcPoint(s);
+    vec3 T = arcPoint(min(s + 0.01, 1.0)) - arcPoint(max(s - 0.01, 0.0));
+    T = normalize(T + vec3(0.0, 1e-5, 0.0));
+    vec3 side = cross(T, vec3(0.0, 1.0, 0.0));
+    side = length(side) < 1e-3 ? vec3(1.0, 0.0, 0.0) : normalize(side);
+    vec3 up = normalize(cross(side, T));
+    float env = sin(3.14159265 * s);
+    float phase = aEnd.w * 6.2831853 + s * uBraidTurns * 6.2831853 + uTime * 3.0;
+    c += (side * cos(phase) + up * sin(phase)) * uBraid * env;
+    c += side * uTwang * env * sin(uTime * uTwangFreq + aStart.w * 1.7);
+    vec3 n = side * cos(ang) + up * sin(ang);
+    vec3 p = c + n * aArc.z * (0.35 + 0.65 * sqrt(env));
+    vWorld = p;
+    vNormalW = n;
+    vS = s;
+    vArc = aArc;
+    vIdx = aStart.w;
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const FIL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform vec3 uCore;
+  uniform vec3 uTint;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  uniform float uGlow;
+  uniform float uCoreGain;
+  uniform float uHeadGlow;
+  uniform float uPulse;
+  uniform float uPulseWidth;
+  uniform float uPulseGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vS;
+  varying vec4 vArc;
+  varying float vIdx;
+  ${noiseGLSL}
+  void main() {
+    if (vS > vArc.y) discard;
+    float grain = snoise(vec3(vS * 18.0 - uTime * 6.0, vIdx * 3.1, 0.0));
+    float cut = vArc.w + grain * 0.03 * step(0.001, vArc.w);
+    if (vS < cut) discard;
+    vec3 V = normalize(cameraPosition - vWorld);
+    float ndv = clamp(abs(dot(normalize(vNormalW), V)), 0.0, 1.0);
+    // Four stops across the strand: dark deep at the silhouette, saturated
+    // body, pale tint, white-hot core down the middle.
+    // Metal light: a wide umber deep, the gold body, a narrow pale band and a
+    // hairline of white only where the strand faces the eye.
+    vec3 col = mix(uDeep, uBody, smoothstep(0.2, 0.65, ndv));
+    col = mix(col, uTint, smoothstep(0.8, 0.95, ndv));
+    col = mix(col, uCore * uCoreGain, smoothstep(0.975, 1.0, ndv));
+    // Bands of umber wound along the braid, so it reads as twisted wire.
+    col = mix(col, uDeep, 0.45 * smoothstep(0.55, 0.95, sin(vS * 90.0 + vIdx * 2.0) * 0.5 + 0.5));
+    col *= uGlow * (0.85 + 0.25 * grain);
+    // The bolt head while it is still being drawn.
+    float head = (1.0 - step(0.999, vArc.y)) * exp(-max(vArc.y - vS, 0.0) * 18.0);
+    col += uCore * head * uHeadGlow;
+    // The burning end as it unravels.
+    float burn = step(0.001, vArc.w) * exp(-max(vS - cut, 0.0) * 30.0);
+    col += mix(uBody, uCore, 0.5) * burn * uHeadGlow * 0.6;
+    // Current running down the stitch chain.
+    float d = abs(vIdx + vS - uPulse);
+    col += uTint * exp(-d * d / max(uPulseWidth * uPulseWidth, 1e-3)) * uPulseGlow;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+export function createFilamentVolleyFilamentMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uBraid: { value: 0.08 },
+      uBraidTurns: { value: 3 },
+      uTwang: { value: 0 },
+      uTwangFreq: { value: 20 },
+      uCore: { value: new Color() },
+      uTint: { value: new Color() },
+      uBody: { value: new Color() },
+      uDeep: { value: new Color() },
+      uGlow: { value: 1 },
+      uCoreGain: { value: 3 },
+      uHeadGlow: { value: 4 },
+      uPulse: { value: -10 },
+      uPulseWidth: { value: 0.5 },
+      uPulseGlow: { value: 2 }
+    }),
+    vertexShader: FIL_VERTEX,
+    fragmentShader: FIL_FRAGMENT
+  });
+  /** @param {number} twang  @param {number} pulse  the chain position of the running current */
+  material.userData.sync = (twang, pulse) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uBraid.value = c.filBraid;
+    u.uBraidTurns.value = c.filBraidTurns;
+    u.uTwang.value = twang;
+    u.uTwangFreq.value = c.filTwangFreq;
+    u.uCore.value.copy(getColor(c.colorFilCore));
+    u.uTint.value.copy(getColor(c.colorFilTint));
+    u.uBody.value.copy(getColor(c.colorFilBody));
+    u.uDeep.value.copy(getColor(c.colorFilDeep));
+    u.uGlow.value = c.filGlow * g.shaderIntensity;
+    u.uCoreGain.value = c.filCore;
+    u.uHeadGlow.value = c.filHeadGlow * g.glow;
+    u.uPulse.value = pulse;
+    u.uPulseWidth.value = c.pulseWidth;
+    u.uPulseGlow.value = c.pulseGlow * g.glow;
+  };
+  return material;
+}
+
+/**
+ * The barbs the bolts drive into the floor: lit gilt metal. A dark bronze
+ * deep in the grooves, polished gold on the faces, a hard sun glint, and a
+ * white-hot heat that runs down from the head when it lands and cools.
+ * Per barb `aBarb` = (heat 0..1, seed).
+ */
+const BARB_VERTEX = /* glsl */ `
+  attribute vec2 aBarb;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec2 vBarb;
+  void main() {
+    mat4 m = modelMatrix * instanceMatrix;
+    vec4 world = m * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(m) * normal);
+    vLocal = position;
+    vBarb = aBarb;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const BARB_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform vec3 uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3 uGold;
+  uniform vec3 uDeep;
+  uniform vec3 uHot;
+  uniform vec3 uCore;
+  uniform float uSpecular;
+  uniform float uGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec2 vBarb;
+  ${noiseGLSL}
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+    float h = vLocal.y;
+    // Engraved bands: dark bronze in the grooves, gold on the lands.
+    float groove = smoothstep(0.8, 1.0, abs(sin(h * 40.0 + vBarb.y)));
+    float wear = snoise01(vLocal * 9.0 + vBarb.y);
+    vec3 albedo = mix(uGold, uDeep, clamp(groove * 0.9 + (1.0 - wear) * 0.5, 0.0, 1.0));
+    vec3 col = albedo * (0.18 + 1.05 * ndl) + albedo * 0.3 * (0.5 + 0.5 * N.y);
+    vec3 R = reflect(-V, N);
+    col += mix(uDeep, uGold, smoothstep(-0.2, 0.6, R.y)) * 0.6 * pow(1.0 - ndv, 2.0);
+    col += mix(uGold, vec3(1.0), 0.5) * pow(max(dot(N, H), 0.0), 60.0) * uSpecular;
+    // Heat runs down from the head and cools: core → tint.
+    float heat = vBarb.x * smoothstep(0.1, 1.0, h + 0.25 * vBarb.x);
+    col += mix(uHot, uCore, heat * heat * 0.35) * heat * uGlow * uGlobalGlow;
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+export function createFilamentVolleyBarbMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uGold: { value: new Color() },
+      uDeep: { value: new Color() },
+      uHot: { value: new Color() },
+      uCore: { value: new Color() },
+      uSpecular: { value: 1.5 },
+      uGlow: { value: 2 }
+    }),
+    vertexShader: BARB_VERTEX,
+    fragmentShader: BARB_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const u = material.uniforms;
+    u.uGold.value.copy(getColor(c.colorBarbGold));
+    u.uDeep.value.copy(getColor(c.colorBarbDeep));
+    u.uHot.value.copy(getColor(c.colorBarbHot));
+    u.uCore.value.copy(getColor(c.colorFilCore));
+    u.uSpecular.value = c.barbSpecular;
+    u.uGlow.value = c.barbGlow * settings.global.glow;
+  };
+  return material;
+}

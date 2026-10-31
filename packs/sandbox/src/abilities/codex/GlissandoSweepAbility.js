@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,8 @@ import {
   createGlissandoSweepVoiceMaterial,
   createGlissandoSweepDetailMaterial,
   createGlissandoSweepTrailMaterial,
-  createGlissandoSweepScarMaterial
+  createGlissandoSweepScarMaterial,
+  createGlissandoSweepSheetMaterial
 } from '../../materials/codex/GlissandoSweepMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -47,6 +48,10 @@ const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
 
+/** The sheet plus its echoes. */
+const MAX_SHEETS = 4;
+const _sheetPose = { dir: new Vector3(), side: new Vector3(), height: 1, amp: 0, f0: 1, f1: 1 };
+
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
@@ -71,7 +76,18 @@ const MAX_MARKS = 12;
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: the sheet lags the cast point. The cut arrives after the hand has already moved on.
- *  10. **mark** — a felled body is left ringing: `corrode` stains it toward the
+ *  10. **the glissando** (cast-local hero, editor folder 15) — the template
+ *      body, voice, rig and pieces are turned down in the config. One tall
+ *      bowed wall of sound (`sheet*`), standing on the floor across the
+ *      line, its top edge the waveform itself: a chirp of ridges runs
+ *      through it, crowding together from one side to the other, and the
+ *      pitch climbs (`chirpStart` → `chirpEnd`) as it goes. It rises out of
+ *      the floor `sheetStart` metres ahead of the caster and lags the head,
+ *      sliding in from one side (`sheetSlide`) and sheared over, so it lands
+ *      late; after the beat it keeps gliding (`lateGlide`, `lateSlide`) and
+ *      ringing, its ridges decaying, two dimmer echoes behind it, then it
+ *      tears into strips and sinks. Dust is scoured off its foot all the way.
+ *  11. **mark** — a felled body is left ringing: `corrode` stains it toward the
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
@@ -159,6 +175,121 @@ export class GlissandoSweepAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildSheet();
+  }
+
+  _buildSheet() {
+    this.sheetGeometry = new PlaneGeometry(1, 1, 120, 20);
+    for (const name of ['aCentre', 'aSheet']) {
+      const attr = new InstancedBufferAttribute(new Float32Array(MAX_SHEETS * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      this.sheetGeometry.setAttribute(name, attr);
+    }
+    this.sheetMaterial = createGlissandoSweepSheetMaterial();
+    this.sheet = new InstancedMesh(this.sheetGeometry, this.sheetMaterial, MAX_SHEETS);
+    this.sheet.layers.set(LAYER.VFX);
+    this.sheet.frustumCulled = false;
+    this.sheet.renderOrder = 15;
+    this.sheet.visible = false;
+    this.group.add(this.sheet);
+    this._sheetSide = 1;
+    this._sheetAt = new Vector3();
+    this._footEmitter = new RateEmitter();
+    this._grooveAt = 0;
+  }
+
+  /**
+   * Stand the wall of sound: where it is along the line, how far it has slid
+   * and sheared, its height, ridge amplitude, pitch and tear — all from the
+   * settings, the travel `u` and the seconds since the beat.
+   */
+  _sheetUpdate(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = !committed ? -1 : fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+    const lag = Math.min(0.9, Math.max(0, c.sheetLag));
+    const a = committed ? 1 : saturate((this.u - lag) / (1 - lag));
+    const appear = committed ? 1 : saturate((this.u - lag * 0.6) / Math.max(0.01, lag * 0.4 + 0.05));
+    if (appear <= 0 || c.sheetOpacity <= 0.001) {
+      this.sheet.visible = false;
+      return;
+    }
+    const start = Math.min(this.length * 0.6, Math.max(0, c.sheetStart));
+    const glide = since < 0 ? 0 : Easing.outCubic(saturate(since / Math.max(0.05, c.glideTime * L)));
+    const dist = start + (this.length - start) * Easing.inOutQuad(a) + c.lateGlide * glide;
+    const slide = c.sheetSlide * (1 - a) * (1 - a) - c.lateSlide * glide;
+    const tear = since < 0 ? 0 : saturate((since - c.tearStart * L) / Math.max(0.05, c.tearTime * L));
+    this.pointAt(0, this._sheetAt).addScaledVector(this.direction, dist).addScaledVector(this.side, slide * this._sheetSide);
+    const total = this.impactDuration + this.fadeDuration;
+    const pitch = since < 0 ? 0.35 * a : 0.35 + 0.65 * saturate(since / total);
+    const ring = since < 0 ? 1 : c.ringFloor + (1 - c.ringFloor) * Math.exp(-since * c.ringDecay / L);
+    _sheetPose.dir.copy(this.direction);
+    _sheetPose.side.copy(this.side);
+    _sheetPose.height = c.sheetHeight * Easing.outBack(appear) * (1 - 0.6 * tear);
+    _sheetPose.amp = c.rippleAmp * ring;
+    _sheetPose.f0 = c.chirpStart * (1 + pitch);
+    _sheetPose.f1 = c.chirpEnd * (1 + pitch * c.chirpClimb);
+    const shear = (c.sheetShear * (1 - a) + c.lateShear * glide) * this._sheetSide;
+    const echoes = Math.max(0, Math.min(MAX_SHEETS - 1, Math.round(c.echoes)));
+    const aC = this.sheetGeometry.getAttribute('aCentre');
+    const aS = this.sheetGeometry.getAttribute('aSheet');
+    let k = 0;
+    for (let e = 0; e <= echoes; e++) {
+      const back = e * c.echoSpacing;
+      const alpha = Math.pow(c.echoAlpha, e) * (e === 0 ? 1 : saturate((dist - start - back) / 1.5 + 0.2));
+      _pos.copy(this._sheetAt).addScaledVector(this.direction, -back);
+      if (e > 0 && dist - back < start * 0.5) continue;
+      aC.setXYZW(k, _pos.x, 0, _pos.z, alpha);
+      aS.setXYZW(k, Math.pow(c.echoScale, e), e * 1.9, shear * (1 - 0.3 * e), Math.min(1, tear * (1 + 0.4 * e)));
+      k++;
+    }
+    this.sheet.count = k;
+    this.sheet.visible = k > 0 && tear < 0.999;
+    aC.needsUpdate = true;
+    aS.needsUpdate = true;
+    this.sheetMaterial.userData.sync(_sheetPose);
+  }
+
+  /** Dust scoured off the sheet's foot as it slides, and the scoured floor it leaves. */
+  _sheetShed(dt) {
+    if (!this.sheet.visible) return;
+    const c = settings[ID];
+    const g = settings.global;
+    if (c.grooveSpacing > 0.05) {
+      const at = this._sheetAt.distanceTo(this.origin);
+      if (at - this._grooveAt >= c.grooveSpacing) {
+        this._grooveAt = at;
+        // On the line under the sweep, not where it slid in from.
+        const along = _pos.copy(this._sheetAt).sub(this.origin).dot(this.direction);
+        _pos.copy(this.origin).addScaledVector(this.direction, along).setY(0);
+        this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+          radius: c.grooveRadius,
+          life: c.grooveLife * g.lifetime,
+          width: 0.85,
+          intensity: 0.8,
+          colorA: getColor(c.colorGroove),
+          colorB: getColor(c.colorSheetBody),
+          height: 0.026
+        });
+      }
+    }
+    const n = Math.round(this._footEmitter.tick(dt, c.footDust) * g.particleCount);
+    for (let i = 0; i < n; i++) {
+      const x = (Math.random() - 0.5) * c.sheetWidth * 0.9;
+      _pos.copy(this._sheetAt).addScaledVector(this.side, x);
+      _pos.y = 0.1;
+      _dir.copy(this.direction).addScaledVector(this.side, (Math.random() - 0.5) * 0.8);
+      _dir.y = 0.35;
+      if (Math.random() < 0.6) {
+        this._fillEmit(_pos, 0.15, _dir, c.dustSpeed, 0.5, 0.45, c.dustLife, 0.4);
+        this.dust.emit(1, _emit);
+      } else {
+        _pos.y = Math.random() * c.sheetHeight * 0.9;
+        this._fillEmit(_pos, 0.1, _dir, c.streakSpeed * 0.6, 0.4, 0.06, c.streakLife, 2);
+        this.streaks.emit(1, _emit);
+      }
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +365,11 @@ export class GlissandoSweepAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._sheetSide = Math.random() < 0.5 ? -1 : 1;
+    this._footEmitter.reset();
+    // The scour starts once the sweep has slid in over the line.
+    this._grooveAt = settings[ID].sheetStart + settings[ID].grooveSpacing;
+    this.sheet.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -303,6 +439,7 @@ export class GlissandoSweepAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._sheetUpdate(committed, fadeT);
   }
 
   /**
@@ -781,6 +918,7 @@ export class GlissandoSweepAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
+    this._sheetShed(dt);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -800,6 +938,7 @@ export class GlissandoSweepAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._sheetShed(dt);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -824,9 +963,12 @@ export class GlissandoSweepAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.sheet.visible = false;
   }
 
   dispose() {
+    this.sheetGeometry.dispose();
+    this.sheetMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1027,6 +1169,46 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const sheet = folder.addFolder('15 · The glissando');
+  R(sheet, c, 'sheetWidth', 0.5, 12, 0.05, 'width (m)');
+  R(sheet, c, 'sheetHeight', 0.2, 6, 0.05, 'height (m)');
+  R(sheet, c, 'sheetBow', -3, 3, 0.05, 'bow (m)');
+  R(sheet, c, 'sheetCrest', 0, 0.6, 0.01, 'waveform top');
+  R(sheet, c, 'sheetStart', 0, 8, 0.05, 'rises at (m)');
+  R(sheet, c, 'sheetLag', 0, 0.9, 0.01, 'lag, share of travel');
+  R(sheet, c, 'sheetSlide', 0, 6, 0.05, 'slides in from (m)');
+  R(sheet, c, 'sheetShear', -3, 3, 0.05, 'shear in flight (m)');
+  R(sheet, c, 'rippleAmp', 0, 1, 0.01, 'ridge depth (m)');
+  R(sheet, c, 'rippleSpeed', 0, 40, 0.1, 'ridge speed');
+  R(sheet, c, 'chirpStart', 0, 10, 0.05, 'pitch, low side');
+  R(sheet, c, 'chirpEnd', 0, 20, 0.05, 'pitch, high side');
+  R(sheet, c, 'chirpClimb', 0, 4, 0.05, 'pitch climb');
+  R(sheet, c, 'lateGlide', 0, 6, 0.05, 'glides on (m)');
+  R(sheet, c, 'lateSlide', -6, 6, 0.05, 'slides on (m)');
+  R(sheet, c, 'lateShear', -3, 3, 0.05, 'shear after (m)');
+  R(sheet, c, 'glideTime', 0.05, 3, 0.01, 'glide (s)');
+  R(sheet, c, 'ringDecay', 0, 8, 0.05, 'ring decay');
+  R(sheet, c, 'ringFloor', 0, 1, 0.01, 'ring floor');
+  R(sheet, c, 'tearStart', 0, 3, 0.01, 'tears at (s)');
+  R(sheet, c, 'tearTime', 0.05, 2, 0.01, 'tears in (s)');
+  R(sheet, c, 'echoes', 0, 3, 1, 'echoes');
+  R(sheet, c, 'echoSpacing', 0, 4, 0.05, 'echo spacing (m)');
+  R(sheet, c, 'echoAlpha', 0, 1, 0.01, 'echo strength');
+  R(sheet, c, 'echoScale', 0.2, 1, 0.01, 'echo scale');
+  R(sheet, c, 'sheetGlow', 0, 4, 0.05, 'glow');
+  R(sheet, c, 'sheetCore', 0, 8, 0.05, 'white-hot crest');
+  R(sheet, c, 'sheetOpacity', 0, 1.5, 0.01, 'opacity');
+  R(sheet, c, 'sheetFoot', 0, 4, 0.05, 'foot glow');
+  R(sheet, c, 'footDust', 0, 400, 1, 'scour / s');
+  R(sheet, c, 'grooveSpacing', 0, 4, 0.05, 'scoured every (m)');
+  R(sheet, c, 'grooveRadius', 0, 4, 0.05, 'scoured patch (m)');
+  R(sheet, c, 'grooveLife', 0.1, 10, 0.05, 'scouring stays (s)');
+  sheet.addColor(c, 'colorGroove').name('scoured floor');
+  sheet.addColor(c, 'colorSheetCore').name('core');
+  sheet.addColor(c, 'colorSheetTint').name('tint');
+  sheet.addColor(c, 'colorSheetBody').name('body');
+  sheet.addColor(c, 'colorSheetDeep').name('deep');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

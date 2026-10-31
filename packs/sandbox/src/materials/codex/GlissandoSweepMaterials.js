@@ -991,3 +991,176 @@ export function createGlissandoSweepScarMaterial() {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The glissando sheet — cast-local hero shader                          */
+/* -------------------------------------------------------------------- */
+
+/**
+ * One wall of sound, instanced (the sheet and its echoes). The carrier is a
+ * flat grid (x across the sheet, y up); the vertex stage stands it on the
+ * floor across the line, bows it forward, shears it sideways and pushes a
+ * chirp of ridges through it — the ridges crowd together toward one side and
+ * as the pitch climbs, which is the glissando drawn. Its top edge is the
+ * waveform itself. Per sheet `aCentre` = (floor centre xyz, alpha) and
+ * `aSheet` = (scale, phase offset, shear metres, tear 0..1).
+ */
+const SHEET_VERTEX = /* glsl */ `
+  attribute vec4 aCentre;
+  attribute vec4 aSheet;
+  uniform float uTime;
+  uniform vec3 uDir;
+  uniform vec3 uSide;
+  uniform float uWidth;
+  uniform float uHeight;
+  uniform float uBow;
+  uniform float uAmp;
+  uniform float uF0;
+  uniform float uF1;
+  uniform float uSpeed;
+  uniform float uCrest;
+  varying vec2 vUv;
+  varying float vWave;
+  varying float vTop;
+  varying vec4 vCentre;
+  varying vec4 vSheet;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+
+  float chirp(float x) {
+    // Instantaneous frequency climbs from F0 to F1 across the sheet.
+    return 6.2831853 * (uF0 * x + 0.5 * (uF1 - uF0) * x * x);
+  }
+
+  void main() {
+    float x = position.x + 0.5;          // 0..1 across
+    float y = position.y + 0.5;          // 0..1 up
+    float scale = aSheet.x;
+    float W = uWidth * scale;
+    float phase = chirp(x) - uTime * uSpeed + aSheet.y;
+    float wave = sin(phase);
+    float env = sin(3.14159265 * x);
+    // The top edge is the waveform.
+    float top = uHeight * scale * (1.0 + uCrest * wave * env);
+    float h = y * top;
+    float across = (x - 0.5) * W;
+    float bow = uBow * scale * (1.0 - 4.0 * (x - 0.5) * (x - 0.5));
+    float push = uAmp * scale * wave * env * (0.4 + 0.6 * y);
+    vec3 p = aCentre.xyz + uSide * (across + aSheet.z * y) + uDir * (bow + push) + vec3(0.0, h, 0.0);
+    // Normal: mostly along the travel, tipped by the ridge slope.
+    float slope = uAmp * scale * cos(phase) * env * 6.2831853 * (uF0 + (uF1 - uF0) * x) / max(W, 0.1);
+    vNormalW = normalize(uDir - uSide * slope);
+    vUv = vec2(x, y);
+    vWave = wave;
+    vTop = top;
+    vCentre = aCentre;
+    vSheet = aSheet;
+    vWorld = p;
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const SHEET_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform vec3 uCore;
+  uniform vec3 uTint;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  uniform float uGlow;
+  uniform float uCoreGain;
+  uniform float uOpacity;
+  uniform float uFoot;
+  varying vec2 vUv;
+  varying float vWave;
+  varying float vTop;
+  varying vec4 vCentre;
+  varying vec4 vSheet;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  ${noiseGLSL}
+  void main() {
+    // Torn into horizontal strips as it goes.
+    float strip = hash11(floor(vUv.y * 18.0) + vSheet.y * 7.0);
+    float tear = vSheet.w;
+    if (strip < tear * 1.1 - 0.05 + snoise(vec3(vUv.x * 6.0, vUv.y * 18.0, uTime)) * 0.08) discard;
+    float crest = vWave * 0.5 + 0.5;
+    // Mass in the dark: deep teal-olive troughs and a dark olive body carry
+    // the wall; lime lives only on the ridges, white only on their crests.
+    vec3 col = mix(uDeep, uBody, smoothstep(0.3, 0.7, crest));
+    col = mix(col, uTint, smoothstep(0.8, 0.94, crest));
+    col = mix(col, uCore * uCoreGain, smoothstep(0.975, 1.0, crest) * smoothstep(0.15, 0.6, vUv.y));
+    // Pressure grain through the body.
+    col *= 0.8 + 0.35 * snoise01(vec3(vUv.x * 14.0, vUv.y * 5.0 - uTime * 1.5, vSheet.y));
+    // The top edge — the waveform — burns, and the foot where it scours the floor.
+    float edge = smoothstep(0.85, 1.0, vUv.y);
+    col += mix(uTint, uCore * uCoreGain, edge * edge) * edge * 0.8;
+    float foot = 1.0 - smoothstep(0.0, 0.08, vUv.y);
+    col += uTint * foot * uFoot;
+    vec3 V = normalize(cameraPosition - vWorld);
+    float rim = pow(1.0 - abs(dot(normalize(vNormalW), V)), 2.0);
+    col += uTint * rim * 0.25;
+    float sideFade = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
+    float alpha = (0.92 + 0.08 * crest) * sideFade * vCentre.w * uOpacity;
+    gl_FragColor = vec4(col * uGlow * uGlobalGlow, alpha);
+  }
+`;
+
+export function createGlissandoSweepSheetMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDir: { value: new Vector3(0, 0, 1) },
+      uSide: { value: new Vector3(1, 0, 0) },
+      uWidth: { value: 4 },
+      uHeight: { value: 2.5 },
+      uBow: { value: 0.8 },
+      uAmp: { value: 0.2 },
+      uF0: { value: 2 },
+      uF1: { value: 6 },
+      uSpeed: { value: 8 },
+      uCrest: { value: 0.15 },
+      uCore: { value: new Color() },
+      uTint: { value: new Color() },
+      uBody: { value: new Color() },
+      uDeep: { value: new Color() },
+      uGlow: { value: 1 },
+      uCoreGain: { value: 3 },
+      uOpacity: { value: 1 },
+      uFoot: { value: 1 }
+    }),
+    vertexShader: SHEET_VERTEX,
+    fragmentShader: SHEET_FRAGMENT
+  });
+  /** @param {object} p { dir, side, height, amp, f0, f1 } */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDir.value.copy(p.dir);
+    u.uSide.value.copy(p.side);
+    u.uWidth.value = Math.max(0.2, c.sheetWidth);
+    u.uHeight.value = Math.max(0.05, p.height);
+    u.uBow.value = c.sheetBow;
+    u.uAmp.value = p.amp;
+    u.uF0.value = p.f0;
+    u.uF1.value = p.f1;
+    u.uSpeed.value = c.rippleSpeed * g.animationSpeed;
+    u.uCrest.value = c.sheetCrest;
+    u.uCore.value.copy(getColor(c.colorSheetCore));
+    u.uTint.value.copy(getColor(c.colorSheetTint));
+    u.uBody.value.copy(getColor(c.colorSheetBody));
+    u.uDeep.value.copy(getColor(c.colorSheetDeep));
+    u.uGlow.value = c.sheetGlow * g.glow * g.shaderIntensity;
+    u.uCoreGain.value = c.sheetCore;
+    u.uOpacity.value = c.sheetOpacity * g.opacity;
+    u.uFoot.value = c.sheetFoot;
+  };
+  return material;
+}
