@@ -88,6 +88,9 @@ const SEED_FRAGMENT = /* glsl */ `
   uniform vec3  uColorCore;
   uniform vec3  uColorBody;
   uniform vec3  uColorRim;
+  uniform vec3  uColorDeep;   // the dark stop that carries the node's mass
+  uniform float uDeep;        // 0..1 how much of the body is that deep
+  uniform float uHaze;        // the shell's even glassy film (kept low: charge, not glass)
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
 
@@ -114,17 +117,24 @@ const SEED_FRAGMENT = /* glsl */ `
       vec3 q = n * uFilamentScale + vec3(uTime * uCrawl, -uTime * uCrawl * 0.6, uSeed);
       float f = 1.0 - abs(snoise(q));
       f = pow(f, 10.0) * uFilament * uShaderIntensity;
-      float hot = clamp(vSpike * 3.0 + f, 0.0, 1.0);
-      color = mix(uColorBody, uColorCore, hot) + uColorRim * rim * 1.6;
-      color *= (0.6 + 0.6 * uCharge + uPulse) * stutter;
-      alpha = clamp(0.35 + rim * 0.6 + f * 0.8, 0.0, 1.0);
+      float hot = clamp(f + max(vSpike - 0.06, 0.0) * 1.5, 0.0, 1.0);
+      // Four stops: a dark storm-node body (deep) lit violet toward the rim
+      // (body → tint) and split by white-hot filaments (core). The node is
+      // drawn opaque, so the deep stop is real mass on screen, not additive
+      // black that vanishes — this is what keeps it from reading as ice.
+      float lit = clamp(pow(rim, 1.4) * 1.2 + vSpike * 0.8, 0.0, 1.0);
+      vec3 base = mix(uColorDeep, uColorBody, mix(1.0, lit, uDeep));
+      color = base + uColorRim * pow(rim, 2.0) * 1.2;
+      color = mix(color, uColorCore * (1.6 + uPulse * 1.5), hot);
+      color *= (0.6 + 0.4 * uCharge + uPulse * 0.6) * stutter;
+      alpha = 1.0;
     } else {
       // Crackle shell: the zero set of a noise field that re-rolls in steps,
       // sharpened into hairlines, visible at the silhouette only.
       vec3 q = n * uFilamentScale * 1.4 + vec3(tick * 0.37, tick * 0.11, uSeed + 5.0);
       float edge = pow(1.0 - abs(snoise(q)), 18.0);
       color = mix(uColorRim, uColorCore, edge) * (0.5 + uPulse);
-      alpha = rim * (0.25 + edge * 0.9) * uCharge;
+      alpha = rim * (uHaze + edge * 1.1) * uCharge;
     }
 
     // Exit: noise dissolve with a burning lip.
@@ -142,10 +152,13 @@ const SEED_FRAGMENT = /* glsl */ `
 
 /** @param {'core'|'shell'} role */
 export function createSeedMaterial(role = 'core') {
+  const core = role !== 'shell';
   const material = new ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
+    // The core is an opaque dark node with emissive veins; the shell is the
+    // additive crackle round it.
+    transparent: !core,
+    depthWrite: core,
+    blending: core ? NormalBlending : AdditiveBlending,
     side: role === 'shell' ? DoubleSide : FrontSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -167,7 +180,10 @@ export function createSeedMaterial(role = 'core') {
       uPulse: { value: 0 },
       uColorCore: { value: new Color() },
       uColorBody: { value: new Color() },
-      uColorRim: { value: new Color() }
+      uColorRim: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uDeep: { value: 0.85 },
+      uHaze: { value: 0.05 }
     }),
     vertexShader: SEED_VERTEX,
     fragmentShader: SEED_FRAGMENT
@@ -196,6 +212,9 @@ export function createSeedMaterial(role = 'core') {
     u.uColorCore.value.copy(getColor(c.colorSeedCore));
     u.uColorBody.value.copy(getColor(c.colorSeedBody));
     u.uColorRim.value.copy(getColor(c.colorSeedRim));
+    u.uColorDeep.value.copy(getColor(c.colorSeedDeep ?? '#0a0724'));
+    u.uDeep.value = c.seedDeep ?? 0.85;
+    u.uHaze.value = c.shellHaze ?? 0.05;
   };
   return material;
 }
@@ -630,6 +649,152 @@ export function createRelayWarpMaterial() {
     u.uScale.value = c.warpScale * g.noiseFrequency;
     u.uSpeed.value = c.warpSpeed * g.noiseSpeed;
     u.uSeed.value = state.seed;
+  };
+  return material;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Charge blast — the detonation and hop bursts                            */
+/* ---------------------------------------------------------------------- */
+
+const BLAST_VERTEX = /* glsl */ `
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uAge;        // 0..1 over the blast's life
+  uniform float uBillow;     // displacement, × radius
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+  varying vec3 vDir;
+  varying float vHeat;
+  ${noiseGLSL}
+  void main() {
+    vec3 n = normalize(position);
+    float b = fbm3(n * 2.6 + vec3(uSeed, uTime * 0.8, -uSeed));
+    vHeat = b;
+    vDir = n;
+    vec3 p = n * (1.0 + (b - 0.5) * 2.0 * uBillow * (0.6 + uAge));
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vViewDir = cameraPosition - world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const BLAST_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uAge;
+  uniform float uOpacity;
+  uniform float uFilament;
+  uniform float uGlow;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform float uGlobalGlow;
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+  varying vec3 vDir;
+  varying float vHeat;
+  ${noiseGLSL}
+  ${commonGLSL}
+  void main() {
+    float facing = clamp(dot(normalize(vNormalW), normalize(vViewDir)), 0.0, 1.0);
+    // A dark charged mass, violet where it billows toward the eye, near-black
+    // in its folds — not a shell: it is most opaque face-on, softest at the rim.
+    vec3 color = mix(uColorDeep, uColorBody, smoothstep(0.35, 0.8, vHeat) * (0.4 + 0.6 * facing));
+    // White filaments skating over it, re-rolled as it grows.
+    float fil = ridged(vDir * (4.0 + uAge * 5.0) + vec3(uSeed * 7.0, uTime * 3.0, 0.0), 4);
+    float arcs = smoothstep(0.82, 0.97, fil) * (1.0 - uAge * 0.7) * uFilament;
+    color = mix(color, uColorCore * (1.5 + 1.5 * (1.0 - uAge)) * uGlow * uGlobalGlow, arcs);
+    // Tears apart from the folds outward as it ages.
+    float tear = snoise01(vDir * 3.3 + uSeed);
+    if (tear < uAge * 1.05 - 0.05) discard;
+    float alpha = uOpacity * (0.25 + 0.75 * facing) * (1.0 - uAge * uAge);
+    alpha = max(alpha, arcs * (1.0 - uAge));
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The relay's charge blast: a dark violet mass with white filaments. */
+export function createBlastMaterial(seed = 0) {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    side: FrontSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSeed: { value: seed },
+      uAge: { value: 0 },
+      uBillow: { value: 0.25 },
+      uOpacity: { value: 0.85 },
+      uFilament: { value: 1 },
+      uGlow: { value: 1.5 },
+      uColorCore: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: BLAST_VERTEX,
+    fragmentShader: BLAST_FRAGMENT
+  });
+  material.userData.sync = (c, age) => {
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uAge.value = age;
+    u.uBillow.value = c.blastBillow * g.noiseStrength;
+    u.uOpacity.value = c.blastOpacity * g.opacity;
+    u.uFilament.value = c.blastFilament;
+    u.uGlow.value = c.blastGlow * g.glow;
+    u.uColorCore.value.copy(getColor(c.colorSeedCore));
+    u.uColorBody.value.copy(getColor(c.colorBlastBody));
+    u.uColorDeep.value.copy(getColor(c.colorSeedDeep));
+  };
+  return material;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Under-stroke — the dark bed a standing bolt's white core sits on        */
+/* ---------------------------------------------------------------------- */
+
+const UNDER_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uFade;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  varying vec2 vUv;
+  void main() {
+    float x = (vUv.y - 0.5) * 2.0;
+    float ends = sin(vUv.x * 3.14159265);
+    float bed = exp(-x * x * 2.2);
+    vec3 color = mix(uColorDeep, uColorBody, exp(-x * x * 9.0) * 0.6);
+    float alpha = bed * ends * uFade;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createBoltUnderMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: {
+      uFade: { value: 1 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() }
+    },
+    vertexShader: BOLT_VERTEX,
+    fragmentShader: UNDER_FRAGMENT
+  });
+  material.userData.sync = (c, fade) => {
+    const u = material.uniforms;
+    u.uFade.value = fade * c.underOpacity * settings.global.opacity;
+    u.uColorDeep.value.copy(getColor(c.colorSeedDeep));
+    u.uColorBody.value.copy(getColor(c.colorArcHalo));
   };
   return material;
 }
