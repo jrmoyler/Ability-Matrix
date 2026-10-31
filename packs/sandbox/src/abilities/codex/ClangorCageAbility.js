@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  DynamicDrawUsage,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  LatheGeometry,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector2,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +20,9 @@ import {
   createClangorCageLensMaterial,
   createClangorCageGroundMaterial,
   createClangorCageVoiceMaterial,
-  createClangorCageDetailMaterial
+  createClangorCageDetailMaterial,
+  createClangorTubeMaterial,
+  createClangorFloorMaterial
 } from '../../materials/codex/ClangorCageMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +59,71 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Chime tubes the cage can hang (the geometry is instanced once). */
+const MAX_TUBES = 16;
+/** Clang swells the pressure floor keeps at once. */
+const MAX_SWELLS = 6;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qy = new Quaternion();
+const _scale = new Vector3();
+const _axis = new Vector3();
+const _radial = new Vector3();
+const _tops = Array.from({ length: MAX_TUBES }, () => new Vector3());
+const _bx = new Vector3();
+const _by = new Vector3();
+const _bz = new Vector3();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/** A stable 0..1 die per tube from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/*
+ * Cast-local geometry. It lives here, not in the generated
+ * `ClangorCageGeometry.js`, which must stay byte-identical to its rig recipe
+ * (tests/pure-rigs.test.mjs).
+ */
+
+/**
+ * One chime tube, one unit tall along +Y, radius 0.5 (scaled to the tube's
+ * diameter): an open, slightly flared foot, a reinforcing band low down, the
+ * strike band near the top, and a heavy crown cap with a hanger boss. A
+ * lathe, so the sun runs a long highlight down its length like a real bell
+ * tube.
+ */
+export function createChimeTubeGeometry() {
+  const profile = [
+    [0.36, 0.0], [0.56, 0.0], [0.56, 0.03], [0.5, 0.05],
+    [0.5, 0.14], [0.58, 0.145], [0.58, 0.17], [0.5, 0.175],
+    [0.5, 0.76], [0.6, 0.765], [0.6, 0.8], [0.5, 0.805],
+    [0.5, 0.9], [0.66, 0.915], [0.68, 0.955], [0.5, 0.975],
+    [0.3, 0.99], [0.22, 1.0], [0.0, 1.0]
+  ].map(([r, y]) => new Vector2(r, y));
+  const g = new LatheGeometry(profile, 22);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A segment of the hoop the tubes hang from, one unit long along +X and
+ * centred: a square-ish iron bar (an 8-sided lathe) with a clamp collar at
+ * each end where it grips a tube.
+ */
+export function createHoopBeamGeometry() {
+  const profile = [
+    [0.0, 0.0], [0.62, 0.0], [0.62, 0.08], [0.5, 0.1],
+    [0.5, 0.9], [0.62, 0.92], [0.62, 1.0], [0.0, 1.0]
+  ].map(([r, y]) => new Vector2(r, y));
+  const g = new LatheGeometry(profile, 8);
+  g.translate(0, -0.5, 0);
+  g.rotateZ(-Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
+}
 
 /**
  * CLANGOR CAGE — sound, zone cast.
@@ -72,6 +150,33 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The bell cage (the hero, cast-local — sections 14 and 15 of the editor)
+ *
+ * The template layers (body sheet, voice, shared rig, pieces, lens) are
+ * turned down in the config: they read as the old green scribble panels. The
+ * spell is carried by its own forms:
+ *
+ *   - **the drop** — while the cast flies, a ring of `bellTubes` heavy
+ *     bell-bronze chime tubes (`createChimeTubeGeometry`, lit, `LAYER.SHAPED`,
+ *     shadows) hung from an iron hoop (`createHoopBeamGeometry`) falls out of
+ *     the sky over the circle as one cage, the tubes swinging on the hoop.
+ *   - **the slam** — on the beat the feet are driven into the floor at
+ *     `bellFit` × the circle: a scorch and dust under every foot, a dip, and
+ *     every tube starts to ring (it flexes in its first mode, lime hum).
+ *   - **the clangor** — through the linger a strike rolls round the ring,
+ *     tube after tube, `bellRounds` times: each struck tube's band goes
+ *     white-hot, it flexes hard, throws sparks, kicks dust inward and snaps a
+ *     step inward (`bellClose`), tops leaning in — the cage rings the circle
+ *     inward. Every clang is its own small hit (a tick of shake and light).
+ *   - **the pressure floor** (`createClangorFloorMaterial`) — a filled, dark
+ *     pan of struck air inside the cage, broad pressure waves rolling inward
+ *     to the centre, each clang throwing its own swell in from its foot.
+ *   - **the exit** — as the ring dies the cage is driven down into the floor
+ *     (`bellSink*`), dust off every foot; the pan frays out last.
+ *
+ * All of it is presentation: hits still land once, on the beat, inside the
+ * circle (`_strike`), exactly as before.
  *
  * Every metre, rate and colour is read from `settings.clangor` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +212,7 @@ export class ClangorCageAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildBells();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +257,41 @@ export class ClangorCageAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The bell cage's own meshes: instanced tubes and hoop, the pressure floor. */
+  _buildBells() {
+    this.tubeGeometry = createChimeTubeGeometry();
+    this.hoopGeometry = createHoopBeamGeometry();
+    this.tubeMaterial = createClangorTubeMaterial();
+    const make = (geometry) => {
+      const mesh = new InstancedMesh(geometry, this.tubeMaterial, MAX_TUBES);
+      const attr = new InstancedBufferAttribute(new Float32Array(MAX_TUBES * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aTube', attr);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.tubes = make(this.tubeGeometry);
+    this.hoop = make(this.hoopGeometry);
+    this.floorGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.floorMaterial = createClangorFloorMaterial();
+    this.floor = this._mesh(this.floorGeometry, this.floorMaterial, LAYER.VFX, 2);
+    this.floor.rotation.x = -Math.PI / 2;
+    this._bellSpin = 0;
+    this._clangsFired = 0;
+    this._bellClose = 0;
+    this._bellRadius = 1;
+    this._swellSlot = 0;
+    this._bellSink = 0;
+    this._sinkEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +372,17 @@ export class ClangorCageAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._clangsFired = 0;
+    this._bellClose = 0;
+    this._swellSlot = 0;
+    this._bellSink = 0;
+    this._sinkEmitter.reset();
+    const swells = this.floorMaterial.uniforms.uClang.value;
+    for (let i = 0; i < MAX_SWELLS; i++) swells[i].set(0, 0, 0, 0);
+    // Tube 0 faces the caster, so the clang starts on the near side.
+    this.pointAt(1, _end);
+    this._bellSpin = Math.atan2(this.origin.z - _end.z, this.origin.x - _end.x);
+    this._hideBells();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -294,6 +446,266 @@ export class ClangorCageAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._bells(committed, fadeT);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The bell cage                                                       */
+  /* ------------------------------------------------------------------ */
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  _tubeCount() {
+    return Math.max(3, Math.min(MAX_TUBES, Math.round(settings[ID].bellTubes)));
+  }
+
+  /** Seconds after the beat clang `k` (0-based, rolling round the ring) lands. */
+  _clangAt(k) {
+    const c = settings[ID];
+    const L = settings.global.lifetime;
+    return (c.bellRollStart + k * c.bellRollStep) * L;
+  }
+
+  _clangTotal() {
+    return this._tubeCount() * Math.max(1, Math.round(settings[ID].bellRounds));
+  }
+
+  /**
+   * Hang the cage for this frame: every dimension from settings, every moment
+   * from the travel (`u`) or the seconds since the beat.
+   */
+  _bells(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(1, _end);
+    const n = this._tubeCount();
+    const rounds = Math.max(1, Math.round(c.bellRounds));
+    const R = Math.max(0.3, c.zoneRadius * c.bellFit);
+    const H = Math.max(0.2, c.bellHeight);
+    const W = Math.max(0.02, c.bellWidth);
+    const step = Math.max(0.01, c.bellRollStep * L);
+    const snap = Math.max(0.02, c.bellSnap * L);
+    const decay = Math.max(0.1, c.bellRingDecay / L);
+    const cool = Math.max(0.1, c.bellCool / L);
+    const sinkStart = c.bellSinkStart * total;
+    const sink = since < 0 ? 0 : Easing.inQuad(saturate((since - sinkStart) / Math.max(0.05, total - sinkStart)));
+    this._bellRadius = R;
+    this._bellSink = sink;
+
+    const attr = this.tubeGeometry.getAttribute('aTube');
+    const hoopAttr = this.hoopGeometry.getAttribute('aTube');
+    let any = false;
+    let closeSum = 0;
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      // The whole cage falls as one over the last stretch of the flight.
+      const span = Math.max(0.05, c.bellDropSpan);
+      const p = committed ? 1 : saturate((this.u - (1 - span)) / span);
+      if (p <= 0 || sink >= 0.999) {
+        this.tubes.setMatrixAt(i, _zero);
+        attr.setXYZW(i, d, 0, 0, 0);
+        _tops[i].copy(_end);
+        continue;
+      }
+      any = true;
+      // How many times this tube has been struck, and how long ago.
+      let struck = 0;
+      let last = -1;
+      if (since >= 0) {
+        for (let r = 0; r < rounds; r++) {
+          const t = this._clangAt(r * n + i);
+          if (t > since) break;
+          struck++;
+          last = t;
+        }
+      }
+      const age = last < 0 ? 1e3 : since - last;
+      const stepIn = struck === 0 ? 0 : (struck - 1 + Easing.outBack(saturate(age / snap))) / rounds;
+      closeSum += stepIn;
+      const slamRing = since < 0 ? 0 : c.bellSlamRing * Math.exp(-since * decay);
+      const clangRing = last < 0 ? 0 : Math.exp(-age * decay);
+      const ring = Math.min(1.2, slamRing + clangRing) * (1 - sink);
+      const heat = Math.max(last < 0 ? 0 : Math.exp(-age * cool), since < 0 ? 0 : 0.6 * Math.exp(-since * cool * 1.5));
+      attr.setXYZW(i, d, ring, heat, sink);
+
+      const ang = this._bellSpin + (TAU * i) / n;
+      const rad = R * (1 - c.bellClose * stepIn);
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      const fall = c.bellDropHeight * (1 - p) * (1 - p);
+      const dip = since < 0 ? 0 : c.bellBounce * Math.sin(Math.min(1, since / 0.14) * Math.PI) * Math.exp(-since * 4);
+      _pos.copy(_end).addScaledVector(_radial, rad);
+      _pos.y = fall - dip - sink * c.bellSinkDepth * H;
+      // Swinging on the hoop as it falls; leaning in as it closes; a kick on each clang.
+      const sway = (1 - p) * c.bellSway * Math.sin(this.age * 7 + d * TAU);
+      const kick = clangRing * c.bellKick * Math.sin(age * 22);
+      _axis.set(-_radial.z, 0, _radial.x);
+      _q.setFromAxisAngle(_axis, c.bellLean * stepIn + sway + kick);
+      _qy.setFromAxisAngle(_up, -ang);
+      _q.multiply(_qy);
+      _scale.set(W, H, W);
+      _m4.compose(_pos, _q, _scale);
+      this.tubes.setMatrixAt(i, _m4);
+      _tops[i].copy(_up).applyQuaternion(_q).multiplyScalar(H * 0.97).add(_pos);
+    }
+    this._bellClose = n > 0 ? closeSum / n : 0;
+    this.tubes.count = n;
+    this.tubes.visible = any;
+    this.tubes.instanceMatrix.needsUpdate = true;
+    attr.needsUpdate = true;
+
+    // The hoop: an iron bar between neighbouring tube tops.
+    const T = c.bellHoop;
+    let beams = false;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      hoopAttr.setXYZW(i, dice(i + 31, this._seed), 0, 0, sink);
+      _bx.subVectors(_tops[j], _tops[i]);
+      const len = _bx.length();
+      if (!any || T < 0.01 || len < 0.05 || _tops[i].equals(_end) || _tops[j].equals(_end)) {
+        this.hoop.setMatrixAt(i, _zero);
+        continue;
+      }
+      beams = true;
+      _bx.divideScalar(len);
+      _bz.crossVectors(_bx, _up).normalize();
+      _by.crossVectors(_bz, _bx);
+      _m4.makeBasis(_bx, _by, _bz);
+      _m4.scale(_scale.set(len + W * 0.7, T, T));
+      _m4.setPosition(_pos.addVectors(_tops[i], _tops[j]).multiplyScalar(0.5));
+      this.hoop.setMatrixAt(i, _m4);
+    }
+    this.hoop.count = n;
+    this.hoop.visible = beams;
+    this.hoop.instanceMatrix.needsUpdate = true;
+    hoopAttr.needsUpdate = true;
+    this.tubeMaterial.userData.sync();
+
+    // The pressure floor inside the cage.
+    if (since >= 0 && c.floorOpacity > 0.01) {
+      const ring = R * (1 - c.bellClose * this._bellClose);
+      const open = Easing.outCubic(saturate(since / Math.max(0.05, c.floorGrow * L)));
+      const erode = saturate((since - c.floorErodeStart * total) / Math.max(0.05, total * (1 - c.floorErodeStart)));
+      const half = R + 1.2;
+      this.floor.visible = erode < 0.999;
+      this.floor.position.set(_end.x, 0.04, _end.z);
+      this.floor.scale.set(half * 2, half * 2, 1);
+      this.floorMaterial.userData.sync(half, ring, since, open, erode * 1.2);
+    } else this.floor.visible = false;
+  }
+
+  _hideBells() {
+    this.tubes.visible = false;
+    this.hoop.visible = false;
+    this.floor.visible = false;
+  }
+
+  /** Each clang is its own small hit: the struck tube throws sparks off its band, kicks dust inward, a tick of light and shake. */
+  _clang(k) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = this._tubeCount();
+    const i = k % n;
+    const power = g.explosionIntensity;
+    this.ctx.shake.add(c.clangShake * power * g.cameraShake, 5, 20);
+    this.lightBoost += c.clangLight * power;
+    this.pointAt(1, _end);
+    const ang = this._bellSpin + (TAU * i) / n;
+    const rad = this._bellRadius * (1 - c.bellClose * this._bellClose);
+    _radial.set(Math.cos(ang), 0, Math.sin(ang));
+    _pos.copy(_end).addScaledVector(_radial, rad);
+    _pos.y = c.bellHeight * c.tubeBandAt;
+    const sparks = Math.round(c.clangSparks * g.particleCount);
+    if (sparks > 0) {
+      _dir.copy(_radial).multiplyScalar(-1);
+      _dir.y = 0.35;
+      this._fillEmit(_pos, c.bellWidth * 0.5, _dir, c.streakSpeed * 1.1, 0.9, 0.06, c.streakLife, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const dust = Math.round(c.clangDust * g.particleCount);
+    if (dust > 0) {
+      _pos.y = 0.12;
+      _dir.copy(_radial).multiplyScalar(-1);
+      _dir.y = 0.15;
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed * 1.3, 0.35, 0.5, c.dustLife * 1.3, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+    // The clang's swell rolls in across the pressure floor.
+    const slot = this.floorMaterial.uniforms.uClang.value[this._swellSlot];
+    this._swellSlot = (this._swellSlot + 1) % MAX_SWELLS;
+    slot.set(_radial.x * rad, -_radial.z * rad, this._clangAt(k), 1);
+  }
+
+  /** The cage lands: scorch under every foot, chips and dust thrown out. */
+  _bellSlam() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = this._tubeCount();
+    this.pointAt(1, _end);
+    const R = Math.max(0.3, c.zoneRadius * c.bellFit);
+    const dust = Math.round(c.footDust * g.particleCount);
+    const chips = Math.round(c.footChips * g.particleCount * g.explosionIntensity);
+    for (let i = 0; i < n; i++) {
+      const ang = this._bellSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      _pos.copy(_end).addScaledVector(_radial, R);
+      _pos.y = 0;
+      if (c.footScorch > 0.01) {
+        this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+          radius: c.footScorch,
+          life: c.groundLife * g.lifetime,
+          width: 0.7,
+          intensity: 0.9,
+          colorA: getColor(c.colorGroundStain),
+          colorB: getColor(c.colorFloorBody),
+          height: 0.028
+        });
+      }
+      _pos.y = 0.1;
+      _dir.copy(_radial);
+      _dir.y = 0.25;
+      if (dust > 0) {
+        this._fillEmit(_pos, 0.25, _dir, c.dustSpeed * 1.2, 0.5, 0.55, c.dustLife * 1.3, 0.4);
+        this.dust.emit(dust, _emit);
+      }
+      if (chips > 0) {
+        _dir.y = 1.4;
+        this._fillEmit(_pos, 0.15, _dir, c.chipSpeed, 0.6, c.chipSize * 1.5, c.chipLife, 8);
+        this.chips.emit(chips, _emit);
+      }
+    }
+  }
+
+  /** Clang events through the linger, and dust off the feet as the cage is driven down. */
+  _bellTick(dt, since) {
+    const c = settings[ID];
+    const g = settings.global;
+    const total = this._clangTotal();
+    while (this._clangsFired < total && this._clangAt(this._clangsFired) <= since) {
+      this._clang(this._clangsFired);
+      this._clangsFired++;
+    }
+    if (this._bellSink > 0.001 && this._bellSink < 0.98) {
+      const k = Math.round(this._sinkEmitter.tick(dt, c.sinkDust) * g.particleCount);
+      const n = this._tubeCount();
+      const rad = this._bellRadius * (1 - c.bellClose * this._bellClose);
+      this.pointAt(1, _end);
+      for (let j = 0; j < k; j++) {
+        const ang = this._bellSpin + (TAU * Math.floor(Math.random() * n)) / n;
+        _radial.set(Math.cos(ang), 0, Math.sin(ang));
+        _pos.copy(_end).addScaledVector(_radial, rad).setY(0.1);
+        _dir.copy(_radial);
+        _dir.y = 0.5;
+        this._fillEmit(_pos, 0.25, _dir, c.dustSpeed * 0.7, 0.8, 0.45, c.dustLife * 1.2, 0.4);
+        this.dust.emit(1, _emit);
+      }
+    }
   }
 
   /**
@@ -360,10 +772,10 @@ export class ClangorCageAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -754,6 +1166,7 @@ export class ClangorCageAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._bellSlam();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -765,6 +1178,7 @@ export class ClangorCageAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._bellTick(dt, this._since(true, t));
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -788,9 +1202,15 @@ export class ClangorCageAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideBells();
   }
 
   dispose() {
+    this.tubeGeometry.dispose();
+    this.hoopGeometry.dispose();
+    this.tubeMaterial.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -971,6 +1391,60 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const bells = folder.addFolder('14 · The bell cage');
+  R(bells, c, 'bellTubes', 3, 16, 1, 'tubes');
+  R(bells, c, 'bellWidth', 0.05, 1.2, 0.01, 'tube width (m)');
+  R(bells, c, 'bellHeight', 0.5, 6, 0.05, 'tube height (m)');
+  R(bells, c, 'bellFit', 0.2, 1.4, 0.01, 'ring, × circle');
+  R(bells, c, 'bellHoop', 0, 0.8, 0.01, 'hoop bar (m)');
+  R(bells, c, 'bellDropHeight', 0, 14, 0.1, 'drop from (m)');
+  R(bells, c, 'bellDropSpan', 0.05, 1, 0.01, 'drop, share of travel');
+  R(bells, c, 'bellSway', 0, 0.8, 0.01, 'sway as it falls (rad)');
+  R(bells, c, 'bellBounce', 0, 1, 0.01, 'slam dip (m)');
+  R(bells, c, 'bellSlamRing', 0, 1.2, 0.01, 'ring on the slam');
+  R(bells, c, 'bellRounds', 1, 4, 1, 'clangs round the ring');
+  R(bells, c, 'bellRollStart', 0, 2, 0.01, 'first clang (s)');
+  R(bells, c, 'bellRollStep', 0.01, 0.4, 0.005, 'clang to clang (s)');
+  R(bells, c, 'bellSnap', 0.02, 0.6, 0.01, 'step-in snap (s)');
+  R(bells, c, 'bellClose', 0, 0.9, 0.01, 'rings in by, × ring');
+  R(bells, c, 'bellLean', 0, 0.8, 0.01, 'lean in (rad)');
+  R(bells, c, 'bellKick', 0, 0.4, 0.005, 'clang kick (rad)');
+  R(bells, c, 'bellRingDecay', 0.1, 10, 0.05, 'ring decay (/s)');
+  R(bells, c, 'bellCool', 0.1, 10, 0.05, 'band cools (/s)');
+  R(bells, c, 'bellSinkStart', 0, 1, 0.01, 'driven down from, share of life');
+  R(bells, c, 'bellSinkDepth', 0, 1.2, 0.01, 'driven down, × height');
+  R(bells, c, 'tubeFlex', 0, 0.6, 0.005, 'flex (m)');
+  R(bells, c, 'tubeRingRate', 1, 80, 0.5, 'flex rate (rad/s)');
+  R(bells, c, 'tubeBandAt', 0.1, 0.98, 0.01, 'strike band height');
+  R(bells, c, 'tubeBandGlow', 0, 8, 0.05, 'band glow');
+  R(bells, c, 'tubeRingGlow', 0, 4, 0.05, 'hum glow');
+  R(bells, c, 'tubeSpecular', 0, 4, 0.05, 'metal glint');
+  R(bells, c, 'tubeRimGlow', 0, 4, 0.05, 'rim');
+  bells.addColor(c, 'colorTubeDeep').name('bronze, deep');
+  bells.addColor(c, 'colorTubeBody').name('bronze, patina');
+  bells.addColor(c, 'colorTubeTint').name('bronze, worn');
+  bells.addColor(c, 'colorTubeGlow').name('hum');
+  bells.addColor(c, 'colorTubeHot').name('white-hot');
+  R(bells, c, 'clangShake', 0, 1, 0.01, 'clang punch');
+  R(bells, c, 'clangLight', 0, 20, 0.1, 'clang light');
+  R(bells, c, 'clangSparks', 0, 80, 1, 'clang sparks');
+  R(bells, c, 'clangDust', 0, 40, 1, 'clang dust');
+  R(bells, c, 'footScorch', 0, 2, 0.01, 'foot scorch (m)');
+  R(bells, c, 'footDust', 0, 30, 1, 'foot dust');
+  R(bells, c, 'footChips', 0, 30, 1, 'foot chips');
+  R(bells, c, 'sinkDust', 0, 200, 1, 'dust as driven / s');
+
+  const pan = folder.addFolder('15 · The pressure floor');
+  R(pan, c, 'floorOpacity', 0, 1, 0.01, 'opacity');
+  R(pan, c, 'floorGrow', 0.05, 2, 0.01, 'spreads in (s)');
+  R(pan, c, 'floorErodeStart', 0, 1, 0.01, 'frays from, share of life');
+  R(pan, c, 'floorWaveLength', 0.2, 4, 0.05, 'wave length (m)');
+  R(pan, c, 'floorWaveSpeed', 0, 6, 0.05, 'waves in (m/s)');
+  R(pan, c, 'floorSwell', 0, 3, 0.05, 'clang swell');
+  R(pan, c, 'floorGlow', 0, 4, 0.05, 'crest glow');
+  pan.addColor(c, 'colorFloorDeep').name('trough');
+  pan.addColor(c, 'colorFloorBody').name('crest');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

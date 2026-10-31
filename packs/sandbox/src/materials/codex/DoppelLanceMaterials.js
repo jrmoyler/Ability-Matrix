@@ -989,3 +989,241 @@ export function createDoppelLanceScarMaterial() {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The two lances — cast-local hero shaders                               */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The real lance: a lit drill of dark magenta crystal-steel. Sun-lit with a
+ * hard glint and a sky fill; the flute ridges (`aRidge`) carry a pink glow
+ * and a pink rim wraps the silhouette, over a near-black deep tone so it
+ * reads as a heavy solid on the floor. On the beat the cloak burns off from
+ * the tip back (`uReveal`) behind a white-hot front; on the exit it is eaten
+ * from the butt to the tip (`uDissolve`). Local +Y runs tip (0) to butt (1).
+ */
+const LANCE_VERTEX = /* glsl */ `
+  attribute float aRidge;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vRidge;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vLocal = position;
+    vRidge = aRidge;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const LANCE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uHot;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  uniform float uFluteGlow;
+  uniform float uHeatGlow;
+  uniform float uReveal;
+  uniform float uDissolve;
+  uniform float uHeat;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vRidge;
+
+  ${noiseGLSL}
+
+  void main() {
+    float h = vLocal.y;
+    float n = snoise01(vec3(vLocal.x * 18.0, h * 22.0, vLocal.z * 18.0));
+    // Revealed from the tip back.
+    float rev = uReveal * 1.2 - h - n * 0.12;
+    if (rev < 0.0) discard;
+    float front = 1.0 - smoothstep(0.0, 0.08, rev);
+    // Dissolved from the butt to the tip.
+    float dis = (1.0 - h) - uDissolve * 1.25 + n * 0.2;
+    if (dis < 0.0) discard;
+    float bite = 1.0 - smoothstep(0.0, 0.06, dis);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    vec3 albedo = mix(uDeep, uBody, 0.3 + 0.7 * vRidge * (0.7 + 0.3 * n));
+    vec3 color = albedo * (0.25 + 1.1 * ndl);
+    color += albedo * 0.3 * (0.5 + 0.5 * N.y);
+    color += vec3(0.92, 0.9, 1.0) * pow(max(dot(N, H), 0.0), 64.0) * uSpecular;
+    color += uTint * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow;
+    // The flute ridges glow pink, a slow pulse running down them.
+    float run = 0.6 + 0.4 * sin(h * 30.0 - uTime * 9.0);
+    // Magenta only on the very flute edges.
+    color += uTint * pow(vRidge, 14.0) * uFluteGlow * run * (0.4 + 0.6 * uHeat) * uGlobalGlow;
+    // The tip stays hot while it drills.
+    float tip = 1.0 - smoothstep(0.0, 0.25, h);
+    color += uTint * tip * tip * uHeat * 0.3 * uGlobalGlow;
+    color = mix(color, uHot * uHeatGlow * uGlobalGlow, max(front * step(uReveal, 0.999), bite) * 0.9);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createDoppelRealLanceMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uTint: { value: new Color() },
+      uHot: { value: new Color() },
+      uSpecular: { value: 1 },
+      uRimGlow: { value: 0.5 },
+      uFluteGlow: { value: 1 },
+      uHeatGlow: { value: 2 },
+      uReveal: { value: 1 },
+      uDissolve: { value: 0 },
+      uHeat: { value: 1 }
+    }),
+    vertexShader: LANCE_VERTEX,
+    fragmentShader: LANCE_FRAGMENT
+  });
+  material.userData.sync = (reveal, dissolve, heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorLanceDeep));
+    u.uBody.value.copy(getColor(c.colorLanceBody));
+    u.uTint.value.copy(getColor(c.colorLanceTint));
+    u.uHot.value.copy(getColor(c.colorLanceHot));
+    u.uSpecular.value = c.lanceSpecular;
+    u.uRimGlow.value = c.lanceRimGlow * g.fresnel;
+    u.uFluteGlow.value = c.lanceFluteGlow * g.shaderIntensity;
+    u.uHeatGlow.value = c.lanceHeat;
+    u.uReveal.value = reveal;
+    u.uDissolve.value = dissolve;
+    u.uHeat.value = heat;
+  };
+  return material;
+}
+
+/**
+ * The glamour: the decoy lance, the real lance while it is still unseen, and
+ * the panes the decoy shatters into. A dark plum body with a hot pink edge,
+ * sliced into scanline bands that slide and stutter sideways, so it reads as
+ * an image, not an object. Per instance `aGhost` = (seed, mode: 0 decoy /
+ * 1 cloak (rim only), alpha, flicker). Normal blending over the floor.
+ */
+const GHOST_VERTEX = /* glsl */ `
+  attribute vec4 aGhost;
+  uniform float uTime;
+  uniform float uStutter;
+  uniform float uScan;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vGhost;
+  void main() {
+    vec3 p = position;
+    // Slices along the length jitter sideways, as a bad image does.
+    float band = floor(p.y * uScan);
+    float j = fract(sin(band * 91.7 + floor(uTime * 14.0) * 13.1 + aGhost.x * 7.0) * 43758.5);
+    p.x += (j - 0.5) * uStutter * step(0.6, j) * (1.0 - aGhost.y);
+    vec4 world = modelMatrix * instanceMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix * instanceMatrix) * normal);
+    vLocal = position;
+    vGhost = aGhost;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const GHOST_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uBody;
+  uniform vec3  uEdge;
+  uniform vec3  uDeep;
+  uniform float uScan;
+  uniform float uGlow;
+  uniform float uOpacity;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vGhost;
+  void main() {
+    if (vGhost.z <= 0.002) discard;
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+    float rim = pow(1.0 - ndv, 2.2);
+    float ndl = max(dot(N, normalize(uLightDir)), 0.0);
+    // Scanline bands that crawl along the length; some drop out.
+    float s = fract(vLocal.y * uScan - uTime * 3.0 + vGhost.x);
+    float gap = step(0.78, s);
+    float flick = 0.75 + 0.25 * sin(uTime * 41.0 + vGhost.x * 9.0);
+    if (vGhost.y > 0.5) {
+      // Cloaked: only the rim of the real thing shows, like heat haze.
+      float a = rim * vGhost.z * flick;
+      if (a < 0.03) discard;
+      gl_FragColor = vec4(mix(uDeep, uEdge, rim) * uGlow * uGlobalGlow, a);
+      return;
+    }
+    vec3 col = mix(uDeep, uBody, 0.35 + 0.65 * ndl);
+    col += uEdge * rim * uGlow * uGlobalGlow;
+    col += uEdge * (1.0 - s) * 0.25 * uGlow;
+    float a = (uOpacity * (1.0 - gap * 0.85) * (0.55 + 0.45 * rim)) * vGhost.z * mix(1.0, flick, vGhost.w);
+    gl_FragColor = vec4(col, a);
+  }
+`;
+
+export function createDoppelGhostMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: DoubleSide,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uBody: { value: new Color() },
+      uEdge: { value: new Color() },
+      uDeep: { value: new Color() },
+      uScan: { value: 20 },
+      uStutter: { value: 0.03 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 0.8 }
+    }),
+    vertexShader: GHOST_VERTEX,
+    fragmentShader: GHOST_FRAGMENT
+  });
+  material.userData.sync = (scan, stutter) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uBody.value.copy(getColor(c.colorDecoyBody));
+    u.uEdge.value.copy(getColor(c.colorDecoyEdge));
+    u.uDeep.value.copy(getColor(c.colorLanceDeep));
+    u.uScan.value = scan;
+    u.uStutter.value = stutter;
+    u.uGlow.value = c.decoyGlow * g.glow;
+    u.uOpacity.value = c.decoyOpacity * g.opacity;
+  };
+  return material;
+}

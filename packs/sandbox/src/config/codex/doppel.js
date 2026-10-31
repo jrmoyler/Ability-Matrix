@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template's pink fan (off: the two lances carry the read)
     edgeGlow: 2.04,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f25fb5',
     colorB: '#ffffff',
     colorC: '#5c0a3a',
-    lensWarp: 1.19, // strength of the distortion it writes
+    lensWarp: 0, // strength of the distortion it writes (off: the fan it warps is gone)
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the decoy is the second placement now)
     colorVoiceA: '#f25fb5',
     colorVoiceB: '#ffffff',
 
@@ -73,17 +73,17 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template field (off: it drew the old pink fan)
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.25, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
     groundStainReach: 0.9, // residue radius, × the circle (zone) or × the ground width (line)
-    colorGroundA: '#f25fb5',
-    colorGroundB: '#5c0a3a',
+    colorGroundA: '#c2347f',
+    colorGroundB: '#26041a',
     colorGroundStain: '#3a1a34', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the decoy's shards are the pieces)
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local lance is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -115,7 +115,7 @@ export default {
     colorHeroC: '#5c0a3a',
 
     /* --- 6 · shed --- */
-    dustRate: 32, // puffs per second
+    dustRate: 8, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -124,7 +124,7 @@ export default {
     colorDustB: '#f25fb5',
     colorDustC: '#5c0a3a',
     colorDustD: '#1a140e',
-    streakRate: 99, // sparks per second
+    streakRate: 30, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -133,7 +133,7 @@ export default {
     colorStreakB: '#ffd0ea',
     colorStreakC: '#f25fb5',
     colorStreakD: '#f25fb5',
-    chipRate: 10.8, // fragments per second
+    chipRate: 3, // fragments per second
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
@@ -143,7 +143,7 @@ export default {
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
-    moteRate: 26, // motes per second off the pieces
+    moteRate: 0, // motes per second off the pieces (none: the pieces are off)
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
@@ -154,11 +154,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.33, // camera punch on the beat
-    impactFlash: 0.18, // screen flash on the beat
+    impactFlash: 0.06, // screen flash on the beat
     colorFlash: '#ffd0ea',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 3, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -166,7 +166,7 @@ export default {
     colorBurstC: '#5c0a3a',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f25fb5',
     colorShockB: '#ffffff',
 
@@ -198,19 +198,69 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.42, // ribbon width at the head, metres
     trailLife: 1.6, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon (off: the lances are the travel)
     trailGlow: 1.21, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
-    scarWidth: 0.9, // width of the scar on the floor, metres
+    scarWidth: 0.7, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
     scarOpacity: 0.7, // strength of the scar
-    scarGlow: 1.76, // brightness of its hot seam
-    colorScarA: '#f25fb5',
-    colorScarB: '#5c0a3a',
+    scarGlow: 1.2, // brightness of its hot seam
+    colorScarA: '#b02a6e',
+    colorScarB: '#240414',
     wakeSpacing: 1.6, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.9, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.2 // fragments thrown at each wake
+    wakeChips: 1.2, // fragments thrown at each wake
+
+    /* --- 15 · the real lance (cast-local hero) --- */
+    lanceLength: 4.6, // length of the lance, metres
+    lanceGirth: 1.15, // thickness of the drill, × authored
+    lanceHeight: 1.35, // height it flies at, metres
+    lanceFlightPitch: 0.4, // radians the flying lances dip their tips
+    lanceFlightYaw: 0.8, // radians the flying lances lean across the line, crabbed (decoy one way, real the other), so their length reads from behind
+    lanceTwist: 2.5, // turns of the drill flutes along the blade
+    lanceSpin: 26, // radians/second it drills about its length in flight
+    lanceCloak: 0.45, // how much of the real lance shows while it is unseen (rim only)
+    lanceReveal: 0.14, // seconds the cloak takes to burn off on the beat, × global lifetime
+    lancePlantPitch: 0.95, // radians from level it is slammed in at
+    lancePlantLean: 0.8, // 0 leaning back toward the caster .. 1 leaning out to the side (so its length reads from behind)
+    lanceSlam: 0.16, // seconds the slam down takes, × global lifetime
+    lancePlantDepth: 0.55, // metres the tip is buried on the slam
+    lanceDrill: 0.7, // metres it drills down through the linger
+    lanceDrillSpin: 14, // radians/second it drills at once planted (dies away)
+    lanceDrillDecay: 1.4, // how fast the drilling slows, per second
+    lanceExitAt: 0.62, // it dissolves from this share of the life after the beat
+    lanceSpecular: 1.1, // sun glint on the lance
+    lanceRimGlow: 0.12, // pink rim light
+    lanceFluteGlow: 0.9, // glow along the flute ridges
+    lanceHeat: 2.4, // white-hot burn front of the reveal
+    colorLanceDeep: '#060208', // lance, deep
+    colorLanceBody: '#231020', // lance body
+    colorLanceTint: '#e0408e', // ridge / rim
+    colorLanceHot: '#fff0f8', // white-hot
+    plantCrack: 1.6, // radius of the cracked floor where it is driven in, metres
+    plantChips: 24, // chips thrown when it is driven in
+    plantDust: 14, // dust puffs when it is driven in
+    plantShake: 0.3, // camera punch of the slam
+    plantLight: 8, // light punch of the slam
+    drillChips: 30, // chips per second sprayed while it drills
+    drillSparks: 40, // sparks per second off the flutes while it drills
+    exitMotes: 160, // glamour motes per second as it dissolves
+
+    /* --- 16 · the decoy --- */
+    decoyLate: 0.3, // how far the decoy lags the real cut (0 = level)
+    decoyOpacity: 0.8, // how solid the decoy looks
+    decoyScan: 26, // scanline bands along the decoy
+    decoyStutter: 0.08, // metres the decoy's slices jitter
+    decoyGlow: 0.85, // its pink edge
+    shardCount: 22, // panes it shatters into (max 32)
+    shardSize: 0.85, // pane size, metres
+    shardSpeed: 4.2, // metres/second they burst out at
+    shardLift: 3.2, // metres/second they are thrown up
+    shardSpin: 9, // radians/second they tumble
+    shardLife: 1.5, // seconds a pane lingers before it winks out, × global lifetime
+    colorDecoyBody: '#2a0620', // decoy, body
+    colorDecoyEdge: '#ff6cb8' // decoy, edge
   }
 };
