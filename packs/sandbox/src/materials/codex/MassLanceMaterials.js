@@ -1085,13 +1085,23 @@ const LANCE_FRAGMENT_PARS = /* glsl */ `
 `;
 const LANCE_COLOR = /* glsl */ `
   {
+    // Lance layout (unit length along z, tail -0.5 .. point +0.5): pommel
+    // -0.5..-0.42, grip -0.41..-0.32, vamplate -0.315..-0.23, fluted shaft
+    // -0.23..0.2, socket 0.2..0.26, leaf head 0.26..0.5.
     float z = vLanceLocal.z;
     float grain = snoise(vLanceLocal * vec3(3.0, 3.0, 14.0)) * 0.5 + 0.5;
     diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.35 + 0.5 * grain);
-    // Seams: the collar step, the band, and hairline rings between.
-    float seam = 1.0 - smoothstep(0.0, 0.012, abs(z + 0.38));
-    seam = max(seam, 1.0 - smoothstep(0.0, 0.015, abs(z - 0.13)));
-    seam = max(seam, (1.0 - smoothstep(0.0, 0.006, abs(fract(z * 9.0) - 0.5))) * 0.35 * step(-0.34, z) * step(z, 0.3));
+    // The head is bright forged steel-lead, the shaft dark, the grip darker.
+    float head = smoothstep(0.255, 0.27, z);
+    diffuseColor.rgb = mix(diffuseColor.rgb, mix(uColorDeep, uColorBody, 0.8 + 0.2 * grain), head * 0.8);
+    float grip = step(-0.41, z) * step(z, -0.32);
+    diffuseColor.rgb *= 1.0 - 0.45 * grip;
+    // Seams: pommel equator, vamplate rim, the socket bands, a wrap on the grip.
+    float seam = 1.0 - smoothstep(0.0, 0.006, abs(z + 0.455));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.008, abs(z + 0.25)));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.006, abs(z - 0.205)));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.006, abs(z - 0.25)));
+    seam = max(seam, (1.0 - smoothstep(0.0, 0.08, abs(fract(z * 60.0) - 0.5))) * 0.5 * grip);
     gLanceSeam = seam;
     diffuseColor.rgb *= 1.0 - 0.6 * seam;
   }
@@ -1099,12 +1109,19 @@ const LANCE_COLOR = /* glsl */ `
 const LANCE_EMISSIVE = /* glsl */ `
   {
     float z = vLanceLocal.z;
-    // A pulse of weight running tail to nose.
+    // A pulse of weight running pommel to point.
     float pulse = exp(-pow((z + 0.5 - fract(uPulse) * 1.2) * 7.0, 2.0));
     vec3 seamCol = mix(uColorSeam, uColorCore, pulse);
     totalEmissiveRadiance += seamCol * gLanceSeam * uSeamGlow * uHeat * (0.6 + 1.6 * pulse);
-    float nose = smoothstep(0.3, 0.5, z);
-    totalEmissiveRadiance += mix(uColorSeam, uColorCore, nose) * nose * nose * uNoseGlow * uHeat;
+    // A hairline copper flute line down the shaft, carrying the pulse.
+    float shaft = step(-0.23, z) * step(z, 0.2);
+    totalEmissiveRadiance += uColorSeam * shaft * pulse * 0.25 * uSeamGlow * uHeat;
+    // The leaf head: hot cutting edges and point, a dark midrib.
+    float head = smoothstep(0.255, 0.27, z);
+    float edge = smoothstep(0.42, 0.78, abs(vLanceLocal.y)) * head;
+    float point = smoothstep(0.38, 0.5, z);
+    float hot = max(edge, point * point);
+    totalEmissiveRadiance += mix(uColorSeam, uColorCore, hot * hot * 0.4) * hot * uNoseGlow * uHeat;
     vec3 nV = normalize(normal);
     float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
     totalEmissiveRadiance += uColorSeam * rim * uRimGlow;

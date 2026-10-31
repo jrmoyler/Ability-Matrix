@@ -10,20 +10,69 @@ import { BufferAttribute, BufferGeometry, LatheGeometry, Vector2 } from 'three';
 /* ------------------------------------------------------------------ */
 
 /**
- * The lance: a forged eight-sided spindle, unit radius at its widest and unit
- * length along +Z (tail at z = -0.5, nose at +0.5). A heavy collar at the tail,
- * a raised band a third of the way from the nose, a long taper to a blunt
- * point. Scaled per frame to `lanceRadius` × `lanceLength`.
+ * The lance: a jousting lance, unit length along +Z (pommel at z = -0.5,
+ * point at +0.5), cross-sections in units of the vamplate radius (1).
+ *   - a counterweight pommel: an oblate ball, radius 0.5, at the tail;
+ *   - a short wrapped grip;
+ *   - a vamplate: a guard disc flaring forward to radius 1;
+ *   - a long slender fluted shaft tapering from 0.3 to 0.16;
+ *   - a socket collar and a leaf-shaped head, 0.8 wide (wider than the shaft
+ *     five times over), a flat lozenge blade wide along local Y and thin along
+ *     local X with a raised midrib, tapering to a point.
+ * Scaled per frame to `lanceRadius` × `lanceLength`. One non-indexed mesh.
  */
 export function createMassLanceLanceGeometry() {
-  const profile = [
-    [0.001, -0.5], [0.55, -0.5], [0.82, -0.47], [0.86, -0.4], [0.62, -0.36], [0.7, -0.24],
-    [0.9, -0.05], [0.96, 0.08], [1.0, 0.1], [1.0, 0.16], [0.86, 0.19], [0.78, 0.28],
-    [0.5, 0.4], [0.2, 0.48], [0.001, 0.5]
+  const body = [
+    [0.001, -0.5], [0.3, -0.496], [0.46, -0.478], [0.5, -0.456], [0.46, -0.436], [0.3, -0.422],
+    [0.16, -0.414], [0.19, -0.405], [0.19, -0.33], [0.24, -0.322],
+    [0.27, -0.315], [0.55, -0.292], [0.92, -0.258], [1.0, -0.249], [0.97, -0.24], [0.32, -0.232],
+    [0.3, -0.226], [0.26, -0.05], [0.21, 0.1], [0.16, 0.195],
+    [0.21, 0.2], [0.21, 0.25], [0.14, 0.258], [0.001, 0.26]
   ].map(([r, z]) => new Vector2(r, z));
-  const geometry = new LatheGeometry(profile, 8);
-  geometry.rotateX(Math.PI / 2); // lathe axis +Y → +Z, nose forward
-  geometry.computeVertexNormals();
+  const shaft = new LatheGeometry(body, 16);
+  // Flutes: eight shallow grooves down the shaft only.
+  const sp = shaft.attributes.position;
+  for (let i = 0; i < sp.count; i++) {
+    const y = sp.getY(i);
+    if (y < -0.226 || y > 0.195) continue;
+    const x = sp.getX(i);
+    const z = sp.getZ(i);
+    const a = Math.atan2(z, x);
+    const k = 1 - 0.14 * (0.5 + 0.5 * Math.cos(a * 8));
+    sp.setXYZ(i, x * k, y, z * k);
+  }
+  shaft.rotateX(Math.PI / 2); // lathe axis +Y → +Z, point forward
+
+  const leaf = [
+    [0.001, 0.252], [0.16, 0.256], [0.46, 0.285], [0.72, 0.322], [0.8, 0.345], [0.72, 0.38],
+    [0.46, 0.425], [0.2, 0.47], [0.001, 0.5]
+  ].map(([r, z]) => new Vector2(r, z));
+  // Four segments: vertices on ±X (the midrib) and ±Y (the edges) once turned.
+  const head = new LatheGeometry(leaf, 4);
+  head.rotateX(Math.PI / 2);
+  const hp = head.attributes.position;
+  for (let i = 0; i < hp.count; i++) hp.setX(i, hp.getX(i) * 0.22); // flatten to a blade
+  const merged = concatNonIndexed([shaft, head]);
+  shaft.dispose();
+  head.dispose();
+  merged.computeVertexNormals();
+  return merged;
+}
+
+/** Positions only, non-indexed, concatenated (flat shading derives normals). */
+function concatNonIndexed(list) {
+  const parts = list.map((g) => (g.index ? g.toNonIndexed() : g));
+  let total = 0;
+  for (const g of parts) total += g.attributes.position.count;
+  const out = new Float32Array(total * 3);
+  let o = 0;
+  for (const g of parts) {
+    out.set(g.attributes.position.array, o);
+    o += g.attributes.position.count * 3;
+  }
+  for (let i = 0; i < parts.length; i++) if (parts[i] !== list[i]) parts[i].dispose();
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(out, 3));
   return geometry;
 }
 

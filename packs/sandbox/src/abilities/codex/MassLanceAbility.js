@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
+import { Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -57,6 +57,10 @@ const _up = new Vector3(0, 1, 0);
 const _zAxis = new Vector3(0, 0, 1);
 const _axis = new Vector3();
 const _tip = new Vector3();
+const _butt = new Vector3();
+const _bx = new Vector3();
+const _by = new Vector3();
+const _basis = new Matrix4();
 const _quat = new Quaternion();
 const _roll = new Quaternion();
 
@@ -245,6 +249,38 @@ export class MassLanceAbility extends Ability {
   }
 
   /**
+   * The lance in flight at lob progress `u` (0..1) with the line's head at
+   * `front`: writes the pommel to `_butt`, the pommel→point direction to
+   * `_axis`, and returns how far down the line the pommel is. Its middle sits
+   * on the line while it flies side-on; as the counterweight swings down the
+   * pivot moves to the pommel, so it lands on the line, in the trench.
+   */
+  _flightPose(u, front) {
+    const c = settings[ID];
+    const L = Math.max(0.2, c.lanceLength);
+    const lobSlope = Math.atan((c.lanceLob * Math.PI) / Math.max(1, this.length)) * c.lanceLobTilt;
+    const turn = Easing.inOutQuad(saturate((u - c.lanceTurnAt) / Math.max(0.05, 1 - c.lanceTurnAt)));
+    const yaw = c.lanceYaw + (c.lancePlantYaw - c.lanceYaw) * turn;
+    const flightElev = -c.lancePitch + lobSlope * Math.cos(Math.PI * u);
+    const elev = flightElev + (c.lanceStab - flightElev) * turn;
+    const ce = Math.cos(elev);
+    _axis.copy(this.direction).multiplyScalar(Math.cos(yaw) * ce).addScaledVector(this.side, Math.sin(yaw) * ce);
+    _axis.y = Math.sin(elev);
+    _axis.normalize();
+    const minAlong = c.handForward + 1 + 0.5 * L * Math.abs(Math.cos(yaw) * ce);
+    const midAlong = Math.max(front + c.lanceLead, minAlong);
+    const pivot = 0.5 * (1 - turn); // share of the length from the pommel that sits on the line
+    let midY = c.lanceHover + c.lanceLob * Math.sin(Math.PI * u);
+    midY = Math.max(midY, Math.max(0, _axis.y) * L * 0.5 + 0.08);
+    // Middle on the line, then slid sideways so the pivot point is on it.
+    const lateral = (0.5 - pivot) * L * _axis.dot(this.side);
+    _butt.copy(this.origin).addScaledVector(this.direction, midAlong).addScaledVector(this.side, lateral);
+    _butt.y = midY;
+    _butt.addScaledVector(_axis, -L * 0.5);
+    return midAlong - L * 0.5 * _axis.dot(this.direction);
+  }
+
+  /**
    * Ride, drive in, sink. `committed` false is the travel; `fadeT` the 0..2
    * clock after the beat. Every length is read from settings each frame.
    */
@@ -253,54 +289,48 @@ export class MassLanceAbility extends Ability {
     const g = settings.global;
     const L = Math.max(0.2, c.lanceLength);
     const rad = Math.max(0.02, c.lanceRadius);
-    // The lob: the lance rides a shallow arc down the line, its pitch following
-    // the arc's tangent (nose up as it leaves, dipping as it comes down), so its
-    // length shows from behind the caster.
-    const lobSlope = Math.atan((c.lanceLob * Math.PI) / Math.max(1, this.length)) * c.lanceLobTilt;
-    const endPitch = c.lancePitch + lobSlope;
-    const travelTipY = c.lanceHover - Math.sin(endPitch) * L * 0.5;
-    // How far down the line the nose is: never closer than a lance-length past the fist.
-    const minAlong = c.handForward + L * 0.9;
-    let along;
-    let pitch;
-    let tipY;
     let heat;
     let drive = 0;
     let since = 0;
     let gone = 0;
+    let buttAlong;
     if (!committed) {
-      along = Math.max(this.front + c.lanceLead, minAlong);
-      const lu = this.u;
-      pitch = c.lancePitch - lobSlope * Math.cos(Math.PI * lu);
-      tipY = c.lanceHover + c.lanceLob * Math.sin(Math.PI * lu) - Math.sin(pitch) * L * 0.5;
+      // Flight: side-on across the line on a visible lob, then the counterweight
+      // swings down so it lands pommel-first.
+      buttAlong = this._flightPose(this.u, this.front);
       heat = 1;
       this._roll += c.lanceRoll * dt * g.animationSpeed;
     } else {
+      // Plant: from the pose it arrived in, the pommel drives into the floor
+      // and the lance stands at a steep diagonal, head up, sinking.
       since = this._since(fadeT);
       drive = Easing.outCubic(saturate(since / Math.max(0.02, c.lanceDriveTime * g.lifetime)));
-      along = Math.max(this.length + c.lanceLead, minAlong) + c.lanceSlide * drive;
-      pitch = endPitch + (c.lanceStab - endPitch) * drive;
+      buttAlong = this._flightPose(1, this.length) + c.lanceSlide * drive;
       const sinkT = Easing.inOutQuad(saturate((fadeT - 0.2) / 1.8));
-      tipY = travelTipY + (-c.lanceBury - travelTipY) * drive - c.lanceSink * sinkT;
+      _butt.addScaledVector(this.direction, c.lanceSlide * drive);
+      _butt.y += (-c.lanceBury - _butt.y) * drive - c.lanceSink * sinkT;
       heat = 1 - 0.7 * saturate((fadeT - 0.5) / 1.5);
       gone = Easing.inQuad(saturate((fadeT - c.trenchCloseAt) / Math.max(0.05, 2 - c.trenchCloseAt)));
       this._roll += c.lanceRoll * (1 - drive) * dt * g.animationSpeed;
     }
-    // The lance: placed from its nose, pitched down the line, rolled about its own axis.
-    _tip.copy(this.origin).addScaledVector(this.direction, along);
-    _tip.y = tipY;
-    _axis.copy(this.direction).multiplyScalar(Math.cos(pitch));
-    _axis.y = -Math.sin(pitch);
-    _axis.normalize();
+    // The lance: placed from its pommel along `_axis`, blade face kept to the sky
+    // side so its leaf head shows from behind the caster.
     const appear = Easing.outCubic(saturate(this.age / 0.12));
-    this.lance.visible = c.lanceOpacity > 0.01 && _tip.y + _axis.y * -L > -0.05;
-    this.lance.position.copy(_tip).addScaledVector(_axis, -L * 0.5 * appear);
-    _quat.setFromUnitVectors(_zAxis, _axis);
+    _tip.copy(_butt).addScaledVector(_axis, L);
+    this.lance.visible = c.lanceOpacity > 0.01 && _tip.y > -0.05;
+    this.lance.position.copy(_butt).addScaledVector(_axis, L * 0.5);
+    _by.copy(_up).addScaledVector(_axis, -_axis.y);
+    if (_by.lengthSq() < 1e-4) _by.copy(this.side);
+    _by.normalize();
+    _bx.crossVectors(_by, _axis).normalize();
+    _basis.makeBasis(_bx, _by, _axis);
+    _quat.setFromRotationMatrix(_basis);
     _roll.setFromAxisAngle(_zAxis, this._roll);
     this.lance.quaternion.copy(_quat).multiply(_roll);
     this.lance.scale.set(rad * appear, rad * appear, L * appear);
     this.lance.castShadow = c.lanceShadow > 0.5;
     this.lanceMaterial.userData.sync(heat, this.age * c.lancePulseRate);
+    const along = buttAlong;
     // The trench: from `trenchStart` to just behind the nose.
     const start = Math.max(0, c.trenchStart);
     const end = along - L * c.trenchLag;
@@ -1244,20 +1274,23 @@ export function buildEditor(gui, c, Editor) {
 
   const lance = folder.addFolder('15 · The lance');
   R(lance, c, 'lanceLength', 0.5, 10, 0.05, 'length (m)');
-  R(lance, c, 'lanceRadius', 0.05, 2, 0.01, 'radius (m)');
+  R(lance, c, 'lanceRadius', 0.05, 2, 0.01, 'vamplate radius (m)');
   R(lance, c, 'lanceHover', 0, 4, 0.01, 'rides at (m)');
-  R(lance, c, 'lancePitch', -0.5, 0.8, 0.01, 'nose down (rad)');
-  R(lance, c, 'lanceLead', -3, 3, 0.01, 'nose ahead of the head (m)');
+  R(lance, c, 'lancePitch', -0.5, 0.8, 0.01, 'head down in flight (rad)');
+  R(lance, c, 'lanceLead', -3, 3, 0.01, 'middle ahead of the head (m)');
   R(lance, c, 'lanceRoll', -10, 10, 0.05, 'roll (rad/s)');
   R(lance, c, 'lanceLob', 0, 6, 0.05, 'lob height (m)');
   R(lance, c, 'lanceLobTilt', 0, 2, 0.01, 'pitch follows the lob');
+  R(lance, c, 'lanceYaw', 0, 1.57, 0.01, 'side-on in flight (rad)');
+  R(lance, c, 'lancePlantYaw', 0, 1.57, 0.01, 'planted lean across the line (rad)');
+  R(lance, c, 'lanceTurnAt', 0, 0.95, 0.01, 'counterweight swings down from');
   R(lance, c, 'lanceDriveTime', 0.02, 1, 0.01, 'drives in over (s)');
-  R(lance, c, 'lanceStab', 0, 1.5, 0.01, 'stab angle (rad)');
-  R(lance, c, 'lanceBury', 0, 3, 0.01, 'nose buried (m)');
+  R(lance, c, 'lanceStab', 0, 1.5, 0.01, 'planted lean, head up (rad)');
+  R(lance, c, 'lanceBury', 0, 3, 0.01, 'pommel buried (m)');
   R(lance, c, 'lanceSlide', 0, 3, 0.01, 'slides on (m)');
   R(lance, c, 'lanceSink', 0, 4, 0.01, 'sinks over the linger (m)');
   R(lance, c, 'lanceSeamGlow', 0, 8, 0.05, 'seam glow');
-  R(lance, c, 'lanceNoseGlow', 0, 8, 0.05, 'nose glow');
+  R(lance, c, 'lanceNoseGlow', 0, 8, 0.05, 'head edge glow');
   R(lance, c, 'lanceRimGlow', 0, 4, 0.05, 'limb glow');
   R(lance, c, 'lancePulseRate', 0, 4, 0.01, 'weight pulses / s');
   R(lance, c, 'lanceRough', 0, 1, 0.01, 'roughness');

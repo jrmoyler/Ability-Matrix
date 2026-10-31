@@ -2,30 +2,32 @@
 Gravity · line · range 18 m · ~2.8 s on screen (travel ≈ 0.45 s at 21.6 m/s, impact 1.15 s, fade 1.25 s)
 
 ## Read in one line
-A 4.2 m forged lance of near-black lead rides down the line nose-first and drags a torn trench open behind it. At the end it stabs into the floor and keeps sinking under its own weight.
+A 4.8 m jousting lance of near-black lead, with a fluted shaft, guard disc, counterweight pommel and a hot leaf head, is lobbed side-on down the line. Its heavy pommel swings down, it plants butt-first at the end of the trench it tore open, and it stands at a steep diagonal, head up, sinking under its own weight.
 
 ## Beats
 | t (s) | Beat | On screen |
 |---|---|---|
-| 0.00–0.12 | Anticipation | The lance swells out at the fist, tail first. Earth flare at the hand. |
-| 0.00–0.45 | Travel | The lance (radius 0.5 m, eight-sided) flies a shallow lob (1.5 m extra height at mid-flight) 0.6 m ahead of the head, rolling slowly. Its pitch follows the arc: nose up as it leaves the hand, dipping as it comes down, so its length shows from behind the caster. Copper seams pulse from tail to nose, and the nose is hot. Behind it the trench opens from 2.2 m out: two ragged stone lips 0.2 m tall, 1.7 m apart, with a copper seam down the bed that is hottest under the lance and cools over 4.5 m. Bodies are hit as the head passes. |
-| 0.45 | Impact | The lance drives nose-down into the floor in 0.14 s (stab 0.8 rad, nose 0.55 m under), sliding 0.6 m on. A crush ring of stone 1.35 m in radius heaves up with hot inner cracks, a filled crush field 2.6 m across opens, and there is shake and flash. The white crack and dust-ring decals are off (`shockRadius` and `aftershockRadius` are 0). |
-| 0.5 → 2.3 | Linger | The lance stands at about 45° with its tail 2+ m up and keeps sinking (0.9 m over the linger) while its seams cool. Pulses run along the trench bed toward it, the lips slump to 60 %, dust slides down the trench walls, and the crush field's striations are dragged inward to a dark heart. |
-| clock 1.72 → 2.0 | Exit | The trench lips and the crush ring sink into the floor, and the lance is mostly buried. |
+| 0.00–0.12 | Anticipation | The lance swells out ahead of the fist. Earth flare at the hand. |
+| 0.00–0.45 | Travel | The lance flies a visible lob (1.6 m extra height at mid-flight). It is turned 1.2 rad across the line (`lanceYaw`), so from behind the caster its full length shows side-on: pommel, grip, guard disc, slender fluted shaft and a leaf head about five times as wide as the shaft. The blade's flat face stays toward the camera (no roll by default). From 55 % of the flight (`lanceTurnAt`) the counterweight swings down: the lance turns to a head-up lean, and its pivot slides from its middle to the pommel so it comes down on the line. Behind it the trench opens from 2.2 m out: ragged stone lips with a copper seam down the bed, hottest under the lance. Bodies are hit as the head of the line passes (unchanged). |
+| 0.45 | Impact | The pommel drives into the trench end in 0.14 s (0.45 m under, 0.4 m slide on). A crush ring 1.35 m across heaves up round the butt, a filled crush field opens, and there is shake and flash. |
+| 0.5 → 2.3 | Linger | The lance stands at 0.92 rad (about 53°) from the floor, its lean turned 0.95 rad across the line so the diagonal reads on screen. The head and its glowing edges stand high above the trench. It sinks 0.75 m over the linger while its seams cool, pulses run along the trench toward it, the lips slump, and dust slides into the trench. |
+| clock 1.72 → 2.0 | Exit | The trench lips and the crush ring sink into the floor. |
 
 ## Layers
-1. Lance: `MassLanceSignatureGeometry.createMassLanceLanceGeometry` (lathe spindle with collar and band) and `createMassLanceLanceMaterial` (patched MeshStandard, flat-shaded lead, emissive seams, pulse and nose). It is on LAYER.WORLD and casts shadows.
-2. Trench: `createMassLanceTrenchGeometry` (real lofted geometry with ragged lips, scaled to the distance covered) and `createMassLanceTrenchMaterial` (stone with a bed seam that cools with metres back and pulses).
-3. Crush ring: `createMassLanceCollarGeometry` and `createMassLanceCollarMaterial`.
-4. Crush field: a filled disc (`createMassLanceCrushMaterial`) with inward striations.
-5. Template: a warm ground strip under the line, dust (gravity −1.4) falling into the trench, chips, and a reduced trail ribbon.
-6. Turned down: the cream detail spheres and hero ram, the ring placements (body 0), voice, burst dome, shock ring, wake decals.
+1. Lance: `MassLanceSignatureGeometry.createMassLanceLanceGeometry`. It is one mesh: a 16-sided lathe (oblate counterweight pommel, wrapped grip, vamplate flaring to radius 1, a shaft tapering from 0.3 to 0.16 with eight flutes, a socket collar) plus a four-sided leaf head flattened to a lozenge blade 0.8 wide. The material is `createMassLanceLanceMaterial`: dark lead with copper seams at the pommel, guard rim and socket, a weight pulse running pommel to point, and hot cutting edges and point on a dark head. It is oriented with a basis that keeps the blade's wide axis toward the sky, on LAYER.WORLD, and casts shadows.
+2. Trench: `createMassLanceTrenchGeometry` and `createMassLanceTrenchMaterial`. It ends at the pommel.
+3. Crush ring and crush field, centred on the planted pommel.
+4. Template: a warm ground strip, dust falling into the trench, chips, and a reduced trail ribbon.
+5. Turned down: the cream detail spheres and hero ram, the ring placements, voice, burst dome, shock ring and wake decals.
 
 ## Signature
-It is heavy, and the floor shows it: a trench torn open behind the lance, and the lance itself buried deeper the longer you watch.
+It is heavy, and the floor shows it. The lance is thrown like a weighted javelin, the counterweight pulls it down butt-first, and it stands in the trench it tore open, buried deeper the longer you watch.
+
+## Lance keys (editor folder "15 · The lance")
+New in this pass: `lanceYaw` (side-on in flight), `lancePlantYaw` (planted lean across the line) and `lanceTurnAt` (when the counterweight swings down). Reinterpreted: `lanceStab` is now the planted lean with the head up, `lanceBury` is how deep the pommel goes under, `lanceRadius` is the vamplate radius, and `lanceLead` places the lance's middle.
 
 ## Palette
 core #fff3dc · tint #c47a3e · body #3a2c22 · deep #0a0706 (stone #2b2420)
 
 ## Gameplay
-Unchanged. Hits fire while travelling (WHEN `travel`) at the head with `hitRadius` and the slice blow. All placement derives from `this.front`, `this.length` and the lance settings each frame.
+Unchanged. Hits fire while travelling (WHEN `travel`) at the head of the line with `hitRadius` and the slice blow; the lance pose is presentation only. All placement derives from `this.front`, `this.length` and the lance settings each frame.

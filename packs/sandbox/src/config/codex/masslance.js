@@ -220,25 +220,28 @@ export default {
     wakeChips: 4.8, // fragments thrown at each wake
 
     /* --- 15 · the lance (the signature) --- */
-    lanceLength: 4.2, // metres
-    lanceRadius: 0.5, // at its widest, metres
-    lanceHover: 1.35, // height of its middle as it rides the line, metres
-    lancePitch: 0.16, // nose down while it rides, radians
-    lanceLead: 0.6, // metres its nose runs ahead of the head
-    lanceLob: 1.5, // extra height at the middle of its flight: a shallow lob down the line, metres
-    lanceLobTilt: 1.2, // how far its pitch follows the lob (nose up leaving, nose down arriving)
-    lanceRoll: 1.6, // radians/second it rolls about its own axis
+    lanceLength: 4.8, // metres, pommel to point
+    lanceRadius: 0.5, // the vamplate (guard disc) radius, metres; shaft, head and pommel scale with it
+    lanceHover: 1.5, // height of its middle as it rides the line, metres
+    lancePitch: 0.05, // head down while it rides, radians
+    lanceLead: 0.6, // metres its middle runs ahead of the head of the line
+    lanceLob: 1.6, // extra height at the middle of its flight: a visible lob down the line, metres
+    lanceLobTilt: 1.0, // how far its pitch follows the lob (head up leaving, head down arriving)
+    lanceRoll: 0, // radians/second it rolls about its own axis (0 keeps the blade face to the caster)
+    lanceYaw: 1.2, // radians it is turned across the line in flight, so its length shows side-on from behind
+    lancePlantYaw: 0.95, // radians the planted lean is turned across the line, so the diagonal reads on screen
+    lanceTurnAt: 0.55, // share of the flight after which the counterweight swings down to plant pommel-first
     lanceDriveTime: 0.14, // seconds it takes to drive into the floor on the beat, × global lifetime
-    lanceStab: 0.8, // nose-down angle once driven in, radians
-    lanceBury: 0.55, // metres the nose goes under on the beat
-    lanceSlide: 0.6, // metres its momentum carries it on as it drives in
-    lanceSink: 0.9, // metres it sinks further over the linger
+    lanceStab: 0.92, // planted lean: head up from the floor, radians (steep diagonal)
+    lanceBury: 0.45, // metres the pommel goes under on the beat
+    lanceSlide: 0.4, // metres its momentum carries it on as it drives in
+    lanceSink: 0.75, // metres it sinks further over the linger
     lanceSeamGlow: 2.4, // copper seams
-    lanceNoseGlow: 2.2, // the hot nose
-    lanceRimGlow: 0.35, // pale limb
+    lanceNoseGlow: 1.8, // the hot leaf head: its edges and point
+    lanceRimGlow: 0.15, // pale limb
     lancePulseRate: 1.1, // pulses of weight tail to nose per second
     lanceRough: 0.42,
-    lanceMetal: 0.62,
+    lanceMetal: 0.45,
     lanceOpacity: 1, // 0 hides the lance
     lanceShadow: 1, // 1 = the lance casts shadows
     colorLanceDeep: '#0a0706', // deep: lead in shadow
@@ -250,7 +253,7 @@ export default {
     trenchWidth: 1.7, // metres, lip to lip
     trenchLip: 0.2, // lip height, metres
     trenchStart: 2.2, // metres from the caster the trench begins
-    trenchLag: 0.25, // how far behind the nose it ends, × lance length
+    trenchLag: 0.02, // how far short of the pommel it ends, × lance length
     trenchGlow: 1.8, // the copper seam down the bed
     trenchCool: 4.5, // metres back from the lance the seam cools over
     trenchPulseSpeed: 7, // pulses drawn along the bed toward the lance
