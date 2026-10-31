@@ -702,3 +702,344 @@ export function createVenturiGateDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The gate itself — cast-local hero shaders                             */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The venturi wall: a lathe of dense, moving air whose profile is drawn in
+ * the vertex stage from a unit (angle, height) grid — wide foot, pinched
+ * throat, flared mouth. Fluted into `gateFlutes` air bars round the
+ * circumference, helical bands of streaming air run up it, and on the cough
+ * the mouth is blown open and up. Normal-blended: a dark teal body carries
+ * the mass (it occludes the floor), lit from the sun side by an analytic
+ * normal, with pale crests only on the band ridges. The same shader draws the
+ * gust that flies from the hand (a spindle profile, laid along the aim).
+ */
+const WALL_VERTEX = /* glsl */ `
+  uniform float uR0;      // foot radius, m
+  uniform float uR1;      // throat radius, m
+  uniform float uR2;      // mouth radius, m
+  uniform float uThroat;  // throat height share 0..1
+  uniform float uHeight;  // m
+  uniform float uRise;    // 0..1 how much of the wall stands
+  uniform float uSpin;    // rad
+  uniform float uTwist;   // rad of geometric twist foot → mouth
+  uniform float uFlutes;
+  uniform float uFluteDepth;
+  uniform float uFlare;   // 0..1 the cough
+  uniform float uFlareLift;
+  uniform float uSeed;
+  varying vec2 vGrid;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vAng;
+  varying float vFlute;
+
+  float profile(float v) {
+    float th = clamp(uThroat, 0.05, 0.95);
+    float r;
+    if (v < th) {
+      float k = (th - v) / th;
+      r = mix(uR1, uR0, k * k);
+    } else {
+      float k = (v - th) / (1.0 - th);
+      r = mix(uR1, uR2, k * k);
+    }
+    // The cough blows the mouth open first, then the throat.
+    r *= 1.0 + uFlare * (0.25 + 1.1 * v * v);
+    return r;
+  }
+
+  vec3 surface(float u, float v) {
+    float ang = u * 6.2831853 + uSpin + v * uTwist;
+    float r = profile(v);
+    r *= 1.0 + uFluteDepth * cos(ang * uFlutes - uSpin * 0.5);
+    float y = v * uHeight * uRise + uFlare * uFlareLift * v * v;
+    return vec3(cos(ang) * r, y, sin(ang) * r);
+  }
+
+  void main() {
+    float u = uv.x;
+    float v = uv.y;
+    vec3 p = surface(u, v);
+    vec3 pu = surface(u + 0.002, v) - p;
+    vec3 pv = surface(u, v + 0.01) - p;
+    vec3 n = normalize(cross(pv, pu));
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vGrid = vec2(u, v);
+    vAng = u * 6.2831853 + v * uTwist;
+    vFlute = cos((u * 6.2831853 + uSpin + v * uTwist) * uFlutes - uSpin * 0.5);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const WALL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uOpacity;
+  uniform float uBands;
+  uniform float uBandTwist;
+  uniform float uFlow;
+  uniform float uLight;
+  uniform float uCrest;
+  uniform float uDissolve;
+  uniform float uFlare;
+  uniform float uSeed;
+  uniform float uThroat;
+  uniform float uFlutes;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uCrestColor;
+  varying vec2 vGrid;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vAng;
+  varying float vFlute;
+
+  ${noiseGLSL}
+
+  void main() {
+    float u = vGrid.x;
+    float v = vGrid.y;
+    float t = uFlow;
+    // Clean vertical air flutes: the crest of each bar.
+    float crest = uFlutes > 0.5 ? smoothstep(0.55, 0.95, vFlute) : 0.0;
+    // Thin streaks running up the wall, between and along the flutes.
+    float lane = 0.5 + 0.5 * cos(u * 6.2831853 * uBands * 3.0 + v * uBandTwist);
+    float line = smoothstep(0.82, 0.98, lane);
+    float pulse = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin((v * 2.2 - t) * 6.2831853 + u * 37.0));
+    float streak = line * pulse;
+    // The throat ring, where the air is squeezed hardest.
+    float throat = exp(-pow((v - uThroat) / 0.05, 2.0));
+    float grain = snoise01(vec3(u * 40.0, v * 6.0 - t, uSeed)) * 0.12;
+
+    // Soft at the foot, torn at the mouth; the cough eats it from the mouth down.
+    float foot = smoothstep(0.0, 0.08, v);
+    float mouth = 1.0 - smoothstep(0.88, 1.0, v);
+    float n = snoise01(vec3(u * 7.0, v * 3.0, uSeed));
+    float cutLine = 1.08 - uDissolve * 1.25;
+    float alive = 1.0 - smoothstep(cutLine - 0.12, cutLine + 0.02, v + (n - 0.5) * 0.3);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    bool back = dot(N, V) < 0.0;
+    if (back) N = -N;
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    float wrap = 0.5 + 0.5 * dot(N, L);
+
+    // A dark teal body, the flutes catching the sun a little.
+    vec3 color = mix(uDeep, uBody, clamp(0.25 + 0.55 * wrap + 0.25 * crest + grain, 0.0, 1.0));
+    color *= 0.6 + uLight * 0.6 * ndl;
+    // Mint only on the flute crests, the rising streaks and the throat.
+    float glow = crest * 0.5 + streak * 0.55 + throat * (0.9 + 0.6 * crest);
+    color += uCrestColor * glow * uCrest * uGlobalGlow;
+    if (back) color *= 0.45;
+
+    float alpha = uOpacity * foot * mouth * alive * (0.72 + 0.2 * crest + 0.08 * streak);
+    alpha *= back ? 0.6 : 1.0;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createVenturiGateWallMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uR0: { value: 4 },
+      uR1: { value: 2 },
+      uR2: { value: 3 },
+      uThroat: { value: 0.55 },
+      uHeight: { value: 3 },
+      uRise: { value: 1 },
+      uSpin: { value: 0 },
+      uTwist: { value: 0.8 },
+      uFlutes: { value: 9 },
+      uFluteDepth: { value: 0.06 },
+      uFlare: { value: 0 },
+      uFlareLift: { value: 1 },
+      uSeed: { value: 0 },
+      uOpacity: { value: 1 },
+      uBands: { value: 7 },
+      uBandTwist: { value: 1.6 },
+      uFlow: { value: 1 },
+      uLight: { value: 1 },
+      uCrest: { value: 1 },
+      uDissolve: { value: 0 },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uCrestColor: { value: new Color() }
+    }),
+    vertexShader: WALL_VERTEX,
+    fragmentShader: WALL_FRAGMENT
+  });
+  /** `shape` carries the frame's dimensions and clocks; colours and looks come from settings. */
+  material.userData.sync = (shape) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uR0.value = shape.r0;
+    u.uR1.value = shape.r1;
+    u.uR2.value = shape.r2;
+    u.uThroat.value = c.gateThroatAt;
+    u.uHeight.value = shape.height;
+    u.uRise.value = shape.rise;
+    u.uSpin.value = shape.spin;
+    u.uTwist.value = c.gateTwist;
+    u.uFlutes.value = Math.max(0, Math.round(c.gateFlutes));
+    u.uFluteDepth.value = c.gateFluteDepth;
+    u.uFlare.value = shape.flare;
+    u.uFlareLift.value = c.coughLift;
+    u.uSeed.value = shape.seed;
+    u.uOpacity.value = shape.opacity * g.opacity;
+    u.uBands.value = Math.max(1, Math.round(c.gateBands));
+    u.uBandTwist.value = c.gateBandTwist;
+    u.uFlow.value = shape.flow * g.animationSpeed;
+    u.uLight.value = c.gateLight;
+    u.uCrest.value = c.gateCrest * g.glow * g.shaderIntensity;
+    u.uDissolve.value = shape.dissolve;
+    u.uDeep.value.copy(getColor(c.colorGateDeep));
+    u.uBody.value.copy(getColor(c.colorGateBody));
+    u.uCrestColor.value.copy(getColor(c.colorGateCrest));
+  };
+  return material;
+}
+
+/**
+ * The scoured floor under the gate: a filled disc, not rings. Spiral grooves
+ * wound toward the throat (they wind tighter as the gate squeezes), pale
+ * combed ridges between them on a near-black teal bed, and after the cough a
+ * fan of radial scour streaks blown out to the rim. It lands out from the
+ * centre on the beat, holds through the linger and erodes on noise.
+ */
+const SCOUR_VERTEX = /* glsl */ `
+  uniform float uSpan;
+  varying vec2 vXY;
+  void main() {
+    vXY = position.xy * uSpan;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SCOUR_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uRadius;   // m
+  uniform float uLand;     // 0..1.2 reveal radius, × uRadius
+  uniform float uArms;
+  uniform float uWind;
+  uniform float uTwist;
+  uniform float uRays;
+  uniform float uCough;    // 0..1 radial scour blown out
+  uniform float uRidge;
+  uniform float uOpacity;
+  uniform float uErode;
+  uniform float uHeat;
+  uniform float uSeed;
+  uniform vec3  uDeep;
+  uniform vec3  uRidgeColor;
+  uniform vec3  uHot;
+  varying vec2 vXY;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vXY;
+    float r = length(p) / max(uRadius, 0.01);
+    float a = atan(p.y, p.x);
+    float n = fbm3(vec3(p * 0.9, uSeed));
+    float fine = snoise01(vec3(p * 4.0, uSeed + 3.0));
+
+    // Spiral grooves wound toward the centre.
+    float sp = sin(a * uArms + log(r + 0.04) * uWind * 3.0 + uTwist + n * 1.2);
+    float groove = smoothstep(0.1, 0.9, sp * 0.5 + 0.5);
+    // Radial scour from the cough.
+    float ray = snoise01(vec3(a * uRays / 6.2831853, r * 0.6, uSeed + 9.0));
+    float streak = smoothstep(0.45, 0.85, ray) * smoothstep(0.08, 0.4, r) * uCough;
+
+    float edge = 1.0 - smoothstep(0.86, 1.04, r + (n - 0.5) * 0.18);
+    float landed = 1.0 - smoothstep(uLand - 0.08, uLand + 0.02, r);
+    float erode = smoothstep(uErode * 1.2 - 0.15, uErode * 1.2 + 0.05, n * 0.75 + fine * 0.25);
+    float mask = edge * landed * erode;
+    if (mask < 0.003) discard;
+
+    float ridge = (1.0 - groove) * (0.5 + 0.5 * fine) * uRidge;
+    vec3 color = uDeep;
+    color = mix(color, uRidgeColor, clamp(ridge * (1.0 - streak * 0.6) + streak * 0.55 * uRidge, 0.0, 1.0));
+    // A hot lip at the landing front and a cooling glow down the grooves.
+    float lip = smoothstep(0.1, 0.0, abs(r - uLand)) * step(uLand, 1.1);
+    color += uHot * (lip * 0.8 + groove * 0.12) * uHeat * uGlobalGlow;
+
+    float alpha = uOpacity * mask * (0.62 + 0.38 * groove + 0.2 * streak);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createVenturiGateScourMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSpan: { value: 1 },
+      uRadius: { value: 4 },
+      uLand: { value: 0 },
+      uArms: { value: 7 },
+      uWind: { value: 2 },
+      uTwist: { value: 0 },
+      uRays: { value: 48 },
+      uCough: { value: 0 },
+      uRidge: { value: 0.6 },
+      uOpacity: { value: 1 },
+      uErode: { value: 0 },
+      uHeat: { value: 0 },
+      uSeed: { value: 0 },
+      uDeep: { value: new Color() },
+      uRidgeColor: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: SCOUR_VERTEX,
+    fragmentShader: SCOUR_FRAGMENT
+  });
+  material.userData.sync = (floor) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRadius.value = floor.radius;
+    u.uSpan.value = floor.radius * 2.2;
+    u.uLand.value = floor.land;
+    u.uArms.value = Math.max(1, Math.round(c.scourArms));
+    u.uWind.value = c.scourWind;
+    u.uTwist.value = floor.twist;
+    u.uRays.value = Math.max(4, c.scourRays);
+    u.uCough.value = floor.cough * c.scourRayAmount;
+    u.uRidge.value = c.scourRidge;
+    u.uOpacity.value = c.scourOpacity * g.opacity;
+    u.uErode.value = floor.erode;
+    u.uHeat.value = floor.heat * c.scourHeat;
+    u.uSeed.value = floor.seed;
+    u.uDeep.value.copy(getColor(c.colorScourDeep));
+    u.uRidgeColor.value.copy(getColor(c.colorScourRidge));
+    u.uHot.value.copy(getColor(c.colorGateCrest));
+  };
+  return material;
+}

@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +9,9 @@ import {
   createPerigeeHaloLensMaterial,
   createPerigeeHaloGroundMaterial,
   createPerigeeHaloVoiceMaterial,
-  createPerigeeHaloDetailMaterial
+  createPerigeeHaloDetailMaterial,
+  createPerigeeHaloRingMaterial,
+  createPerigeeHaloWellMaterial
 } from '../../materials/codex/PerigeeHaloMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +48,98 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+const TAU = Math.PI * 2;
+/** The halo's mesh: samples round the ring and round its cross-section. */
+const HALO_AROUND = 336;
+const HALO_PROFILE = 12;
+const _q = new Quaternion();
+const _qr = new Quaternion();
+const _axis = new Vector3();
+const _hand = new Vector3();
+const _target = new Vector3();
+const _contact = new Vector3();
+const _d = new Vector3();
+
+/** A smooth, deterministic 0..1 die. */
+function die(i) {
+  const x = Math.sin(i * 12.9898 + 4.1414) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * The halo: a closed band of fused blocks round a ring of unit radius, the
+ * cross-section a squared-off lump `width` × `depth` (already divided by the
+ * full ring radius, since the mesh is scaled by the radius). Blocks pinch at
+ * their seams, each block has its own girth, and the faces are lumped by a
+ * few sines so the sun picks out a rough, heavy surface. Rewritten in place
+ * (no allocation) whenever a shaping slider changes.
+ *
+ * aInfo = (ring angle, profile angle, block die, seam 0..1).
+ */
+function createHaloGeometry() {
+  const geometry = new BufferGeometry();
+  const n = HALO_AROUND * HALO_PROFILE;
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(n * 3), 3));
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(n * 3), 3));
+  geometry.setAttribute('aInfo', new BufferAttribute(new Float32Array(n * 4), 4));
+  const index = new Uint32Array(HALO_AROUND * HALO_PROFILE * 6);
+  let k = 0;
+  for (let i = 0; i < HALO_AROUND; i++) {
+    const i2 = (i + 1) % HALO_AROUND;
+    for (let j = 0; j < HALO_PROFILE; j++) {
+      const j2 = (j + 1) % HALO_PROFILE;
+      const a = i * HALO_PROFILE + j;
+      const b = i2 * HALO_PROFILE + j;
+      const c = i2 * HALO_PROFILE + j2;
+      const d = i * HALO_PROFILE + j2;
+      index[k++] = a; index[k++] = d; index[k++] = b;
+      index[k++] = b; index[k++] = d; index[k++] = c;
+    }
+  }
+  geometry.setIndex(new BufferAttribute(index, 1));
+  geometry.userData.key = '';
+  return geometry;
+}
+
+function shapeHalo(geometry, width, depth, blocks, lump) {
+  const key = `${width.toFixed(4)}|${depth.toFixed(4)}|${blocks}|${lump.toFixed(3)}`;
+  if (geometry.userData.key === key) return;
+  geometry.userData.key = key;
+  const pos = geometry.getAttribute('position');
+  const info = geometry.getAttribute('aInfo');
+  const hw = width * 0.5;
+  const hd = depth * 0.5;
+  for (let i = 0; i < HALO_AROUND; i++) {
+    const th = (i / HALO_AROUND) * TAU;
+    const f = (th / TAU) * blocks;
+    const block = Math.floor(f);
+    const t = f - block;
+    const b = die(block + 1);
+    const seam = 1 - Math.min(1, Math.min(t, 1 - t) / 0.13);
+    const pinch = 1 - 0.32 * seam * seam;
+    const girth = (1 + (b - 0.5) * 0.36 * lump) * pinch;
+    const rise = (die(block + 31) - 0.5) * 0.25 * lump * hd;
+    for (let j = 0; j < HALO_PROFILE; j++) {
+      const be = (j / HALO_PROFILE) * TAU;
+      const cb = Math.cos(be);
+      const sb = Math.sin(be);
+      // A squared-off section: |cos|^0.55, |sin|^0.55.
+      let px = Math.sign(cb) * Math.pow(Math.abs(cb), 0.55);
+      let py = Math.sign(sb) * Math.pow(Math.abs(sb), 0.55);
+      const bump = 1 + lump * (0.13 * Math.sin(th * 23 + be * 3 + b * 9) + 0.08 * Math.sin(th * 57 - be * 5 + b * 4) + 0.05 * Math.sin(be * 7 + b * 17));
+      px *= hw * girth * bump;
+      py *= hd * girth * bump;
+      const r = 1 + px;
+      const v = i * HALO_PROFILE + j;
+      pos.setXYZ(v, Math.cos(th) * r, py + rise, Math.sin(th) * r);
+      info.setXYZW(v, th, be, b, seam);
+    }
+  }
+  pos.needsUpdate = true;
+  info.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+}
 
 /**
  * PERIGEE HALO — gravity, zone cast.
@@ -72,6 +166,31 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The halo (the hero, cast-local — sections 14–15 of the editor)
+ *
+ * The shared template layers (body sheet, voice crown, lens, rig and pieces)
+ * are turned down in the config; the spell is carried by its own forms:
+ *
+ *   - **the throw** — a ring of fused lead-and-basalt blocks (`createHaloGeometry`,
+ *     lit, opaque, shadow-casting) leaves the hand small and edge-on, spinning,
+ *     and arcs over to the circle, opening to full size and tipping toward the
+ *     floor as it falls in (`haloThrow*`).
+ *   - **perigee** — on the beat its low side slams into the rim of the circle
+ *     (`haloTilt`): the scrape is the hit. Dust, chips and a gouge where it lands.
+ *   - **the walk** — through the linger it behaves like a spun coin settling
+ *     (an Euler disk): the tilt sinks, the contact point precesses round the rim
+ *     faster and faster (`haloPrecess`), and the ring tightens (`haloTighten`).
+ *     The contact grinds: sparks, grit, a friction burn on the underside that
+ *     trails behind it, and a spiral groove of scorches cut into the floor.
+ *   - **the well** — a filled, pressed bowl under it (`well*`): lit as a dent,
+ *     dark at the bottom, its grit drawn slowly inward, the groove glowing hot
+ *     where the ring touches and cooling behind.
+ *   - **commit** — the aftershock lands as the ring falls flat with a slam;
+ *     then it sinks into the well and is eaten from the top down (`haloSink`).
+ *
+ * All of it is presentation: hits still land once, on the beat, inside the
+ * circle (`_strike`), and felled bodies are still drawn inward, as before.
  *
  * Every metre, rate and colour is read from `settings.perigee` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +226,7 @@ export class PerigeeHaloAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildHalo();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -153,6 +273,31 @@ export class PerigeeHaloAbility extends Ability {
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
   }
 
+  /** The halo's own meshes: the ring and the well under it. */
+  _buildHalo() {
+    this.haloGeometry = createHaloGeometry();
+    this.haloMaterial = createPerigeeHaloRingMaterial();
+    this.halo = this._mesh(this.haloGeometry, this.haloMaterial, LAYER.SHAPED, 14);
+    this.halo.castShadow = true;
+    this.halo.receiveShadow = true;
+    this.wellGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.wellMaterial = createPerigeeHaloWellMaterial();
+    this.well = this._mesh(this.wellGeometry, this.wellMaterial, LAYER.VFX, 2);
+    this.well.rotation.x = -Math.PI / 2;
+    this._phi = 0; // world angle of the contact round the centre (integrated)
+    this._roll = 0; // the ring's own turn (integrated)
+    this._groovePhi = 0;
+    this._tilt = 0;
+    this._haloR = 0;
+    this._haloHeat = 0;
+    this._wellAlpha = 0;
+    this._haloDt = 0;
+    this._landed = false;
+    this._scrapeDust = new RateEmitter();
+    this._scrapeSparks = new RateEmitter();
+    this._scrapeChips = new RateEmitter();
+  }
+
   _mesh(geometry, material, layer, order) {
     const mesh = new Mesh(geometry, material);
     mesh.layers.set(layer);
@@ -174,7 +319,7 @@ export class PerigeeHaloAbility extends Ability {
     });
     this.streaks = particles.get('perigee.streak', {
       capacity: 1200,
-      shape: ParticleShape.RING,
+      shape: ParticleShape.STREAK,
       additive: true,
       stretch: true,
       softFade: 0.2
@@ -231,6 +376,20 @@ export class PerigeeHaloAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._phi = Math.atan2(-this.direction.z, -this.direction.x) + (Math.random() - 0.5) * 0.6;
+    this._roll = Math.random() * TAU;
+    this._groovePhi = this._phi;
+    this._tilt = 0;
+    this._haloR = 0;
+    this._haloHeat = 0;
+    this._wellAlpha = 0;
+    this._haloDt = 0;
+    this._landed = false;
+    this._scrapeDust.reset();
+    this._scrapeSparks.reset();
+    this._scrapeChips.reset();
+    this.halo.visible = false;
+    this.well.visible = false;
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -294,6 +453,192 @@ export class PerigeeHaloAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._halo(committed, fadeT);
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Seconds after the beat the ring lies flat: the aftershock's moment. */
+  _settleAt() {
+    const a = settings[ID].aftershockAt;
+    return a < 1 ? a * this.impactDuration : this.impactDuration + (a - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Stand the halo for this frame. Before the beat it is thrown along an arc
+   * from the hand; after it, an Euler disk: the tilt sinks to flat at the
+   * aftershock while the contact precesses round the rim ever faster and the
+   * ring tightens; then it sinks into the well and dissolves.
+   */
+  _halo(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const dt = this._haloDt;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    const settle = Math.max(0.2, this._settleAt());
+    const Rfull = Math.max(0.3, c.zoneRadius * c.haloFit);
+    const hw = Math.max(0.05, c.haloWidth) * 0.5;
+    const hd = Math.max(0.05, c.haloDepth) * 0.5;
+    shapeHalo(this.haloGeometry, c.haloWidth / Rfull, c.haloDepth / Rfull, Math.max(3, Math.min(24, Math.round(c.haloBlocks))), c.haloLump);
+    this.pointAt(1, _target);
+    let R;
+    let tilt;
+    let dissolve = 0;
+    let sink = 0;
+    let heat = 0;
+    let rollRate = c.haloRoll;
+    if (!committed) {
+      const p = saturate(this.u);
+      const e = Easing.outCubic(p);
+      R = Rfull * (c.haloThrowStart + (1 - c.haloThrowStart) * e);
+      tilt = c.haloThrowTilt + (c.haloTilt - c.haloThrowTilt) * Easing.inOutCubic(p);
+      rollRate = c.haloRoll + c.haloThrowSpin * (1 - p);
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _hand.y = c.handHeight;
+      const k = R / Rfull;
+      const land = (R + hw * k) * Math.sin(tilt) + hd * k * Math.cos(tilt);
+      _pos.lerpVectors(_hand, _target, e);
+      _pos.y = _hand.y * (1 - e) + land * e + c.haloThrowArc * 4 * p * (1 - p);
+      // Keep the whole ring under the frame's ceiling while it flies.
+      _pos.y = Math.min(_pos.y, Math.max(land, c.heroMaxHeight - (R + hw * k) * Math.sin(tilt) - hd * k));
+      this._tilt = tilt;
+      // The low side swings round to face the landing as it falls in.
+      this._phi += dt * c.haloPrecess * 0.35;
+    } else {
+      const k = saturate(since / settle);
+      tilt = c.haloTilt * Math.sqrt(1 - k);
+      R = Rfull * (1 - c.haloTighten * Easing.outCubic(k));
+      // Euler disk: the contact walks faster as the tilt falls.
+      const rate = Math.min(c.haloPrecessMax, c.haloPrecess / Math.sqrt(Math.max(0.04, tilt / Math.max(0.01, c.haloTilt))));
+      if (k < 1) this._phi += dt * rate * g.animationSpeed;
+      const after = saturate((since - settle) / Math.max(0.1, total - settle));
+      sink = Easing.inQuad(after) * c.haloSink * c.haloDepth;
+      dissolve = saturate((after - (1 - c.haloDissolve)) / Math.max(0.05, c.haloDissolve));
+      heat = k < 1 ? 0.55 + 0.45 * (1 - tilt / Math.max(0.01, c.haloTilt)) : Math.max(0, 1 - after * 2.2);
+      heat *= Math.min(1, since / 0.06 + 0.4);
+      rollRate *= 1 - k;
+      _pos.copy(_target);
+      _pos.y = (R + hw) * Math.sin(tilt) + hd * Math.cos(tilt) - sink;
+      this._tilt = tilt;
+    }
+    this._roll += dt * rollRate * g.animationSpeed;
+    this._haloR = R;
+    this._haloHeat = heat;
+    // Orientation: roll about the ring's own axis, then tip the φ side down.
+    _d.set(Math.cos(this._phi), 0, Math.sin(this._phi));
+    _axis.set(_d.z, 0, -_d.x); // up × d
+    _q.setFromAxisAngle(_axis, tilt);
+    _qr.setFromAxisAngle(_up, this._roll);
+    _q.multiply(_qr);
+    this.halo.position.copy(_pos);
+    this.halo.quaternion.copy(_q);
+    this.halo.scale.setScalar(R);
+    this.halo.visible = c.haloOpacity > 0.01 && dissolve < 0.995;
+    this.haloMaterial.userData.sync(this._phi + this._roll, heat * c.haloOpacity, dissolve, this._seed);
+    // The contact point on the floor (for the groove, the well and the grit).
+    const reach = (R + hw) * Math.cos(tilt);
+    _contact.copy(_target).addScaledVector(_d, reach).setY(0.05);
+
+    // The well under it: presses in on the beat, holds, lets go at the end.
+    if (committed && c.wellOpacity > 0.01) {
+      const press = Easing.outCubic(saturate(since / Math.max(0.05, c.wellPress * g.lifetime)));
+      const fadeOut = 1 - saturate((since - (total - c.wellFade * g.lifetime)) / Math.max(0.05, c.wellFade * g.lifetime));
+      this._wellAlpha = press * fadeOut;
+      const outer = Math.max(0.3, Rfull * c.wellFit) * (0.6 + 0.4 * press);
+      this.well.visible = this._wellAlpha > 0.01;
+      this.well.position.set(_target.x, 0.03, _target.z);
+      this.well.scale.set(outer * 2, outer * 2, 1);
+      this.wellMaterial.userData.sync(_target, outer, reach, this._phi, heat, this._wellAlpha, this._seed);
+    } else {
+      this._wellAlpha = 0;
+      this.well.visible = false;
+    }
+  }
+
+  /** The ring lands on its low side: grit and chips off the contact and a gouge. */
+  _haloLand() {
+    const c = settings[ID];
+    const g = settings.global;
+    this._landed = true;
+    this.ctx.decals.spawn(DecalType.CRACK, _contact, {
+      radius: c.grooveSize * 2.2,
+      life: c.grooveLife * g.lifetime,
+      width: 0.6,
+      intensity: 0.9,
+      colorA: getColor(c.colorWellDeep),
+      colorB: getColor(c.colorHaloHeat),
+      height: 0.032
+    });
+    const chips = Math.round(c.landChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      _dir.copy(_d).setY(1.6);
+      this._fillEmit(_contact, 0.4, _dir, c.chipSpeed * 1.3, 0.7, c.chipSize * 1.6, c.chipLife * 1.2, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.landDust * g.particleCount);
+    if (dust > 0) {
+      _dir.copy(_d).setY(0.3);
+      this._fillEmit(_contact, 0.6, _dir, c.dustSpeed * 1.4, 0.9, 0.7, c.dustLife * 1.5, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+  }
+
+  /** The grind at the contact: sparks, grit and chips, and a groove of scorches as it walks. */
+  _haloShed(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const heat = this._haloHeat;
+    if (heat <= 0.02 || this._tilt <= 0.005) return;
+    _dir.set(-Math.sin(this._phi), 0.9, Math.cos(this._phi)); // flung along the walk, and up
+    const ns = Math.round(this._scrapeSparks.tick(dt, c.scrapeSparks * heat) * g.particleCount);
+    if (ns > 0) {
+      this._fillEmit(_contact, 0.25, _dir, c.streakSpeed, 0.55, 0.07, c.streakLife, 2);
+      this.streaks.emit(ns, _emit);
+    }
+    const nd = Math.round(this._scrapeDust.tick(dt, c.scrapeDust * heat) * g.particleCount);
+    if (nd > 0) {
+      _pos.copy(_dir).setY(0.25);
+      this._fillEmit(_contact, 0.35, _pos, c.dustSpeed * 0.8, 0.7, 0.55, c.dustLife * 1.3, 0.4);
+      this.dust.emit(nd, _emit);
+    }
+    const nc = Math.round(this._scrapeChips.tick(dt, c.scrapeChips * heat) * g.particleCount);
+    if (nc > 0) {
+      this._fillEmit(_contact, 0.2, _dir, c.chipSpeed * 0.8, 0.6, c.chipSize, c.chipLife, 6);
+      this.chips.emit(nc, _emit);
+    }
+    if (c.grooveEvery > 0.01 && Math.abs(this._phi - this._groovePhi) >= c.grooveEvery) {
+      this._groovePhi = this._phi;
+      this.ctx.decals.spawn(DecalType.SCORCH, _contact, {
+        radius: c.grooveSize,
+        life: c.grooveLife * g.lifetime,
+        width: 0.5,
+        intensity: 0.85,
+        colorA: getColor(c.colorWellDeep),
+        colorB: getColor(c.colorHaloHeat),
+        height: 0.031
+      });
+    }
+  }
+
+  /** The ring falls flat: a dust roll out from under its whole rim. */
+  _haloSlam() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(c.slamDust * g.particleCount);
+    this.pointAt(1, _target);
+    for (let i = 0; i < n; i++) {
+      const a = (i / Math.max(1, n)) * TAU + this._phi;
+      _dir.set(Math.cos(a), 0.15, Math.sin(a));
+      _pos.copy(_target).addScaledVector(_dir, this._haloR).setY(0.1);
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed * 1.5, 0.3, 0.7, c.dustLife * 1.6, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.shake.add(c.slamShake * g.cameraShake * g.explosionIntensity, 5, 14);
   }
 
   /**
@@ -744,6 +1089,7 @@ export class PerigeeHaloAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
+    this._haloDt = dt;
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
@@ -754,6 +1100,7 @@ export class PerigeeHaloAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._haloLand();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -762,13 +1109,16 @@ export class PerigeeHaloAbility extends Ability {
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
+    this._haloDt = dt;
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._haloShed(dt);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
       this._aftershock();
+      this._haloSlam();
     }
     if (ECHO && !this._echoed && t > 1.08) {
       this._echoed = true;
@@ -788,9 +1138,15 @@ export class PerigeeHaloAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.halo.visible = false;
+    this.well.visible = false;
   }
 
   dispose() {
+    this.haloGeometry.dispose();
+    this.haloMaterial.dispose();
+    this.wellGeometry.dispose();
+    this.wellMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -977,6 +1333,56 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const halo = folder.addFolder('14 · The halo');
+  R(halo, c, 'haloFit', 0.3, 1.4, 0.01, 'ring, × circle');
+  R(halo, c, 'haloWidth', 0.1, 2, 0.01, 'band width (m)');
+  R(halo, c, 'haloDepth', 0.1, 2, 0.01, 'band depth (m)');
+  R(halo, c, 'haloBlocks', 3, 24, 1, 'blocks');
+  R(halo, c, 'haloLump', 0, 2, 0.01, 'roughness of the blocks');
+  R(halo, c, 'haloOpacity', 0, 1, 0.01, 'shown');
+  R(halo, c, 'haloThrowStart', 0.05, 1, 0.01, 'size leaving the hand');
+  R(halo, c, 'haloThrowArc', 0, 8, 0.05, 'throw arc (m)');
+  R(halo, c, 'haloThrowTilt', 0, 1.57, 0.01, 'tilt in flight (rad)');
+  R(halo, c, 'haloThrowSpin', 0, 30, 0.1, 'spin in flight (rad/s)');
+  R(halo, c, 'haloTilt', 0, 1.2, 0.01, 'tilt on the beat (rad)');
+  R(halo, c, 'haloPrecess', 0, 20, 0.05, 'walk (rad/s)');
+  R(halo, c, 'haloPrecessMax', 0, 40, 0.1, 'walk, fastest');
+  R(halo, c, 'haloRoll', -6, 6, 0.05, 'own turn (rad/s)');
+  R(halo, c, 'haloTighten', 0, 0.8, 0.01, 'tightens by');
+  R(halo, c, 'haloSink', 0, 4, 0.05, 'sinks, × depth');
+  R(halo, c, 'haloDissolve', 0.05, 1, 0.01, 'dissolves over');
+  R(halo, c, 'haloHeat', 0, 6, 0.05, 'scrape heat');
+  R(halo, c, 'haloHeatSpread', 0.05, 4, 0.05, 'heat trail (rad)');
+  R(halo, c, 'haloSeamGlow', 0, 4, 0.05, 'seam glow');
+  R(halo, c, 'haloSpecular', 0, 3, 0.05, 'specular');
+  R(halo, c, 'haloRimGlow', 0, 3, 0.05, 'rim glow');
+  halo.addColor(c, 'colorHaloDeep').name('stone, deep');
+  halo.addColor(c, 'colorHaloBody').name('stone, body');
+  halo.addColor(c, 'colorHaloRim').name('rim');
+  halo.addColor(c, 'colorHaloHeat').name('heat');
+  halo.addColor(c, 'colorHaloHot').name('white-hot');
+  R(halo, c, 'landChips', 0, 120, 1, 'landing chips');
+  R(halo, c, 'landDust', 0, 120, 1, 'landing dust');
+  R(halo, c, 'scrapeSparks', 0, 400, 1, 'grind sparks / s');
+  R(halo, c, 'scrapeDust', 0, 200, 1, 'grind dust / s');
+  R(halo, c, 'scrapeChips', 0, 200, 1, 'grind chips / s');
+  R(halo, c, 'grooveEvery', 0, 2, 0.01, 'groove every (rad)');
+  R(halo, c, 'grooveSize', 0.05, 2, 0.01, 'groove (m)');
+  R(halo, c, 'grooveLife', 0.1, 10, 0.05, 'groove life (s)');
+  R(halo, c, 'slamDust', 0, 160, 1, 'flat slam dust');
+  R(halo, c, 'slamShake', 0, 2, 0.01, 'flat slam punch');
+
+  const well = folder.addFolder('15 · The well');
+  R(well, c, 'wellFit', 0.3, 2, 0.01, 'radius, × ring');
+  R(well, c, 'wellDepth', 0, 2, 0.01, 'depth (shading)');
+  R(well, c, 'wellPress', 0.02, 2, 0.01, 'presses in (s)');
+  R(well, c, 'wellFade', 0.05, 3, 0.01, 'lets go over (s)');
+  R(well, c, 'wellPull', 0, 6, 0.05, 'grit pull');
+  R(well, c, 'wellGlow', 0, 4, 0.05, 'groove glow');
+  R(well, c, 'wellOpacity', 0, 1, 0.01, 'opacity');
+  well.addColor(c, 'colorWellDeep').name('well, deep');
+  well.addColor(c, 'colorWellBody').name('well, body');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

@@ -53,10 +53,10 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.5,
-    edgeGlow: 1.12,
+    bodyOpacity: 0, // the template's arc lines: off, the seeds carry the read
+    edgeGlow: 0,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
-    bodyGlow: 0.22,
+    bodyGlow: 0,
     bodyPulse: 0.12, // breathing in brightness, 0..1
     bodyPulseRate: 4, // breaths per second (radians)
     colorA: '#523be3',
@@ -65,13 +65,13 @@ export default {
     lensWarp: 1.12, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the seeds carry the read)
     colorVoiceA: '#523be3',
     colorVoiceB: '#f4f0ff',
 
     /* --- 3 · the ground --- */
     groundWidth: 2.4, // footprint width, metres
-    groundGlow: 1.4,
+    groundGlow: 0.5,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
     groundOpacity: 1, // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#050308', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: the seeds are the pieces now
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 0.77, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the wire nest fought the seeds
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -158,7 +158,7 @@ export default {
     colorFlash: '#8a7fd0',
     burstRadius: 2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 4, // fragments thrown up and out on the beat
     impactDust: 10, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#f4f0ff',
@@ -166,7 +166,7 @@ export default {
     colorBurstC: '#060416',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#523be3',
     colorShockB: '#f4f0ff',
 
@@ -198,9 +198,9 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.18, // ribbon width at the head, metres
     trailLife: 1.1, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0.3, // strength of the ribbon
     trailGlow: 0.77, // brightness of the ribbon
-    trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
+    trailCore: 0.2, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.35, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
@@ -211,6 +211,51 @@ export default {
     wakeSpacing: 2.5, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.6, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.6 // fragments thrown at each wake
+    wakeChips: 1.6, // fragments thrown at each wake
+
+    /* --- 15 · hollow seeds (the signature) --- */
+    seedSize: 1.15, // husk height, metres
+    seedHeight: 0.42, // where a landed husk sits, × size (its centre)
+    seedArc: 2.6, // how high each seed's arc climbs above the line from hand to landing, metres
+    seedLaunch: 0.6, // 0..1 how far down the volley the last seed leaves the hand (0 = all at once)
+    seedSpin: 7, // tumble in flight, radians/second; it whirls faster as it implodes
+    seedGlow: 1.1, // glow of the slits and the hollow
+    seedRim: 0.15, // violet limb on the husk
+    seedSlit: 0.7, // how far the lobe valleys split open as it heats
+    seedRough: 0.72,
+    seedMetal: 0.05,
+    colorSeedShell: '#0d0b15', // deep: the obsidian husk in shadow
+    colorSeedLit: '#3b3352', // body: the husk where the sun finds it
+    colorSeedSeam: '#6a55ff', // tint: the light inside the hollow
+    colorSeedCore: '#f4f0ff', // core: white-hot as it collapses
+    seedLandShake: 0.16, // camera punch per landing
+    seedLandLight: 2.4, // light punch per landing
+    seedLandChips: 6, // fragments per landing
+    seedLandDust: 6, // dust puffs rolled out per landing
+
+    /* --- 16 · implosion --- */
+    implodeDelay: 0.1, // seconds a landed seed sits before it collapses, × global lifetime
+    implodeTime: 0.42, // seconds the husk takes to crumple in, × global lifetime
+    implodeRadius: 1.0, // the dark shell that closes on it, metres at the start
+    implodeOpacity: 0,
+    implodeGlow: 1.1, // violet limb of the shell
+
+    /* --- 17 · wells --- */
+    wellRadius: 1.2, // the hole each seed leaves, metres
+    wellOpen: 0.22, // seconds it takes to open, × global lifetime
+    wellCloseAt: 1.3, // fade progress (1 = fade start, 2 = end) the wells start folding shut
+    wellArms: 3, // spiral arms drawn down into each well
+    wellTwist: 1.1, // how tight the arms wind toward the heart
+    wellSwirl: 2.6, // how fast the arms turn, radians/second
+    wellOpacity: 0.95,
+    wellGlow: 0.7,
+    wellLip: 0.3, // height of the thrown-up lip, × well radius
+    wellLipGlow: 2.2, // violet cracks on the lip while the well is hot
+    wellPullRate: 26, // motes drawn in per second per well
+    wellPullSpeed: 2.2, // metres/second they are drawn at
+    colorWellDeep: '#020107', // the heart of the hole
+    colorWellArm: '#5a3ee8', // the arms
+    colorWellRim: '#9d8cff', // the hot band at the rim
+    colorWellStone: '#16121f' // the lip's stone
   }
 };

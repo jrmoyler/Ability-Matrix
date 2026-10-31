@@ -33,10 +33,10 @@ export default {
 
     /* --- light --- */
     lightColor: '#f47325',
-    lightIntensity: 8, // the glow riding the cast
+    lightIntensity: 3.4, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.2, // 0..1 how much it shimmers
-    impactLight: 9.9, // extra light on the beat, decays on its own
+    impactLight: 6, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0.03, // the template sigil: a trace only, the floor and slabs carry the read
     edgeGlow: 1.16,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.32,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f47325',
     colorB: '#fff8f0',
     colorC: '#471e06',
-    lensWarp: 1.2, // strength of the distortion it writes
+    lensWarp: 0.8, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#f47325',
     colorVoiceB: '#fff8f0',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.25, // strength of the field (round the broken floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.08, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#2a1410', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 18, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: the moth-like flecks read as noise
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -111,7 +111,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the wire funnel had no core
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -162,11 +162,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.72, // camera punch on the beat
-    impactFlash: 0.14, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat
     colorFlash: '#ffe0c2',
     burstRadius: 3.8, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 34, // fragments thrown up and out on the beat
     impactDust: 23, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#fff8f0',
@@ -174,7 +174,7 @@ export default {
     colorBurstC: '#471e06',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f47325',
     colorShockB: '#fff8f0',
 
@@ -201,6 +201,63 @@ export default {
     markRimGlow: 1.6, // rim light on a marked body
     colorMarkEdge: '#ffe0c2',
     markEdgeGlow: 2.6, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 12 · the well floor (the signature) --- */
+    wellReach: 1.15, // radius of the broken floor disc, × the circle
+    wellDepth: 1.5, // metres the floor sinks at the eye while it inhales
+    wellFunnel: 0.62, // radius of the funnel, × the disc
+    wellInhaleFrom: 0.25, // how far down the funnel is already sunk the instant the cast leaves the hand
+    wellCell: 0.75, // size of the broken floor cells, metres
+    wellGlow: 1.6, // the cracks where the floor is pulled or bent
+    wellPull: 1.1, // crack glow down the funnel while it inhales
+    wellCore: 2.4, // the glowing eye at the bottom
+    wellEmber: 0.12, // crack glow left in the settled floor
+    wellOpacity: 1, // 0 hides the floor
+    waveHeight: 1.05, // metres the dumped ring wave heaves the floor
+    waveSpeed: 1.25, // how fast the wave runs out, discs per second
+    waveWidth: 0.13, // width of the wave, × the disc
+    waveDecay: 1.3, // how fast the wave dies, per second
+    waveCrest: 1.6, // crack glow along the crest
+    rippleHeight: 0.22, // metres of the settling ripples after the wave
+    rippleK: 26, // ripples across the disc (radians per disc)
+    rippleSpeed: 9, // radians/second the ripples run outward
+    rippleDecay: 1, // how fast the ripples settle, per second
+    colorWellDeep: '#120b08', // deep: basalt in shadow
+    colorWellBody: '#3d2f27', // body: basalt in the sun
+    colorWellHot: '#f47325', // tint: force heat in the cracks
+    colorWellCore: '#fff0dc', // core: the eye
+
+    /* --- 13 · the slabs --- */
+    slabCount: 22, // slabs torn up (max 32)
+    slabSize: 1.05, // slab scale, × authored (≈1 m across)
+    slabInner: 0.3, // nearest a slab starts to the eye, × the circle
+    slabOuter: 0.95, // farthest, × the circle
+    slabDrag: 0.45, // share of the way to the eye the inhale drags them
+    slabLift: 6, // slowest launch, metres/second up
+    slabLiftMax: 9.5, // fastest launch, metres/second up
+    slabOut: 2.2, // metres/second they are thrown outward
+    slabSwirl: 2.6, // metres/second they are thrown round (the column twists)
+    slabStagger: 0.14, // seconds over which the column unspools
+    slabGravity: 15, // metres/second² they fall back at
+    slabTumble: 5, // radians/second they turn in the air
+    slabBounce: 0.28, // metres of the bounce when one lands
+    slabHeat: 1.1, // the torn undersides
+    slabCool: 0.7, // how fast they cool after landing, per second
+    slabSink: 0.6, // metres they sink on the way out
+    slabSinkAt: 1.6, // clock (0..2: impact then fade) they start sinking
+    slabOpacity: 1, // 0 hides the slabs
+    slabShadow: 1, // 1 = slabs cast shadows
+    colorSlabBody: '#3a2f29', // lit slab rock
+
+    /* --- 14 · the charge in flight --- */
+    orbSize: 0.85, // radius of the compressed charge, metres
+    orbStart: 0.45, // its size as it leaves the hand, × full
+    orbHeight: 1.1, // flight height, metres
+    orbLump: 0.28, // how lumpy it is
+    orbSpin: 7, // radians/second it churns
+    orbGlow: 1.1, // its seams
+    orbTrail: 160, // streaks per second it sheds in flight
+    orbOpacity: 1 // 0 hides it
   }
 };

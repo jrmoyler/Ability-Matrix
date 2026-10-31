@@ -53,7 +53,7 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template bar drum; the gate carries the read now
     edgeGlow: 0.79,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.29,
@@ -62,10 +62,10 @@ export default {
     colorA: '#47e1bd',
     colorB: '#c8fff2',
     colorC: '#0a4335',
-    lensWarp: 0.84, // strength of the distortion it writes
+    lensWarp: 0, // off: the drum shape it warps is gone
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the gate carries the read)
     colorVoiceA: '#47e1bd',
     colorVoiceB: '#c8fff2',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template field (off: the scour is the floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.35, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#3a4a46', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the gate's flutes are the bars)
     detailSize: 0.5, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -108,7 +108,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 0.99, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local gate is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -117,16 +117,16 @@ export default {
     colorHeroC: '#0a4335',
 
     /* --- 6 · shed --- */
-    dustRate: 80, // puffs per second
+    dustRate: 20, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
     dustOpacity: 0.55,
-    colorDustA: '#f4fffd',
-    colorDustB: '#47e1bd',
+    colorDustA: '#3f7d6d',
+    colorDustB: '#1d5446',
     colorDustC: '#0a4335',
     colorDustD: '#1a140e',
-    streakRate: 144, // sparks per second
+    streakRate: 30, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -160,7 +160,7 @@ export default {
     colorFlash: '#f4fffd',
     burstRadius: 3.2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 4, // fragments thrown up and out on the beat
     impactDust: 8, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#c8fff2',
@@ -168,7 +168,7 @@ export default {
     colorBurstC: '#0a4335',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0.12, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#47e1bd',
     colorShockB: '#c8fff2',
 
@@ -195,6 +195,70 @@ export default {
     markRimGlow: 1.44, // rim light on a marked body
     colorMarkEdge: '#f4fffd',
     markEdgeGlow: 2.34, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the gate (cast-local hero) --- */
+    gateFit: 1, // foot radius, × the circle
+    gateHeight: 2.5, // metres the wall stands
+    gateThroatAt: 0.55, // where the throat sits, share of the height
+    gateThroatStart: 0.78, // throat radius when the gate stands, × the foot
+    gateThroatEnd: 0.24, // throat radius at the end of the squeeze, × the foot
+    gateTop: 0.95, // mouth radius, × the foot
+    gateAnticipate: 0.28, // how much of the wall whirls up before the beat
+    gateRise: 0.16, // seconds the wall takes to slam up, × global lifetime
+    gateFlutes: 14, // air bars fluted round the wall
+    gateFluteDepth: 0.06, // how deep the flutes run, × the radius
+    gateTwist: 0.35, // radians the wall twists foot to mouth
+    gateBands: 14, // helical bands of air streaming up the wall
+    gateBandTwist: 2.2, // how far each band winds round, turns
+    gateFlow: 0.9, // how fast the bands stream up
+    gateSpin: 1.4, // radians/second the wall turns
+    gateSqueezeSpin: 2.6, // extra spin at the end of the squeeze, × gateSpin
+    gateOpacity: 1.05, // how dense the air wall is
+    gateLight: 1.35, // sun light on the wall
+    gateCrest: 0.75, // glow of the pale crests on the band ridges
+    colorGateDeep: '#021410', // air, deep
+    colorGateBody: '#135646', // air, body
+    colorGateCrest: '#b9f5e4', // crest
+    squeezeDust: 70, // dust drawn in across the floor per second during the squeeze
+    squeezeStreaks: 110, // streaks spiralling up the wall per second during the squeeze
+
+    /* --- 15 · the cough --- */
+    coughFlare: 1, // how far the mouth is blown open
+    coughLift: 0.9, // metres the mouth is thrown up
+    coughTime: 0.35, // seconds the blow takes, × global lifetime
+    coughTear: 0.7, // seconds the wall takes to be torn away, × global lifetime
+    coughSpin: 3, // spin burst as it blows, × gateSpin
+    coughDust: 70, // dust puffs rolled out across the floor
+    coughDustSpeed: 2.6, // dust roll speed, × dustSpeed
+    coughStreaks: 170, // streaks fanned out from the throat
+    coughChips: 22, // chips thrown up
+    coughShake: 0.45, // camera punch of the cough
+    coughLight: 8, // light punch of the cough
+    coughRing: 0.3, // dark dust ring decal the cough rolls out (0 = none)
+
+    /* --- 16 · the scour --- */
+    scourFit: 1.12, // reach, × the circle
+    scourArms: 7, // spiral grooves
+    scourWind: 1.8, // how tightly they wind toward the centre
+    scourTwist: 0.35, // how far they wind with the gate, × its spin
+    scourRays: 56, // radial streaks the cough blows out
+    scourRayAmount: 0.8, // strength of the cough scour
+    scourRidge: 0.75, // pale combed ridges between the grooves
+    scourOpacity: 0.9, // strength of the scour
+    scourHeat: 0.7, // glow of the fresh scour and its landing lip
+    scourLand: 0.3, // seconds the scour takes to land out to the rim, × global lifetime
+    scourTelegraph: 0.35, // share of the scour shown before the beat (the footprint)
+    scourErodeStart: 0.86, // the scour starts to erode at this share of the life after the beat
+    colorScourDeep: '#03120e', // bed
+    colorScourRidge: '#5aae96', // ridge
+
+    /* --- 17 · the gust --- */
+    gustLength: 1.9, // metres
+    gustRadius: 0.55, // girth, metres
+    gustSpin: 16, // radians/second it rolls about its axis
+    gustArc: 0.7, // metres it arcs above the straight path
+    gustOpacity: 0.95, // how dense the gust is
+    gustTrail: 120 // wake streaks per second
   }
 };

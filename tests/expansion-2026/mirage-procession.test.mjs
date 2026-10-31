@@ -86,7 +86,7 @@ test('identical pooled mirror shards expand as masks dissolve at the end', () =>
   a.shards.getMatrixAt(8, matrix);
   const after = new Vector3().setFromMatrixPosition(matrix);
   assert.ok(Math.hypot(after.x, (after.y - a.masks[1].position.y) / .8) > .55);
-  assert.ok(a.masks[1].scale.x < 1);
+  assert.ok(a.masks[1].scale.x < config.settings.maskSize, "masks shrink as they depart");
   a.destroy(); a.dispose();
 });
 

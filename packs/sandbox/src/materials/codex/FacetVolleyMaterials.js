@@ -1059,3 +1059,94 @@ export function createFacetVolleyScarMaterial() {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the crystal                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The amethyst: sun-lit, opaque dark crystal (MeshStandardMaterial, low
+ * roughness so the flat facets flash in the sun; on `LAYER.WORLD`, casting
+ * shadows) patched with this cast's own light. The terminations (`aHeat`)
+ * glow along the four-stop ramp — deep → body → tint → white core — scaled by
+ * each instance's freshness (`aPlant`, written per frame: hot when it has just
+ * struck, cooling through the linger), and a glint band climbs each crystal on
+ * its own clock. A pale fresnel rim draws the facet edges against the floor.
+ * Never glassy: the body is a dark, solid violet.
+ */
+export function createFacetVolleyCrystalMaterial() {
+  const material = new MeshStandardMaterial({ color: 0x2c1656, roughness: 0.16, metalness: 0.3, flatShading: true });
+  const uniforms = {
+    uTime: frame.uTime,
+    uGlow: { value: 1 },
+    uGlint: { value: 1 },
+    uGlintRate: { value: 0.6 },
+    uRim: { value: 0.4 },
+    uCore: { value: new Color() },
+    uTint: { value: new Color() },
+    uBody: { value: new Color() },
+    uDeep: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aHeat;\nattribute float aPlant;\nvarying float vSigHeat;\nvarying float vSigPlant;\nvarying vec3 vSigLocal;\nvarying float vSigSeed;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vSigHeat = aHeat;
+vSigPlant = aPlant;
+vSigLocal = position;
+vSigSeed = 0.0;
+#ifdef USE_INSTANCING
+vSigSeed = fract(instanceMatrix[3].x * 0.731 + instanceMatrix[3].z * 0.417 + float(gl_InstanceID) * 0.137);
+#endif`
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uTime; uniform float uGlow; uniform float uGlint; uniform float uGlintRate; uniform float uRim;
+uniform vec3 uCore; uniform vec3 uTint; uniform vec3 uBody; uniform vec3 uDeep;
+varying float vSigHeat; varying float vSigPlant; varying vec3 vSigLocal; varying float vSigSeed;`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  float p = clamp(vSigPlant, 0.0, 2.0);
+  float g = fract(uTime * uGlintRate + vSigSeed) * 1.5 - 0.25;
+  float band = exp(-pow((vSigLocal.y - g) / 0.07, 2.0)) * uGlint;
+  float s = clamp(vSigHeat * (0.35 + 0.65 * p) + band * (0.3 + 0.4 * p), 0.0, 1.6);
+  vec3 ramp = mix(uDeep, uBody, smoothstep(0.0, 0.35, s));
+  ramp = mix(ramp, uTint, smoothstep(0.4, 0.85, s));
+  ramp = mix(ramp, uCore * 1.3, smoothstep(1.0, 1.45, s));
+  totalEmissiveRadiance += ramp * s * uGlow;
+  vec3 V = normalize(vViewPosition);
+  float fres = pow(1.0 - abs(dot(normalize(normal), V)), 2.5);
+  totalEmissiveRadiance += uTint * fres * uRim * (0.4 + 0.6 * min(p, 1.0));
+}`
+        );
+    },
+    'codex-facetvolley-crystal'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uGlow.value = c.crystalGlow * g.glow * g.shaderIntensity;
+    uniforms.uGlint.value = c.crystalGlint;
+    uniforms.uGlintRate.value = c.crystalGlintRate * g.animationSpeed;
+    uniforms.uRim.value = c.crystalRim * g.fresnel;
+    uniforms.uCore.value.copy(getColor(c.colorB));
+    uniforms.uTint.value.copy(getColor(c.colorDetailA));
+    uniforms.uBody.value.copy(getColor(c.colorA));
+    uniforms.uDeep.value.copy(getColor(c.colorC));
+    material.color.copy(getColor(c.colorCrystal));
+    material.roughness = c.crystalRough;
+    material.metalness = c.crystalMetal;
+  };
+  return material;
+}

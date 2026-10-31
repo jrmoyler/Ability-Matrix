@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -701,6 +701,290 @@ export function createClangorCageDetailMaterial(rig = false) {
     u.uColorA.value.copy(getColor(c['color' + K + 'A']));
     u.uColorB.value.copy(getColor(c['color' + K + 'B']));
     u.uColorC.value.copy(getColor(c['color' + K + 'C']));
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The bell cage — cast-local hero shaders                               */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The chime tubes and the hoop: lit bell-bronze. A dark olive patina body
+ * (deep → body by a noise patina), lit by the scene sun with a warm metal
+ * glint and a sky fill, so on the dark floor it reads as heavy cast metal.
+ * When a tube is struck its strike band runs white-hot through lime and the
+ * whole tube flexes in its first mode (pinned at the floor and at the hoop),
+ * the swing decaying with the ring. Per instance `aTube` = (seed, ring
+ * amplitude 0..1, heat 0..1, sink 0..1).
+ */
+const TUBE_VERTEX = /* glsl */ `
+  attribute vec4 aTube;
+  uniform float uTime;
+  uniform float uFlex;
+  uniform float uRate;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vTube;
+  void main() {
+    vec3 p = position;
+    float h = clamp(p.y, 0.0, 1.0);
+    // First bending mode: pinned at both ends, widest at mid-height.
+    float mode = sin(3.14159 * h);
+    float wob = sin(uTime * uRate + aTube.x * 6.2831) * aTube.y;
+    vec4 world = modelMatrix * instanceMatrix * vec4(p, 1.0);
+    vec3 side = normalize(mat3(modelMatrix * instanceMatrix) * vec3(1.0, 0.0, 0.0));
+    world.xyz += side * mode * wob * uFlex;
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix * instanceMatrix) * normal);
+    vLocal = position;
+    vTube = aTube;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const TUBE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uHot;
+  uniform vec3  uGlowColor;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  uniform float uBandAt;
+  uniform float uBandGlow;
+  uniform float uRingGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vTube;
+
+  ${noiseGLSL}
+
+  void main() {
+    float h = clamp(vLocal.y, 0.0, 1.0);
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Bell-bronze under a patina: dark, mottled, a little brighter where worn.
+    float patina = snoise01(vec3(vLocal.x * 5.0 + vTube.x, h * 14.0, vLocal.z * 5.0));
+    float wear = smoothstep(0.55, 0.85, snoise01(vec3(h * 3.0, vTube.x * 3.1, vLocal.x * 2.0)));
+    vec3 albedo = mix(uDeep, uBody, 0.35 + 0.5 * patina);
+    albedo = mix(albedo, uTint * 0.4, wear * 0.2);
+    vec3 color = albedo * (0.22 + 1.05 * ndl);
+    color += albedo * 0.35 * (0.5 + 0.5 * N.y);
+    // Warm metal glint and a long anisotropic streak down the tube.
+    float spec = pow(max(dot(N, H), 0.0), 48.0);
+    color += vec3(1.0, 0.95, 0.82) * spec * uSpecular;
+    color += uTint * pow(1.0 - ndv, 3.0) * uRimGlow * 0.6;
+
+    // Ringing: the whole tube hums lime while it rings, strongest at the belly.
+    float ring = vTube.y;
+    float belly = sin(3.14159 * h);
+    float shimmer = 0.6 + 0.4 * sin(h * 40.0 - uTime * 30.0);
+    // Confined to the silhouette, so the dark bronze carries the mass.
+    color += uGlowColor * ring * belly * shimmer * uRingGlow * pow(1.0 - ndv, 2.5) * uGlobalGlow;
+    // The strike band: white-hot on the strike, cooling through lime to dark.
+    float band = 1.0 - smoothstep(0.0, 0.035, abs(h - uBandAt));
+    float heat = vTube.z;
+    color += mix(uGlowColor, uHot, heat) * band * heat * uBandGlow * uGlobalGlow;
+    // Foot heat where it was driven into the floor.
+    float foot = 1.0 - smoothstep(0.0, 0.08, h);
+    color += mix(uTint, uGlowColor, 0.4) * foot * heat * 0.35 * uGlobalGlow;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createClangorTubeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uTint: { value: new Color() },
+      uHot: { value: new Color() },
+      uGlowColor: { value: new Color() },
+      uSpecular: { value: 1 },
+      uRimGlow: { value: 0.5 },
+      uBandAt: { value: 0.78 },
+      uBandGlow: { value: 2 },
+      uRingGlow: { value: 1 },
+      uFlex: { value: 0.1 },
+      uRate: { value: 40 }
+    }),
+    vertexShader: TUBE_VERTEX,
+    fragmentShader: TUBE_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorTubeDeep));
+    u.uBody.value.copy(getColor(c.colorTubeBody));
+    u.uTint.value.copy(getColor(c.colorTubeTint));
+    u.uHot.value.copy(getColor(c.colorTubeHot));
+    u.uGlowColor.value.copy(getColor(c.colorTubeGlow));
+    u.uSpecular.value = c.tubeSpecular;
+    u.uRimGlow.value = c.tubeRimGlow * g.fresnel;
+    u.uBandAt.value = c.tubeBandAt;
+    u.uBandGlow.value = c.tubeBandGlow * g.shaderIntensity;
+    u.uRingGlow.value = c.tubeRingGlow * g.shaderIntensity;
+    u.uFlex.value = c.tubeFlex;
+    u.uRate.value = c.tubeRingRate * g.animationSpeed;
+  };
+  return material;
+}
+
+/**
+ * The pressure floor: a filled, dark pan of struck air inside the cage. Broad
+ * pressure waves roll inward from the ring to the centre (the cage "rings the
+ * circle inward"), shaded as a heightfield lit by the sun so the crests catch
+ * light and the troughs fall to the deep tone; every clang throws its own
+ * filled swell in from the struck tube's foot. Normal blending, so the dark
+ * reads on the floor; it frays out on noise as it closes.
+ */
+const FLOOR_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const FLOOR_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uHalf;
+  uniform float uRing;
+  uniform float uSince;
+  uniform float uOpen;
+  uniform float uErode;
+  uniform float uOpacity;
+  uniform float uWaveLen;
+  uniform float uWaveSpeed;
+  uniform float uSwell;
+  uniform float uGlow;
+  uniform vec4  uClang[6];
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uHot;
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+
+  float field(vec2 p) {
+    float r = length(p);
+    float a = atan(p.y, p.x);
+    float warp = snoise(vec3(p * 0.45, uTime * 0.3)) * 0.35;
+    // Inward-rolling pressure waves.
+    float w = 0.5 + 0.5 * cos(6.2831 * (r + warp + uSince * uWaveSpeed) / uWaveLen);
+    w *= smoothstep(0.0, uRing * 0.35, r);
+    float h = w * 0.55;
+    // Each clang's swell, rolling in from its foot.
+    for (int i = 0; i < 6; i++) {
+      vec4 k = uClang[i];
+      if (k.w <= 0.0) continue;
+      float age = uSince - k.z;
+      if (age < 0.0) continue;
+      float d = length(p - k.xy);
+      float front = age * uWaveSpeed * 2.2;
+      float band = exp(-pow((d - front) / (0.55 + age * 0.6), 2.0));
+      h += band * k.w * exp(-age * 2.2) * uSwell;
+    }
+    return h;
+  }
+
+  void main() {
+    vec2 p = (vUv - 0.5) * 2.0 * uHalf;
+    float r = length(p);
+    float reach = uRing * uOpen;
+    float inside = 1.0 - smoothstep(reach - 0.15, reach + 0.6, r);
+    if (inside <= 0.001) discard;
+    float n = snoise01(vec3(p * 0.9, 3.7));
+    float erode = 1.0 - smoothstep(uErode - 0.1, uErode + 0.05, n);
+    float alpha = inside * (1.0 - erode) * uOpacity;
+    if (alpha <= 0.002) discard;
+
+    float h = field(p);
+    float e = 0.08;
+    float hx = field(p + vec2(e, 0.0)) - h;
+    float hz = field(p + vec2(0.0, e)) - h;
+    vec3 N = normalize(vec3(-hx / e * 0.35, 1.0, -hz / e * 0.35));
+    float ndl = max(dot(N, normalize(uLightDir)), 0.0);
+    float grit = snoise01(vec3(p * 3.0, 1.3));
+    vec3 col = mix(uDeep, uBody, clamp(h * 0.9, 0.0, 1.0)) * (0.45 + 0.9 * ndl) * (0.8 + 0.4 * grit);
+    // Crests catch the ring's own light.
+    col += uTint * pow(clamp(h, 0.0, 1.5), 3.0) * uGlow * 0.6 * uGlobalGlow;
+    // A hot lip where the cage stands.
+    float lip = exp(-pow((r - uRing) / 0.35, 2.0)) * uOpen;
+    // The lip under the feet is heaved dark floor, not light.
+    col = mix(col, uDeep, lip * 0.6);
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+export function createClangorFloorMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uHalf: { value: 5 },
+      uRing: { value: 4 },
+      uSince: { value: 0 },
+      uOpen: { value: 0 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uWaveLen: { value: 1.4 },
+      uWaveSpeed: { value: 1.5 },
+      uSwell: { value: 1 },
+      uGlow: { value: 1 },
+      uClang: { value: Array.from({ length: 6 }, () => new Vector4()) },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uTint: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: FLOOR_FRAGMENT
+  });
+  material.userData.sync = (half, ring, since, open, erode) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uHalf.value = half;
+    u.uRing.value = ring;
+    u.uSince.value = since;
+    u.uOpen.value = open;
+    u.uErode.value = erode;
+    u.uOpacity.value = c.floorOpacity * g.opacity;
+    u.uWaveLen.value = Math.max(0.2, c.floorWaveLength);
+    u.uWaveSpeed.value = c.floorWaveSpeed;
+    u.uSwell.value = c.floorSwell;
+    u.uGlow.value = c.floorGlow * g.glow;
+    u.uDeep.value.copy(getColor(c.colorFloorDeep));
+    u.uBody.value.copy(getColor(c.colorFloorBody));
+    u.uTint.value.copy(getColor(c.colorTubeGlow));
+    u.uHot.value.copy(getColor(c.colorTubeHot));
   };
   return material;
 }

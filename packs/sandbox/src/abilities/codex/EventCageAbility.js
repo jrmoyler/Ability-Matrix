@@ -1,4 +1,16 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  SphereGeometry,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +21,10 @@ import {
   createEventCageLensMaterial,
   createEventCageGroundMaterial,
   createEventCageVoiceMaterial,
-  createEventCageDetailMaterial
+  createEventCageDetailMaterial,
+  createEventCageBarMaterial,
+  createEventCageSeedMaterial,
+  createEventCagePitMaterial
 } from '../../materials/codex/EventCageMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +61,76 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Bars the cage can stand (the geometry is instanced once). */
+const MAX_BARS = 16;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qy = new Quaternion();
+const _scale = new Vector3();
+const _axis = new Vector3();
+const _radial = new Vector3();
+const _tops = Array.from({ length: MAX_BARS }, () => new Vector3());
+const _bx = new Vector3();
+const _by = new Vector3();
+const _bz = new Vector3();
+const _hand = new Vector3();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/** A stable 0..1 die per bar from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * One event bar, one unit tall, built along +Y: a chamfered-square prism with
+ * a driven spike for a foot, a collar near each end and a pyramid cap. Flat
+ * facets, so the sun picks out every face of the glass.
+ */
+function createCageBarGeometry() {
+  const ring = [];
+  const half = 0.5;
+  const ch = 0.17;
+  const outline = [
+    [half, -half + ch], [half, half - ch], [half - ch, half], [-half + ch, half],
+    [-half, half - ch], [-half, -half + ch], [-half + ch, -half], [half - ch, -half]
+  ];
+  // [height, cross-section scale]
+  const stations = [
+    [0.0, 0.08], [0.07, 0.7], [0.1, 1.06], [0.13, 1.06], [0.15, 0.9],
+    [0.82, 0.82], [0.85, 1.08], [0.89, 1.08], [0.91, 0.8], [1.0, 0.1]
+  ];
+  for (const [y, k] of stations) ring.push(outline.map(([x, z]) => [x * k, y, z * k]));
+  const pos = [];
+  const n = outline.length;
+  for (let r = 0; r < ring.length - 1; r++) {
+    const a = ring[r];
+    const b = ring[r + 1];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pos.push(...a[i], ...b[j], ...a[j], ...a[i], ...b[i], ...b[j]);
+    }
+  }
+  const top = ring[ring.length - 1];
+  const bottom = ring[0];
+  for (let i = 1; i < n - 1; i++) {
+    pos.push(...top[0], ...top[i + 1], ...top[i]);
+    pos.push(...bottom[0], ...bottom[i], ...bottom[i + 1]);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** The lintel: the same chamfered section, one unit long along +X, centred. */
+function createCageBeamGeometry() {
+  const g = createCageBarGeometry();
+  g.translate(0, -0.5, 0);
+  g.rotateZ(-Math.PI / 2);
+  return g;
+}
 
 /**
  * EVENT CAGE — void, zone cast.
@@ -72,6 +157,32 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The cage (the hero, cast-local — section 14 of the editor)
+ *
+ * The shared template layers (body, voice, rig, pieces) are turned down in
+ * the config; the spell is carried by its own forms:
+ *
+ *   - **the event** — a black urchin of void with a violet horizon is lobbed
+ *     from the hand on an arc (`seed*`) and lands on the centre on the beat.
+ *   - **the bars** — `cageBars` tall bars of lit void-glass (chamfered
+ *     prisms with a driven foot, collars and a cap; `createCageBarGeometry`)
+ *     fall out of the sky as the event flies, their shadows sweeping in, and
+ *     slam into a ring at `cageFit` × the circle on the beat. A lintel of the
+ *     same glass (`cageLintel`) joins their tops, so it reads as one cage.
+ *   - **the closing** — through the linger the cage closes on the centre in
+ *     `cageSteps` discrete events: each one snaps every bar inward (overshoot,
+ *     dust, a thud, a tick of light up the bars' notch columns), leaning the
+ *     tops in.
+ *   - **the missing centre** — a filled hole opens on the floor (`pit*`):
+ *     black, draining in a spiral, with a hot horizon lip and a dark violet
+ *     skirt dragged toward it; motes stream inward across the floor.
+ *   - **the erase** — from `cageEraseStart` the bars are erased top-down,
+ *     one after another round the ring, behind a white-hot cut, sinking as
+ *     they go; the lintel goes first. The hole closes last, leaving the stain.
+ *
+ * All of it is presentation: hits still land once, on the beat, inside the
+ * circle (`_strike`), exactly as before.
  *
  * Every metre, rate and colour is read from `settings.eventcage` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +218,7 @@ export class EventCageAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildCage();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +263,46 @@ export class EventCageAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The cage's own meshes: instanced bars and lintel, the thrown event, the hole. */
+  _buildCage() {
+    this.barGeometry = createCageBarGeometry();
+    this.beamGeometry = createCageBeamGeometry();
+    this.barMaterial = createEventCageBarMaterial();
+    const make = (geometry) => {
+      const mesh = new InstancedMesh(geometry, this.barMaterial, MAX_BARS);
+      const attr = new InstancedBufferAttribute(new Float32Array(MAX_BARS * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aBar', attr);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.bars = make(this.barGeometry);
+    this.beams = make(this.beamGeometry);
+    this.seedGeometry = new SphereGeometry(1, 40, 28);
+    this.seedMaterial = createEventCageSeedMaterial();
+    this.seed = this._mesh(this.seedGeometry, this.seedMaterial, LAYER.VFX, 15);
+    this.pitGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.pitMaterial = createEventCagePitMaterial();
+    this.pit = this._mesh(this.pitGeometry, this.pitMaterial, LAYER.VFX, 3);
+    this.pit.rotation.x = -Math.PI / 2;
+    this._cageSpin = 0;
+    this._cageStep = 0;
+    this._stepReached = 0;
+    this._cageClose = 0;
+    this._pitR = 0;
+    this._cageRadius = 1;
+    this._seedEmitter = new RateEmitter();
+    this._pullEmitter = new RateEmitter();
+    this._eraseEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +383,15 @@ export class EventCageAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._cageSpin = Math.random() * TAU;
+    this._cageStep = 0;
+    this._stepReached = 0;
+    this._cageClose = 0;
+    this._pitR = 0;
+    this._seedEmitter.reset();
+    this._pullEmitter.reset();
+    this._eraseEmitter.reset();
+    this._hideCage();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -294,7 +455,258 @@ export class EventCageAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._cage(committed, fadeT);
   }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** How far the cage has closed (0..1), in `cageSteps` snapped events. Also returns the step index reached. */
+  _closing(since) {
+    const c = settings[ID];
+    const L = settings.global.lifetime;
+    if (since < 0) return 0;
+    const total = this.impactDuration + this.fadeDuration;
+    const start = c.cageCloseStart * L;
+    const end = Math.max(start + 0.1, total * c.cageCloseEnd);
+    const steps = Math.max(1, Math.round(c.cageSteps));
+    const per = (end - start) / steps;
+    const x = saturate((since - start) / (end - start)) * steps;
+    const k = Math.min(steps, Math.floor(x));
+    this._stepReached = since >= start ? Math.min(steps, k + 1) : 0;
+    if (k >= steps) return 1;
+    const f = saturate(((x - k) * per) / Math.max(0.02, c.cageStepSnap * L));
+    return (k + (since >= start ? Easing.outBack(f) : 0)) / steps;
+  }
+
+  /**
+   * Stand the cage for this frame: every dimension from settings, every
+   * moment from the travel (`u`) or the seconds since the beat.
+   */
+  _cage(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(1, _end);
+    const n = Math.max(3, Math.min(MAX_BARS, Math.round(c.cageBars)));
+    const R = Math.max(0.3, c.zoneRadius * c.cageFit);
+    const H = Math.max(0.2, c.cageHeight);
+    const W = Math.max(0.02, c.cageWidth);
+    const close = this._closing(since);
+    this._cageClose = close;
+    this._cageRadius = R;
+
+    // The missing centre opens after the beat and closes over the last stretch.
+    const exitAt = total - Math.max(0.05, c.pitClose * L);
+    const open = since < 0 ? 0 : Easing.outCubic(saturate(since / Math.max(0.05, c.pitGrow * L)));
+    const shut = since < exitAt ? 0 : Easing.inQuad(saturate((since - exitAt) / Math.max(0.05, c.pitClose * L)));
+    this._pitR = R * c.pitFit * (0.35 + 0.65 * close) * open * (1 - shut);
+    if (this._pitR > 0.02 && c.pitOpacity > 0.01) {
+      const outer = this._pitR * (1 + c.pitSkirt) + c.pitLip;
+      this.pit.visible = true;
+      this.pit.position.set(_end.x, 0.035, _end.z);
+      this.pit.scale.set(outer * 2, outer * 2, 1);
+      this.pitMaterial.userData.sync(outer, this._pitR, 1 - shut * 0.5, this._seed);
+    } else this.pit.visible = false;
+
+    // The event in flight, on an arc from the hand to the centre.
+    if (!committed && c.seedSize > 0.01) {
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _hand.y = c.handHeight;
+      const t = saturate(this.u);
+      this.seed.visible = true;
+      this.seed.position.lerpVectors(_hand, _end, t);
+      this.seed.position.y = _hand.y * (1 - t) + 0.45 * t + c.seedArc * 4 * t * (1 - t);
+      const s = c.seedSize * (0.6 + 0.4 * Easing.outCubic(saturate(this.age / 0.12)));
+      this.seed.scale.setScalar(s);
+      this.seedMaterial.userData.sync(this._seed);
+    } else this.seed.visible = false;
+
+    // The bars.
+    const attr = this.barGeometry.getAttribute('aBar');
+    const beamAttr = this.beamGeometry.getAttribute('aBar');
+    let any = false;
+    const heat = since < 0 ? 0 : Math.exp(-since * 2.5 / L);
+    const tilt = c.cageLean * (0.25 + 0.75 * close);
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      const land = 1 - c.cageStagger * d;
+      const span = Math.max(0.05, c.cageDropSpan);
+      const p = committed ? 1 : saturate((this.u - (land - span)) / span);
+      const order = (i / n + 0.15 * d) % 1;
+      const e = since < 0 ? 0 : saturate((since - (c.cageEraseStart + c.cageEraseStagger * order) * L) / Math.max(0.05, c.cageEraseTime * L));
+      attr.setXYZW(i, d * 10, e, heat, since < 0 ? -1 : 0.12 + 0.88 * close);
+      if (p <= 0 || e >= 0.999) {
+        this.bars.setMatrixAt(i, _zero);
+        _tops[i].copy(_end);
+        continue;
+      }
+      any = true;
+      const ang = this._cageSpin + (TAU * i) / n + (d - 0.5) * 0.1;
+      const rad = R * (1 - c.cageClose * close * (0.85 + 0.3 * d));
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      const fall = c.cageDropHeight * (1 - p * p);
+      const dip = since < 0 ? 0 : c.cageBounce * Math.sin(Math.min(1, since / 0.14) * Math.PI) * Math.exp(-since * 4);
+      const sink = e * c.cageSink * H;
+      _pos.copy(_end).addScaledVector(_radial, rad);
+      _pos.y = fall - dip - sink;
+      _axis.set(-_radial.z, 0, _radial.x);
+      _q.setFromAxisAngle(_axis, tilt + (1 - p) * 0.25 * (d - 0.5));
+      _qy.setFromAxisAngle(_up, -ang);
+      _q.multiply(_qy);
+      _scale.set(W, H, W);
+      _m4.compose(_pos, _q, _scale);
+      this.bars.setMatrixAt(i, _m4);
+      _tops[i].copy(_up).applyQuaternion(_q).multiplyScalar(H * 0.87).add(_pos);
+    }
+    this.bars.count = n;
+    this.bars.visible = any;
+    this.bars.instanceMatrix.needsUpdate = true;
+    attr.needsUpdate = true;
+
+    // The lintel, joining neighbouring tops; it is erased first.
+    const T = c.cageLintel;
+    let beams = false;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const ei = attr.getY(i);
+      const ej = attr.getY(j);
+      const e = saturate(Math.max(ei, ej) * 6);
+      beamAttr.setXYZW(i, dice(i + 31, this._seed) * 10, e, heat * 0.5, -1);
+      _bx.subVectors(_tops[j], _tops[i]);
+      const len = _bx.length();
+      if (T < 0.01 || len < 0.05 || e >= 0.999 || _tops[i].equals(_end) || _tops[j].equals(_end)) {
+        this.beams.setMatrixAt(i, _zero);
+        continue;
+      }
+      beams = true;
+      _bx.divideScalar(len);
+      _bz.crossVectors(_bx, _up).normalize();
+      _by.crossVectors(_bz, _bx);
+      _m4.makeBasis(_bx, _by, _bz);
+      _m4.scale(_scale.set(len + T * 0.6, T, T));
+      _m4.setPosition(_pos.addVectors(_tops[i], _tops[j]).multiplyScalar(0.5));
+      this.beams.setMatrixAt(i, _m4);
+    }
+    this.beams.count = n;
+    this.beams.visible = beams;
+    this.beams.instanceMatrix.needsUpdate = true;
+    beamAttr.needsUpdate = true;
+    this.barMaterial.userData.sync();
+  }
+
+  _hideCage() {
+    this.bars.visible = false;
+    this.beams.visible = false;
+    this.seed.visible = false;
+    this.pit.visible = false;
+  }
+
+  /** Each closing event lands as its own small hit: a thud, a light tick, dust kicked inward off every foot. */
+  _cageEvent() {
+    const c = settings[ID];
+    const g = settings.global;
+    this.ctx.shake.add(c.cageStepShake * g.cameraShake * g.explosionIntensity, 4, 16);
+    this.lightBoost += c.cageStepLight * g.explosionIntensity;
+    this._cageFeet(c.cageStepDust, 0, -1);
+  }
+
+  /** Dust and chips off every bar's foot; `out` 1 throws them out, −1 drags them in. */
+  _cageFeet(dust, chips, out) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(3, Math.min(MAX_BARS, Math.round(c.cageBars)));
+    const R = this._cageRadius * (1 - c.cageClose * this._cageClose);
+    const nd = Math.round(dust * g.particleCount);
+    const nc = Math.round(chips * g.particleCount * g.explosionIntensity);
+    this.pointAt(1, _end);
+    for (let i = 0; i < n; i++) {
+      const ang = this._cageSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      _pos.copy(_end).addScaledVector(_radial, R);
+      _pos.y = 0.1;
+      _dir.copy(_radial).multiplyScalar(out);
+      _dir.y = 0.25;
+      if (nd > 0) {
+        this._fillEmit(_pos, 0.25, _dir, c.dustSpeed * 1.2, 0.5, 0.55, c.dustLife * 1.3, 0.4);
+        this.dust.emit(nd, _emit);
+      }
+      if (nc > 0) {
+        _dir.y = 1.4;
+        this._fillEmit(_pos, 0.15, _dir, c.chipSpeed, 0.6, c.chipSize * 1.5, c.chipLife, 8);
+        this.chips.emit(nc, _emit);
+      }
+    }
+  }
+
+  /** The bars land: scorch under every foot, chips and dust thrown out. */
+  _cageSlam() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(3, Math.min(MAX_BARS, Math.round(c.cageBars)));
+    this.pointAt(1, _end);
+    if (c.footScorch > 0.01) {
+      for (let i = 0; i < n; i++) {
+        const ang = this._cageSpin + (TAU * i) / n;
+        _pos.set(_end.x + Math.cos(ang) * this._cageRadius, 0, _end.z + Math.sin(ang) * this._cageRadius);
+        this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+          radius: c.footScorch,
+          life: c.groundLife * g.lifetime,
+          width: 0.7,
+          intensity: 0.9,
+          colorA: getColor(c.colorGroundStain),
+          colorB: getColor(c.colorCageRim),
+          height: 0.028
+        });
+      }
+    }
+    this._cageFeet(c.footDust, c.footChips, 1);
+  }
+
+  /** The cage's own particles: the event's wake, motes dragged into the hole, sparks off the erase cut. */
+  _cageShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (!committed && this.seed.visible) {
+      const n = Math.round(this._seedEmitter.tick(dt, c.seedTrail) * g.particleCount);
+      if (n > 0) {
+        this._fillEmit(this.seed.position, c.seedSize * 0.6, _up, c.moteSpeed * 0.3, 1, 0.1, c.moteLife * 0.7, 1);
+        this.motes.emit(n, _emit);
+      }
+      return;
+    }
+    if (this._pitR > 0.05) {
+      const n = Math.round(this._pullEmitter.tick(dt, c.pullMotes) * g.particleCount);
+      this.pointAt(1, _end);
+      for (let k = 0; k < n; k++) {
+        const ang = Math.random() * TAU;
+        const r = this._pitR * (1.3 + Math.random() * c.pitSkirt);
+        _pos.set(_end.x + Math.cos(ang) * r, 0.08 + Math.random() * 0.3, _end.z + Math.sin(ang) * r);
+        _dir.set(-Math.cos(ang) + Math.sin(ang) * 0.5, -0.05, -Math.sin(ang) - Math.cos(ang) * 0.5);
+        this._fillEmit(_pos, 0.05, _dir, c.pullSpeed, 0.1, 0.09, Math.min(c.moteLife, (r - this._pitR) / Math.max(0.2, c.pullSpeed) + 0.1), 1);
+        this.motes.emit(1, _emit);
+      }
+    }
+    const n = Math.round(this._eraseEmitter.tick(dt, c.eraseSparks) * g.particleCount);
+    if (n > 0) {
+      const attr = this.barGeometry.getAttribute('aBar');
+      const bars = this.bars.count;
+      for (let k = 0; k < n; k++) {
+        const i = Math.floor(Math.random() * bars);
+        const e = attr.getY(i);
+        if (e <= 0.01 || e >= 0.98) continue;
+        _pos.copy(_tops[i]).lerp(_end, 0).setY(Math.max(0.1, _tops[i].y * (1 - e)));
+        this._fillEmit(_pos, c.cageWidth * 0.6, _up, c.streakSpeed * 0.4, 0.9, 0.06, c.streakLife, 2);
+        this.streaks.emit(1, _emit);
+      }
+    }
+  }
+
 
   /**
    * The floor's own clock. Before the beat a zone shows its footprint faintly
@@ -756,6 +1168,7 @@ export class EventCageAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._cageShed(dt, false);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -763,6 +1176,7 @@ export class EventCageAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._cageSlam();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -774,6 +1188,11 @@ export class EventCageAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._cageShed(dt, true);
+    if (this._stepReached > this._cageStep) {
+      this._cageStep = this._stepReached;
+      this._cageEvent();
+    }
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -797,9 +1216,17 @@ export class EventCageAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideCage();
   }
 
   dispose() {
+    this.barGeometry.dispose();
+    this.beamGeometry.dispose();
+    this.barMaterial.dispose();
+    this.seedGeometry.dispose();
+    this.seedMaterial.dispose();
+    this.pitGeometry.dispose();
+    this.pitMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -980,6 +1407,65 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const cage = folder.addFolder('14 · The cage');
+  R(cage, c, 'cageBars', 3, 16, 1, 'bars');
+  R(cage, c, 'cageWidth', 0.05, 1.2, 0.01, 'bar width (m)');
+  R(cage, c, 'cageHeight', 0.5, 6, 0.05, 'bar height (m)');
+  R(cage, c, 'cageFit', 0.2, 1.4, 0.01, 'ring, × circle');
+  R(cage, c, 'cageLintel', 0, 0.8, 0.01, 'lintel (m)');
+  R(cage, c, 'cageDropHeight', 0, 14, 0.1, 'drop from (m)');
+  R(cage, c, 'cageDropSpan', 0.05, 1, 0.01, 'drop, share of travel');
+  R(cage, c, 'cageStagger', 0, 0.5, 0.01, 'drop stagger');
+  R(cage, c, 'cageBounce', 0, 1, 0.01, 'slam dip (m)');
+  R(cage, c, 'cageLean', 0, 0.8, 0.01, 'lean in (rad)');
+  R(cage, c, 'cageSteps', 1, 8, 1, 'closing events');
+  R(cage, c, 'cageCloseStart', 0, 2, 0.01, 'closing starts (s)');
+  R(cage, c, 'cageCloseEnd', 0.2, 1, 0.01, 'closed by, share of life');
+  R(cage, c, 'cageClose', 0, 0.9, 0.01, 'closes by, × ring');
+  R(cage, c, 'cageStepSnap', 0.02, 0.6, 0.01, 'event snap (s)');
+  R(cage, c, 'cageStepShake', 0, 1, 0.01, 'event punch');
+  R(cage, c, 'cageStepLight', 0, 20, 0.1, 'event light');
+  R(cage, c, 'cageStepDust', 0, 20, 1, 'event dust / bar');
+  R(cage, c, 'cageEraseStart', 0, 3, 0.01, 'erase starts (s)');
+  R(cage, c, 'cageEraseStagger', 0, 2, 0.01, 'erase sweep (s)');
+  R(cage, c, 'cageEraseTime', 0.05, 2, 0.01, 'erase per bar (s)');
+  R(cage, c, 'cageSink', 0, 1, 0.01, 'sinks as erased');
+  R(cage, c, 'cageCutWidth', 0.005, 0.3, 0.005, 'cut edge');
+  R(cage, c, 'cageNotches', 1, 30, 1, 'event notches');
+  R(cage, c, 'cageNotchGlow', 0, 6, 0.05, 'notch glow');
+  R(cage, c, 'cageRimGlow', 0, 4, 0.05, 'rim glow');
+  R(cage, c, 'cageSpecular', 0, 4, 0.05, 'specular');
+  R(cage, c, 'cageHeat', 0, 6, 0.05, 'slam heat');
+  cage.addColor(c, 'colorCageDeep').name('glass, deep');
+  cage.addColor(c, 'colorCageBody').name('glass, body');
+  cage.addColor(c, 'colorCageRim').name('horizon rim');
+  cage.addColor(c, 'colorCageHot').name('white-hot');
+  R(cage, c, 'footScorch', 0, 2, 0.01, 'foot scorch (m)');
+  R(cage, c, 'footDust', 0, 30, 1, 'foot dust');
+  R(cage, c, 'footChips', 0, 30, 1, 'foot chips');
+  R(cage, c, 'eraseSparks', 0, 200, 1, 'erase sparks / s');
+
+  const hole = folder.addFolder('15 · The missing centre');
+  R(hole, c, 'pitFit', 0, 1, 0.01, 'hole, × ring');
+  R(hole, c, 'pitGrow', 0.05, 2, 0.01, 'opens in (s)');
+  R(hole, c, 'pitClose', 0.05, 2, 0.01, 'closes in (s)');
+  R(hole, c, 'pitLip', 0.01, 0.6, 0.01, 'lip (m)');
+  R(hole, c, 'pitSkirt', 0, 4, 0.05, 'skirt, × hole');
+  R(hole, c, 'pitSwirl', 0, 4, 0.05, 'drain');
+  R(hole, c, 'pitGlow', 0, 6, 0.05, 'lip glow');
+  R(hole, c, 'pitOpacity', 0, 1, 0.01, 'opacity');
+  hole.addColor(c, 'colorPitDeep').name('hole');
+  hole.addColor(c, 'colorPitLip').name('lip');
+  R(hole, c, 'pullMotes', 0, 200, 1, 'motes pulled / s');
+  R(hole, c, 'pullSpeed', 0, 10, 0.1, 'pull speed');
+
+  const event = folder.addFolder('16 · The event in flight');
+  R(event, c, 'seedSize', 0, 1.5, 0.01, 'size (m)');
+  R(event, c, 'seedArc', 0, 6, 0.05, 'arc (m)');
+  R(event, c, 'seedSpikes', 0, 1, 0.01, 'spikes');
+  R(event, c, 'seedGlow', 0, 4, 0.05, 'horizon glow');
+  R(event, c, 'seedTrail', 0, 200, 1, 'wake motes / s');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

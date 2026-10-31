@@ -1,4 +1,5 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Float32BufferAttribute, LatheGeometry, Matrix4, Mesh, PlaneGeometry, Vector2, Vector3 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +13,9 @@ import {
   createMomentSwingVoiceMaterial,
   createMomentSwingDetailMaterial,
   createMomentSwingTrailMaterial,
-  createMomentSwingScarMaterial
+  createMomentSwingScarMaterial,
+  createMomentMaulMaterial,
+  createMomentCraterMaterial
 } from '../../materials/codex/MomentSwingMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +49,65 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _basis = new Matrix4();
+const _spinM = new Matrix4();
+const _zAxis = new Vector3();
+const _arm = new Vector3();
+const TAU = Math.PI * 2;
+
+/* ------------------------------------------------------------------ */
+/* The maul — the cast's own hero (upgrade pass)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A lathe around Y, flat-shaded so its facets catch the sun, with a per-vertex
+ * `aHeat` (0..1) from `heatOf(y)` that the maul shader turns into glowing seams.
+ */
+function facetedLathe(profile, segments, heatOf) {
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), segments).toNonIndexed();
+  const pos = g.getAttribute('position');
+  const heat = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) heat[i] = heatOf(pos.getY(i));
+  g.setAttribute('aHeat', new Float32BufferAttribute(heat, 1));
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The maul: a forged, octagonal double-faced head 1.8 m across, its striking
+ * faces flared and hot, a socket collar, a tapered haft with grip bands and a
+ * heavy pommel. Real metres; the head's centre sits on the origin and the haft
+ * runs down −Y (butt at y ≈ −3.0), so turning the mesh about its own origin
+ * tumbles it round the heavy end — where its centre of mass is.
+ */
+function createMomentMaulGeometry() {
+  // Head: lathe round Y, then laid along X. Octagonal, flared faces, a waist groove.
+  const head = facetedLathe(
+    [[0, -0.9], [0.36, -0.9], [0.45, -0.84], [0.42, -0.74], [0.33, -0.6], [0.35, -0.16], [0.3, -0.07], [0.3, 0.07], [0.35, 0.16], [0.33, 0.6], [0.42, 0.74], [0.45, 0.84], [0.36, 0.9], [0, 0.9]],
+    8,
+    (y) => (Math.abs(y) > 0.86 ? 1 : Math.abs(y) < 0.08 ? 0.4 : 0)
+  );
+  head.rotateZ(Math.PI / 2);
+  head.rotateX(Math.PI / 8);
+  // Haft with socket collar, grip bands and pommel.
+  const haft = facetedLathe(
+    [[0, 0.1], [0.2, 0.05], [0.22, -0.2], [0.17, -0.42], [0.11, -0.5], [0.1, -1.2], [0.085, -2.2], [0.11, -2.25], [0.11, -2.35], [0.085, -2.4], [0.11, -2.5], [0.11, -2.6], [0.085, -2.65], [0.1, -2.8], [0.19, -2.88], [0.17, -3.0], [0, -3.04]],
+    10,
+    (y) => (y > -0.45 && y < -0.15 ? 0.35 : 0)
+  );
+  const merged = mergeGeometries([head, haft], false);
+  head.dispose();
+  haft.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+/** Centre of mass of the maul, metres below the head's centre (authored scale). */
+const MAUL_CENTRE = 0.62;
+/** Distance from the head's centre to the striking face, authored scale. */
+const MAUL_FACE = 0.45;
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -75,6 +137,31 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The maul (upgrade pass — the cast's own silhouette)
+ *
+ * The template rig, body and voice are off by default (`heroOpacity`,
+ * `bodyOpacity`, `voiceOpacity` = 0); the spell's noun is now a real object:
+ *
+ *  - **travel** — a forged maul (`createMomentMaulGeometry`, ≈3.5 m × 1.8 m
+ *    at `maulScale` 1) leaves the hand and *tumbles end over end* down the
+ *    line on a lob (`flightHeight`, `flightArc`), turning round its heavy end
+ *    (its centre of mass) `flightTurns` times. The turn is derived from the
+ *    front `u`, so whatever the range, the last quarter-turn always brings
+ *    the head down onto the target: the swing that delivers its load at the
+ *    stop. Hits along the way are the template's, unchanged (`travel`).
+ *  - **impact** — the head drives `plantSink` into the floor: the crater
+ *    (`createMomentCraterMaterial`) punches open with fissures running out,
+ *    a crack and dust ring, chips, shake and a light punch. The faces go
+ *    white-hot (`maulHeatSlam`).
+ *  - **linger** — the maul stands planted head-down and *rocks* on its
+ *    buried head like an inverted pendulum, a damped swing
+ *    (`rockAmp`, `rockRate`, `rockDamp`) that kicks dust each time it swings
+ *    through; its faces and the crater's fissures cool along the ramp.
+ *  - **exit** — from `sinkFrom` it sinks `sinkOut` into the crater as the
+ *    crater breaks up from the rim.
+ *
+ * Lit dark iron on `LAYER.WORLD` (casts shadows), only its seams glow.
  *
  * Every metre, rate and colour is read from `settings.moment` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +246,102 @@ export class MomentSwingAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The maul and its crater — the cast's own hero (see the class comment).
+    this.maulGeometry = createMomentMaulGeometry();
+    this.maulMaterial = createMomentMaulMaterial();
+    this.maul = new Mesh(this.maulGeometry, this.maulMaterial);
+    this.maul.layers.set(LAYER.WORLD);
+    this.maul.castShadow = true;
+    this.maul.receiveShadow = true;
+    this.maul.matrixAutoUpdate = false;
+    this.maul.frustumCulled = false;
+    this.maul.visible = false;
+    this.group.add(this.maul);
+    this.craterGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.craterMaterial = createMomentCraterMaterial();
+    this.crater = this._mesh(this.craterGeometry, this.craterMaterial, LAYER.VFX, 2);
+    this.crater.rotation.x = -Math.PI / 2;
+    this._slamAge = -1;
+    this._rockPrev = 0;
+    this.rockEmitter = new RateEmitter();
+  }
+
+  /**
+   * The maul's pose this frame. Before the slam it tumbles down the line on
+   * the front's clock; after it, it rocks on its buried head on its own clock
+   * (`_slamAge`), cools, then sinks. Presentation only: no hits here.
+   *
+   * @param {number} dt
+   * @param {number} fadeT 0 in flight; the onFade clock (0..2) after the slam
+   */
+  _maulPose(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const s = Math.max(0.1, c.maulScale);
+    const centre = MAUL_CENTRE * s;
+    const landY = (MAUL_FACE + 0.02) * s - c.plantSink;
+    let theta;
+    let heat;
+    // The head lies across the line (broadside to the camera); it tumbles about that axis.
+    _zAxis.crossVectors(this.side, _up).normalize();
+    if (this._slamAge < 0) {
+      const u = this.u;
+      theta = Math.PI + c.plantTilt + (1 - u) * c.flightTurns * TAU;
+      // Centre of mass on a lob, eased onto the landing height so the head meets the floor at u = 1.
+      this.pointAt(u, _focus);
+      const lob = c.flightHeight + c.flightArc * 4 * u * (1 - u);
+      const cy = lerp(lob, landY + centre, Easing.inOutCubic(saturate((u - 0.55) / 0.45)));
+      _arm.set(0, centre, 0);
+      this._maulMatrix(theta, _arm);
+      _end.copy(_focus).setY(cy).add(_arm);
+      heat = c.maulHeatFlight;
+    } else {
+      this._slamAge += dt;
+      const tau = this._slamAge;
+      const swing = c.rockAmp * Math.exp(-c.rockDamp * tau) * Math.cos(c.rockRate * tau);
+      theta = Math.PI + c.plantTilt + swing;
+      // Kick dust from the buried head each time it swings through upright.
+      const speed = Math.abs(swing - this._rockPrev) / Math.max(1e-3, dt);
+      this._rockPrev = swing;
+      this.pointAt(1, _end);
+      const sink = fadeT > c.sinkFrom ? Easing.inCubic(saturate((fadeT - c.sinkFrom) / Math.max(0.05, 2 - c.sinkFrom))) * c.sinkOut : 0;
+      _end.y = landY - sink;
+      heat = c.maulHeatSlam * Math.exp(-tau / Math.max(0.05, c.maulCool * g.lifetime));
+      const n = Math.round(this.rockEmitter.tick(dt, c.rockDust * saturate(speed / Math.max(0.1, c.rockAmp * c.rockRate)) * (sink > 0 ? 0 : 1)) * g.particleCount);
+      if (n > 0) {
+        _pos.copy(_end).setY(0.15);
+        this._fillEmit(_pos, 0.6 * s, _up, c.dustSpeed * 0.8, 0.9, 0.5, c.dustLife * 1.2, 0.4);
+        this.dust.emit(n, _emit);
+      }
+    }
+    this._maulMatrix(theta, null);
+    _basis.setPosition(_end);
+    if (s !== 1) _basis.scale(_arm.set(s, s, s));
+    this.maul.matrix.copy(_basis);
+    this.maul.matrixWorldNeedsUpdate = true;
+    this.maul.visible = c.maulScale > 0.01 && _end.y > -3.2 * s;
+    this.maulMaterial.userData.sync(heat);
+    // The crater: punched open on the slam, cools with the maul, erodes from the rim.
+    if (this._slamAge >= 0 && c.craterRadius > 0.01) {
+      const open = Easing.outCubic(saturate(this._slamAge / Math.max(0.02, c.craterOpen)));
+      const erode = fadeT > 1.45 ? saturate((fadeT - 1.45) / 0.55) : 0;
+      const r = c.craterRadius * Math.sqrt(Math.max(0.05, g.explosionIntensity));
+      this.pointAt(1, this.crater.position).setY(0.035);
+      this.crater.scale.set(r, r, 1);
+      this.craterMaterial.userData.sync(this._seed, 0.25 + 0.75 * open, saturate(heat / Math.max(0.1, c.maulHeatSlam)) * 1.2, erode);
+      this.crater.visible = erode < 0.99;
+    } else {
+      this.crater.visible = false;
+    }
+  }
+
+  /** Orientation: head across the aim, haft along up, turned by theta about the side axis (local X). Rotates `arm` (if given) into world. */
+  _maulMatrix(theta, arm) {
+    _basis.makeBasis(this.side, _up, _zAxis);
+    _spinM.makeRotationX(theta);
+    _basis.multiply(_spinM);
+    if (arm) arm.applyMatrix4(_basis);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +417,11 @@ export class MomentSwingAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._slamAge = -1;
+    this._rockPrev = 0;
+    this.rockEmitter.reset();
+    this.maul.visible = false;
+    this.crater.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -366,14 +554,14 @@ export class MomentSwingAbility extends Ability {
     this.heroMaterial.userData.sync(st);
     this.trailMaterial.userData.sync(st, this.trail, this._travelTime());
     this.scarMaterial.userData.sync(st, this.trail, this._travelTime());
-    this.trail.show(this.isActive);
+    this.trail.show(this.isActive && (c.trailOpacity > 0.01 || c.scarOpacity > 0.01));
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -780,6 +968,7 @@ export class MomentSwingAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
+    this._maulPose(dt, 0);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -787,6 +976,8 @@ export class MomentSwingAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._slamAge = 0;
+    this._slam();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -799,6 +990,7 @@ export class MomentSwingAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._maulPose(dt, t);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -823,9 +1015,42 @@ export class MomentSwingAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.maul.visible = false;
+    this.crater.visible = false;
+  }
+
+  /** The head lands: a crack and a dust ring sized to the crater, on top of the template beat. */
+  _slam() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.pointAt(1, _end);
+    const r = c.craterRadius * Math.sqrt(Math.max(0.05, power));
+    this.ctx.decals.spawn(DecalType.CRACK, _end, {
+      radius: r * 1.35,
+      life: c.groundLife * g.lifetime,
+      width: 0.1,
+      intensity: 0.9,
+      colorA: getColor(c.colorCraterDeep),
+      colorB: getColor(c.colorMaulHot),
+      height: 0.028
+    });
+    this.ctx.decals.spawn(DecalType.DUSTRING, _end, {
+      radius: r * 1.6,
+      life: c.shockLife * 1.3,
+      width: 0.2,
+      intensity: 0.8,
+      colorA: getColor(c.colorDustC),
+      colorB: getColor(c.colorDustB),
+      height: 0.04
+    });
   }
 
   dispose() {
+    this.maulGeometry.dispose();
+    this.maulMaterial.dispose();
+    this.craterGeometry.dispose();
+    this.craterMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1032,6 +1257,37 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const maul = folder.addFolder('14 · The maul');
+  R(maul, c, 'maulScale', 0, 3, 0.01, 'size (× 3.5 m)');
+  R(maul, c, 'flightHeight', 0, 6, 0.05, 'flight height (m)');
+  R(maul, c, 'flightArc', 0, 6, 0.05, 'lob (m)');
+  R(maul, c, 'flightTurns', 0.25, 4, 0.25, 'turns in flight');
+  R(maul, c, 'plantTilt', -0.8, 0.8, 0.01, 'planted lean (rad)');
+  R(maul, c, 'plantSink', 0, 1.5, 0.01, 'buried (m)');
+  R(maul, c, 'rockAmp', 0, 1.5, 0.01, 'rock (rad)');
+  R(maul, c, 'rockRate', 0, 30, 0.1, 'rock rate (rad/s)');
+  R(maul, c, 'rockDamp', 0, 8, 0.05, 'rock damping');
+  R(maul, c, 'rockDust', 0, 200, 1, 'dust per swing');
+  R(maul, c, 'sinkFrom', 1, 1.95, 0.01, 'sinks from');
+  R(maul, c, 'sinkOut', 0, 5, 0.05, 'sinks (m)');
+  R(maul, c, 'maulGlow', 0, 8, 0.05, 'seam glow');
+  R(maul, c, 'maulRim', 0, 3, 0.01, 'rim');
+  R(maul, c, 'maulRough', 0, 1, 0.01, 'roughness');
+  R(maul, c, 'maulMetal', 0, 1, 0.01, 'metalness');
+  R(maul, c, 'maulHeatFlight', 0, 1.5, 0.01, 'heat in flight');
+  R(maul, c, 'maulHeatSlam', 0, 2, 0.01, 'heat on the slam');
+  R(maul, c, 'maulCool', 0.05, 4, 0.05, 'cools in (s)');
+  maul.addColor(c, 'colorMaulIron').name('iron');
+  maul.addColor(c, 'colorMaulHot').name('hot seam');
+
+  const crater = folder.addFolder('15 · The crater');
+  R(crater, c, 'craterRadius', 0, 8, 0.05, 'radius (m)');
+  R(crater, c, 'craterOpen', 0.02, 1.5, 0.01, 'opens in (s)');
+  R(crater, c, 'craterOpacity', 0, 1.5, 0.01, 'opacity');
+  R(crater, c, 'craterGlow', 0, 8, 0.05, 'fissure glow');
+  R(crater, c, 'craterCracks', 2, 24, 1, 'fissures');
+  crater.addColor(c, 'colorCraterDeep').name('deep');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

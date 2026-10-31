@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +23,9 @@ import {
   createFilamentVolleyVoiceMaterial,
   createFilamentVolleyDetailMaterial,
   createFilamentVolleyTrailMaterial,
-  createFilamentVolleyScarMaterial
+  createFilamentVolleyScarMaterial,
+  createFilamentVolleyFilamentMaterial,
+  createFilamentVolleyBarbMaterial
 } from '../../materials/codex/FilamentVolleyMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -47,6 +60,50 @@ const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
 
+/** Bolts in the volley at most (the `count` slider's ceiling). */
+const MAX_BOLTS = 12;
+/** Strands braided into one filament. */
+const MAX_STRANDS = 3;
+const FIL_CAP = MAX_BOLTS * MAX_STRANDS + MAX_BOLTS;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _scale = new Vector3();
+const _axis = new Vector3();
+const _hand = new Vector3();
+const _a = new Vector3();
+const _b = new Vector3();
+const _bases = Array.from({ length: MAX_BOLTS }, () => new Vector3());
+const _heads = Array.from({ length: MAX_BOLTS }, () => new Vector3());
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/**
+ * A barb, one unit long along +Y with its point at the origin: a diamond
+ * shaft that swells to a waist, a wide flat crossguard (the fletch the bolt
+ * leaves standing) and a short head. Flat facets for a struck-metal read.
+ */
+function createBarbGeometry() {
+  const outline = [[0.5, 0], [0, 0.5], [-0.5, 0], [0, -0.5]];
+  const stations = [
+    [0.0, 0.03], [0.3, 0.6], [0.6, 1.0], [0.68, 0.8], [0.7, 0.8], [0.72, 2.8],
+    [0.76, 2.8], [0.79, 0.75], [0.92, 0.7], [1.0, 0.05]
+  ];
+  const ring = stations.map(([y, k], r) => outline.map(([x, z]) => (r >= 5 && r <= 6 ? [x * k, y, z * k * 0.3] : [x * k, y, z * k])));
+  const pos = [];
+  const n = outline.length;
+  for (let r = 0; r < ring.length - 1; r++) {
+    const a = ring[r];
+    const b = ring[r + 1];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pos.push(...a[i], ...b[j], ...a[j], ...a[i], ...b[i], ...b[j]);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
@@ -71,7 +128,18 @@ const MAX_MARKS = 12;
  *   7. **shed** — dust, streaks, chips and motes on RateEmitters.
  *   8. **aftershock** — a second, smaller beat when the fade starts.
  *   9. **bodies** — `handlesOwnHits`: each landing leaves a short bright barb. The next bolt starts where the last one ended.
- *  10. **mark** — a felled body is seared white: `corrode` stains it toward the
+ *  10. **the stitch** (cast-local hero, editor folders 15–16) — the template
+ *      body, voice, rig and pieces are turned down in the config. Each bolt
+ *      is a braid of `filStrands` glowing filaments drawn on an arc out of
+ *      the last landing (the first out of the hand) to its own landing point
+ *      (`_partPoint`, so it lands where and when its hit lands). There it
+ *      drives a gilt barb into the floor (lit, shadowed, white-hot from the
+ *      strike, cooling) and a taut seam is pulled along the floor between it
+ *      and the barb before. After the beat the arcs cinch tight
+ *      (`stitchCinch`), twang and decay, and a current runs down the chain
+ *      again and again (`pulse*`); then the stitch unravels from the hand
+ *      end with a burning tip and the barbs sink.
+ *  11. **mark** — a felled body is seared white: `corrode` stains it toward the
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
@@ -159,6 +227,212 @@ export class FilamentVolleyAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildStitch();
+  }
+
+  /** The stitch's own meshes: instanced filament strands and seams, instanced barbs. */
+  _buildStitch() {
+    this.filGeometry = new PlaneGeometry(1, 1, 56, 6);
+    for (const name of ['aStart', 'aEnd', 'aArc']) {
+      const attr = new InstancedBufferAttribute(new Float32Array(FIL_CAP * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      this.filGeometry.setAttribute(name, attr);
+    }
+    this.filMaterial = createFilamentVolleyFilamentMaterial();
+    this.filaments = new InstancedMesh(this.filGeometry, this.filMaterial, FIL_CAP);
+    this.filaments.layers.set(LAYER.VFX);
+    this.filaments.frustumCulled = false;
+    this.filaments.renderOrder = 15;
+    this.filaments.visible = false;
+    this.group.add(this.filaments);
+    this.barbGeometry = createBarbGeometry();
+    const barbAttr = new InstancedBufferAttribute(new Float32Array(MAX_BOLTS * 2), 2);
+    barbAttr.setUsage(DynamicDrawUsage);
+    this.barbGeometry.setAttribute('aBarb', barbAttr);
+    this.barbMaterial = createFilamentVolleyBarbMaterial();
+    this.barbs = new InstancedMesh(this.barbGeometry, this.barbMaterial, MAX_BOLTS);
+    this.barbs.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.barbs.layers.set(LAYER.SHAPED);
+    this.barbs.castShadow = true;
+    this.barbs.receiveShadow = true;
+    this.barbs.frustumCulled = false;
+    this.barbs.renderOrder = 14;
+    this.barbs.visible = false;
+    this.group.add(this.barbs);
+    /** Cast age each barb was planted at (−1 not yet): the only per-bolt record. */
+    this._planted = new Float32Array(MAX_BOLTS).fill(-1);
+    this._stitchSince = -1;
+    this._headEmitter = new RateEmitter();
+    this._pulseEmitter = new RateEmitter();
+  }
+
+  _boltCount() {
+    return Math.max(1, Math.min(MAX_BOLTS, Math.round(settings[ID].count)));
+  }
+
+  /** Bolt `i` drives its barb in: scorch, a spray of sparks and chips, a tick of shake and light. */
+  _plant(i) {
+    if (this._planted[i] >= 0) return;
+    this._planted[i] = this.age;
+    const c = settings[ID];
+    const g = settings.global;
+    this._partPoint(i, this._boltCount(), _pos);
+    _pos.y = 0;
+    if (c.barbScorch > 0.01) {
+      this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+        radius: c.barbScorch,
+        life: c.groundLife * g.lifetime,
+        width: 0.6,
+        intensity: 0.95,
+        colorA: getColor(c.colorGroundStain),
+        colorB: getColor(c.colorFilBody),
+        height: 0.032
+      });
+    }
+    _pos.y = 0.15;
+    const sparks = Math.round(c.barbSparks * g.particleCount);
+    if (sparks > 0) {
+      this._fillEmit(_pos, 0.1, _up, c.streakSpeed, 0.9, 0.06, c.streakLife, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const chips = Math.round(c.barbChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      this._fillEmit(_pos, 0.15, _up, c.chipSpeed, 0.7, c.chipSize * 1.3, c.chipLife, 8);
+      this.chips.emit(chips, _emit);
+    }
+    this.ctx.shake.add(c.barbShake * g.cameraShake * g.explosionIntensity, 4, 22);
+    this.lightBoost += c.barbLight * g.explosionIntensity;
+  }
+
+  /**
+   * Stand the stitch for this frame. Every position comes from the settings
+   * (the bolt's landing point is `_partPoint`, the hand from the hand keys);
+   * every moment from the travel `u`, a barb's planting age or the seconds
+   * since the beat.
+   */
+  _stitch(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const n = this._boltCount();
+    const strands = Math.max(1, Math.min(MAX_STRANDS, Math.round(c.filStrands)));
+    const since = !committed ? -1 : fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+    this._stitchSince = since;
+    const tight = since < 0 ? 0 : Easing.outCubic(saturate(since / Math.max(0.05, c.stitchTime * L)));
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    const len = Math.max(0.1, c.barbLength);
+    let anyBarb = false;
+    const barbAttr = this.barbGeometry.getAttribute('aBarb');
+    for (let i = 0; i < n; i++) {
+      this._partPoint(i, n, _bases[i]);
+      _bases[i].y = 0;
+      const planted = this._planted[i];
+      const un = since < 0 ? 0 : saturate((since - (c.unravelStart + i * c.unravelStagger) * L) / Math.max(0.05, c.unravelTime * L));
+      const sink = since < 0 ? 0 : Easing.inQuad(saturate((since - (c.unravelStart + i * c.unravelStagger + c.unravelTime * 0.5) * L) / Math.max(0.05, c.barbSink * L)));
+      // Lean back toward where the bolt came from.
+      if (i === 0) _a.copy(this.origin);
+      else _a.copy(_bases[i - 1]);
+      _axis.subVectors(_bases[i], _a).setY(0);
+      if (_axis.lengthSq() < 1e-6) _axis.copy(this.direction);
+      _axis.normalize().multiplyScalar(-Math.sin(c.barbLean));
+      _axis.y = Math.cos(c.barbLean);
+      _axis.normalize();
+      const drive = planted < 0 ? 1 : 1 - Easing.inQuad(saturate((this.age - planted) / Math.max(0.01, c.barbDrive)));
+      const heat = planted < 0 ? 0 : Math.exp(-(this.age - planted) / Math.max(0.05, c.barbCool * L));
+      // Tip buried by `barbBury`, driven in from above, sinking at the end.
+      const lift = -len * c.barbBury + drive * c.barbDriveHeight - sink * len * (1 - c.barbBury);
+      _pos.copy(_bases[i]).addScaledVector(_axis, lift);
+      _heads[i].copy(_pos).addScaledVector(_axis, len * 0.86);
+      barbAttr.setXY(i, heat, i * 1.37 + this._seed);
+      if (planted < 0 || sink >= 0.999) {
+        this.barbs.setMatrixAt(i, _zero);
+        continue;
+      }
+      anyBarb = true;
+      _q.setFromUnitVectors(_up, _axis);
+      _m4.compose(_pos, _q, _scale.set(c.barbWidth, len, c.barbWidth));
+      this.barbs.setMatrixAt(i, _m4);
+    }
+    this.barbs.count = n;
+    this.barbs.visible = anyBarb;
+    this.barbs.instanceMatrix.needsUpdate = true;
+    barbAttr.needsUpdate = true;
+
+    // Filament arcs (one per bolt, braided) and the seams along the floor.
+    const aS = this.filGeometry.getAttribute('aStart');
+    const aE = this.filGeometry.getAttribute('aEnd');
+    const aA = this.filGeometry.getAttribute('aArc');
+    let anyFil = false;
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      const uStart = i === 0 ? 0 : (i - 1 + 0.98) / n;
+      const uLand = (i + 0.98) / n;
+      const drawn = this._planted[i] >= 0 ? 1 : saturate((this.u - uStart) / Math.max(1e-3, uLand - uStart));
+      const un = since < 0 ? 0 : saturate((since - (c.unravelStart + i * c.unravelStagger) * L) / Math.max(0.05, c.unravelTime * L));
+      if (i === 0) _a.copy(_hand);
+      else _a.copy(_heads[i - 1]);
+      _b.copy(_heads[i]);
+      const span = _a.distanceTo(_b);
+      const h = c.filArc * (c.filArcMin + c.filArcPerMetre * span) * (1 - c.stitchCinch * tight);
+      const live = drawn > 0.001 && un < 0.999;
+      if (live) anyFil = true;
+      for (let s = 0; s < strands; s++) {
+        aS.setXYZW(k, _a.x, _a.y, _a.z, i);
+        aE.setXYZW(k, _b.x, _b.y, _b.z, s / strands);
+        aA.setXYZW(k, h, live ? drawn : 0, c.filRadius, un);
+        this.filaments.setMatrixAt(k, _m4.identity());
+        k++;
+      }
+      if (i > 0 && c.seamRadius > 0.001) {
+        aS.setXYZW(k, _bases[i - 1].x, 0.05, _bases[i - 1].z, i);
+        aE.setXYZW(k, _bases[i].x, 0.05, _bases[i].z, 0);
+        aA.setXYZW(k, 0, live && this._planted[i - 1] >= 0 ? drawn : 0, c.seamRadius, un);
+        this.filaments.setMatrixAt(k, _m4.identity());
+        k++;
+      }
+    }
+    this.filaments.count = k;
+    this.filaments.visible = anyFil;
+    aS.needsUpdate = true;
+    aE.needsUpdate = true;
+    aA.needsUpdate = true;
+    this.filaments.instanceMatrix.needsUpdate = true;
+    const twang = since < 0 ? c.filTwang * 0.5 : c.filTwang * Math.exp(-since * c.filTwangDecay / L);
+    const pulse = since < 0 ? -10 : ((since * c.pulseSpeed) % (n + 2)) - 1;
+    this.filMaterial.userData.sync(twang, pulse);
+    this.barbMaterial.userData.sync();
+  }
+
+  /** Sparks off the bolt heads in flight, and motes thrown off the running current. */
+  _stitchShed(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = this._boltCount();
+    if (this._stitchSince < 0) {
+      // The head of whichever bolt is being drawn.
+      const i = Math.min(n - 1, Math.floor(this.u * n + 0.02));
+      if (this._planted[i] >= 0) return;
+      const m = Math.round(this._headEmitter.tick(dt, c.headSparks) * g.particleCount);
+      if (m <= 0) return;
+      this._partPoint(i, n, _pos);
+      _pos.y = 0.6;
+      this._fillEmit(_pos, 0.3, _up, c.streakSpeed * 0.6, 1, 0.06, c.streakLife, 2);
+      this.streaks.emit(m, _emit);
+      return;
+    }
+    const m = Math.round(this._pulseEmitter.tick(dt, c.pulseMotes) * g.particleCount);
+    for (let j = 0; j < m; j++) {
+      const i = Math.floor(Math.random() * n);
+      if (this._planted[i] < 0) continue;
+      this._fillEmit(_heads[i], 0.15, _up, c.moteSpeed, 0.7, 0.08, c.moteLife, 1);
+      this.motes.emit(1, _emit);
+    }
+  }
+
+  _hideStitch() {
+    this.filaments.visible = false;
+    this.barbs.visible = false;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +508,11 @@ export class FilamentVolleyAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._planted.fill(-1);
+    this._stitchSince = -1;
+    this._headEmitter.reset();
+    this._pulseEmitter.reset();
+    this._hideStitch();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -303,6 +582,7 @@ export class FilamentVolleyAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._stitch(committed, fadeT);
   }
 
   /**
@@ -588,6 +868,7 @@ export class FilamentVolleyAbility extends Ability {
       if (!forceAll && this._head(i, n) < 0.98) continue;
       if (!this._parts[i].armed) continue;
       this._parts[i].armed = false;
+      this._plant(i);
       this._partPoint(i, n, _end);
       this._gather(_end.x, _end.z, Math.max(0.45, c.thickness * 4 + 0.5));
     }
@@ -788,6 +1069,7 @@ export class FilamentVolleyAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
+    this._stitchShed(dt);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -807,6 +1089,7 @@ export class FilamentVolleyAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._stitchShed(dt);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -831,9 +1114,14 @@ export class FilamentVolleyAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hideStitch();
   }
 
   dispose() {
+    this.filGeometry.dispose();
+    this.filMaterial.dispose();
+    this.barbGeometry.dispose();
+    this.barbMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1034,6 +1322,56 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const fil = folder.addFolder('15 · The filaments');
+  R(fil, c, 'filStrands', 1, 3, 1, 'strands');
+  R(fil, c, 'filRadius', 0.005, 0.3, 0.005, 'strand radius (m)');
+  R(fil, c, 'filBraid', 0, 0.4, 0.005, 'braid radius (m)');
+  R(fil, c, 'filBraidTurns', 0, 10, 0.1, 'braid turns');
+  R(fil, c, 'filArc', 0, 3, 0.01, 'arc height');
+  R(fil, c, 'filArcMin', 0, 3, 0.01, 'arc, base (m)');
+  R(fil, c, 'filArcPerMetre', 0, 1.5, 0.01, 'arc per metre of span');
+  R(fil, c, 'filGlow', 0, 6, 0.05, 'glow');
+  R(fil, c, 'filCore', 0, 8, 0.05, 'white-hot core');
+  R(fil, c, 'filHeadGlow', 0, 12, 0.1, 'bolt head');
+  R(fil, c, 'filTwang', 0, 0.6, 0.005, 'twang (m)');
+  R(fil, c, 'filTwangFreq', 0, 60, 0.5, 'twang rate');
+  R(fil, c, 'filTwangDecay', 0, 10, 0.1, 'twang decay');
+  fil.addColor(c, 'colorFilCore').name('core');
+  fil.addColor(c, 'colorFilTint').name('tint');
+  fil.addColor(c, 'colorFilBody').name('body');
+  fil.addColor(c, 'colorFilDeep').name('deep');
+  R(fil, c, 'seamRadius', 0, 0.2, 0.005, 'floor seam (m)');
+  R(fil, c, 'stitchTime', 0.05, 2, 0.01, 'cinches in (s)');
+  R(fil, c, 'stitchCinch', 0, 0.95, 0.01, 'cinch');
+  R(fil, c, 'pulseSpeed', 0, 20, 0.1, 'current (stitches/s)');
+  R(fil, c, 'pulseWidth', 0.05, 2, 0.01, 'current width');
+  R(fil, c, 'pulseGlow', 0, 8, 0.05, 'current glow');
+  R(fil, c, 'pulseMotes', 0, 200, 1, 'current motes / s');
+  R(fil, c, 'headSparks', 0, 400, 1, 'head sparks / s');
+  R(fil, c, 'unravelStart', 0, 3, 0.01, 'unravels at (s)');
+  R(fil, c, 'unravelStagger', 0, 0.5, 0.005, 'unravel stagger (s)');
+  R(fil, c, 'unravelTime', 0.05, 2, 0.01, 'unravel per stitch (s)');
+
+  const barb = folder.addFolder('16 · The barbs');
+  R(barb, c, 'barbLength', 0.2, 3, 0.01, 'length (m)');
+  R(barb, c, 'barbWidth', 0.03, 0.8, 0.005, 'width (m)');
+  R(barb, c, 'barbBury', 0, 0.8, 0.01, 'buried');
+  R(barb, c, 'barbLean', 0, 1.2, 0.01, 'lean back (rad)');
+  R(barb, c, 'barbDrive', 0.01, 0.5, 0.005, 'drives in (s)');
+  R(barb, c, 'barbDriveHeight', 0, 4, 0.05, 'driven from (m)');
+  R(barb, c, 'barbCool', 0.05, 4, 0.05, 'cools in (s)');
+  R(barb, c, 'barbSink', 0.05, 2, 0.01, 'sinks in (s)');
+  R(barb, c, 'barbGlow', 0, 8, 0.05, 'heat glow');
+  R(barb, c, 'barbSpecular', 0, 4, 0.05, 'glint');
+  barb.addColor(c, 'colorBarbGold').name('gilt');
+  barb.addColor(c, 'colorBarbDeep').name('bronze, deep');
+  barb.addColor(c, 'colorBarbHot').name('heat');
+  R(barb, c, 'barbScorch', 0, 2, 0.01, 'scorch (m)');
+  R(barb, c, 'barbSparks', 0, 80, 1, 'sparks');
+  R(barb, c, 'barbChips', 0, 30, 1, 'chips');
+  R(barb, c, 'barbShake', 0, 1, 0.01, 'punch');
+  R(barb, c, 'barbLight', 0, 20, 0.1, 'light');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

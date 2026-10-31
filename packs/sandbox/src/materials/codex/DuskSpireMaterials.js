@@ -1,9 +1,10 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
-import { sharedUniforms } from '../../core/FrameUniforms.js';
+import { frame, sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 
 const ID = 'duskspire';
 
@@ -699,6 +700,239 @@ export function createDuskSpireDetailMaterial(rig = false) {
     u.uColorA.value.copy(getColor(c['color' + K + 'A']));
     u.uColorB.value.copy(getColor(c['color' + K + 'B']));
     u.uColorC.value.copy(getColor(c['color' + K + 'C']));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the stone, the pool and the runner                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The dusk stone: sun-lit near-black obsidian (MeshStandardMaterial, so it
+ * takes the sun, shadows and CSM like the floor), patched with this cast's
+ * own light. Seams (`aHeat`: the foot, the shard break, the thorn roots) and a
+ * noise-cut vein network glow along the four-stop ramp — deep → body → tint →
+ * white core — but only below a moving level `uFill` (local 0..1 up the
+ * piece): the columns drain from the top down while the spire fills from the
+ * foot up, so the light visibly runs out of the ring and up the needle. The
+ * veins crawl upward (`uFlow`). A thin violet fresnel keeps the dark silhouette
+ * off the dark floor. Instanced or not.
+ */
+export function createDuskSpireStoneMaterial() {
+  const material = new MeshStandardMaterial({ color: 0x120d1a, roughness: 0.4, metalness: 0.2, flatShading: true });
+  const uniforms = {
+    uTime: frame.uTime,
+    uFill: { value: 1 },
+    uHeat: { value: 1 },
+    uGlow: { value: 1 },
+    uVein: { value: 0.1 },
+    uFlow: { value: 0.6 },
+    uRim: { value: 0.3 },
+    uCore: { value: new Color() },
+    uTint: { value: new Color() },
+    uBody: { value: new Color() },
+    uDeep: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aHeat;\nvarying float vSigHeat;\nvarying vec3 vSigLocal;\nvarying float vSigSeed;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vSigHeat = aHeat;
+vSigLocal = position;
+vSigSeed = 0.0;
+#ifdef USE_INSTANCING
+vSigSeed = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.61;
+#endif`
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uTime; uniform float uFill; uniform float uHeat; uniform float uGlow; uniform float uVein; uniform float uFlow; uniform float uRim;
+uniform vec3 uCore; uniform vec3 uTint; uniform vec3 uBody; uniform vec3 uDeep;
+varying float vSigHeat; varying vec3 vSigLocal; varying float vSigSeed;
+${noiseGLSL}`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  vec3 q = vSigLocal;
+  float n = snoise(vec3(q.x * 9.0 + vSigSeed, q.y * 4.0 - uTime * uFlow, q.z * 9.0 - vSigSeed));
+  float vein = 1.0 - smoothstep(0.0, uVein, abs(n));
+  float level = smoothstep(uFill + 0.05, uFill - 0.05, q.y);
+  float s = clamp((vSigHeat * 0.85 + vein * 0.75) * level * uHeat, 0.0, 1.6);
+  float flick = 0.82 + 0.18 * sin(uTime * 6.0 + q.y * 9.0 + vSigSeed * 3.0);
+  // deep -> body -> tint -> white core, by how much light runs in this seam
+  vec3 ramp = mix(uDeep, uBody, smoothstep(0.0, 0.4, s));
+  ramp = mix(ramp, uTint, smoothstep(0.45, 0.9, s));
+  ramp = mix(ramp, uCore * 1.4, smoothstep(1.05, 1.5, s));
+  totalEmissiveRadiance += ramp * s * uGlow * flick;
+  // the fill line itself burns a little brighter: the level you watch move
+  float line = exp(-pow((q.y - uFill) / 0.03, 2.0)) * step(0.02, uFill) * step(uFill, 0.98);
+  totalEmissiveRadiance += uTint * line * 0.6 * uGlow * uHeat;
+  vec3 V = normalize(vViewPosition);
+  float fres = pow(1.0 - abs(dot(normalize(normal), V)), 3.0);
+  totalEmissiveRadiance += uBody * fres * uRim;
+}`
+        );
+    },
+    'codex-duskspire-stone'
+  );
+  material.userData.uniforms = uniforms;
+  /** @param {number} fill 0..1 level the light reaches  @param {number} heat overall seam strength */
+  material.userData.sync = (fill, heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uFill.value = fill;
+    uniforms.uHeat.value = heat;
+    uniforms.uGlow.value = c.stoneGlow * g.glow * g.shaderIntensity;
+    uniforms.uVein.value = c.stoneVeins;
+    uniforms.uFlow.value = c.stoneFlow * g.animationSpeed;
+    uniforms.uRim.value = c.stoneRim * g.fresnel;
+    uniforms.uCore.value.copy(getColor(c.colorB));
+    uniforms.uTint.value.copy(getColor(c.colorHeroA));
+    uniforms.uBody.value.copy(getColor(c.colorA));
+    uniforms.uDeep.value.copy(getColor(c.colorC));
+    material.color.copy(getColor(c.colorStone));
+    material.roughness = c.stoneRough;
+    material.metalness = c.stoneMetal;
+  };
+  return material;
+}
+
+const FLOOR_VERTEX = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vP = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const FLOOR_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uMode;     // 0 = the pool on the circle, 1 = the runner along the line
+  uniform float uSeed;
+  uniform float uReach;    // pool: radius it still covers (1 = the circle); runner: 0..1 how solid
+  uniform float uHeat;     // 0..1 how lit the filaments are
+  uniform float uErode;    // 0..1 breaking up at the end
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uArms;     // spiral filaments
+  uniform float uFlowRate; // how fast they draw inward / forward
+  uniform float uLen;      // runner length, metres
+  uniform vec3 uTint;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  uniform vec3 uVoid;
+  varying vec2 vP;
+  ${noiseGLSL}
+
+  void main() {
+    vec3 col;
+    float alpha;
+    if (uMode < 0.5) {
+      float r = length(vP);
+      if (r > 1.0) discard;
+      float a = atan(vP.y, vP.x);
+      float n = snoise(vec3(vP * 2.6, uSeed + uTime * 0.15));
+      float edge = uReach;
+      float body = smoothstep(edge, edge - 0.16, r + n * 0.06);
+      // Log-spiral filaments whose crests run inward over time: the circle being drunk.
+      float phase = uArms * (a + 1.7 * log(max(r, 0.015))) + uTime * uFlowRate + uSeed;
+      float fil = smoothstep(0.72, 1.0, 0.5 + 0.5 * sin(phase));
+      fil *= 0.8 + 0.2 * snoise(vec3(vP * 3.0, uSeed + 4.0 + uTime * 0.3));
+      fil *= smoothstep(0.08, 0.3, r) * body;
+      float lip = exp(-pow((r - edge + 0.04 + n * 0.03) / 0.045, 2.0)) * step(0.05, edge);
+      float pit = smoothstep(0.32, 0.0, r);
+      col = mix(uVoid, uDeep, 0.35 + 0.35 * (1.0 - r));
+      col = mix(col, uVoid * 0.4, pit);
+      vec3 glow = mix(uBody, uTint, smoothstep(0.6, 1.0, fil));
+      col += glow * (fil * 0.9 + lip * 0.6) * uHeat * uGlow;
+      alpha = clamp(body * 0.92 + lip * 0.4, 0.0, 1.0);
+      float erode = smoothstep(uErode * 1.2 - 0.2, uErode * 1.2, r * 0.8 + 0.2 + n * 0.25);
+      alpha *= mix(1.0, 1.0 - erode, step(0.001, uErode));
+    } else {
+      // vP.x across (-1..1), vP.y along (-1 tail .. 1 head).
+      float y = vP.y;
+      float ax = abs(vP.x);
+      float n = snoise(vec3(vP.x * 2.0, y * uLen * 0.4 - uTime * 2.0, uSeed));
+      float w = mix(0.3, 1.0, smoothstep(-1.0, 0.75, y)) * (0.85 + n * 0.15);
+      float head = smoothstep(1.0, 0.82, y + ax * ax * 0.15);
+      float tail = smoothstep(-1.0, -0.4, y);
+      float body = smoothstep(w, w - 0.35, ax) * head * tail;
+      float streak = smoothstep(0.6, 1.0, 0.5 + 0.5 * sin((y * uLen * 1.4 - uTime * uFlowRate * 3.0) + ax * 3.0 + n * 2.0));
+      float rim = smoothstep(w - 0.45, w - 0.1, ax) * body;
+      col = mix(uVoid, uDeep, 0.6);
+      col += mix(uBody, uTint, rim * 0.6) * (streak * 0.8 * (1.0 - ax) + rim * 1.2 + smoothstep(0.55, 0.95, y) * 0.9) * uHeat * uGlow;
+      alpha = body * uReach;
+    }
+    alpha *= uOpacity;
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * The floor under the spell, one shader in two modes. **Pool** (mode 0): a
+ * filled, near-black disc on the circle with a hot lip, whose log-spiral
+ * filaments crawl *inward* to the spire, and whose edge `uReach` contracts
+ * through the linger — the circle being drunk. **Runner** (mode 1): the
+ * shadow that crawls along the floor from the hand to the circle during the
+ * travel, a dark tongue with violet edges and streaks running forward.
+ * Normal-blended, so the deep stop darkens the floor.
+ */
+export function createDuskSpireFloorMaterial(mode = 0) {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uMode: { value: mode },
+      uSeed: { value: 0 },
+      uReach: { value: 1 },
+      uHeat: { value: 1 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uArms: { value: 5 },
+      uFlowRate: { value: 1 },
+      uLen: { value: 8 },
+      uTint: { value: new Color() },
+      uBody: { value: new Color() },
+      uDeep: { value: new Color() },
+      uVoid: { value: new Color() }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: FLOOR_FRAGMENT
+  });
+  material.userData.sync = (seed, reach, heat, erode, len = 8) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = seed;
+    u.uReach.value = reach;
+    u.uHeat.value = heat;
+    u.uErode.value = erode;
+    u.uLen.value = len;
+    u.uOpacity.value = (mode === 0 ? c.poolOpacity : c.runnerOpacity) * g.opacity;
+    u.uGlow.value = c.poolGlow * g.glow;
+    u.uArms.value = Math.max(1, Math.round(c.poolArms));
+    u.uFlowRate.value = c.poolFlow * g.animationSpeed;
+    u.uTint.value.copy(getColor(c.colorHeroA));
+    u.uBody.value.copy(getColor(c.colorA));
+    u.uDeep.value.copy(getColor(c.colorC));
+    u.uVoid.value.copy(getColor(c.colorPoolVoid));
   };
   return material;
 }

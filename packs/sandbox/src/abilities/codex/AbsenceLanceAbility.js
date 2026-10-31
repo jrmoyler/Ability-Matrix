@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,9 @@ import {
   createAbsenceLanceVoiceMaterial,
   createAbsenceLanceDetailMaterial,
   createAbsenceLanceTrailMaterial,
-  createAbsenceLanceScarMaterial
+  createAbsenceLanceScarMaterial,
+  createAbsenceLanceSpearMaterial,
+  createAbsenceLanceTrenchMaterial
 } from '../../materials/codex/AbsenceLanceMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +51,64 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+const _q = new Quaternion();
+const _m4 = new Matrix4();
+const _axis = new Vector3();
+const _tip = new Vector3();
+const _hand = new Vector3();
+const _yAxis = new Vector3(0, 1, 0);
+
+/**
+ * The lance, one unit long along +Y (butt at 0, tip at 1): a loft of a
+ * cruciform section (four blades round a square core, turned 45° so it reads
+ * as an X from behind) through stations — fletched butt, long shaft, a
+ * collar, a broad leaf head and a needle tip. Flat facets so the sun picks out
+ * every face. `aAxis` runs 0..1 butt to tip; `aArris` marks the blade edges.
+ */
+function createLanceGeometry() {
+  // [axis 0..1, blade reach, core half-width] in units of the lance's length.
+  const stations = [
+    [0.0, 0.012, 0.012], [0.015, 0.09, 0.018], [0.12, 0.085, 0.018], [0.16, 0.03, 0.026],
+    [0.6, 0.03, 0.026], [0.615, 0.055, 0.03], [0.635, 0.03, 0.024], [0.66, 0.15, 0.026],
+    [0.74, 0.19, 0.024], [0.86, 0.11, 0.018], [0.97, 0.016, 0.006], [1.0, 0.0015, 0.0015]
+  ];
+  const ring = (reach, core) => {
+    const pts = [];
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      const b = a + Math.PI / 4;
+      pts.push([Math.cos(a) * reach, Math.sin(a) * reach, 1]);
+      pts.push([Math.cos(b) * core * 1.41, Math.sin(b) * core * 1.41, 0]);
+    }
+    return pts;
+  };
+  const pos = [];
+  const axis = [];
+  const arris = [];
+  const push = (p, y, ax) => {
+    pos.push(p[0], y, p[1]);
+    axis.push(ax);
+    arris.push(p[2]);
+  };
+  for (let r = 0; r < stations.length - 1; r++) {
+    const [ya, ra, ca] = stations[r];
+    const [yb, rb, cb] = stations[r + 1];
+    const A = ring(ra, ca);
+    const B = ring(rb, cb);
+    const n = A.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      push(A[i], ya, ya); push(B[j], yb, yb); push(A[j], ya, ya);
+      push(A[i], ya, ya); push(B[i], yb, yb); push(B[j], yb, yb);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('aAxis', new Float32BufferAttribute(axis, 1));
+  geometry.setAttribute('aArris', new Float32BufferAttribute(arris, 1));
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * ABSENCE LANCE — void, line cast.
@@ -75,6 +135,29 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The lance (the hero, cast-local — sections 15–16 of the editor)
+ *
+ * The shared template layers (body, voice, rig, glyph pieces, template
+ * field, ribbon and scar) are switched off in the config through their own
+ * keys; the spell is carried by its own forms:
+ *
+ *   - **the lance** — a black void-obsidian spear (`lance*`,
+ *     `createLanceGeometry`): fletched butt, long shaft, a broad cruciform leaf
+ *     head that reads as an X from behind. Lit by the sun, violet rim and a
+ *     seam of light up each blade edge. It forms at the hand and flies at
+ *     chest height along the line, diving at the end.
+ *   - **the unmade line** — behind the head the floor is simply gone
+ *     (`trench*`): a filled black strip with crumbling lips and a thin violet
+ *     seam, torn flakes rising out of its edges near the head.
+ *   - **the plant** — on the beat the lance drives into the floor at the end
+ *     of the line and stands there at `lancePlant` radians, quivering; black
+ *     chips and dust are thrown up round it.
+ *   - **the unmaking** — through the linger the line closes from the caster's
+ *     end toward the lance, and the lance itself is unmade from the butt to
+ *     the buried tip behind a white-hot cut, shedding black flakes.
+ *
+ * All of it is presentation: hits still land as the head passes, exactly as before.
  *
  * Every metre, rate and colour is read from `settings.absence` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -110,6 +193,7 @@ export class AbsenceLanceAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildLance();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -159,6 +243,168 @@ export class AbsenceLanceAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+  }
+
+  /** The lance's own meshes: the spear and the unmade line. */
+  _buildLance() {
+    this.lanceGeometry = createLanceGeometry();
+    this.lanceMaterial = createAbsenceLanceSpearMaterial();
+    this.lance = this._mesh(this.lanceGeometry, this.lanceMaterial, LAYER.SHAPED, 14);
+    this.lance.castShadow = true;
+    this.lance.receiveShadow = true;
+    this.trenchGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.trenchGeometry.translate(0, 0.5, 0);
+    this.trenchMaterial = createAbsenceLanceTrenchMaterial();
+    this.trench = this._mesh(this.trenchGeometry, this.trenchMaterial, LAYER.VFX, 2);
+    this._planted = false;
+    this._pitch = 0;
+    this._flakeEmitter = new RateEmitter();
+    this._tearEmitter = new RateEmitter();
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Stand the lance and the unmade line for this frame: every dimension from
+   * settings, every moment from the travel or the seconds since the beat.
+   */
+  _lancePose(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const Lg = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    const L = Math.max(0.3, c.lanceLength) * (0.35 + 0.65 * Easing.outCubic(saturate(this.age / Math.max(0.02, c.lanceForm * Lg))));
+    let erase = 0;
+    let heat = 0;
+    if (!committed) {
+      // In flight: the tip rides the head at chest height, diving over the last stretch.
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      const along = Math.max(this.u * this.length, c.handForward + L * c.lanceStartAhead);
+      const lift = c.handHeight + (c.lanceHeight - c.handHeight) * Easing.outCubic(saturate(this.u * 4));
+      const dive = Easing.inQuad(saturate((this.u - (1 - c.lanceDiveSpan)) / Math.max(0.02, c.lanceDiveSpan)));
+      _tip.copy(this.origin).addScaledVector(this.direction, along).addScaledVector(this.side, c.handSide * (1 - saturate(this.u * 3)));
+      _tip.y = lift * (1 - dive);
+      this._pitch = -c.lanceFlightPitch * (1 - dive) + dive * c.lanceDivePitch;
+      this._yaw = c.lanceFlightYaw * (1 - dive) + c.lancePlantYaw * dive;
+    } else {
+      // Planted at the end of the line, leaning back toward the caster, quivering.
+      this.pointAt(1, _tip);
+      _tip.y = -c.lanceBury;
+      const k = Easing.outBack(saturate(since / Math.max(0.02, c.lancePlantTime * Lg)));
+      const quiver = c.lanceQuiver * Math.sin(since * 34) * Math.exp(-since * 4.5);
+      this._pitch = c.lanceDivePitch + (c.lancePlant - c.lanceDivePitch) * k + quiver;
+      this._yaw = c.lancePlantYaw;
+      erase = saturate((since - c.lanceEraseStart * Lg) / Math.max(0.05, c.lanceEraseTime * Lg));
+      heat = Math.exp(-since * 3);
+    }
+    // The axis points along the aim, tipped down by the pitch.
+    // Turned across the aim by the yaw, so its length shows from behind the caster.
+    _dir.copy(this.direction).multiplyScalar(Math.cos(this._yaw)).addScaledVector(this.side, Math.sin(this._yaw));
+    _axis.copy(_dir).multiplyScalar(Math.cos(this._pitch)).addScaledVector(_up, -Math.sin(this._pitch)).normalize();
+    const showLance = c.lanceLength > 0.05 && erase < 0.999;
+    this.lance.visible = showLance;
+    if (showLance) {
+      _q.setFromUnitVectors(_yAxis, _axis);
+      this.lance.quaternion.copy(_q);
+      this.lance.position.copy(_tip).addScaledVector(_axis, -L);
+      this.lance.scale.setScalar(L);
+      this.lanceMaterial.userData.sync(erase, heat, this._seed);
+    }
+    this._lanceErase = erase;
+    this._lanceL = L;
+
+    // The unmade line behind the head, closing from the caster's end.
+    const head = committed ? this.length : Math.min(this.length, this.u * this.length);
+    const closeSpan = Math.max(0.1, c.trenchCloseSpan);
+    const closed = since < 0 ? 0 : (this.length + closeSpan) * Easing.inOutCubic(saturate((since - c.trenchCloseStart * Lg) / Math.max(0.05, c.trenchCloseTime * Lg)));
+    const fade = since < 0 ? 1 : 1 - saturate((since - total * 0.85) / (total * 0.15));
+    const showTrench = c.trenchOpacity > 0.01 && head > 0.05 && closed < this.length + closeSpan * 0.99 && fade > 0.01;
+    this.trench.visible = showTrench;
+    if (showTrench) {
+      const across = c.trenchWidth * 1.4;
+      _m4.makeBasis(this.side, this.direction, _up);
+      this.trench.quaternion.setFromRotationMatrix(_m4);
+      this.trench.position.copy(this.origin).setY(0.035);
+      this.trench.scale.set(across, this.length + 0.5, 1);
+      this.trenchMaterial.uniforms.uSpan.value.set(across, this.length + 0.5);
+      this.trenchMaterial.userData.sync(head, closed, fade, this._seed);
+    }
+    this._trenchHead = head;
+    this._trenchClosed = closed;
+  }
+
+  /** The lance's own particles: flakes torn out of the line's lips at the head, black flakes off the unmaking cut. */
+  _lanceShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (!committed) {
+      const n = Math.round(this._tearEmitter.tick(dt, c.tearFlakes) * g.particleCount);
+      for (let k = 0; k < n; k++) {
+        const back = Math.random() * 1.5;
+        const at = Math.max(0, this._trenchHead - back);
+        this.pointAt(at / this.length, _pos).addScaledVector(this.side, (Math.random() < 0.5 ? -1 : 1) * c.trenchWidth * 0.45);
+        _pos.y = 0.05;
+        _dir.set((Math.random() - 0.5) * 0.4, 1, (Math.random() - 0.5) * 0.4);
+        this._fillEmit(_pos, 0.12, _dir, c.chipSpeed * 0.7, 0.5, c.chipSize * 1.3, c.chipLife, 6);
+        this.chips.emit(1, _emit);
+      }
+      return;
+    }
+    const e = this._lanceErase;
+    if (!this.lance.visible || e <= 0.001) return;
+    const n = Math.round(this._flakeEmitter.tick(dt, c.eraseFlakes) * g.particleCount);
+    if (n <= 0) return;
+    // The cut sits at axis fraction ≈ erase on the lance.
+    const frac = Math.min(1, Math.max(0, e * 1.15 - 0.08));
+    _pos.copy(this.lance.position).addScaledVector(_axis, this._lanceL * frac);
+    this._fillEmit(_pos, 0.12, _up, c.moteSpeed * 0.8, 1, 0.08, c.moteLife, 1);
+    this.motes.emit(Math.ceil(n * 0.4), _emit);
+    this._fillEmit(_pos, 0.1, _up, c.chipSpeed * 0.5, 1, c.chipSize, c.chipLife * 1.2, 6);
+    this.chips.emit(n, _emit);
+  }
+
+  /** The plant: black chips and dust thrown up round the buried tip, a light punch. */
+  _plant() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.pointAt(1, _end);
+    _pos.copy(_end).setY(0.15);
+    this.lightBoost += c.plantLight * power;
+    this.ctx.shake.add(c.plantShake * power * g.cameraShake, 5, 20);
+    const nc = Math.round(c.plantChips * g.particleCount * power);
+    if (nc > 0) {
+      this._fillEmit(_pos, 0.3, _up, c.chipSpeed * 1.5, 0.7, c.chipSize * 1.6, c.chipLife * 1.4, 8);
+      this.chips.emit(nc, _emit);
+    }
+    const nd = Math.round(c.plantDust * g.particleCount);
+    for (let i = 0; i < nd; i++) {
+      const ang = (i / Math.max(1, nd)) * Math.PI * 2;
+      _dir.set(Math.cos(ang), 0.15, Math.sin(ang));
+      this._fillEmit(_pos, 0.25, _dir, c.dustSpeed * 1.6, 0.2, 0.6, c.dustLife * 1.5, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    if (c.plantCrater > 0.01) {
+      this.ctx.decals.spawn(DecalType.SCORCH, _end, {
+        radius: c.plantCrater * power,
+        life: c.groundLife * g.lifetime,
+        width: 0.9,
+        intensity: 1,
+        colorA: getColor(c.colorTrenchVoid),
+        colorB: getColor(c.colorLanceRim),
+        height: 0.032
+      });
+    }
+  }
+
+  _hideLance() {
+    this.lance.visible = false;
+    this.trench.visible = false;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -240,6 +486,16 @@ export class AbsenceLanceAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._planted = false;
+    this._pitch = 0;
+    this._yaw = 0;
+    this._lanceErase = 0;
+    this._lanceL = settings[ID].lanceLength;
+    this._trenchHead = 0;
+    this._trenchClosed = 0;
+    this._flakeEmitter.reset();
+    this._tearEmitter.reset();
+    this._hideLance();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -785,8 +1041,10 @@ export class AbsenceLanceAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._lancePose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._lanceShed(dt, false);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
@@ -795,6 +1053,7 @@ export class AbsenceLanceAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._plant();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -804,8 +1063,10 @@ export class AbsenceLanceAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._lancePose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._lanceShed(dt, true);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
@@ -831,9 +1092,14 @@ export class AbsenceLanceAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hideLance();
   }
 
   dispose() {
+    this.lanceGeometry.dispose();
+    this.lanceMaterial.dispose();
+    this.trenchGeometry.dispose();
+    this.trenchMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1034,6 +1300,51 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const lance = folder.addFolder('15 · The lance');
+  R(lance, c, 'lanceLength', 0, 8, 0.05, 'length (m)');
+  R(lance, c, 'lanceForm', 0.02, 1, 0.01, 'forms in (s)');
+  R(lance, c, 'lanceStartAhead', 0, 1, 0.01, 'starts ahead, × length');
+  R(lance, c, 'lanceHeight', 0.2, 3, 0.01, 'flies at (m)');
+  R(lance, c, 'lanceDiveSpan', 0.02, 0.8, 0.01, 'dives over, share of line');
+  R(lance, c, 'lanceDivePitch', 0, 1.2, 0.01, 'dive pitch (rad)');
+  R(lance, c, 'lancePlant', 0.1, 1.5, 0.01, 'planted at (rad)');
+  R(lance, c, 'lancePlantYaw', -1.2, 1.2, 0.01, 'planted across the aim (rad)');
+  R(lance, c, 'lanceFlightYaw', -1.2, 1.2, 0.01, 'flies across the aim (rad)');
+  R(lance, c, 'lanceFlightPitch', -0.6, 0.8, 0.01, 'nose up in flight (rad)');
+  R(lance, c, 'lanceColdRim', 0, 4, 0.05, 'cold rim light');
+  R(lance, c, 'lancePlantTime', 0.02, 0.6, 0.01, 'plants in (s)');
+  R(lance, c, 'lanceBury', 0, 2, 0.01, 'tip buried (m)');
+  R(lance, c, 'lanceQuiver', 0, 0.4, 0.005, 'quiver (rad)');
+  R(lance, c, 'lanceEraseStart', 0, 3, 0.01, 'unmaking starts (s)');
+  R(lance, c, 'lanceEraseTime', 0.05, 3, 0.01, 'unmade in (s)');
+  R(lance, c, 'lanceCutWidth', 0.005, 0.3, 0.005, 'cut edge');
+  R(lance, c, 'lanceRimGlow', 0, 4, 0.05, 'rim glow');
+  R(lance, c, 'lanceSpecular', 0, 4, 0.05, 'specular');
+  R(lance, c, 'lanceSeam', 0, 6, 0.05, 'edge seams');
+  R(lance, c, 'lanceHeat', 0, 6, 0.05, 'plant heat');
+  lance.addColor(c, 'colorLanceDeep').name('obsidian, deep');
+  lance.addColor(c, 'colorLanceBody').name('obsidian, body');
+  lance.addColor(c, 'colorLanceRim').name('rim / seam');
+  lance.addColor(c, 'colorLanceHot').name('white-hot');
+  lance.addColor(c, 'colorLanceCold').name('cold rim');
+  R(lance, c, 'plantChips', 0, 200, 1, 'plant chips');
+  R(lance, c, 'plantDust', 0, 120, 1, 'plant dust');
+  R(lance, c, 'plantCrater', 0, 4, 0.01, 'plant crater (m)');
+  R(lance, c, 'plantShake', 0, 2, 0.01, 'plant punch');
+  R(lance, c, 'plantLight', 0, 40, 0.5, 'plant light');
+  R(lance, c, 'eraseFlakes', 0, 300, 1, 'unmaking flakes / s');
+
+  const trench = folder.addFolder('16 · The unmade line');
+  R(trench, c, 'trenchWidth', 0.05, 4, 0.01, 'width (m)');
+  R(trench, c, 'trenchOpacity', 0, 1.5, 0.01, 'opacity');
+  R(trench, c, 'trenchSeam', 0, 4, 0.05, 'lip seam');
+  R(trench, c, 'trenchCloseStart', 0, 3, 0.01, 'closing starts (s)');
+  R(trench, c, 'trenchCloseTime', 0.05, 4, 0.01, 'closes in (s)');
+  R(trench, c, 'trenchCloseSpan', 0.1, 8, 0.05, 'closing lip (m)');
+  trench.addColor(c, 'colorTrenchVoid').name('void');
+  trench.addColor(c, 'colorTrenchLip').name('lip');
+  R(trench, c, 'tearFlakes', 0, 300, 1, 'torn flakes / s');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

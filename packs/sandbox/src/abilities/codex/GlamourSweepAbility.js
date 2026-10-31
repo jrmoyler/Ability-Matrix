@@ -1,10 +1,11 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
 import { createGlamourSweepPieceGeometry, createGlamourSweepHeroGeometry } from '../../assets/codex/GlamourSweepGeometry.js';
+import { createGlamourBladeGeometry } from '../../assets/codex/GlamourSweepSignatureGeometry.js';
 import {
   createGlamourSweepBodyMaterial,
   createGlamourSweepLensMaterial,
@@ -12,7 +13,9 @@ import {
   createGlamourSweepVoiceMaterial,
   createGlamourSweepDetailMaterial,
   createGlamourSweepTrailMaterial,
-  createGlamourSweepScarMaterial
+  createGlamourSweepScarMaterial,
+  createGlamourSweepBladeMaterial,
+  createGlamourSweepCutMaterial
 } from '../../materials/codex/GlamourSweepMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +49,14 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _heel = new Vector3();
+const _back = new Vector3();
+const _basis = new Matrix4();
+const _qBase = new Quaternion();
+const _qYaw = new Quaternion();
+const _qRoll = new Quaternion();
+const _axisY = new Vector3(0, 1, 0);
+const _axisZ = new Vector3(0, 0, 1);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -75,6 +86,36 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The signature — the glamour blade (layers 15–18, this cast's own)
+ *
+ * The template sheet, voice, rig and pieces are turned down; the read is one
+ * tall crescent blade of black-plum lacquered steel, its face to the caster,
+ * only its cutting edge and engraved filigree burning pink:
+ *
+ *  15. **blade** — `createGlamourBladeGeometry` (a crescent with a thick spine,
+ *      scalloped back and a sharp convex edge), sun-lit and shadow-casting on
+ *      LAYER.WORLD. It leaves the hand small and grows to `bladeHeight` as it
+ *      flies, drawing back sideways (`bladeShear`) — the sheet that shears as
+ *      it travels — then over the last stretch of the travel (`bladeCutFrom`)
+ *      it swings across the line, edge first, turning through `bladeCutYaw`,
+ *      carries past (`bladeOvershoot`) and bites its heel into the floor
+ *      (`bladeEmbed`), leaning over. It rocks there through the linger, and
+ *      from `bladePeelAt` its glamour peels from the tip down behind a burning
+ *      pink front that sheds motes — the exit.
+ *  16. **false copy** — the same blade, holed and edge-lit, that runs
+ *      `ghostLead` ahead of it: it reaches the targets first and makes the
+ *      swing early (it hits nothing), and burns away when the real blade
+ *      cuts through it. The glamour shows the cut early; the steel lands it late.
+ *  17. **afterimage** — a second holed copy trailing `ghostLag` behind, gone on
+ *      the beat.
+ *  18. **cut** — the floor: a long dark slash across the line, pre-drawn
+ *      faintly by the false copy, opened hot by the real swing, its seam
+ *      cooling through the linger. It stays to the end.
+ *
+ * Every size is resolved from settings each frame (the swing reach from
+ * `sweep`); a cast keeps only its seed and a burn timer. Presentation only:
+ * hits are the template's `late` strike.
  *
  * Every metre, rate and colour is read from `settings.glamour` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +200,206 @@ export class GlamourSweepAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildBlade();
+  }
+
+  /** The blade, its two false copies, and the cut on the floor. */
+  _buildBlade() {
+    this.bladeGeometry = createGlamourBladeGeometry();
+    this.bladeMaterial = createGlamourSweepBladeMaterial(0);
+    this.ghostMaterials = [createGlamourSweepBladeMaterial(1), createGlamourSweepBladeMaterial(1)];
+    this.blade = this._mesh(this.bladeGeometry, this.bladeMaterial, LAYER.WORLD, 4);
+    this.blade.castShadow = true;
+    this.blade.receiveShadow = true;
+    this.ghosts = this.ghostMaterials.map((m) => this._mesh(this.bladeGeometry, m, LAYER.WORLD, 5));
+    this.cutGeometry = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    this.cutMaterial = createGlamourSweepCutMaterial();
+    this.cut = this._mesh(this.cutGeometry, this.cutMaterial, LAYER.VFX, 2);
+    this._burn = 0;
+    this._peelEmitter = new RateEmitter();
+    this._ploughEmitter = new RateEmitter();
+  }
+
+  _resetBlade() {
+    this._burn = 0;
+    this._peelEmitter.reset();
+    this._ploughEmitter.reset();
+    this.blade.visible = false;
+    this.cut.visible = false;
+    for (const g of this.ghosts) g.visible = false;
+  }
+
+  /** Seconds since the beat, from the 0..2 impact + fade clock. */
+  _since(fadeT) {
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** How far across its swing a blade is (0..1) at travel share `u`. */
+  _swing(u) {
+    const from = Math.min(0.97, Math.max(0.05, settings[ID].bladeCutFrom));
+    return Easing.inOutQuad(saturate((u - from) / (1 - from)));
+  }
+
+  /** The blade's sideways offset at travel share `u`: drawn back, then swung across. */
+  _lateral(u, reach) {
+    const c = settings[ID];
+    const from = Math.min(0.97, Math.max(0.05, c.bladeCutFrom));
+    const back = -reach * c.bladeShear;
+    if (u < from) return back * Easing.outQuad(saturate(u / from));
+    return back + (reach - back) * this._swing(u);
+  }
+
+  /**
+   * Stand one blade: heel at `along` metres down the line and `lateral` to the
+   * side, `lift` above the floor, `size` × full, turned `yaw` and rolled `roll`.
+   */
+  _place(mesh, along, lateral, lift, size, yaw, roll) {
+    const c = settings[ID];
+    const H = Math.max(0.2, c.bladeHeight * size);
+    _heel.copy(this.origin).addScaledVector(this.direction, along).addScaledVector(this.side, lateral);
+    _heel.y = lift;
+    _back.copy(this.direction).negate();
+    _basis.makeBasis(this.side, _up, _back);
+    _qBase.setFromRotationMatrix(_basis);
+    _qYaw.setFromAxisAngle(_axisY, yaw);
+    _qRoll.setFromAxisAngle(_axisZ, roll);
+    mesh.quaternion.copy(_qBase).multiply(_qYaw).multiply(_qRoll);
+    mesh.scale.set(H * c.bladeWidth, H, H * c.bladeThick);
+    // The heel is the authored (0, −0.5, 0): pivot there.
+    _pos.set(0, 0.5 * H, 0).applyQuaternion(mesh.quaternion);
+    mesh.position.copy(_heel).add(_pos);
+  }
+
+  /**
+   * Fly, draw back, swing across, bite, rock, peel. `committed` false is the
+   * travel; `fadeT` the 0..2 clock after the beat. Every size is resolved from
+   * settings each frame, so the sweep slider re-fits the swing mid-cast.
+   */
+  _updateBlade(dt, committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = committed ? 1 : this.u;
+    const L = this.length;
+    const reach = Math.max(0.3, c.sweep * c.bladeCutReach);
+    const since = committed ? this._since(fadeT) : 0;
+    const clock = this.age * g.animationSpeed;
+    const show = c.bladeOpacity > 0.01;
+
+    // The real blade.
+    const size = c.bladeStart + (1 - c.bladeStart) * Easing.outCubic(saturate(u * 1.4));
+    let lateral = this._lateral(u, reach);
+    let lift = c.bladeHover;
+    let roll;
+    let yaw = c.bladeCutYaw * (this._swing(u) - 0.5);
+    let peel = 0;
+    let heat = 0.75 + 0.25 * this._swing(u);
+    if (!committed) {
+      const v = this._lateral(Math.min(1, u + 0.02), reach) - lateral;
+      roll = -c.bladeLean * Math.sign(v) * Math.min(1, Math.abs(v) * 8);
+      if (u >= c.bladeCutFrom) this._burn += dt;
+    } else {
+      this._burn += dt;
+      const bite = Easing.outCubic(saturate(since / 0.14));
+      const plough = Easing.outQuad(saturate(since / Math.max(0.05, c.bladeDragTime)));
+      lateral = reach * (1 + c.bladeOvershoot * bite) + c.bladeDrag * plough;
+      if (plough < 0.98 && bite > 0.9) this._ploughSparks(dt, 1 - plough);
+      lift = c.bladeHover - (c.bladeHover + c.bladeEmbed) * bite;
+      const decay = Math.exp(-since * 0.9);
+      roll = -c.bladeEmbedTilt * bite - c.bladeSway * Math.sin(since * c.bladeSwayRate) * decay;
+      yaw = c.bladeCutYaw * 0.5 * (1 - bite) + 0.08 * Math.sin(since * c.bladeSwayRate * 0.7) * decay;
+      const p0 = c.bladePeelAt;
+      const p1 = Math.max(p0 + 0.05, c.bladePeelEnd);
+      peel = saturate((fadeT - p0) / (p1 - p0));
+      heat = 1 - 0.55 * saturate(fadeT / 1.4);
+    }
+    const landed = committed ? 1 + (c.bladeLandScale - 1) * Easing.outCubic(saturate(since / 0.14)) : 1;
+    this._place(this.blade, u * L, lateral, lift, size * landed, yaw, roll);
+    this.blade.visible = show && peel < 0.999;
+    this.blade.castShadow = c.bladeShadow > 0.5 && peel < 0.05;
+    this.bladeMaterial.userData.sync(heat, 0, peel, this._seed, clock);
+    if (peel > 0.001 && peel < 0.999) this._peelMotes(dt, peel);
+
+    // The false copy: ahead of the blade, swinging early, burnt away by the real cut.
+    const ghosts = Math.round(c.ghostCount);
+    const lead = this.ghosts[0];
+    const uLead = Math.min(1, u + c.ghostLead);
+    const burn = saturate(this._burn / Math.max(0.02, c.ghostBreak));
+    const holesLead = c.ghostHoles + (1 - c.ghostHoles) * burn;
+    lead.visible = show && ghosts >= 1 && holesLead < 0.98;
+    if (lead.visible) {
+      const sizeLead = c.bladeStart + (1 - c.bladeStart) * Easing.outCubic(saturate(uLead * 1.4));
+      this._place(lead, uLead * L + c.ghostOffset, this._lateral(uLead, reach), c.bladeHover, sizeLead * c.ghostScale, c.bladeCutYaw * (this._swing(uLead) - 0.5), 0);
+      this.ghostMaterials[0].userData.sync(1, holesLead, 0, this._seed + 1.7, clock);
+    }
+    // The afterimage: trailing the blade, gone on the beat.
+    const trail = this.ghosts[1];
+    const uLag = Math.max(0, u - c.ghostLag);
+    const holesLag = Math.min(1, c.ghostHoles + 0.15 + (committed ? saturate(since / 0.15) : 0));
+    trail.visible = show && ghosts >= 2 && holesLag < 0.98 && uLag > 0.02;
+    if (trail.visible) {
+      const sizeLag = c.bladeStart + (1 - c.bladeStart) * Easing.outCubic(saturate(uLag * 1.4));
+      this._place(trail, uLag * L, this._lateral(uLag, reach), c.bladeHover, sizeLag * c.ghostScale, c.bladeCutYaw * (this._swing(uLag) - 0.5), 0);
+      this.ghostMaterials[1].userData.sync(0.8, holesLag, 0, this._seed + 3.1, clock);
+    }
+
+    // The cut on the floor, across the end of the line.
+    const pre = ghosts >= 1 ? this._swing(uLead) : 0;
+    const open = committed ? 1 : this._swing(u);
+    const gone = committed ? 1 - Easing.inQuad(saturate((fadeT - 1.7) / 0.3)) : 1;
+    this.cut.visible = c.cutOpacity > 0.01 && (pre > 0.01 || open > 0.01) && gone > 0.01;
+    if (this.cut.visible) {
+      this.pointAt(1, _pos);
+      _back.copy(this.direction).negate();
+      _basis.makeBasis(this.side, _up, _back);
+      this.cut.quaternion.setFromRotationMatrix(_basis);
+      this.cut.position.copy(_pos).addScaledVector(this.side, 0.5 * (reach * c.bladeOvershoot + c.bladeDrag)).setY(0.035);
+      this.cut.scale.set(2 * reach * c.cutLength + c.bladeDrag, 1, Math.max(0.1, c.cutWidth));
+      const cool = committed ? 1 - 0.7 * saturate(fadeT / 1.6) : 1;
+      this.cutMaterial.userData.sync(open, pre, cool, gone, this._seed);
+    }
+  }
+
+  /** Motes off the burning front as the glamour peels down the blade. */
+  _peelMotes(dt, peel) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this._peelEmitter.tick(dt, c.peelMotes) * g.particleCount);
+    if (n <= 0) return;
+    const H = c.bladeHeight;
+    const front = saturate(1 - peel * 0.82 / 0.8);
+    _pos.set(0, front - 0.5, 0).applyMatrix4(this.blade.matrixWorld);
+    // matrixWorld lags a frame; good enough for motes, and it keeps this allocation-free.
+    _dir.set(0, 1, 0);
+    this._fillEmit(_pos, Math.max(0.2, H * 0.12), _dir, c.moteSpeed * 1.4, 0.8, 0.1, c.moteLife, 1);
+    this.motes.emit(n, _emit);
+  }
+
+  /** Sparks and chips thrown off the heel as the blade ploughs on through the floor. */
+  _ploughSparks(dt, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this._ploughEmitter.tick(dt, c.bladeSparks * strength) * g.particleCount);
+    if (n <= 0) return;
+    _pos.set(0, -0.5, 0).applyMatrix4(this.blade.matrixWorld).setY(0.08);
+    _dir.copy(this.side).multiplyScalar(-0.6).setY(0.9);
+    this._fillEmit(_pos, 0.25, _dir, c.streakSpeed * 0.8, 0.5, 0.06, c.streakLife, 2);
+    this.streaks.emit(n, _emit);
+    if (Math.random() < 0.35) {
+      this._fillEmit(_pos, 0.25, _dir, c.chipSpeed * 0.7, 0.6, c.chipSize, c.chipLife, 6);
+      this.chips.emit(1, _emit);
+    }
+  }
+
+  /** The cut's sparks: thrown along the swing as the edge goes through. */
+  _cutSparks() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(c.impactChips * 2.2 * g.particleCount);
+    if (n <= 0) return;
+    this.pointAt(1, _pos).setY(1.1);
+    _dir.copy(this.side).setY(0.25);
+    this._fillEmit(_pos, Math.max(0.3, c.sweep), _dir, c.streakSpeed * 1.6, 0.35, 0.09, c.streakLife * 1.4, 2);
+    this.streaks.emit(n, _emit);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -233,6 +474,7 @@ export class GlamourSweepAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this._resetBlade();
     this.trail.reset();
     this.detail.hide();
     this.rig.hide();
@@ -778,6 +1020,7 @@ export class GlamourSweepAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._updateBlade(dt, false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
@@ -788,6 +1031,7 @@ export class GlamourSweepAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._cutSparks();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -797,6 +1041,7 @@ export class GlamourSweepAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._updateBlade(dt, true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
@@ -824,9 +1069,17 @@ export class GlamourSweepAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.blade.visible = false;
+    this.cut.visible = false;
+    for (const g of this.ghosts) g.visible = false;
   }
 
   dispose() {
+    this.bladeGeometry.dispose();
+    this.bladeMaterial.dispose();
+    for (const m of this.ghostMaterials) m.dispose();
+    this.cutGeometry.dispose();
+    this.cutMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1027,6 +1280,61 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const blade = folder.addFolder('15 · Glamour blade');
+  R(blade, c, 'bladeHeight', 0.5, 8, 0.05, 'height (m)');
+  R(blade, c, 'bladeWidth', 0.3, 3, 0.01, 'breadth ×');
+  R(blade, c, 'bladeThick', 0.2, 4, 0.01, 'spine ×');
+  R(blade, c, 'bladeStart', 0.05, 1, 0.01, 'size at the hand');
+  R(blade, c, 'bladeHover', 0, 2, 0.01, 'hover (m)');
+  R(blade, c, 'bladeShear', 0, 2, 0.01, 'draw back ×');
+  R(blade, c, 'bladeLean', 0, 1.2, 0.01, 'lean (rad)');
+  R(blade, c, 'bladeCutReach', 0.2, 4, 0.01, 'swing reach × sweep');
+  R(blade, c, 'bladeCutFrom', 0.05, 0.97, 0.01, 'swing starts at');
+  R(blade, c, 'bladeCutYaw', 0, 2, 0.01, 'swing turn (rad)');
+  R(blade, c, 'bladeOvershoot', 0, 1, 0.01, 'carry past ×');
+  R(blade, c, 'bladeDrag', 0, 5, 0.05, 'ploughs on (m)');
+  R(blade, c, 'bladeDragTime', 0.05, 4, 0.05, 'plough time (s)');
+  R(blade, c, 'bladeSparks', 0, 400, 1, 'plough sparks / s');
+  R(blade, c, 'bladeEmbed', 0, 2, 0.01, 'bites in (m)');
+  R(blade, c, 'bladeEmbedTilt', 0, 1.2, 0.01, 'leans over (rad)');
+  R(blade, c, 'bladeSway', 0, 0.5, 0.005, 'rock (rad)');
+  R(blade, c, 'bladeSwayRate', 0, 20, 0.1, 'rock rate');
+  R(blade, c, 'bladePeelAt', 0, 2, 0.01, 'peels from');
+  R(blade, c, 'bladePeelEnd', 0.1, 2, 0.01, 'gone by');
+  R(blade, c, 'bladeEdgeGlow', 0, 8, 0.05, 'edge glow');
+  R(blade, c, 'bladeSeamGlow', 0, 6, 0.05, 'filigree glow');
+  R(blade, c, 'bladeRimGlow', 0, 4, 0.05, 'limb glow');
+  blade.addColor(c, 'colorBladeRim').name('limb, cold steel');
+  R(blade, c, 'bladeLandScale', 0.5, 2, 0.01, 'size once it bites ×');
+  R(blade, c, 'bladeRough', 0, 1, 0.01, 'roughness');
+  R(blade, c, 'bladeMetal', 0, 1, 0.01, 'metalness');
+  R(blade, c, 'bladeOpacity', 0, 1, 1, 'show');
+  R(blade, c, 'bladeShadow', 0, 1, 1, 'cast shadow');
+  blade.addColor(c, 'colorBladeDeep').name('lacquer, deep');
+  blade.addColor(c, 'colorBladeBody').name('lacquer, lit');
+  blade.addColor(c, 'colorBladeHot').name('glamour');
+  blade.addColor(c, 'colorBladeCore').name('edge, white');
+  R(blade, c, 'peelMotes', 0, 600, 1, 'peel motes / s');
+
+  const ghost = folder.addFolder('16 · False copies');
+  R(ghost, c, 'ghostCount', 0, 2, 1, 'count');
+  R(ghost, c, 'ghostLead', 0, 1, 0.01, 'runs ahead');
+  R(ghost, c, 'ghostLag', 0, 1, 0.01, 'trails behind');
+  R(ghost, c, 'ghostHoles', 0, 1, 0.01, 'eaten through');
+  R(ghost, c, 'ghostGlow', 0, 4, 0.01, 'edge glow ×');
+  R(ghost, c, 'ghostScale', 0.2, 1.5, 0.01, 'size ×');
+  R(ghost, c, 'ghostBreak', 0.02, 1, 0.01, 'burns away (s)');
+  R(ghost, c, 'ghostOffset', -2, 3, 0.01, 'stands off (m)');
+
+  const cut = folder.addFolder('17 · The cut');
+  R(cut, c, 'cutWidth', 0.1, 4, 0.01, 'width (m)');
+  R(cut, c, 'cutLength', 0.2, 3, 0.01, 'length × swing');
+  R(cut, c, 'cutOpacity', 0, 1.5, 0.01, 'opacity');
+  R(cut, c, 'cutGlow', 0, 6, 0.05, 'seam glow');
+  R(cut, c, 'cutShear', 0, 2, 0.01, 'shear marks');
+  R(cut, c, 'cutPre', 0, 2, 0.01, 'pre-drawn');
+  cut.addColor(c, 'colorCutDeep').name('bed');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

@@ -702,3 +702,319 @@ export function createFeintCageDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* The cage itself (cast-local signature layers)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The bars: lacquered dark iron lit by the scene sun, the ramp as albedo
+ * (deep → body), light only in the seams (collars, the twist groove) and on
+ * the spearhead's cutting faces. Per instance `aBar` = (seed, heat, sink,
+ * glitch): heat lights the blades when the real cage cuts, sink eats the bar
+ * from the top behind a hot edge, glitch is the feint's breakup.
+ *
+ * The same shader draws the feint cage with `uGhost` = 1: a dim violet
+ * afterimage, translucent (`feintOpacity`) and scan-sliced (whole bands drop
+ * out and slide sideways), so the two cages read apart at play distance:
+ * the real one solid near-black lacquer, the feint a flicker beside it.
+ */
+const BAR_VERTEX = /* glsl */ `
+  attribute vec4 aBar;
+  attribute float aSeam;
+  uniform float uTime;
+  uniform float uGhost;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vBar;
+  varying float vSeam;
+  float barHash(float p) { return fract(sin(p * 127.1) * 43758.5453); }
+  void main() {
+    vec3 p = position;
+    // The feint slips: horizontal bands of the bar slide sideways and back.
+    float band = floor(p.y * 14.0 + floor(uTime * 9.0) * 3.0);
+    float slip = (barHash(band + aBar.x * 17.0) - 0.5) * step(0.72, barHash(band * 1.7 + aBar.x));
+    p.x += slip * 1.6 * aBar.w * uGhost;
+    mat4 m = modelMatrix * instanceMatrix;
+    vec4 world = m * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(m) * normal);
+    vLocal = position;
+    vBar = aBar;
+    vSeam = aSeam;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const BAR_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uGhost;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uSeam;
+  uniform vec3  uHot;
+  uniform float uSeamGlow;
+  uniform float uEdgeGlow;
+  uniform float uRimGlow;
+  uniform float uSpecular;
+  uniform float uPulse;
+  uniform float uLit;
+  uniform float uGhostAlpha;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vBar;
+  varying float vSeam;
+  ${noiseGLSL}
+  void main() {
+    float h = clamp(vLocal.y, 0.0, 1.0);
+    // Sink: eaten from the top down behind a hot edge.
+    float n = snoise01(vec3(vLocal.x * 6.0, h * 9.0, vLocal.z * 6.0 + vBar.x * 7.0));
+    float d = (1.0 - h) * 0.7 + n * 0.3;
+    float cut = vBar.z * 1.05;
+    if (d < cut) discard;
+    float burn = (1.0 - smoothstep(0.0, 0.06, d - cut)) * step(0.001, vBar.z);
+
+    // The feint drops whole scan bands and is holed through as it glitches out.
+    float ghost = uGhost;
+    float scan = fract(h * 22.0 - uTime * 2.6 + vBar.x);
+    if (ghost > 0.5 && scan < 0.18 + 0.5 * vBar.w) discard;
+    if (ghost > 0.5 && snoise01(vec3(vLocal.xz * 5.0, h * 12.0 + uTime * 3.0)) < vBar.w * 0.75) discard;
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    float grain = snoise01(vec3(vLocal.x * 14.0, h * 30.0, vLocal.z * 14.0 + vBar.x));
+    vec3 albedo = mix(uDeep, uBody, 0.15 + 0.55 * grain);
+    vec3 color = albedo * (0.18 + uLit * ndl);
+    color += albedo * 0.2 * (0.5 + 0.5 * N.y);
+    color += mix(uBody, vec3(1.0), 0.35) * pow(max(dot(N, H), 0.0), 48.0) * uSpecular;
+    float rim = pow(1.0 - ndv, 4.0);
+    color += uSeam * rim * uRimGlow * (1.0 + ghost * 0.8) * uGlobalGlow;
+
+    float seamMask = step(0.5, vSeam) * (1.0 - step(1.5, vSeam));
+    float blade = step(1.5, vSeam);
+    float pulse = 0.75 + 0.25 * sin(uTime * 7.0 + vBar.x * 5.0);
+    color += uSeam * seamMask * uSeamGlow * pulse * uPulse * uGlobalGlow;
+    // The spearhead: dark steel faces, glowing along their arrises; white-hot when it cuts.
+    float arris = pow(1.0 - ndv, 1.5);
+    color += mix(uSeam, uHot, vBar.y) * blade * (0.25 + arris) * uEdgeGlow * (0.35 + 1.4 * vBar.y) * uGlobalGlow;
+    // Heat climbs the shaft from the blade when it cuts.
+    color += uSeam * vBar.y * smoothstep(0.78, 0.9, h) * 0.35 * uGlobalGlow;
+
+    color = mix(color, uHot * 2.0 * uGlobalGlow, burn);
+    // The feint is a translucent, scan-sliced afterimage; the real cage is solid.
+    float alpha = ghost > 0.5 ? uGhostAlpha * (0.55 + 0.45 * rim) * (1.0 - 0.6 * vBar.w) : 1.0;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createFeintCageBarMaterial(ghost = false) {
+  const material = new ShaderMaterial({
+    transparent: ghost,
+    depthWrite: !ghost,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uGhost: { value: ghost ? 1 : 0 },
+      uLit: { value: 0.8 },
+      uGhostAlpha: { value: 0.4 },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uSeam: { value: new Color() },
+      uHot: { value: new Color() },
+      uSeamGlow: { value: 1 },
+      uEdgeGlow: { value: 1 },
+      uRimGlow: { value: 0.5 },
+      uSpecular: { value: 0.7 },
+      uPulse: { value: 1 }
+    }),
+    vertexShader: BAR_VERTEX,
+    fragmentShader: BAR_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorCageDeep));
+    u.uBody.value.copy(getColor(ghost ? c.colorFeintBody : c.colorCageBody));
+    u.uSeam.value.copy(getColor(ghost ? c.colorFeintSeam : c.colorCageSeam));
+    u.uHot.value.copy(getColor(c.colorCageHot));
+    u.uSeamGlow.value = (ghost ? c.feintGlow : c.cageSeamGlow) * g.shaderIntensity;
+    u.uEdgeGlow.value = c.cageEdgeGlow * g.shaderIntensity;
+    u.uRimGlow.value = c.cageRimGlow * g.fresnel;
+    u.uSpecular.value = c.cageSpecular;
+    u.uPulse.value = 1 + c.bodyPulse;
+    u.uLit.value = c.cageLit;
+    u.uGhostAlpha.value = c.feintOpacity * g.opacity;
+  };
+  return material;
+}
+
+/**
+ * The cage floor: the circle filled with a dark plum stain; the groove the
+ * real cage ploughs as it turns (dark bed, lips catching the light, hot where
+ * the feet are now); the feint's ring, a broken phantom dash that only
+ * flickers; and, after the cut, a gash per bar from its foot in toward the
+ * centre, white-pink at the moment of the cut and cooling to a dark scar.
+ */
+const CAGE_FLOOR_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const CAGE_FLOOR_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uCentre;
+  uniform float uOuter;
+  uniform float uRing;
+  uniform float uFeintRing;
+  uniform float uFeint;
+  uniform float uCount;
+  uniform float uSpin;
+  uniform float uGroove;
+  uniform float uHeat;
+  uniform float uGash;
+  uniform float uGashHeat;
+  uniform float uLand;
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uDeepC;
+  uniform vec3  uBodyC;
+  uniform vec3  uSeamC;
+  uniform vec3  uHotC;
+  uniform vec3  uFeintC;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  void main() {
+    vec2 q = vWorld.xz - uCentre.xz;
+    float r = length(q);
+    float x = r / max(uOuter, 0.1);
+    if (x > 1.0) discard;
+    float a = atan(q.y, q.x);
+    float grain = snoise01(vec3(vWorld.xz * 2.6, uSeed));
+    float mott = snoise01(vec3(vWorld.xz * 0.7, uSeed + 3.0));
+
+    // The stain lands out from the centre and fills the circle.
+    float landed = 1.0 - smoothstep(uLand - 0.12, uLand, x);
+    vec3 color = mix(uDeepC, uBodyC, 0.2 + 0.6 * mott) * (0.55 + 0.55 * grain);
+    float alpha = landed * (1.0 - smoothstep(0.82, 1.0, x + 0.1 * (grain - 0.5))) * (0.72 + 0.25 * mott);
+
+    // The plough groove under the real cage.
+    float gd = abs(r - uRing);
+    float bed = 1.0 - smoothstep(uGroove * 0.3, uGroove * 0.55, gd);
+    float lip = (1.0 - smoothstep(0.0, 0.07, abs(gd - uGroove * 0.5))) * landed;
+    color = mix(color, uDeepC * 0.25, bed * 0.85 * landed);
+    color += uBodyC * lip * 0.8 * (0.5 + max(dot(normalize(vec3(q.x, 1.4, q.y)), normalize(uLightDir)), 0.0));
+    float sector = 6.2831853 / max(uCount, 1.0);
+    float k = floor((a - uSpin) / sector + 0.5);
+    float da = (a - uSpin) - k * sector;
+    float foot = exp(-abs(r * da) * 5.0);
+    color += mix(uSeamC, uHotC, foot * uHeat) * bed * foot * uHeat * uGlow * uGlobalGlow * (0.6 + 0.6 * grain);
+    alpha = max(alpha, bed * 0.95 * landed);
+
+    // The feint's ring: a phantom dash that flickers, never a groove.
+    float fd = abs(r - uFeintRing);
+    float dash = step(0.5, fract(a * 6.0 / 3.14159 + uTime * 0.8));
+    float flick = 0.6 + 0.4 * sin(uTime * 23.0 + a * 3.0);
+    float phantom = (1.0 - smoothstep(0.02, 0.09, fd)) * dash * flick * uFeint;
+    color += uFeintC * phantom * 0.8 * uGlow * uGlobalGlow;
+    alpha = max(alpha, phantom * 0.7);
+
+    // The cut: a gash from each bar's foot in toward the centre.
+    float lateral = abs(r * sin(da)) * step(0.0, cos(da));
+    float inward = smoothstep(uRing * 0.12, uRing * 0.3, r) * (1.0 - smoothstep(uRing - 0.05, uRing + 0.1, r));
+    float reach = 1.0 - smoothstep(0.0, 0.08, (uRing - r) / max(uRing, 0.1) - uGash);
+    float jag = 0.07 + 0.05 * snoise(vec3(r * 3.0, k, uSeed));
+    float gash = (1.0 - smoothstep(jag * 0.4, jag, lateral)) * inward * reach * step(0.001, uGash);
+    color = mix(color, uDeepC * 0.15, gash * 0.9);
+    color += mix(uSeamC, uHotC, uGashHeat) * gash * (0.35 + 1.4 * uGashHeat) * uGlow * uGlobalGlow * (0.5 + 0.7 * grain);
+    alpha = max(alpha, gash * 0.95);
+
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uOpacity);
+  }
+`;
+
+export function createFeintCageFloorMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    uniforms: sharedUniforms({
+      uCentre: { value: new Vector3() },
+      uOuter: { value: 1 },
+      uRing: { value: 1 },
+      uFeintRing: { value: 1 },
+      uFeint: { value: 0 },
+      uCount: { value: 8 },
+      uSpin: { value: 0 },
+      uGroove: { value: 0.4 },
+      uHeat: { value: 0 },
+      uGash: { value: 0 },
+      uGashHeat: { value: 0 },
+      uLand: { value: 0 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uDeepC: { value: new Color() },
+      uBodyC: { value: new Color() },
+      uSeamC: { value: new Color() },
+      uHotC: { value: new Color() },
+      uFeintC: { value: new Color() }
+    }),
+    vertexShader: CAGE_FLOOR_VERTEX,
+    fragmentShader: CAGE_FLOOR_FRAGMENT
+  });
+  /** @param {object} p  centre, outer, ring, feintRing, feint, count, spin, heat, gash, gashHeat, land, alpha, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCentre.value.copy(p.centre);
+    u.uOuter.value = p.outer;
+    u.uRing.value = p.ring;
+    u.uFeintRing.value = p.feintRing;
+    u.uFeint.value = p.feint;
+    u.uCount.value = p.count;
+    u.uSpin.value = p.spin;
+    u.uGroove.value = c.floorGroove;
+    u.uHeat.value = p.heat;
+    u.uGash.value = p.gash;
+    u.uGashHeat.value = p.gashHeat;
+    u.uLand.value = p.land;
+    u.uGlow.value = c.floorGlow * g.glow;
+    u.uOpacity.value = c.floorOpacity * g.opacity * p.alpha;
+    u.uSeed.value = p.seed;
+    u.uDeepC.value.copy(getColor(c.colorFloorDeep));
+    u.uBodyC.value.copy(getColor(c.colorFloorBody));
+    u.uSeamC.value.copy(getColor(c.colorCageSeam));
+    u.uHotC.value.copy(getColor(c.colorCageHot));
+    u.uFeintC.value.copy(getColor(c.colorFeintSeam));
+  };
+  return material;
+}

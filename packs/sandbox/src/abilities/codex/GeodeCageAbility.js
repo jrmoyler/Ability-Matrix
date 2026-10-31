@@ -1,15 +1,18 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createGeodeCagePieceGeometry, createGeodeCageHeroGeometry } from '../../assets/codex/GeodeCageGeometry.js';
+import { createGeodeCagePetalGeometry, createGeodeCageSpikeGeometry, createGeodeCageNoduleGeometry } from '../../assets/codex/GeodeCageSignatureGeometry.js';
 import {
   createGeodeCageBodyMaterial,
   createGeodeCageLensMaterial,
   createGeodeCageGroundMaterial,
   createGeodeCageVoiceMaterial,
-  createGeodeCageDetailMaterial
+  createGeodeCageDetailMaterial,
+  createGeodeCageRockMaterial,
+  createGeodeCageFloorMaterial
 } from '../../materials/codex/GeodeCageMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -47,6 +50,26 @@ const _up = new Vector3(0, 1, 0);
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
+/** Shell petals in the geode (authored into the petal geometry's width). */
+const PETALS = 7;
+/** Points the geode can fire. */
+const MAX_SPIKES = 18;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _rot = new Matrix4();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+const _bx = new Vector3();
+const _by = new Vector3();
+const _bz = new Vector3();
+const _rv = new Vector3();
+const _tan = new Vector3();
+const _inw = new Vector3();
+const _slot = new Vector3();
+const _wall = new Vector3();
+const _meet = new Vector3();
+const _base = new Vector3();
+const _handAt = new Vector3();
+
 /**
  * GEODE CAGE — crystal, zone cast.
  *
@@ -72,6 +95,30 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The geode (cast-local signature, `14 · Geode` in the editor)
+ *
+ * The template layers above are switched off through their own keys; what
+ * carries the read is a real geode, rock outside and amethyst inside:
+ *
+ *   - **the throw** — a lumpy rock nodule (`createGeodeCageNoduleGeometry`),
+ *     violet crystal glinting through its split waist, tumbles from the hand
+ *     on an arc and lands in the middle of the circle.
+ *   - **the shell** — on the beat the nodule bursts and seven shell petals
+ *     (`createGeodeCagePetalGeometry`: craggy rind outside, a crystal bed set
+ *     with amethyst points inside) tear up out of the floor on a ring
+ *     (`geodeFit` × the circle), leaning out like a split rock.
+ *   - **the seal** — they slam shut over the bodies into a squat dome
+ *     (`geodeSquash`) with an oculus at the top; the split seams flare violet.
+ *   - **the points fire** — at `geodeFireAt` `spikeCount` amethyst points
+ *     (`createGeodeCageSpikeGeometry`) shoot off the inner wall and meet past
+ *     the centre; light jets out through the seams and shards spray out of
+ *     the oculus.
+ *   - **the crack** — at `geodeCrackAt` the shell falls open outward and
+ *     slams flat, crystal beds up: the opened geode, with the knot of fired
+ *     points standing in the middle, slowly turning while it cools.
+ *   - **the exit** — the rock and the points are eaten behind a hot edge
+ *     and sink; the cracked crystalline floor lets go last.
  *
  * Every metre, rate and colour is read from `settings.geodecage` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +198,38 @@ export class GeodeCageAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this._buildGeode();
+  }
+
+  /** The geode's own meshes: petals, fired points, the thrown nodule and the floor. */
+  _buildGeode() {
+    this.rockMaterial = createGeodeCageRockMaterial();
+    const make = (geometry, count, shadow) => {
+      const attr = new InstancedBufferAttribute(new Float32Array(count * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aGeo', attr);
+      const mesh = new InstancedMesh(geometry, this.rockMaterial, count);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.petals = make(createGeodeCagePetalGeometry(PETALS), PETALS, true);
+    this.spikes = make(createGeodeCageSpikeGeometry(), MAX_SPIKES, true);
+    this.nodule = make(createGeodeCageNoduleGeometry(), 1, true);
+    this.floorGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.floorMaterial = createGeodeCageFloorMaterial();
+    this.floor = this._mesh(this.floorGeometry, this.floorMaterial, LAYER.VFX, 2);
+    this.floor.rotation.x = -Math.PI / 2;
+    this._geo = { roll: 0, sealed: false, fired: false, cracked: false, landed: false, heat: 0, glowAt: 0, knot: 0 };
+    this._floorSync = { centre: new Vector3(), outer: 1, ring: 1, land: 0, heat: 0, spill: 0, alpha: 0, seed: 0 };
+    this._geoDt = 0;
+    this._shardEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -232,6 +311,7 @@ export class GeodeCageAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    this._resetGeode();
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -280,6 +360,7 @@ export class GeodeCageAbility extends Ability {
   }
 
   _pose(committed, fadeT) {
+    this._geodePose(committed, fadeT);
     const u = this.u;
     const rise = committed ? 1 : Easing.outCubic(saturate(u));
     const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;
@@ -294,6 +375,292 @@ export class GeodeCageAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+
+  _resetGeode() {
+    const k = this._geo;
+    k.roll = 0;
+    k.sealed = false;
+    k.fired = false;
+    k.cracked = false;
+    k.landed = false;
+    k.heat = 0;
+    k.glowAt = 0;
+    k.knot = 0;
+    this._geoDt = 0;
+    this._shardEmitter.reset();
+    this._hideGeode();
+  }
+
+  _hideGeode() {
+    this.petals.visible = false;
+    this.spikes.visible = false;
+    this.nodule.visible = false;
+    this.floor.visible = false;
+  }
+
+  /** Seconds since the beat (negative in flight). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Point `j` of the geode: where it sits on the inner wall and where the points meet. */
+  _spikeEnds(j, n, centre, ring, wall, meet) {
+    const c = settings[ID];
+    const h = ((j * 7) % n) / n;
+    const ang = (j * TAU) / n + 0.37 * Math.sin(j * 12.9898 + this._seed);
+    _rv.set(Math.cos(ang), 0, Math.sin(ang));
+    wall.copy(centre).addScaledVector(_rv, ring * 0.72).setY((0.35 + 0.5 * h) * ring * c.geodeSquash);
+    meet.copy(centre).addScaledVector(_rv, -c.spikeOvershoot * (0.5 + 0.5 * h)).setY(c.spikeHeight + (h - 0.5) * 0.7);
+  }
+
+  /** Write one instance: foot at `at`, long axis `ay` (unit), lengths. */
+  _setPiece(mesh, i, at, ay, len, width, seed, heat, sink, inner) {
+    _bx.set(ay.z, 0, -ay.x);
+    if (_bx.lengthSq() < 1e-6) _bx.set(1, 0, 0);
+    _bx.normalize();
+    _bz.crossVectors(_bx, ay).normalize();
+    _by.copy(ay).multiplyScalar(len);
+    _bx.multiplyScalar(width);
+    _bz.multiplyScalar(width);
+    _m4.makeBasis(_bx, _by, _bz).setPosition(at);
+    mesh.setMatrixAt(i, _m4);
+    mesh.geometry.getAttribute('aGeo').setXYZW(i, seed, heat, sink, inner);
+  }
+
+  /**
+   * The geode, every frame: a nodule in flight; on the beat the shell tears
+   * up out of the floor leaning out, slams shut, the points fire inward, it
+   * cracks open and falls flat, the knot of points turns and cools, it all
+   * sinks. Placement is resolved from settings each frame.
+   */
+  _geodePose(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._geo;
+    const dt = this._geoDt;
+    const since = this._since(committed, fadeT);
+    const ring = Math.max(0.4, c.zoneRadius * c.geodeFit);
+    const sq = Math.max(0.1, c.geodeSquash);
+    this._focusPoint(_focus);
+    k.roll += dt * c.noduleSpin * g.animationSpeed;
+
+    if (since < 0) {
+      // The throw.
+      const u = saturate(this.u);
+      _handAt.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _handAt.y = c.handHeight;
+      _slot.copy(_focus).setY(c.noduleSize * 0.45);
+      _pos.copy(_handAt).lerp(_slot, u);
+      _pos.y += c.noduleArc * Math.sin(Math.PI * u);
+      const size = c.noduleSize * (0.4 + 0.6 * Easing.outCubic(saturate(u / 0.15)));
+      _rot.makeRotationAxis(this.side, k.roll);
+      _m4.makeRotationY(k.roll * 0.6).premultiply(_rot);
+      _m4.scale(_bx.set(size, size, size)).setPosition(_pos);
+      this.nodule.setMatrixAt(0, _m4);
+      this.nodule.geometry.getAttribute('aGeo').setXYZW(0, this._seed, 0.55 + 0.25 * Math.sin(this.age * 20), 0, 0.8);
+      this.nodule.instanceMatrix.needsUpdate = true;
+      this.nodule.geometry.getAttribute('aGeo').needsUpdate = true;
+      this.nodule.visible = true;
+      this.petals.visible = false;
+      this.spikes.visible = false;
+      this.floor.visible = false;
+      this.rockMaterial.userData.sync();
+      this._shardTrail(dt, _pos);
+      return;
+    }
+    this.nodule.visible = false;
+
+    // Clocks.
+    const rise = saturate(since / Math.max(0.02, c.geodeRise));
+    const sealS = saturate((since - c.geodeSealAt) / Math.max(0.02, c.geodeSealTime));
+    const fireAt = c.geodeFireAt * this.impactDuration;
+    const fireS = saturate((since - fireAt) / Math.max(0.02, c.geodeFireTime));
+    const crackSince = this.impactDuration + (c.geodeCrackAt - 1) * this.fadeDuration;
+    const fallS = since >= crackSince ? saturate((since - crackSince) / Math.max(0.02, c.geodeFallTime)) : 0;
+    const sinkP = committed && fadeT >= 1 ? saturate((fadeT - c.geodeSinkAt) / Math.max(0.05, (2 - c.geodeSinkAt) * 0.85)) : 0;
+    if (sealS >= 1 && !k.sealed) {
+      k.sealed = true;
+      k.heat = 1;
+      this._geodeSeal(ring);
+    }
+    if (fireS > 0 && !k.fired) {
+      k.fired = true;
+      k.heat = 1.25;
+      this._geodeFire(ring);
+    }
+    if (fallS > 0 && !k.cracked) {
+      k.cracked = true;
+      k.heat = Math.max(k.heat, 0.9);
+    }
+    if (fallS >= 1 && !k.landed) {
+      k.landed = true;
+      this._geodeLand(ring);
+    }
+    const floorHeat = k.sealed ? 0.3 : 0.15;
+    k.heat += (floorHeat - k.heat) * saturate(dt / Math.max(0.05, c.geodeCool));
+    if (k.cracked) k.knot += dt * c.spikeTurn * g.animationSpeed;
+
+    // The petals.
+    let tilt;
+    if (k.cracked) {
+      const f = fallS;
+      const bounce = f < 1 ? f * f : 1 - 0.06 * Math.exp(-(since - crackSince - c.geodeFallTime) * 7) * Math.abs(Math.sin((since - crackSince - c.geodeFallTime) * 16));
+      tilt = -c.geodeFallTilt * bounce;
+    } else if (sealS > 0) {
+      tilt = -c.geodeOpenTilt * (1 - Easing.inCubic(sealS));
+      if (sealS >= 1) tilt = 0.02 * Math.exp(-(since - c.geodeSealAt - c.geodeSealTime) * 9) * Math.sin(since * 50);
+    } else {
+      tilt = -c.geodeOpenTilt;
+    }
+    const lift = -ring * sq * 1.05 * (1 - Easing.outCubic(rise)) - sinkP * ring * sq * 0.5;
+    const inner = k.cracked ? 1 : 0.35;
+    for (let i = 0; i < PETALS; i++) {
+      const theta = this._seed + (i * TAU) / PETALS;
+      _tan.set(-Math.sin(theta), 0, Math.cos(theta));
+      _inw.set(-Math.cos(theta), 0, -Math.sin(theta));
+      _by.copy(_up).multiplyScalar(Math.cos(tilt)).addScaledVector(_inw, Math.sin(tilt));
+      _bz.copy(_inw).multiplyScalar(Math.cos(tilt)).addScaledVector(_up, -Math.sin(tilt));
+      _bx.copy(_tan).multiplyScalar(ring);
+      _by.multiplyScalar(ring * sq);
+      _bz.multiplyScalar(ring);
+      _slot.copy(_focus).addScaledVector(_inw, -ring);
+      _slot.y = lift;
+      _m4.makeBasis(_bx, _by, _bz).setPosition(_slot);
+      this.petals.setMatrixAt(i, _m4);
+      this.petals.geometry.getAttribute('aGeo').setXYZW(i, this._seed + i * 1.7, k.heat, sinkP, inner);
+    }
+    this.petals.instanceMatrix.needsUpdate = true;
+    this.petals.geometry.getAttribute('aGeo').needsUpdate = true;
+    this.petals.visible = sinkP < 0.999;
+
+    // The fired points.
+    const n = Math.max(3, Math.min(MAX_SPIKES, Math.round(c.spikeCount)));
+    const L = Math.max(0.2, c.spikeLength);
+    for (let j = 0; j < MAX_SPIKES; j++) {
+      if (j >= n || fireS <= 0) {
+        this.spikes.setMatrixAt(j, _zero);
+        continue;
+      }
+      this._spikeEnds(j, n, _focus, ring, _wall, _meet);
+      _dir.copy(_meet).sub(_wall).normalize();
+      _base.copy(_meet).addScaledVector(_dir, -L);
+      const fp = Easing.outCubic(fireS);
+      _pos.copy(_wall).addScaledVector(_dir, -0.2 * L).lerp(_base, fp);
+      // The knot turns slowly about the centre once the geode is open.
+      if (k.knot !== 0) {
+        const ca = Math.cos(k.knot);
+        const sa = Math.sin(k.knot);
+        const px = _pos.x - _focus.x;
+        const pz = _pos.z - _focus.z;
+        _pos.x = _focus.x + px * ca - pz * sa;
+        _pos.z = _focus.z + px * sa + pz * ca;
+        const dx = _dir.x;
+        _dir.x = dx * ca - _dir.z * sa;
+        _dir.z = dx * sa + _dir.z * ca;
+      }
+      _pos.y -= sinkP * 1.2;
+      const w = c.spikeWidth * (0.75 + 0.5 * (((j * 5) % 7) / 7));
+      this._setPiece(this.spikes, j, _pos, _dir, L * (0.3 + 0.7 * fp) * (0.8 + 0.4 * (((j * 3) % 5) / 5)), w, this._seed + j * 2.3, Math.min(1, k.heat + c.spikeGlow), sinkP, 1);
+    }
+    this.spikes.instanceMatrix.needsUpdate = true;
+    this.spikes.geometry.getAttribute('aGeo').needsUpdate = true;
+    this.spikes.visible = fireS > 0 && sinkP < 0.999;
+    this.rockMaterial.userData.sync();
+    this._geodeShed(dt, ring, since, fireAt, sinkP);
+
+    // The floor.
+    const p = this._floorSync;
+    p.centre.copy(_focus);
+    p.outer = c.zoneRadius * c.geodeFloorReach;
+    p.ring = ring;
+    p.land = 1.2 * Easing.outCubic(saturate(since / Math.max(0.05, c.groundLand)));
+    p.heat = k.heat;
+    p.spill = k.cracked ? Math.min(1, k.heat) * Easing.outCubic(fallS) : 0;
+    p.alpha = fadeT < 1 ? 1 : 1 - saturate((fadeT - c.geodeFloorLetGo) / Math.max(0.05, 2 - c.geodeFloorLetGo));
+    p.seed = this._seed;
+    this.floorMaterial.userData.sync(p);
+    this.floor.position.set(_focus.x, 0.03, _focus.z);
+    this.floor.scale.set(p.outer * 2, p.outer * 2, 1);
+    this.floor.visible = p.alpha > 0.01 && c.geodeFloorOpacity > 0.01;
+  }
+
+  /** Violet glints shed behind the nodule in flight. */
+  _shardTrail(dt, at) {
+    const c = settings[ID];
+    const g = settings.global;
+    const sn = Math.round(this._shardEmitter.tick(dt, c.noduleTrail) * g.particleCount);
+    if (sn <= 0) return;
+    _dir.copy(this.direction).multiplyScalar(-1).setY(0.3);
+    this._fillEmit(at, c.noduleSize * 0.3, _dir, c.streakSpeed * 0.3, 0.6, 0.06, c.streakLife, 2);
+    this.streaks.emit(sn, _emit);
+  }
+
+  /** The shell slams shut: a thud, dust squeezed out at the foot, the seams flare. */
+  _geodeSeal(ring) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._focusPoint(_focus);
+    this.ctx.shake.add(c.sealShake * g.cameraShake * g.explosionIntensity, 5, 20);
+    this.lightBoost += c.sealLight * g.explosionIntensity;
+    const dust = Math.round(c.sealDust * g.particleCount);
+    for (let i = 0; i < PETALS && dust > 0; i++) {
+      const theta = this._seed + ((i + 0.5) * TAU) / PETALS;
+      _rv.set(Math.cos(theta), 0, Math.sin(theta));
+      _pos.copy(_focus).addScaledVector(_rv, ring).setY(0.15);
+      _dir.copy(_rv).setY(0.15);
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed * 1.2, 0.5, 0.55, c.dustLife * 1.4, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+  }
+
+  /** The points fire: light out through the seams, shards jetted out of the oculus, a crack of the camera. */
+  _geodeFire(ring) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._focusPoint(_focus);
+    this.ctx.shake.add(c.fireShake * g.cameraShake * g.explosionIntensity, 7, 24);
+    this.lightBoost += c.fireLight * g.explosionIntensity;
+    const shards = Math.round(c.fireShards * g.particleCount);
+    if (shards > 0) {
+      _pos.copy(_focus).setY(ring * c.geodeSquash * 0.95);
+      this._fillEmit(_pos, 0.4, _up, c.chipSpeed * 1.6, 0.45, c.chipSize * 1.6, c.chipLife * 1.4, 9);
+      this.chips.emit(shards, _emit);
+      this._fillEmit(_pos, 0.3, _up, c.streakSpeed * 1.4, 0.5, 0.08, c.streakLife * 1.6, 2);
+      this.streaks.emit(shards, _emit);
+    }
+  }
+
+  /** The shell lands flat: dust off every petal. */
+  _geodeLand(ring) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._focusPoint(_focus);
+    this.ctx.shake.add(c.crackShake * g.cameraShake * g.explosionIntensity, 4, 16);
+    const dust = Math.round(c.crackDust * g.particleCount);
+    for (let i = 0; i < PETALS && dust > 0; i++) {
+      const theta = this._seed + (i * TAU) / PETALS;
+      _rv.set(Math.cos(theta), 0, Math.sin(theta));
+      _pos.copy(_focus).addScaledVector(_rv, ring * 1.6).setY(0.2);
+      _dir.copy(_rv).setY(0.2);
+      this._fillEmit(_pos, ring * 0.3, _dir, c.dustSpeed, 0.6, 0.6, c.dustLife * 1.5, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+  }
+
+  /** Glints off the knot while it cools. */
+  _geodeShed(dt, ring, since, fireAt, sinkP) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (since < fireAt || sinkP >= 1) return;
+    const sn = Math.round(this._shardEmitter.tick(dt, c.knotGlints * (1 - sinkP)) * g.particleCount);
+    if (sn <= 0) return;
+    this._focusPoint(_focus);
+    _pos.copy(_focus).setY(c.spikeHeight);
+    this._fillEmit(_pos, c.spikeLength * 0.6, _up, c.moteSpeed, 0.8, 0.07, c.moteLife, 1);
+    this.motes.emit(sn, _emit);
   }
 
   /**
@@ -360,10 +727,10 @@ export class GeodeCageAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -688,7 +1055,7 @@ export class GeodeCageAbility extends Ability {
       colorB: getColor(c.colorGroundA),
       height: 0.025
     });
-    this.ctx.decals.spawn(DecalType.FROST, _end, {
+    if (c.shockRing > 0.01) this.ctx.decals.spawn(DecalType.FROST, _end, {
       radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
       life: c.shockLife,
       width: 0.08,
@@ -750,6 +1117,7 @@ export class GeodeCageAbility extends Ability {
   }
 
   onTravel(dt) {
+    this._geoDt = dt;
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
@@ -767,6 +1135,7 @@ export class GeodeCageAbility extends Ability {
   }
 
   onFade(dt, t) {
+    this._geoDt = dt;
     const c = settings[ID];
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
@@ -797,9 +1166,16 @@ export class GeodeCageAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideGeode();
   }
 
   dispose() {
+    this.petals.geometry.dispose();
+    this.spikes.geometry.dispose();
+    this.nodule.geometry.dispose();
+    this.rockMaterial.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -986,6 +1362,60 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const geode = folder.addFolder('14 · Geode');
+  R(geode, c, 'noduleSize', 0.1, 3, 0.01, 'nodule (m)');
+  R(geode, c, 'noduleArc', 0, 8, 0.05, 'throw arc (m)');
+  R(geode, c, 'noduleSpin', -30, 30, 0.1, 'tumble (rad/s)');
+  R(geode, c, 'noduleTrail', 0, 300, 1, 'trail glints / s');
+  R(geode, c, 'geodeFit', 0.2, 1.4, 0.01, 'shell ring (x circle)');
+  R(geode, c, 'geodeSquash', 0.2, 1.2, 0.01, 'dome height');
+  R(geode, c, 'geodeRise', 0.02, 1.5, 0.01, 'tears up (s)');
+  R(geode, c, 'geodeOpenTilt', 0, 1.5, 0.01, 'leans out (rad)');
+  R(geode, c, 'geodeSealAt', 0, 1.5, 0.01, 'seals at (s)');
+  R(geode, c, 'geodeSealTime', 0.02, 1, 0.01, 'slam (s)');
+  R(geode, c, 'geodeFireAt', 0.05, 1, 0.01, 'fires at (impact)');
+  R(geode, c, 'geodeFireTime', 0.02, 1, 0.01, 'points cross (s)');
+  R(geode, c, 'geodeCrackAt', 0.5, 1.9, 0.01, 'cracks at (phase)');
+  R(geode, c, 'geodeFallTime', 0.05, 1.5, 0.01, 'falls (s)');
+  R(geode, c, 'geodeFallTilt', 0, 1.6, 0.01, 'falls to (rad)');
+  R(geode, c, 'geodeSinkAt', 1, 1.95, 0.01, 'sinks at (fade)');
+  R(geode, c, 'geodeCool', 0.05, 4, 0.05, 'cools (s)');
+  R(geode, c, 'spikeCount', 3, 18, 1, 'points');
+  R(geode, c, 'spikeLength', 0.2, 5, 0.05, 'point length (m)');
+  R(geode, c, 'spikeWidth', 0.05, 1, 0.01, 'point width (m)');
+  R(geode, c, 'spikeHeight', 0.2, 4, 0.05, 'meet height (m)');
+  R(geode, c, 'spikeOvershoot', 0, 3, 0.05, 'overshoot (m)');
+  R(geode, c, 'spikeTurn', -3, 3, 0.05, 'knot turn (rad/s)');
+  R(geode, c, 'spikeGlow', 0, 1.5, 0.01, 'point glow floor');
+  R(geode, c, 'knotGlints', 0, 200, 1, 'knot glints / s');
+  R(geode, c, 'geodeSeamGlow', 0, 8, 0.05, 'seam glow');
+  R(geode, c, 'geodeCrystalGlow', 0, 8, 0.05, 'crystal glow');
+  R(geode, c, 'geodeSpecular', 0, 4, 0.05, 'specular');
+  R(geode, c, 'geodeRimGlow', 0, 4, 0.05, 'rim glow');
+  geode.addColor(c, 'colorRindDeep').name('rind, deep');
+  geode.addColor(c, 'colorRind').name('rind');
+  geode.addColor(c, 'colorCrystalBed').name('crystal bed');
+  geode.addColor(c, 'colorCrystal').name('amethyst');
+  geode.addColor(c, 'colorCrystalGlow').name('glow');
+  geode.addColor(c, 'colorCrystalHot').name('glow, hot');
+  R(geode, c, 'sealShake', 0, 2, 0.01, 'seal punch');
+  R(geode, c, 'sealLight', 0, 40, 0.5, 'seal light');
+  R(geode, c, 'sealDust', 0, 30, 1, 'seal dust / seam');
+  R(geode, c, 'fireShake', 0, 2, 0.01, 'fire punch');
+  R(geode, c, 'fireLight', 0, 40, 0.5, 'fire light');
+  R(geode, c, 'fireShards', 0, 300, 1, 'fire shards');
+  R(geode, c, 'crackShake', 0, 2, 0.01, 'crack punch');
+  R(geode, c, 'crackDust', 0, 30, 1, 'crack dust / petal');
+
+  const geodeFloor = folder.addFolder('15 · Geode floor');
+  R(geodeFloor, c, 'geodeFloorOpacity', 0, 1.5, 0.01, 'opacity');
+  R(geodeFloor, c, 'geodeFloorGlow', 0, 6, 0.05, 'glow');
+  R(geodeFloor, c, 'geodeFloorCell', 0.1, 3, 0.01, 'cell (m)');
+  R(geodeFloor, c, 'geodeFloorReach', 0.3, 2, 0.01, 'reach (x circle)');
+  R(geodeFloor, c, 'geodeFloorLetGo', 1, 1.95, 0.01, 'lets go at (fade)');
+  geodeFloor.addColor(c, 'colorGeodeFloorDeep').name('floor, deep');
+  geodeFloor.addColor(c, 'colorGeodeFloor').name('floor');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

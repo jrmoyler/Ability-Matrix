@@ -755,3 +755,351 @@ export function createImpulseWellDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ==================================================================== */
+/* The signature — the well floor, its slabs and the compressed charge   */
+/* ==================================================================== */
+/*
+ * Three more shaders, written for this cast:
+ *   floor — a disc of broken basalt (MeshStandardMaterial, patched): the
+ *           vertex shader sinks it into a funnel while the well inhales,
+ *           then runs a heaved ring wave out to the rim on the dump and lets
+ *           it settle in ripples; the normal follows the slope so the sun
+ *           models every bank. Voronoi cracks glow orange only where the
+ *           floor is pulled (the funnel) or bent (the crest).
+ *   slab  — torn floor slabs (instanced): dark basalt, the torn underside
+ *           glowing hot and cooling.
+ *   charge — the compressed impulse in flight: a lumpy dark mass with
+ *           glowing seams, sun-lit.
+ */
+
+const WELL_VERTEX_PARS = /* glsl */ `
+  attribute vec2 aPolar;
+  uniform float uDepth;
+  uniform float uFunnel;
+  uniform float uWaveR;
+  uniform float uWaveH;
+  uniform float uWaveW;
+  uniform float uRipple;
+  uniform float uRippleK;
+  uniform float uRipplePhase;
+  varying vec2 vPolar;
+  varying vec2 vXZ;
+  varying float vH;
+  float wellH(float r) {
+    float f = max(0.0, 1.0 - r / max(0.02, uFunnel));
+    float h = -uDepth * pow(f, 1.6);
+    float d = (r - uWaveR) / max(0.01, uWaveW);
+    h += uWaveH * exp(-d * d);
+    h += uRipple * sin(r * uRippleK - uRipplePhase) * (1.0 - r);
+    return h * (1.0 - smoothstep(0.86, 1.0, r));
+  }
+`;
+const WELL_NORMAL = /* glsl */ `
+  float wr = aPolar.x;
+  float dh = (wellH(wr + 0.004) - wellH(max(0.0, wr - 0.004))) / 0.008;
+  vec3 objectNormal = normalize(vec3(-dh * cos(aPolar.y), 1.0, -dh * sin(aPolar.y)));
+  #ifdef USE_TANGENT
+    vec3 objectTangent = vec3(1.0, 0.0, 0.0);
+  #endif
+`;
+const WELL_POSITION = /* glsl */ `
+  vec3 transformed = vec3(position);
+  vH = wellH(aPolar.x);
+  transformed.y += vH;
+  vPolar = aPolar;
+  vXZ = position.xz;
+`;
+const WELL_FRAGMENT_PARS = /* glsl */ `
+  uniform float uRadius;
+  uniform float uCell;
+  uniform float uRim;
+  uniform float uFunnel;
+  uniform float uWaveR;
+  uniform float uWaveW;
+  uniform float uPull;
+  uniform float uCrest;
+  uniform float uEmber;
+  uniform float uCore;
+  uniform float uGlow;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec2 vPolar;
+  varying vec2 vXZ;
+  varying float vH;
+  ${noiseGLSL}
+  vec2 wellHash(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return fract(sin(p) * 43758.5453);
+  }
+  // x: distance to the nearest crack, y: a per-cell value.
+  vec2 wellCells(vec2 p) {
+    vec2 n = floor(p);
+    vec2 f = fract(p);
+    float d1 = 8.0;
+    float d2 = 8.0;
+    float id = 0.0;
+    for (int j = -1; j <= 1; j++) {
+      for (int i = -1; i <= 1; i++) {
+        vec2 g = vec2(float(i), float(j));
+        vec2 o = wellHash(n + g + uSeed);
+        float d = length(g + o - f);
+        if (d < d1) { d2 = d1; d1 = d; id = o.x; }
+        else if (d < d2) { d2 = d; }
+      }
+    }
+    return vec2(d2 - d1, id);
+  }
+`;
+const WELL_COLOR = /* glsl */ `
+  {
+    float r = vPolar.x;
+    float rimNoise = snoise(vec3(vXZ * 5.0, uSeed)) * 0.5 + 0.5;
+    if (r > (0.9 + 0.1 * rimNoise) * uRim) discard;
+    vec2 cell = wellCells(vXZ * uRadius / max(0.1, uCell));
+    float crack = 1.0 - smoothstep(0.02, 0.09, cell.x);
+    float grain = snoise(vec3(vXZ * uRadius * 3.0, uSeed + 4.0)) * 0.5 + 0.5;
+    // Pulled stone is darker down the funnel; every slab its own tone.
+    float down = clamp(-vH, 0.0, 2.0) * 0.35;
+    vec3 rock = mix(uColorDeep, uColorBody, 0.3 + 0.35 * cell.y + 0.25 * grain - down);
+    diffuseColor.rgb = mix(rock, uColorDeep * 0.5, crack * 0.85);
+  }
+`;
+const WELL_EMISSIVE = /* glsl */ `
+  {
+    float r = vPolar.x;
+    vec2 cell = wellCells(vXZ * uRadius / max(0.1, uCell));
+    float crack = 1.0 - smoothstep(0.0, 0.06, cell.x);
+    float pull = max(0.0, 1.0 - r / max(0.02, uFunnel)) * uPull;
+    float d = (r - uWaveR) / max(0.01, uWaveW);
+    float crest = exp(-d * d) * uCrest;
+    float heat = clamp(pull + crest + uEmber, 0.0, 2.0);
+    vec3 hot = mix(uColorHot, uColorCore, clamp(heat - 0.8, 0.0, 1.0) * 0.6);
+    totalEmissiveRadiance += hot * crack * heat * uGlow;
+    // The eye of the well, the charge sinking into it.
+    float eye = 1.0 - smoothstep(0.0, 0.09, r);
+    totalEmissiveRadiance += mix(uColorHot, uColorCore, eye) * eye * uCore * uGlow;
+  }
+`;
+
+/** The well floor: lit broken basalt that sinks into a funnel, heaves a ring wave, and settles. */
+export function createImpulseWellFloorMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.88, metalness: 0.04, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const uniforms = {
+    uDepth: { value: 0 },
+    uFunnel: { value: 0.6 },
+    uWaveR: { value: 0 },
+    uWaveH: { value: 0 },
+    uWaveW: { value: 0.12 },
+    uRipple: { value: 0 },
+    uRippleK: { value: 20 },
+    uRipplePhase: { value: 0 },
+    uRadius: { value: 5 },
+    uCell: { value: 0.8 },
+    uRim: { value: 1 },
+    uPull: { value: 0 },
+    uCrest: { value: 0 },
+    uEmber: { value: 0 },
+    uCore: { value: 0 },
+    uGlow: { value: 1 },
+    uSeed: { value: 0 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${WELL_VERTEX_PARS}`)
+        .replace('#include <beginnormal_vertex>', WELL_NORMAL)
+        .replace('#include <begin_vertex>', WELL_POSITION);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${WELL_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${WELL_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${WELL_EMISSIVE}`);
+    },
+    'impulse-well-floor'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (shape, radius, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uDepth.value = shape.depth;
+    uniforms.uFunnel.value = shape.funnel;
+    uniforms.uWaveR.value = shape.waveR;
+    uniforms.uWaveH.value = shape.waveH;
+    uniforms.uWaveW.value = shape.waveW;
+    uniforms.uRipple.value = shape.ripple;
+    uniforms.uRippleK.value = c.rippleK;
+    uniforms.uRipplePhase.value = shape.ripplePhase;
+    uniforms.uRadius.value = radius;
+    uniforms.uCell.value = c.wellCell;
+    uniforms.uRim.value = shape.rim;
+    uniforms.uPull.value = shape.pull;
+    uniforms.uCrest.value = shape.crest;
+    uniforms.uEmber.value = shape.ember;
+    uniforms.uCore.value = shape.core;
+    uniforms.uGlow.value = c.wellGlow * g.glow;
+    uniforms.uSeed.value = seed;
+    uniforms.uColorDeep.value.copy(getColor(c.colorWellDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorWellBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorWellHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorWellCore));
+  };
+  return material;
+}
+
+const SLAB_VERTEX_PARS = /* glsl */ `
+  attribute float aUnder;
+  varying float vUnder;
+  varying vec3 vSlabLocal;
+`;
+const SLAB_FRAGMENT_PARS = /* glsl */ `
+  uniform float uHeat;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying float vUnder;
+  varying vec3  vSlabLocal;
+  ${noiseGLSL}
+`;
+const SLAB_COLOR = /* glsl */ `
+  {
+    float grain = snoise(vSlabLocal * 7.0 + uSeed) * 0.5 + 0.5;
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.35 + 0.45 * grain) * (1.0 - 0.35 * vUnder);
+  }
+`;
+const SLAB_EMISSIVE = /* glsl */ `
+  {
+    float vein = smoothstep(0.55, 0.85, snoise(vSlabLocal * 5.0 + uSeed * 2.0) * 0.5 + 0.5);
+    float under = smoothstep(0.6, 1.0, vUnder) * (0.35 + 0.65 * vein) + smoothstep(0.2, 0.5, vUnder) * (1.0 - smoothstep(0.6, 1.0, vUnder)) * vein * 0.25;
+    totalEmissiveRadiance += mix(uColorHot, uColorCore, under * uHeat * 0.4) * under * uHeat;
+  }
+`;
+
+/** Torn slabs: dark lit basalt, the torn underside glowing and cooling (instanced). */
+export function createImpulseWellSlabMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.05, flatShading: true });
+  const uniforms = {
+    uHeat: { value: 0 },
+    uSeed: { value: 0 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${SLAB_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vUnder = aUnder;\n  vSlabLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${SLAB_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${SLAB_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${SLAB_EMISSIVE}`);
+    },
+    'impulse-well-slab'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat * c.slabHeat * g.glow;
+    uniforms.uSeed.value = seed;
+    uniforms.uColorDeep.value.copy(getColor(c.colorWellDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorSlabBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorWellHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorWellCore));
+  };
+  return material;
+}
+
+const ORB_VERTEX_PARS = /* glsl */ `
+  uniform float uLump;
+  uniform float uPhase;
+  varying vec3 vOrbLocal;
+  ${noiseGLSL}
+`;
+const ORB_FRAGMENT_PARS = /* glsl */ `
+  uniform float uPhase;
+  uniform float uSeam;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec3 vOrbLocal;
+  ${noiseGLSL}
+`;
+const ORB_POSITION = /* glsl */ `
+  vec3 transformed = vec3(position);
+  float lump = snoise(position * 2.2 + vec3(0.0, uPhase * 0.3, 0.0));
+  transformed *= 1.0 + uLump * lump;
+  vOrbLocal = position;
+`;
+const ORB_COLOR = /* glsl */ `
+  {
+    float g = snoise(vOrbLocal * 3.0 + uPhase * 0.2) * 0.5 + 0.5;
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.3 + 0.4 * g);
+  }
+`;
+const ORB_EMISSIVE = /* glsl */ `
+  {
+    float n = snoise(vOrbLocal * 2.6 + vec3(uPhase * 0.5));
+    float seam = 1.0 - smoothstep(0.0, 0.12, abs(n));
+    totalEmissiveRadiance += mix(uColorHot, uColorCore, seam * 0.5) * seam * uSeam;
+    vec3 nV = normalize(normal);
+    float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
+    totalEmissiveRadiance += uColorHot * rim * uSeam * 0.25;
+  }
+`;
+
+/** The charge in flight: a lumpy, dark, lit mass of compressed force with glowing seams. */
+export function createImpulseWellOrbMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, metalness: 0.1 });
+  const uniforms = {
+    uLump: { value: 0.25 },
+    uPhase: { value: 0 },
+    uSeam: { value: 1 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${ORB_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', ORB_POSITION);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${ORB_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${ORB_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${ORB_EMISSIVE}`);
+    },
+    'impulse-well-orb'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (phase) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uLump.value = c.orbLump;
+    uniforms.uPhase.value = phase;
+    uniforms.uSeam.value = c.orbGlow * g.glow;
+    uniforms.uColorDeep.value.copy(getColor(c.colorWellDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorSlabBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorWellHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorWellCore));
+  };
+  return material;
+}

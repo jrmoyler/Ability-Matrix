@@ -36,7 +36,7 @@ export default {
     lightIntensity: 12, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.5, // 0..1 how much it shimmers
-    impactLight: 15.4, // extra light on the beat, decays on its own
+    impactLight: 9, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template ring; the crown carries the read now
     edgeGlow: 1.32,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.48,
@@ -62,10 +62,10 @@ export default {
     colorA: '#ffd53d',
     colorB: '#fffdf4',
     colorC: '#957504',
-    lensWarp: 0.56, // strength of the distortion it writes
+    lensWarp: 0, // off: the ring shape it warps is gone
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the crown carries the read)
     colorVoiceA: '#ffd53d',
     colorVoiceB: '#fffdf4',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template field (off: the sunburst is the floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.42, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#3a3020', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the rays are the pieces)
     detailSize: 0.45, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -108,7 +108,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.65, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local crown is the hero)
     heroDeep: 0.5, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -117,7 +117,7 @@ export default {
     colorHeroC: '#957504',
 
     /* --- 6 · shed --- */
-    dustRate: 32, // puffs per second
+    dustRate: 8, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -126,7 +126,7 @@ export default {
     colorDustB: '#ffd53d',
     colorDustC: '#957504',
     colorDustD: '#1a140e',
-    streakRate: 162, // sparks per second
+    streakRate: 50, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -156,11 +156,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.39, // camera punch on the beat
-    impactFlash: 0.22, // screen flash on the beat
+    impactFlash: 0.06, // screen flash on the beat
     colorFlash: '#ffe9a8',
     burstRadius: 3.2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.06, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 3, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#fffdf4',
@@ -168,7 +168,7 @@ export default {
     colorBurstC: '#957504',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0.12, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#ffd53d',
     colorShockB: '#fffdf4',
 
@@ -195,6 +195,60 @@ export default {
     markRimGlow: 2.4, // rim light on a marked body
     colorMarkEdge: '#ffe9a8',
     markEdgeGlow: 3.9, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the crown (cast-local hero) --- */
+    rayCount: 16, // rays in the crown (max 24), alternating tall and short
+    rayHeight: 2.7, // metres a tall ray stands
+    rayShort: 0.62, // short rays, × the tall height
+    rayWidth: 1.9, // blade width scale (an authored ray is ~0.44 m wide at 1)
+    rayStart: 1.55, // where the rays rise while the star flies, × the circle
+    rayFit: 0.95, // where they meet on the beat, × the circle
+    raySnap: 0.12, // how far they snap in past the rim on the beat, × the ring
+    raySnapTime: 0.16, // seconds the snap takes, × global lifetime
+    rayLeanOut: 0.35, // radians they lean out before the beat
+    rayLean: 0.32, // radians the tips lean in toward the star after the beat
+    rayBreathe: 0.03, // radians each ray sways through the linger
+    raySpin: 0.25, // radians/second the crown turns through the linger
+    rayFlareTime: 0.38, // seconds the flare band takes to run foot → tip, × global lifetime
+    rayCool: 1.4, // how fast the heat cools to bronze
+    raySinkStart: 0.66, // the rays start to sink at this share of the life after the beat
+    raySinkStagger: 0.45, // seconds the sinking takes to sweep round the ring, × global lifetime
+    raySinkTime: 0.35, // seconds one ray takes to sink, × global lifetime
+    giltRimGlow: 0.3, // pale fresnel rim on the gold
+    giltSpecular: 1.4, // sun glint on the gold
+    giltEdgeGlow: 0.5, // light along the blade edges
+    giltFlareGlow: 1.4, // brightness of the flare band
+    giltHeatGlow: 0.15, // body glow while hot
+    colorGiltDeep: '#1e1002', // bronze, deep
+    colorGiltBody: '#a86e10', // gold, body
+    colorGiltPale: '#ffe7a0', // gold, pale
+    colorGiltHot: '#fff2c4', // white-gold
+    flareSparks: 8, // sparks shot up each ray on the flare
+    flareLight: 6, // light punch of the flare
+
+    /* --- 15 · the sun-star --- */
+    starSize: 0.85, // radius, metres
+    starDepth: 1.4, // thickness scale
+    starHeight: 2.3, // metres it hangs at over the centre
+    starRise: 0.35, // metres it lifts after the beat
+    starArc: 1.4, // metres it arcs above the straight path in flight
+    starSpinFlight: 14, // radians/second it spins in flight
+    starSpin: 0.9, // radians/second it turns after the beat
+    starPop: 0.35, // how much it swells on the beat
+    starBob: 0.08, // metres it bobs through the linger
+    starExit: 0.78, // it drops into the boss from this share of the life after the beat
+    starTrail: 60, // wake motes per second in flight
+
+    /* --- 16 · the sunburst --- */
+    sunFit: 1.12, // reach, × the circle
+    sunTurn: 0.3, // how far the rays on the floor turn with the crown
+    sunOpacity: 0.9, // strength of the sunburst
+    sunHeat: 0.55, // glow of the fresh sunburst, cooling
+    sunLand: 0.28, // seconds it takes to land out to the rim, × global lifetime
+    sunErodeStart: 0.72, // it starts to erode at this share of the life after the beat
+    sunMotes: 40, // motes of light rising off it per second
+    colorSunBed: '#160d02', // bed
+    colorSunRay: '#8a5c10' // rays
   }
 };

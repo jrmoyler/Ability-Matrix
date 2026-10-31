@@ -757,3 +757,289 @@ export function createPerigeeHaloDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The halo itself — cast-local hero shaders                             */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The halo: a ring of fused lead-and-basalt blocks, lit by the scene sun (key
+ * + sky fill + a dull specular), with dark seams between the blocks that glow
+ * ochre from inside, and a friction burn along the underside that is hottest at
+ * the contact point and trails behind it round the ring as the ring precesses.
+ * An exit dissolve eats it with a hot edge. Opaque; the mesh casts the sun's
+ * shadow. Per vertex: `aInfo` = (ring angle, profile angle, block die, seam).
+ */
+const HALO_VERTEX = /* glsl */ `
+  attribute vec4 aInfo;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec4 vInfo;
+  varying vec3 vLocal;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vInfo = aInfo;
+    vLocal = position;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const HALO_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uRim;
+  uniform vec3  uHeatColor;
+  uniform vec3  uHot;
+  uniform float uContact;    // ring-local angle of the contact point
+  uniform float uHeat;       // 0..1 how hot the scrape is right now
+  uniform float uHeatGlow;
+  uniform float uSpread;     // radians the burn trails behind the contact
+  uniform float uSeamGlow;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  uniform float uDissolve;
+  uniform float uSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec4 vInfo;
+  varying vec3 vLocal;
+
+  ${noiseGLSL}
+
+  void main() {
+    float n = snoise(vWorld * 1.7 + vec3(uSeed));
+    // Exit: eaten from the top down and through the grain, behind a hot edge.
+    float cut = uDissolve * 1.25 - 0.1;
+    float d = (n * 0.5 + 0.5) * 0.7 + clamp(vWorld.y, 0.0, 1.0) * 0.3;
+    if (d < cut) discard;
+    float edge = 1.0 - smoothstep(0.0, 0.06, d - cut);
+    edge *= step(0.001, uDissolve);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Lead and basalt: heavy, dark, with a warm body colour in the strata.
+    float strata = smoothstep(0.3, 0.9, snoise01(vec3(vInfo.x * 5.0, vInfo.y * 1.3, vInfo.z * 9.0)));
+    float grit = snoise01(vWorld * 7.0);
+    vec3 albedo = mix(uDeep, uBody, 0.25 + 0.6 * strata) * (0.75 + 0.5 * grit);
+    vec3 color = albedo * (0.22 + 1.15 * ndl);
+    color += albedo * 0.22 * (0.5 + 0.5 * N.y);
+    color += mix(uBody, vec3(1.0), 0.3) * pow(max(dot(N, H), 0.0), 40.0) * uSpecular;
+    color += uRim * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow;
+
+    // Seams between the fused blocks: dark cracks, ochre inside.
+    float seam = vInfo.w;
+    color = mix(color, uDeep * 0.4, smoothstep(0.35, 0.8, seam));
+    color += uHeatColor * smoothstep(0.65, 1.0, seam) * uSeamGlow * (0.7 + 0.3 * sin(uTime * 3.0 + vInfo.z * 20.0)) * uGlobalGlow;
+
+    // Friction burn: hottest at the contact, trailing behind it round the ring,
+    // only on the underside and outer face that drag on the floor.
+    float behind = mod(uContact - vInfo.x + 6.2831853, 6.2831853);
+    float ahead = mod(vInfo.x - uContact + 6.2831853, 6.2831853);
+    float trail = exp(-behind / max(0.05, uSpread)) + exp(-ahead / 0.12);
+    float under = smoothstep(-0.2, 0.9, -sin(vInfo.y) * 0.8 + cos(vInfo.y) * 0.5);
+    float heat = clamp(trail * under * uHeat, 0.0, 1.5);
+    heat *= 0.75 + 0.5 * snoise01(vec3(vInfo.x * 12.0, vInfo.y * 3.0, uTime * 2.0));
+    vec3 burn = mix(uHeatColor, uHot, smoothstep(0.55, 1.2, heat));
+    color = mix(color, burn * 1.6 * uHeatGlow * uGlobalGlow, smoothstep(0.05, 0.9, heat) * 0.85);
+
+    color = mix(color, uHot * 2.2 * uGlobalGlow, edge);
+    color += uHeatColor * edge * 1.2 * uGlobalGlow;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createPerigeeHaloRingMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uRim: { value: new Color() },
+      uHeatColor: { value: new Color() },
+      uHot: { value: new Color() },
+      uContact: { value: 0 },
+      uHeat: { value: 0 },
+      uHeatGlow: { value: 1 },
+      uSpread: { value: 1 },
+      uSeamGlow: { value: 1 },
+      uSpecular: { value: 0.5 },
+      uRimGlow: { value: 0.3 },
+      uDissolve: { value: 0 },
+      uSeed: { value: 0 }
+    }),
+    vertexShader: HALO_VERTEX,
+    fragmentShader: HALO_FRAGMENT
+  });
+  /** @param {number} contact ring-local angle  @param {number} heat  @param {number} dissolve  @param {number} seed */
+  material.userData.sync = (contact, heat, dissolve, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorHaloDeep));
+    u.uBody.value.copy(getColor(c.colorHaloBody));
+    u.uRim.value.copy(getColor(c.colorHaloRim));
+    u.uHeatColor.value.copy(getColor(c.colorHaloHeat));
+    u.uHot.value.copy(getColor(c.colorHaloHot));
+    u.uContact.value = contact;
+    u.uHeat.value = heat;
+    u.uHeatGlow.value = c.haloHeat * g.shaderIntensity;
+    u.uSpread.value = c.haloHeatSpread;
+    u.uSeamGlow.value = c.haloSeamGlow * g.glow;
+    u.uSpecular.value = c.haloSpecular;
+    u.uRimGlow.value = c.haloRimGlow * g.fresnel;
+    u.uDissolve.value = dissolve;
+    u.uSeed.value = seed;
+  };
+  return material;
+}
+
+/**
+ * The well: a filled, pressed bowl in the floor under the halo. Shaded as a
+ * real dent (a fake normal from the bowl's slope, lit by the sun's key
+ * direction), dark at the bottom and warm at the lip, with grit drawn slowly
+ * inward along a spiral (gravity pulling the floor in), and the scrape groove
+ * the halo's contact cuts as it walks round: hot where the ring is touching,
+ * cooling behind it.
+ */
+const WELL_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const WELL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uCentre;
+  uniform float uOuter;     // well radius, metres
+  uniform float uDepth;     // how deep the bowl reads
+  uniform float uContactR;  // metres from the centre the halo touches
+  uniform float uPhi;       // world angle of the contact
+  uniform float uHeat;
+  uniform float uSpread;
+  uniform float uGroove;    // groove width, metres
+  uniform float uPull;
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uDeepC;
+  uniform vec3  uBodyC;
+  uniform vec3  uHeatC;
+  uniform vec3  uHotC;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  void main() {
+    vec2 q = vWorld.xz - uCentre.xz;
+    float r = length(q);
+    float R = max(uOuter, 0.1);
+    float x = r / R;
+    if (x > 1.0) discard;
+    float a = atan(q.y, q.x);
+    // Bowl height h = -depth (1 - x^2)^2 ; its slope tips the normal toward the centre.
+    float slope = uDepth * 4.0 * x * (1.0 - x * x);
+    vec3 N = normalize(vec3(-q.x / max(r, 1e-3) * slope, 1.0, -q.y / max(r, 1e-3) * slope));
+    float ndl = max(dot(N, normalize(uLightDir)), 0.0);
+    // Grit drawn inward along a slow spiral.
+    float spiral = snoise(vec3(cos(a) * 2.0 + log(max(x, 0.03)) * 3.0 + uTime * 0.6 * uPull,
+                               sin(a) * 2.0 - log(max(x, 0.03)) * 2.0, uSeed));
+    float grain = snoise01(vec3(vWorld.xz * 3.5, uSeed));
+    vec3 albedo = mix(uDeepC, uBodyC, smoothstep(0.1, 1.0, x) * (0.55 + 0.45 * grain));
+    albedo *= 0.8 + 0.35 * smoothstep(-0.2, 0.8, spiral);
+    vec3 color = albedo * (0.35 + 0.9 * ndl);
+    // The scrape groove: a band at the contact radius, hot at the contact,
+    // cooling behind it round the circle.
+    float behind = mod(uPhi - a + 6.2831853, 6.2831853);
+    float trail = exp(-behind / max(0.05, uSpread)) + exp(-mod(a - uPhi + 6.2831853, 6.2831853) / 0.1);
+    trail *= 1.0 - smoothstep(4.0, 6.2, behind);
+    float band = 1.0 - smoothstep(0.0, max(0.05, uGroove), abs(r - uContactR));
+    float heat = band * trail * uHeat * (0.7 + 0.6 * snoise01(vec3(a * 6.0, r * 4.0, uTime * 3.0)));
+    color = mix(color, uDeepC * 0.3, band * 0.6);
+    color += mix(uHeatC, uHotC, smoothstep(0.6, 1.3, heat)) * heat * 1.5 * uGlow * uGlobalGlow;
+    // A faint warm lip at the rim where the floor is pressed up.
+    float lip = smoothstep(0.82, 0.95, x) * (1.0 - smoothstep(0.95, 1.0, x));
+    color += uHeatC * lip * 0.06 * uGlow;
+    float alpha = (1.0 - smoothstep(0.86, 1.0, x)) * 0.94 + lip * 0.3;
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uOpacity);
+  }
+`;
+
+export function createPerigeeHaloWellMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    uniforms: sharedUniforms({
+      uCentre: { value: new Vector3() },
+      uOuter: { value: 1 },
+      uDepth: { value: 0.5 },
+      uContactR: { value: 1 },
+      uPhi: { value: 0 },
+      uHeat: { value: 0 },
+      uSpread: { value: 1 },
+      uGroove: { value: 0.3 },
+      uPull: { value: 1 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uDeepC: { value: new Color() },
+      uBodyC: { value: new Color() },
+      uHeatC: { value: new Color() },
+      uHotC: { value: new Color() }
+    }),
+    vertexShader: WELL_VERTEX,
+    fragmentShader: WELL_FRAGMENT
+  });
+  /**
+   * @param {Vector3} centre  @param {number} outer  @param {number} contactR
+   * @param {number} phi  @param {number} heat  @param {number} alpha  @param {number} seed
+   */
+  material.userData.sync = (centre, outer, contactR, phi, heat, alpha, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCentre.value.copy(centre);
+    u.uOuter.value = outer;
+    u.uDepth.value = c.wellDepth;
+    u.uContactR.value = contactR;
+    u.uPhi.value = phi;
+    u.uHeat.value = heat;
+    u.uSpread.value = c.haloHeatSpread * 0.8;
+    u.uGroove.value = c.haloWidth * 0.55;
+    u.uPull.value = c.wellPull * g.animationSpeed;
+    u.uGlow.value = c.wellGlow * g.glow;
+    u.uOpacity.value = c.wellOpacity * g.opacity * alpha;
+    u.uSeed.value = seed;
+    u.uDeepC.value.copy(getColor(c.colorWellDeep));
+    u.uBodyC.value.copy(getColor(c.colorWellBody));
+    u.uHeatC.value.copy(getColor(c.colorHaloHeat));
+    u.uHotC.value.copy(getColor(c.colorHaloHot));
+  };
+  return material;
+}

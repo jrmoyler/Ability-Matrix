@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +23,9 @@ import {
   createCadenceVolleyVoiceMaterial,
   createCadenceVolleyDetailMaterial,
   createCadenceVolleyTrailMaterial,
-  createCadenceVolleyScarMaterial
+  createCadenceVolleyScarMaterial,
+  createCadenceForkMaterial,
+  createCadencePoolMaterial
 } from '../../materials/codex/CadenceVolleyMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +62,103 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Forks one volley can throw (the `count` slider caps at 12 parts). */
+const MAX_FORKS = 12;
+/** Where the tines leave the yoke, share of the fork's height. */
+const TINE_FROM = 0.5;
+const TAU = Math.PI * 2;
+const _hand = new Vector3();
+const _target = new Vector3();
+const _vel = new Vector3();
+const _tip = new Vector3();
+const _axis = new Vector3();
+const _scale = new Vector3();
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _qy = new Quaternion();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+const hash = (i, k) => {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+/*
+ * Cast-local geometry. It lives here, not in the generated
+ * `CadenceVolleyGeometry.js`, which must stay byte-identical to its rig
+ * recipe (tests/pure-rigs.test.mjs).
+ */
+
+/** Append a tube swept along a planar (XY) polyline to `pos`/`idx`; `flat` squashes it in Z. */
+function sweepXY(pts, radii, sides, flat, pos, idx) {
+  const base = pos.length / 3;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    let tx = b[0] - a[0];
+    let ty = b[1] - a[1];
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    // In-plane normal (perpendicular to the tangent) and the Z binormal.
+    const nx = -ty;
+    const ny = tx;
+    for (let k = 0; k < sides; k++) {
+      const ang = (k / sides) * TAU + Math.PI / sides;
+      const cx = Math.cos(ang) * radii[i];
+      const cz = Math.sin(ang) * radii[i] * flat;
+      pos.push(pts[i][0] + nx * cx, pts[i][1] + ny * cx, cz);
+    }
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (let k = 0; k < sides; k++) {
+      const j = (k + 1) % sides;
+      const a = base + i * sides + k;
+      const b = base + i * sides + j;
+      const c = base + (i + 1) * sides + k;
+      const d = base + (i + 1) * sides + j;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+}
+
+/**
+ * The hero: a forged tuning fork, one unit tall along +Y with the stem's
+ * point at the origin. A pointed stem with a grip collar (it flies stem first
+ * and is driven into the floor like a dart), a round yoke, and two long
+ * parallel tines with blunt ends, squared off a little so the sun picks out
+ * their faces. Tines leave the yoke at `TINE_FROM`.
+ */
+export function createTuningForkGeometry() {
+  const pos = [];
+  const idx = [];
+  // The stem: point, shank, a grip collar, then into the yoke.
+  const stem = [[0, 0], [0, 0.025], [0, 0.06], [0, 0.07], [0, 0.1], [0, 0.11], [0, 0.3], [0, 0.32], [0, 0.35], [0, 0.37], [0, 0.4]];
+  const stemR = [0.004, 0.03, 0.042, 0.055, 0.055, 0.034, 0.034, 0.05, 0.05, 0.034, 0.045];
+  sweepXY(stem, stemR, 10, 1, pos, idx);
+  // The yoke and tines: one band from the left tip, round the U, to the right tip.
+  const gap = 0.085;
+  const r = 0.042;
+  const path = [];
+  const radii = [];
+  const tipL = [[-gap, 1.0, 0.012], [-gap, 0.995, r * 0.75], [-gap, 0.985, r]];
+  for (const [x, y, rr] of tipL) { path.push([x, y]); radii.push(rr); }
+  for (let y = 0.9; y > TINE_FROM; y -= 0.1) { path.push([-gap, y]); radii.push(r); }
+  for (let k = 0; k <= 10; k++) {
+    const th = Math.PI + (k / 10) * Math.PI;
+    path.push([Math.cos(th) * gap, TINE_FROM + Math.sin(th) * gap]);
+    radii.push(r * (1 + 0.25 * Math.sin((k / 10) * Math.PI)));
+  }
+  for (let y = TINE_FROM + 0.1; y < 0.95; y += 0.1) { path.push([gap, y]); radii.push(r); }
+  for (const [x, y, rr] of [[gap, 0.985, r], [gap, 0.995, r * 0.75], [gap, 1.0, 0.012]]) { path.push([x, y]); radii.push(rr); }
+  sweepXY(path, radii, 8, 0.72, pos, idx);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
 
 /**
  * CADENCE VOLLEY — sound, line cast.
@@ -75,6 +185,32 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The upgrade — the volley is tuning forks (cast-local, sections 15–16)
+ *
+ * The template layers above (white body arches, voice, floor grid strip,
+ * rig, pieces, ribbon) are turned off in the config; the spell is carried by
+ * its own forms:
+ *
+ *  11. **the forks** (`createTuningForkGeometry`, `createCadenceForkMaterial`,
+ *      lit dark olive steel, `LAYER.SHAPED`, shadows) — `count` heavy forks,
+ *      each bigger than the last (`forkSizeFirst` → `forkSize`): later beats
+ *      land harder. Each is thrown from the fist stem first on its own arc to
+ *      the point its part strikes (`_partPoint`), timed to touch down exactly
+ *      when that part hits (the hit rule is unchanged; the flight is solved
+ *      backwards from it), and is driven upright into the floor.
+ *  12. **the landing** — every fork lands as its own beat: a dust ring, chips,
+ *      a low burst, a tick of shake and light, scaled by its place in the bar.
+ *  13. **the hum** — a planted fork rings: its tines spread and close (vertex
+ *      bend) with a lime hum running up them, decaying; it wobbles from the
+ *      landing.
+ *  14. **the downbeat** — `downbeatAt` after the last fork the whole bar rings
+ *      together once more: every fork flares white-hot at the yoke, throws
+ *      sparks off its tips, and every pool throws a swell.
+ *  15. **the beat pools** (`createCadencePoolMaterial`) — a filled, dark pan
+ *      under each fork with a heaved lip and pressure waves running out of it.
+ *  16. **the exit** — as the hum dies the forks topple one after another and
+ *      crumble on the floor; the pools fray out.
  *
  * Every metre, rate and colour is read from `settings.cadence` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -158,7 +294,35 @@ export class CadenceVolleyAbility extends Ability {
     this.scarMaterial = createCadenceVolleyScarMaterial();
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
+    this._buildForks();
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+  }
+
+  /** The volley's own meshes: instanced forks and the beat-pool floor. */
+  _buildForks() {
+    this.forkGeometry = createTuningForkGeometry();
+    this._forkState = new Float32Array(MAX_FORKS * 4);
+    this._forkAttr = new InstancedBufferAttribute(this._forkState, 4).setUsage(DynamicDrawUsage);
+    this.forkGeometry.setAttribute('aFork', this._forkAttr);
+    this.forkMaterial = createCadenceForkMaterial();
+    this.forks = new InstancedMesh(this.forkGeometry, this.forkMaterial, MAX_FORKS);
+    this.forks.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.forks.layers.set(LAYER.SHAPED);
+    this.forks.castShadow = true;
+    this.forks.receiveShadow = true;
+    this.forks.frustumCulled = false;
+    this.forks.renderOrder = 14;
+    this.forks.visible = false;
+    this.forks.count = 0;
+    this.group.add(this.forks);
+    this.poolGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.poolMaterial = createCadencePoolMaterial();
+    this.pool = this._mesh(this.poolGeometry, this.poolMaterial, LAYER.VFX, 2);
+    this.pool.rotation.x = -Math.PI / 2;
+    this._forks = Array.from({ length: MAX_FORKS }, () => ({ land: -1 }));
+    this._downAt = -1;
+    this._since = -1;
+    this._humEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +398,13 @@ export class CadenceVolleyAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    for (let i = 0; i < MAX_FORKS; i++) this._forks[i].land = -1;
+    const pools = this.poolMaterial.uniforms.uPool.value;
+    for (let i = 0; i < MAX_FORKS; i++) pools[i].set(0, 0, 0, 0);
+    this._downAt = -1;
+    this._since = -1;
+    this._humEmitter.reset();
+    this._hideForks();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -370,10 +541,11 @@ export class CadenceVolleyAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    if (c.trailOpacity <= 0.01 && c.scarOpacity <= 0.01) this.trail.show(false);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -588,6 +760,7 @@ export class CadenceVolleyAbility extends Ability {
       if (!forceAll && this._head(i, n) < 0.98) continue;
       if (!this._parts[i].armed) continue;
       this._parts[i].armed = false;
+      this._forkLand(i, n);
       this._partPoint(i, n, _end);
       this._gather(_end.x, _end.z, Math.max(0.45, c.thickness * 4 + 0.5));
     }
@@ -745,6 +918,226 @@ export class CadenceVolleyAbility extends Ability {
     });
   }
 
+  /* ------------------------------------------------------------------ */
+  /* The upgrade: the forks, their hum, the downbeat, the beat pools     */
+  /* ------------------------------------------------------------------ */
+
+  _forkCount() {
+    return Math.max(1, Math.min(MAX_FORKS, Math.round(settings[ID].count)));
+  }
+
+  /** Height of fork `i`, metres: each beat in the bar is bigger than the last. */
+  _forkSize(i, n) {
+    const c = settings[ID];
+    const k = n > 1 ? i / (n - 1) : 1;
+    return Math.max(0.1, c.forkSize * (c.forkSizeFirst + (1 - c.forkSizeFirst) * k));
+  }
+
+  /** A fork touches down on its part's strike point: its own small beat. */
+  _forkLand(i, n) {
+    if (i >= MAX_FORKS || this._forks[i].land >= 0) return;
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity * (c.forkBeatFirst + (1 - c.forkBeatFirst) * (n > 1 ? i / (n - 1) : 1));
+    this._forks[i].land = this.age;
+    const size = this._forkSize(i, n);
+    this._partPoint(i, n, _target);
+    _pos.copy(_target).setY(0);
+    this.poolMaterial.uniforms.uPool.value[i].set(_target.x, _target.z, this.age, power);
+    this.poolMaterial.uniforms.uRadius.value[i] = c.poolRadius * size;
+    this.ctx.decals.spawn(DecalType.DUSTRING, _pos, {
+      radius: size * c.landDust,
+      life: c.shockLife,
+      width: 0.1,
+      intensity: 0.6,
+      colorA: getColor(c.colorDustD),
+      colorB: getColor(c.colorDustC),
+      height: 0.03
+    });
+    if (c.landBurst > 0.01) {
+      this.ctx.bursts.spawn(BurstMode.AIR, _pos.setY(0.35), {
+        radius: 0.1,
+        endRadius: size * 0.7 * power,
+        life: 0.3,
+        intensity: 0.7,
+        opacity: c.landBurst * g.opacity,
+        squash: 0.5,
+        colorA: getColor(c.colorBurstA),
+        colorB: getColor(c.colorBurstB),
+        colorC: getColor(c.colorBurstC)
+      });
+    }
+    const chips = Math.round(c.landChips * g.particleCount * power);
+    if (chips > 0) {
+      this._fillEmit(_pos.setY(0.15), size * 0.2, _up, c.chipSpeed * 1.2, 0.75, c.chipSize * 1.3, c.chipLife * 1.2, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const puffs = Math.round(c.landPuffs * g.particleCount);
+    for (let k = 0; k < puffs; k++) {
+      const ang = (k / Math.max(1, puffs)) * TAU + hash(i, 9) * TAU;
+      _dir.set(Math.cos(ang), 0.15, Math.sin(ang));
+      this._fillEmit(_pos, size * 0.2, _dir, c.dustSpeed * 1.4, 0.3, 0.5, c.dustLife * 1.3, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.shake.add(c.landShake * power * g.cameraShake, 5, 20);
+    this.lightBoost += c.landLight * power;
+  }
+
+  /** The downbeat: the whole bar rings together once more. */
+  _downbeat() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._downAt = this.age;
+    this.ctx.shake.add(c.downShake * power * g.cameraShake, 4, 16);
+    this.ctx.flash.trigger(getColor(c.colorFlash), c.downFlash * power);
+    this.lightBoost += c.downLight * power;
+    const n = this._forkCount();
+    const sparks = Math.round(c.downSparks * g.particleCount);
+    for (let i = 0; i < n; i++) {
+      if (this._forks[i].land < 0) continue;
+      const size = this._forkSize(i, n);
+      this._partPoint(i, n, _target);
+      _pos.copy(_target).setY(size * (1 - c.forkPlant));
+      if (sparks > 0) {
+        this._fillEmit(_pos, size * 0.15, _up, c.streakSpeed, 0.9, 0.06, c.streakLife, 2);
+        this.streaks.emit(sparks, _emit);
+      }
+      this.ctx.decals.spawn(DecalType.DUSTRING, _pos.setY(0), {
+        radius: size * c.landDust * 1.3,
+        life: c.shockLife,
+        width: 0.08,
+        intensity: 0.5,
+        colorA: getColor(c.colorDustD),
+        colorB: getColor(c.colorDustC),
+        height: 0.03
+      });
+    }
+  }
+
+  /**
+   * Lay out every fork (in flight, planted and humming, toppling) and the
+   * pools, from the settings and each fork's landing time. Allocation-free.
+   */
+  _volley(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const n = this._forkCount();
+    const speed = Math.max(1, c.speed * g.speed);
+    const since = this._since;
+    const total = this.impactDuration + this.fadeDuration;
+    const decay = Math.max(0.1, c.forkRingDecay / L);
+    const cool = Math.max(0.1, c.forkCool / L);
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    const yaw = Math.atan2(-this.side.z, this.side.x);
+    let drawn = 0;
+    for (let i = 0; i < n; i++) {
+      const rec = this._forks[i];
+      const s = (i + 0.5) / n;
+      const H = this._forkSize(i, n);
+      const d = hash(i, 4);
+      this._partPoint(i, n, _target);
+      let ring = 0;
+      let heat = 0;
+      let crumble = 0;
+      if (rec.land < 0) {
+        // In flight, stem first, on an arc solved back from the strike time.
+        const pred = this.age + Math.max(0, (((i + 0.98) / n) * this.length - this.front) / speed);
+        const flight = Math.max(0.05, c.forkFlight * (0.35 + 0.65 * s));
+        const p = saturate(1 + (this.age - pred) / flight);
+        if (p <= 0) {
+          this.forks.setMatrixAt(i, _zero);
+          this._forkState[i * 4 + 1] = 0;
+          continue;
+        }
+        const arc = c.forkArc * (0.4 + 0.6 * s);
+        const y0 = _hand.y;
+        _pos.lerpVectors(_hand, _target, p);
+        _pos.y = y0 * (1 - p) + arc * 4 * p * (1 - p);
+        _vel.subVectors(_target, _hand);
+        _vel.y = -y0 + arc * 4 * (1 - 2 * p);
+        _vel.normalize().negate();
+        _q.setFromUnitVectors(_up, _vel);
+        _qa.setFromAxisAngle(_up, this.age * c.forkSpin * g.animationSpeed + d * TAU);
+        _q.multiply(_qa);
+        heat = 0.5;
+      } else {
+        const tau = this.age - rec.land;
+        // Planted upright, tines across the line (facing the caster), wobbling from the landing.
+        const wobble = c.forkWobble * Math.exp(-tau * 5) * Math.sin(tau * 19);
+        const lean = (d - 0.5) * 2 * c.forkTilt + wobble;
+        // The exit: toppling over one after another, then crumbling.
+        const at = c.toppleStart * total + i * c.toppleStagger * L;
+        const tp = since < 0 ? 0 : Easing.inQuad(saturate((since - at) / Math.max(0.05, c.toppleTime * L)));
+        crumble = since < 0 ? 0 : saturate((since - at - c.toppleTime * L * 0.85) / Math.max(0.05, c.crumbleTime * L));
+        // It falls to whichever side it already leans.
+        _q.setFromAxisAngle(this.direction, lean + tp * (Math.PI / 2 - 0.1) * (d > 0.5 ? 1 : -1));
+        _qy.setFromAxisAngle(_up, yaw);
+        _q.multiply(_qy);
+        // Pivot on the floor: the buried stem rides below it.
+        _tip.set(0, -c.forkPlant * H * (1 - tp), 0).applyQuaternion(_q);
+        _pos.copy(_target).setY(tp * H * 0.05).add(_tip);
+        ring = Math.exp(-tau * decay);
+        heat = Math.exp(-tau * cool);
+        if (this._downAt >= 0) {
+          const td = this.age - this._downAt;
+          ring = Math.max(ring, c.downRing * Math.exp(-td * decay));
+          heat = Math.max(heat, Math.exp(-td * cool));
+        }
+        ring = Math.min(1.2, ring) * (1 - tp);
+      }
+      _scale.set(H, H, H);
+      _m4.compose(_pos, _q, _scale);
+      this.forks.setMatrixAt(i, _m4);
+      this._forkState[i * 4] = d;
+      this._forkState[i * 4 + 1] = ring;
+      this._forkState[i * 4 + 2] = heat;
+      this._forkState[i * 4 + 3] = crumble;
+      if (crumble < 0.999) drawn++;
+    }
+    this.forks.count = n;
+    this.forks.visible = drawn > 0;
+    this.forks.instanceMatrix.needsUpdate = true;
+    this._forkAttr.needsUpdate = true;
+    this.forkMaterial.userData.sync(TINE_FROM);
+
+    // The hum: motes shed off the ringing tines.
+    const hum = Math.round(this._humEmitter.tick(dt, c.humMotes) * g.particleCount);
+    for (let k = 0; k < hum; k++) {
+      const i = Math.floor(Math.random() * n);
+      if (this._forks[i].land < 0 || this._forkState[i * 4 + 1] < 0.15) continue;
+      const H = this._forkSize(i, n);
+      this._partPoint(i, n, _pos);
+      _pos.addScaledVector(this.side, (Math.random() < 0.5 ? -1 : 1) * 0.15 * H);
+      _pos.y = H * (0.55 + 0.4 * Math.random()) * (1 - c.forkPlant);
+      _dir.copy(this.side).multiplyScalar(Math.random() < 0.5 ? -1 : 1);
+      _dir.y = 0.6;
+      this._fillEmit(_pos, 0.05, _dir, c.moteSpeed, 0.6, 0.08, c.moteLife, 1);
+      this.motes.emit(1, _emit);
+    }
+
+    // The beat pools, laid over the whole strip.
+    let landed = false;
+    for (let i = 0; i < n; i++) if (this._forks[i].land >= 0) landed = true;
+    if (landed && c.poolOpacity > 0.01) {
+      const erode = since < 0 ? 0 : saturate((since - c.poolErodeStart * total) / Math.max(0.05, total * (1 - c.poolErodeStart)));
+      const side = this.length + 2 * (c.poolRadius * c.forkSize * 2 + c.sweep + 1);
+      this.pointAt(0.5, _pos);
+      this.pool.position.set(_pos.x, 0.035, _pos.z);
+      this.pool.scale.set(side, side, 1);
+      this.pool.visible = erode < 0.999;
+      this.poolMaterial.userData.sync(this.age, this._downAt, erode * 1.2);
+    } else this.pool.visible = false;
+  }
+
+  _hideForks() {
+    this.forks.visible = false;
+    this.forks.count = 0;
+    this.pool.visible = false;
+  }
+
   /** Seconds the head takes over the whole line — the trail's clock. */
   _travelTime() {
     return Math.max(0.05, this.length / Math.max(1, settings[ID].speed * settings.global.speed));
@@ -780,6 +1173,8 @@ export class CadenceVolleyAbility extends Ability {
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._since = -1;
+    this._volley(dt);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
@@ -798,6 +1193,9 @@ export class CadenceVolleyAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._since = t < 1 ? t * this.impactDuration : this.impactDuration + (t - 1) * this.fadeDuration;
+    if (this._downAt < 0 && this._since >= c.downbeatAt * g.lifetime) this._downbeat();
+    this._volley(dt);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -822,9 +1220,14 @@ export class CadenceVolleyAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hideForks();
   }
 
   dispose() {
+    this.forkGeometry.dispose();
+    this.forkMaterial.dispose();
+    this.poolGeometry.dispose();
+    this.poolMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1025,6 +1428,59 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const forks = folder.addFolder('15 · The forks');
+  R(forks, c, 'forkSize', 0.2, 5, 0.05, 'last fork height (m)');
+  R(forks, c, 'forkSizeFirst', 0.2, 1.5, 0.01, 'first fork, × last');
+  R(forks, c, 'forkBeatFirst', 0, 1.5, 0.01, 'first landing, × last');
+  R(forks, c, 'forkFlight', 0.05, 2, 0.01, 'flight (s)');
+  R(forks, c, 'forkArc', 0, 6, 0.05, 'arc (m)');
+  R(forks, c, 'forkSpin', -40, 40, 0.5, 'spin in flight (rad/s)');
+  R(forks, c, 'forkPlant', 0, 0.6, 0.01, 'driven in, × height');
+  R(forks, c, 'forkTilt', 0, 0.6, 0.01, 'rest lean (rad)');
+  R(forks, c, 'forkWobble', 0, 0.6, 0.01, 'landing wobble (rad)');
+  R(forks, c, 'forkSpread', 0, 0.3, 0.005, 'tine swing, × height');
+  R(forks, c, 'forkRingRate', 1, 80, 0.5, 'tine rate (rad/s)');
+  R(forks, c, 'forkRingDecay', 0.1, 10, 0.05, 'hum decay (/s)');
+  R(forks, c, 'forkCool', 0.1, 10, 0.05, 'strike cools (/s)');
+  R(forks, c, 'forkHum', 0, 4, 0.05, 'hum glow');
+  R(forks, c, 'forkStrikeGlow', 0, 8, 0.05, 'strike glow');
+  R(forks, c, 'forkSpecular', 0, 4, 0.05, 'steel glint');
+  R(forks, c, 'forkRimGlow', 0, 4, 0.05, 'rim');
+  forks.addColor(c, 'colorForkDeep').name('steel, deep');
+  forks.addColor(c, 'colorForkBody').name('steel');
+  forks.addColor(c, 'colorForkTint').name('steel, rim');
+  forks.addColor(c, 'colorForkGlow').name('hum');
+  forks.addColor(c, 'colorForkHot').name('white-hot');
+  R(forks, c, 'landShake', 0, 1, 0.01, 'landing punch');
+  R(forks, c, 'landLight', 0, 20, 0.1, 'landing light');
+  R(forks, c, 'landBurst', 0, 1, 0.01, 'landing burst');
+  R(forks, c, 'landChips', 0, 60, 1, 'landing chips');
+  R(forks, c, 'landPuffs', 0, 40, 1, 'landing dust');
+  R(forks, c, 'landDust', 0, 4, 0.05, 'dust ring, × height');
+  R(forks, c, 'humMotes', 0, 200, 1, 'hum motes / s');
+  R(forks, c, 'downbeatAt', 0, 2, 0.01, 'downbeat (s after the last)');
+  R(forks, c, 'downRing', 0, 1.2, 0.01, 'downbeat ring');
+  R(forks, c, 'downShake', 0, 1, 0.01, 'downbeat punch');
+  R(forks, c, 'downFlash', 0, 0.5, 0.01, 'downbeat flash');
+  R(forks, c, 'downLight', 0, 30, 0.1, 'downbeat light');
+  R(forks, c, 'downSparks', 0, 80, 1, 'downbeat sparks / fork');
+  R(forks, c, 'toppleStart', 0, 1, 0.01, 'topple from, share of life');
+  R(forks, c, 'toppleStagger', 0, 0.4, 0.005, 'topple stagger (s)');
+  R(forks, c, 'toppleTime', 0.05, 1.5, 0.01, 'topple (s)');
+  R(forks, c, 'crumbleTime', 0.05, 1.5, 0.01, 'crumble (s)');
+
+  const pools = folder.addFolder('16 · The beat pools');
+  R(pools, c, 'poolOpacity', 0, 1, 0.01, 'opacity');
+  R(pools, c, 'poolRadius', 0.1, 2, 0.01, 'pan, × fork height');
+  R(pools, c, 'poolGrow', 0.5, 30, 0.1, 'opens (/s)');
+  R(pools, c, 'poolWaveLength', 0.1, 3, 0.05, 'wave length (m)');
+  R(pools, c, 'poolWaveSpeed', 0, 6, 0.05, 'waves out (m/s)');
+  R(pools, c, 'poolWaveDecay', 0, 6, 0.05, 'waves die (/s)');
+  R(pools, c, 'poolGlow', 0, 4, 0.05, 'crest glow');
+  R(pools, c, 'poolErodeStart', 0, 1, 0.01, 'frays from, share of life');
+  pools.addColor(c, 'colorPoolDeep').name('pan');
+  pools.addColor(c, 'colorPoolBody').name('crest');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

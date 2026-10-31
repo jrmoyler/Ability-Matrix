@@ -53,8 +53,8 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
-    edgeGlow: 1.67,
+    bodyOpacity: 0, // the template's ring placements: off, the lance carries the read
+    edgeGlow: 0,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.29,
     bodyPulse: 0.12, // breathing in brightness, 0..1
@@ -65,15 +65,15 @@ export default {
     lensWarp: 1.27, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#a87857',
     colorVoiceB: '#fff8ee',
 
     /* --- 3 · the ground --- */
     groundWidth: 2.4, // footprint width, metres
-    groundGlow: 1.4,
+    groundGlow: 0.8,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.6, // strength of the field (the trench sits on it)
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.05, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#1a1a20', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: the cream spheres crowded the caster
     detailSize: 0.7, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -109,7 +109,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 0.99, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the lance is the hero now
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -164,21 +164,21 @@ export default {
     colorFlash: '#d7c6b2',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 41, // fragments thrown up and out on the beat
     impactDust: 26, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#fff8ee',
     colorBurstB: '#a87857',
     colorBurstC: '#24180f',
-    shockRadius: 3.2, // decal size, metres
+    shockRadius: 0, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#a87857',
-    colorShockB: '#fff8ee',
+    colorShockB: '#c47a3e',
 
     /* --- 9 · the aftershock --- */
     aftershockAt: 1.06, // fade progress the aftershock lands at (1 = fade start)
-    aftershockRadius: 2.4, // aftershock ring size, metres
+    aftershockRadius: 0, // aftershock ring size, metres
     aftershockShake: 0.31, // camera punch of the aftershock
     aftershockLight: 5.6, // light punch of the aftershock
     aftershockLife: 0.9, // seconds the aftershock ring lingers
@@ -204,9 +204,9 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.42, // ribbon width at the head, metres
     trailLife: 1.6, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0.35, // strength of the ribbon
     trailGlow: 0.99, // brightness of the ribbon
-    trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
+    trailCore: 0.2, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.9, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
@@ -214,9 +214,59 @@ export default {
     scarGlow: 1.44, // brightness of its hot seam
     colorScarA: '#a87857',
     colorScarB: '#24180f',
-    wakeSpacing: 1.6, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.9, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 4.8 // fragments thrown at each wake
+    wakeChips: 4.8, // fragments thrown at each wake
+
+    /* --- 15 · the lance (the signature) --- */
+    lanceLength: 4.8, // metres, pommel to point
+    lanceRadius: 0.5, // the vamplate (guard disc) radius, metres; shaft, head and pommel scale with it
+    lanceHover: 1.5, // height of its middle as it rides the line, metres
+    lancePitch: 0.05, // head down while it rides, radians
+    lanceLead: 0.6, // metres its middle runs ahead of the head of the line
+    lanceLob: 1.6, // extra height at the middle of its flight: a visible lob down the line, metres
+    lanceLobTilt: 1.0, // how far its pitch follows the lob (head up leaving, head down arriving)
+    lanceRoll: 0, // radians/second it rolls about its own axis (0 keeps the blade face to the caster)
+    lanceYaw: 1.2, // radians it is turned across the line in flight, so its length shows side-on from behind
+    lancePlantYaw: 0.95, // radians the planted lean is turned across the line, so the diagonal reads on screen
+    lanceTurnAt: 0.55, // share of the flight after which the counterweight swings down to plant pommel-first
+    lanceDriveTime: 0.14, // seconds it takes to drive into the floor on the beat, × global lifetime
+    lanceStab: 0.92, // planted lean: head up from the floor, radians (steep diagonal)
+    lanceBury: 0.45, // metres the pommel goes under on the beat
+    lanceSlide: 0.4, // metres its momentum carries it on as it drives in
+    lanceSink: 0.75, // metres it sinks further over the linger
+    lanceSeamGlow: 2.4, // copper seams
+    lanceNoseGlow: 1.8, // the hot leaf head: its edges and point
+    lanceRimGlow: 0.15, // pale limb
+    lancePulseRate: 1.1, // pulses of weight tail to nose per second
+    lanceRough: 0.42,
+    lanceMetal: 0.45,
+    lanceOpacity: 1, // 0 hides the lance
+    lanceShadow: 1, // 1 = the lance casts shadows
+    colorLanceDeep: '#0a0706', // deep: lead in shadow
+    colorLanceBody: '#3a2c22', // body: lead in the sun
+    colorLanceSeam: '#c47a3e', // tint: copper heat
+    colorLanceCore: '#fff3dc', // core: the nose
+
+    /* --- 16 · the trench --- */
+    trenchWidth: 1.7, // metres, lip to lip
+    trenchLip: 0.2, // lip height, metres
+    trenchStart: 2.2, // metres from the caster the trench begins
+    trenchLag: 0.02, // how far short of the pommel it ends, × lance length
+    trenchGlow: 1.8, // the copper seam down the bed
+    trenchCool: 4.5, // metres back from the lance the seam cools over
+    trenchPulseSpeed: 7, // pulses drawn along the bed toward the lance
+    trenchSettle: 0.6, // the lips slump to this share of their height over the linger
+    trenchCloseAt: 1.72, // clock (0..2) it starts closing
+    trenchDustRate: 40, // dust sliding down the walls per second
+    colorTrenchStone: '#2b2420',
+    collarRadius: 1.35, // the crush ring where it goes in, metres
+    collarHeight: 0.42, // metres
+    collarGlow: 1.6, // hot cracks on its inner face
+    crushRadius: 2.6, // the crush field round the buried lance, metres
+    crushOpacity: 0.85,
+    crushGlow: 1.2,
+    crushPull: 0.9 // how fast the striations are dragged in
   }
 };

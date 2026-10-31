@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -995,6 +995,286 @@ export function createCadenceVolleyScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The forks — cast-local hero shaders                                    */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The tuning forks: lit dark olive steel. Sun-lit with a hard glint and a sky
+ * fill so each one reads as a heavy forged object on the floor. While a fork
+ * rings its two tines spread and close (the vertex stage bends them out from
+ * the yoke, widest at the tips) and a lime hum runs up them; a white-hot
+ * flash sits at the yoke on the strike. On the exit it crumbles on noise
+ * behind a hot edge. Per instance `aFork` = (seed, ring 0..1.2, heat 0..1,
+ * crumble 0..1).
+ */
+const FORK_VERTEX = /* glsl */ `
+  attribute vec4 aFork;
+  uniform float uTime;
+  uniform float uSpread;
+  uniform float uRate;
+  uniform float uTineFrom;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vFork;
+  void main() {
+    vec3 p = position;
+    float k = clamp((p.y - uTineFrom) / (1.0 - uTineFrom), 0.0, 1.0);
+    float wob = sin(uTime * uRate + aFork.x * 6.2831);
+    p.x += sign(p.x) * pow(k, 1.6) * aFork.y * wob * uSpread;
+    vec4 world = modelMatrix * instanceMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix * instanceMatrix) * normal);
+    vLocal = position;
+    vFork = aFork;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const FORK_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uHot;
+  uniform vec3  uGlowColor;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  uniform float uHum;
+  uniform float uStrike;
+  uniform float uTineFrom;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vFork;
+
+  ${noiseGLSL}
+
+  void main() {
+    float h = vLocal.y;
+    float crumble = snoise01(vec3(vLocal * 9.0 + vFork.x * 7.0));
+    float cut = vFork.w * 1.15 - 0.08;
+    if (crumble < cut) discard;
+    float edge = 1.0 - smoothstep(0.0, 0.08, crumble - cut);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Forged steel: dark, with a brushed grain along the length.
+    float grain = snoise01(vec3(vLocal.x * 30.0, h * 3.0, vLocal.z * 30.0 + vFork.x));
+    vec3 albedo = mix(uDeep, uBody, 0.4 + 0.45 * grain);
+    vec3 color = albedo * (0.25 + 1.1 * ndl);
+    color += albedo * 0.35 * (0.5 + 0.5 * N.y);
+    color += vec3(1.0, 0.97, 0.9) * pow(max(dot(N, H), 0.0), 60.0) * uSpecular;
+    color += uTint * pow(1.0 - ndv, 3.0) * uRimGlow;
+
+    // The hum: lime running up the ringing tines, strongest at the tips.
+    float tine = smoothstep(uTineFrom - 0.05, 1.0, h);
+    float run = 0.65 + 0.35 * sin(h * 36.0 - uTime * 24.0);
+    // Confined to the silhouette, so the dark steel carries the mass.
+    color += uGlowColor * vFork.y * tine * run * uHum * pow(1.0 - ndv, 2.2) * uGlobalGlow;
+    // The strike: the yoke flashes white-hot through lime, cooling.
+    float yoke = exp(-pow((h - uTineFrom + 0.1) / 0.12, 2.0));
+    color += mix(uGlowColor, uHot, vFork.z) * yoke * vFork.z * uStrike * uGlobalGlow;
+    // Crumble edge.
+    color = mix(color, uHot * 2.0 * uGlobalGlow, edge * edge * step(0.001, vFork.w));
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createCadenceForkMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uTint: { value: new Color() },
+      uHot: { value: new Color() },
+      uGlowColor: { value: new Color() },
+      uSpecular: { value: 1 },
+      uRimGlow: { value: 0.4 },
+      uHum: { value: 1 },
+      uStrike: { value: 2 },
+      uSpread: { value: 0.06 },
+      uRate: { value: 40 },
+      uTineFrom: { value: 0.5 }
+    }),
+    vertexShader: FORK_VERTEX,
+    fragmentShader: FORK_FRAGMENT
+  });
+  material.userData.sync = (tineFrom) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorForkDeep));
+    u.uBody.value.copy(getColor(c.colorForkBody));
+    u.uTint.value.copy(getColor(c.colorForkTint));
+    u.uHot.value.copy(getColor(c.colorForkHot));
+    u.uGlowColor.value.copy(getColor(c.colorForkGlow));
+    u.uSpecular.value = c.forkSpecular;
+    u.uRimGlow.value = c.forkRimGlow * g.fresnel;
+    u.uHum.value = c.forkHum * g.shaderIntensity;
+    u.uStrike.value = c.forkStrikeGlow * g.shaderIntensity;
+    u.uSpread.value = c.forkSpread;
+    u.uRate.value = c.forkRingRate * g.animationSpeed;
+    u.uTineFrom.value = tineFrom;
+  };
+  return material;
+}
+
+/**
+ * The beat pools: where each fork lands the floor is struck into a filled,
+ * dark pan with a heaved lip, and sound runs out of it in broad pressure
+ * waves (shaded as a heightfield lit by the sun, troughs to the deep tone,
+ * crests catching lime). On the downbeat every pool throws one bright swell.
+ * Up to 12 pools in one plane laid over the strip; normal blending; they fray
+ * out on noise at the end.
+ */
+const POOL_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const POOL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uAge;
+  uniform float uDown;
+  uniform float uErode;
+  uniform float uOpacity;
+  uniform float uWaveLen;
+  uniform float uWaveSpeed;
+  uniform float uWaveDecay;
+  uniform float uGrow;
+  uniform float uGlow;
+  uniform vec4  uPool[12];
+  uniform float uRadius[12];
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uTint;
+  uniform vec3  uHot;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+
+  // Height of the struck floor at p; .y = how much of a pool covers it.
+  vec2 field(vec2 p) {
+    float h = 0.0;
+    float cover = 0.0;
+    for (int i = 0; i < 12; i++) {
+      vec4 k = uPool[i];
+      if (k.w <= 0.0) continue;
+      float age = uAge - k.z;
+      if (age < 0.0) continue;
+      float R = uRadius[i] * (0.35 + 0.65 * (1.0 - exp(-age * uGrow)));
+      float d = length(p - k.xy);
+      float reach = R * 1.9;
+      if (d > reach + 0.5) continue;
+      float pan = 1.0 - smoothstep(R * 0.75, R * 1.05, d);
+      float out_ = 1.0 - smoothstep(R, reach, d);
+      float c = max(pan, out_ * 0.85);
+      // Pressure waves running out of the pan.
+      float w = 0.5 + 0.5 * cos(6.2831 * (d - age * uWaveSpeed) / uWaveLen);
+      float hh = w * exp(-age * uWaveDecay) * k.w * smoothstep(R * 0.2, R * 0.7, d);
+      // The heaved lip.
+      hh += exp(-pow((d - R) / (R * 0.22), 2.0)) * 0.45;
+      // The downbeat swell.
+      float da = uAge - uDown;
+      if (uDown > 0.0 && da > 0.0) {
+        hh += exp(-pow((d - da * uWaveSpeed * 2.5) / 0.45, 2.0)) * exp(-da * 2.5) * 1.6;
+      }
+      h = max(h, hh * c);
+      cover = max(cover, c);
+    }
+    return vec2(h, cover);
+  }
+
+  void main() {
+    vec2 p = vWorld.xz;
+    vec2 f = field(p);
+    if (f.y <= 0.002) discard;
+    float n = snoise01(vec3(p * 1.1, 5.1));
+    float erode = 1.0 - smoothstep(uErode - 0.1, uErode + 0.05, n);
+    float alpha = f.y * (1.0 - erode) * uOpacity;
+    if (alpha <= 0.002) discard;
+    float e = 0.07;
+    float hx = field(p + vec2(e, 0.0)).x - f.x;
+    float hz = field(p + vec2(0.0, e)).x - f.x;
+    vec3 N = normalize(vec3(-hx / e * 0.3, 1.0, -hz / e * 0.3));
+    float ndl = max(dot(N, normalize(uLightDir)), 0.0);
+    float grit = snoise01(vec3(p * 3.5, 2.2));
+    vec3 col = mix(uDeep, uBody, clamp(f.x * 0.8, 0.0, 1.0)) * (0.45 + 0.9 * ndl) * (0.8 + 0.4 * grit);
+    col += uTint * pow(clamp(f.x, 0.0, 1.5), 3.0) * uGlow * 0.6 * uGlobalGlow;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+export function createCadencePoolMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uAge: { value: 0 },
+      uDown: { value: -1 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uWaveLen: { value: 0.9 },
+      uWaveSpeed: { value: 1.5 },
+      uWaveDecay: { value: 1 },
+      uGrow: { value: 8 },
+      uGlow: { value: 1 },
+      uPool: { value: Array.from({ length: 12 }, () => new Vector4()) },
+      uRadius: { value: new Array(12).fill(1) },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uTint: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: POOL_VERTEX,
+    fragmentShader: POOL_FRAGMENT
+  });
+  material.userData.sync = (age, down, erode) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uAge.value = age;
+    u.uDown.value = down;
+    u.uErode.value = erode;
+    u.uOpacity.value = c.poolOpacity * g.opacity;
+    u.uWaveLen.value = Math.max(0.1, c.poolWaveLength);
+    u.uWaveSpeed.value = c.poolWaveSpeed;
+    u.uWaveDecay.value = c.poolWaveDecay;
+    u.uGrow.value = c.poolGrow;
+    u.uGlow.value = c.poolGlow * g.glow;
+    u.uDeep.value.copy(getColor(c.colorPoolDeep));
+    u.uBody.value.copy(getColor(c.colorPoolBody));
+    u.uTint.value.copy(getColor(c.colorForkGlow));
+    u.uHot.value.copy(getColor(c.colorForkHot));
   };
   return material;
 }

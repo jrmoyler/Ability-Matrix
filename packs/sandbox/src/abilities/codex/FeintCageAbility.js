@@ -1,15 +1,18 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createFeintCagePieceGeometry, createFeintCageHeroGeometry } from '../../assets/codex/FeintCageGeometry.js';
+import { createFeintCageBarGeometry } from '../../assets/codex/FeintCageSignatureGeometry.js';
 import {
   createFeintCageBodyMaterial,
   createFeintCageLensMaterial,
   createFeintCageGroundMaterial,
   createFeintCageVoiceMaterial,
-  createFeintCageDetailMaterial
+  createFeintCageDetailMaterial,
+  createFeintCageBarMaterial,
+  createFeintCageFloorMaterial
 } from '../../materials/codex/FeintCageMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -47,6 +50,25 @@ const _up = new Vector3(0, 1, 0);
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
+/** Bars per cage (the real one and the feint each). */
+const MAX_BARS = 14;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+const _bx = new Vector3();
+const _by = new Vector3();
+const _bz = new Vector3();
+const _ax = new Vector3();
+const _ay = new Vector3();
+const _rv = new Vector3();
+const _tan = new Vector3();
+const _inw = new Vector3();
+const _slot = new Vector3();
+const _fly = new Vector3();
+const _handAt = new Vector3();
+const _foot = new Vector3();
+const _tip = new Vector3();
+
 /**
  * FEINT CAGE — illusion, zone cast.
  *
@@ -73,8 +95,34 @@ const MAX_MARKS = 12;
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
  *
+ * ## The cage (cast-local signature, `14 · Cage` in the editor)
+ *
+ * The template layers above are switched off through their own keys (body,
+ * voice, lens, template field, detail pieces, rig, burst shell, shock ring);
+ * what carries the read is the cage:
+ *
+ *   - **the throw** — two sheaves of `cageCount` bars
+ *     (`createFeintCageBarGeometry`: driven foot, collars, a shaft that twists a
+ *     quarter turn, a broad spearhead) leave the hand and tumble end over end
+ *     on a low arc, broadside to the camera, side by side. The second sheaf
+ *     is the feint: the same bars as a dim violet, translucent, scan-sliced
+ *     afterimage, tumbling the other way.
+ *   - **the plant** — on the beat both sheaves burst open; each bar swings
+ *     upright and stabs down into its slot on a ring (`cageFit` / `feintFit`
+ *     × the circle), kicking dust and chips; a dark stain lands under the circle.
+ *   - **the feint** — the two cages turn opposite ways round the bodies
+ *     (`cageSpin`, `feintSpin`); the real one ploughs a groove, hot under its
+ *     feet; the feint only leaves a flickering dash.
+ *   - **the cut** — at `cageCutAt` the feint glitches apart into motes and the
+ *     real cage clenches: every bar leans in (`cageLean`) and its blade goes
+ *     white-hot; a gash per bar is torn from its foot in toward the centre.
+ *   - **the linger** — the clenched cage keeps grinding round, its blades
+ *     cooling through pink to dark, smoke off the gashes.
+ *   - **the exit** — from `cageSinkAt` the bars are eaten from the top behind a
+ *     hot edge and sink; the stain and the gashes let go last.
+ *
  * Every metre, rate and colour is read from `settings.feintcage` each frame.
- * A cast only captures a seed and an integrated spin.
+ * A cast only captures a seed, integrated spins and event flags.
  */
 export class FeintCageAbility extends Ability {
   constructor(ctx) {
@@ -151,6 +199,65 @@ export class FeintCageAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this._buildCage();
+  }
+
+  /** The cage's own meshes: the real bars, the feint's bars and the floor. */
+  _buildCage() {
+    this.barGeometry = createFeintCageBarGeometry();
+    this.barMaterial = createFeintCageBarMaterial(false);
+    this.feintMaterial = createFeintCageBarMaterial(true);
+    const make = (material, shadow) => {
+      const geometry = this.barGeometry.clone();
+      const attr = new InstancedBufferAttribute(new Float32Array(MAX_BARS * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aBar', attr);
+      const mesh = new InstancedMesh(geometry, material, MAX_BARS);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.bars = make(this.barMaterial, true);
+    this.feints = make(this.feintMaterial, false);
+    // The feint is a translucent afterimage: it draws with the other transparent VFX.
+    this.feints.layers.set(LAYER.VFX);
+    this.feints.renderOrder = 15;
+    this.floorGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.floorMaterial = createFeintCageFloorMaterial();
+    this.floor = this._mesh(this.floorGeometry, this.floorMaterial, LAYER.VFX, 2);
+    this.floor.rotation.x = -Math.PI / 2;
+    this._cage = {
+      spin: 0, // integrated turn of the real cage, radians
+      feintSpin: 0, // and of the feint, the other way
+      roll: 0, // tumble of the sheaves in flight
+      planted: false,
+      cut: false,
+      gone: false,
+      sinking: false,
+      heat: 0, // blade heat of the real cage
+      shake: 0
+    };
+    this._floorSync = {
+      centre: new Vector3(),
+      outer: 1,
+      ring: 1,
+      feintRing: 1,
+      feint: 0,
+      count: 8,
+      spin: 0,
+      heat: 0,
+      gash: 0,
+      gashHeat: 0,
+      land: 0,
+      alpha: 0,
+      seed: 0
+    };
   }
 
   _mesh(geometry, material, layer, order) {
@@ -232,6 +339,7 @@ export class FeintCageAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    this._resetCage();
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -280,6 +388,7 @@ export class FeintCageAbility extends Ability {
   }
 
   _pose(committed, fadeT) {
+    this._cagePose(committed, fadeT);
     const u = this.u;
     const rise = committed ? 1 : Easing.outCubic(saturate(u));
     const beat = committed ? Easing.outCubic(saturate(fadeT < 1 ? fadeT : 1)) : 0;
@@ -294,6 +403,288 @@ export class FeintCageAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+
+  _resetCage() {
+    const k = this._cage;
+    k.spin = this._seed;
+    k.feintSpin = this._seed + Math.PI / Math.max(3, settings[ID].cageCount);
+    k.roll = 0;
+    k.planted = false;
+    k.cut = false;
+    k.gone = false;
+    k.sinking = false;
+    k.heat = 0;
+    this._cageDt = 0;
+    this._sparkEmitter ??= new RateEmitter();
+    this._smokeEmitter ??= new RateEmitter();
+    this._sparkEmitter.reset();
+    this._smokeEmitter.reset();
+    this._hideCage();
+  }
+
+  _hideCage() {
+    this.bars.visible = false;
+    this.feints.visible = false;
+    this.floor.visible = false;
+  }
+
+  /** Seconds since the beat (negative in flight). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Write one bar: foot position, its long axis (`ay`, unit), its blade axis (`ax`), length and width. */
+  _setBar(mesh, i, foot, ay, ax, len, width, seed, heat, sink, glitch) {
+    _bz.crossVectors(ax, ay).normalize();
+    _bx.crossVectors(ay, _bz).normalize();
+    _by.copy(ay).multiplyScalar(len);
+    _bx.multiplyScalar(width);
+    _bz.multiplyScalar(width);
+    _m4.makeBasis(_bx, _by, _bz).setPosition(foot);
+    mesh.setMatrixAt(i, _m4);
+    const a = mesh.geometry.getAttribute('aBar');
+    a.setXYZW(i, seed, heat, sink, glitch);
+  }
+
+  /** Where bar `i` of a sheaf sits in flight: tumbling about the side axis round `centre`. */
+  _sheafBar(i, n, centre, roll, radius, len, foot, ax) {
+    const phi = roll + (i * TAU) / n;
+    _rv.copy(_up).multiplyScalar(Math.cos(phi)).addScaledVector(this.direction, Math.sin(phi));
+    foot.copy(centre).addScaledVector(_rv, radius).addScaledVector(this.side, -len * 0.5);
+    ax.copy(_rv);
+  }
+
+  /**
+   * The cage, every frame: two tumbling sheaves in flight; on the beat they
+   * burst open and the bars stab down into two rings; the rings turn opposite
+   * ways; at the cut the feint glitches out and the real cage clenches in; it
+   * grinds on, cools and sinks. Everything is placed from settings now.
+   */
+  _cagePose(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._cage;
+    const dt = this._cageDt;
+    const n = Math.max(3, Math.min(MAX_BARS, Math.round(c.cageCount)));
+    const since = this._since(committed, fadeT);
+    const H = Math.max(0.2, c.cageHeight);
+    const W = Math.max(0.02, c.cageWidth);
+    const ring = Math.max(0.3, c.zoneRadius * c.cageFit);
+    const feintRing = Math.max(0.3, c.zoneRadius * c.feintFit);
+    this._focusPoint(_focus);
+    k.roll += dt * c.cageRoll * g.animationSpeed;
+
+    _handAt.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _handAt.y = c.handHeight;
+
+    if (since < 0) {
+      // The throw: two sheaves tumble end over end along an arc, broadside.
+      const u = saturate(this.u);
+      const e = Easing.outQuad(u);
+      _fly.copy(_handAt).lerp(_pos.copy(_focus).setY(c.cageDrop), e);
+      _fly.y += c.cageArc * Math.sin(Math.PI * u);
+      const grow = 0.35 + 0.65 * Easing.outCubic(saturate(u / 0.2));
+      const len = H * c.cageFlightScale * grow;
+      const rb = c.cageBundle * grow;
+      for (let i = 0; i < n; i++) {
+        this._sheafBar(i, n, _fly, k.roll, rb, len, _foot, _ax);
+        this._setBar(this.bars, i, _foot, this.side, _ax, len, W * grow, i * 1.37 + this._seed, 0.15, 0, 0);
+        _slot.copy(_fly).addScaledVector(this.side, c.cageFeintGap).addScaledVector(_up, c.cageFeintGap * 0.15);
+        this._sheafBar(i, n, _slot, -k.roll + 0.4, rb, len, _foot, _ax);
+        this._setBar(this.feints, i, _foot, this.side, _ax, len, W * grow, i * 2.11 + this._seed, 0.1, 0, 0.3);
+      }
+      this._finishBars(n, true, true);
+      this.floor.visible = false;
+      return;
+    }
+
+    // On the ground.
+    const open = saturate(since / Math.max(0.02, c.cageOpen));
+    const stab = Easing.inQuad(open);
+    const cutAt = c.cageCutAt * this.impactDuration;
+    const cutS = since >= cutAt ? saturate((since - cutAt) / Math.max(0.02, c.cageCutTime)) : 0;
+    if (open >= 1 && !k.planted) {
+      k.planted = true;
+      this._cagePlant(n, ring);
+    }
+    if (cutS > 0 && !k.cut) {
+      k.cut = true;
+      this._cageCut(n, ring, H);
+    }
+    if (k.planted) {
+      const rate = k.cut ? c.cageGrind : c.cageSpin * (1 - 0.6 * saturate((since - cutAt * 0.7) / Math.max(0.05, cutAt * 0.3)));
+      k.spin += dt * rate * g.animationSpeed;
+      if (!k.cut) k.feintSpin -= dt * c.feintSpin * g.animationSpeed;
+    }
+    k.heat = k.cut ? Math.exp(-(since - cutAt) / Math.max(0.05, c.cageCool)) : 0.12;
+    const lean = c.cageLean * Easing.outBack(cutS) * (1 + 0.08 * saturate((since - cutAt) / 1.5) * (k.cut ? 1 : 0));
+    const tremble = k.cut ? 0.05 * Math.exp(-(since - cutAt) * 6) * Math.sin(since * 70) : 0;
+    const sinkP = committed && fadeT >= 1 ? saturate((fadeT - c.cageSinkAt) / Math.max(0.05, (2 - c.cageSinkAt) * 0.85)) : 0;
+    const glitch = k.cut ? saturate((since - cutAt) / Math.max(0.02, c.feintDissolve)) : 0.22 + 0.1 * Math.sin(this.age * 13);
+    if (glitch >= 1) k.gone = true;
+
+    // The bundle at the end of its flight (what the bars burst out of).
+    _fly.copy(_focus).setY(c.cageDrop);
+    const flightLen = H * c.cageFlightScale;
+    for (let i = 0; i < n; i++) {
+      for (let cage = 0; cage < 2; cage++) {
+        const feint = cage === 1;
+        if (feint && k.gone) continue;
+        const theta = (feint ? k.feintSpin : k.spin) + (i * TAU) / n;
+        const r = feint ? feintRing : ring;
+        _tan.set(-Math.sin(theta), 0, Math.cos(theta));
+        _inw.set(-Math.cos(theta), 0, -Math.sin(theta));
+        const l = feint ? 0 : lean + tremble;
+        _ay.copy(_up).multiplyScalar(Math.cos(l)).addScaledVector(_inw, Math.sin(l));
+        _slot.copy(_focus).addScaledVector(_inw, -r);
+        _slot.y = -c.cageDig - sinkP * H * 0.4;
+        let len = H;
+        if (open < 1) {
+          // Burst open: from the sheaf to the ring, swinging upright and stabbing down.
+          if (feint) _pos.copy(_fly).addScaledVector(this.side, c.cageFeintGap).addScaledVector(_up, c.cageFeintGap * 0.15);
+          else _pos.copy(_fly);
+          this._sheafBar(i, n, _pos, feint ? -k.roll + 0.4 : k.roll, c.cageBundle, flightLen, _foot, _ax);
+          _slot.y += c.cageDrop * 0.6 * (1 - stab);
+          _foot.lerp(_slot, Easing.outCubic(open));
+          _by.copy(this.side).lerp(_ay, Easing.outCubic(open)).normalize();
+          _ay.copy(_by);
+          _ax.lerp(_tan, Easing.outCubic(open)).normalize();
+          len = flightLen + (H - flightLen) * Easing.outCubic(open);
+        } else {
+          _foot.copy(_slot);
+          _ax.copy(_tan);
+        }
+        const heat = feint ? 0.1 : k.heat;
+        const sink = feint ? Easing.inQuad(saturate((glitch - 0.45) / 0.55)) : sinkP;
+        this._setBar(feint ? this.feints : this.bars, i, _foot, _ay, _ax, len, W, i * (feint ? 2.11 : 1.37) + this._seed, heat, sink, feint ? glitch : 0);
+      }
+    }
+    this._finishBars(n, sinkP < 0.999, !k.gone);
+    this._cageShed(n, ring, H, since, cutAt, sinkP);
+
+    // The floor under it all.
+    const p = this._floorSync;
+    p.centre.copy(_focus);
+    p.outer = c.zoneRadius * c.floorReach;
+    p.ring = ring;
+    p.feintRing = feintRing;
+    p.feint = k.planted && !k.gone ? 1 - glitch : 0;
+    p.count = n;
+    p.spin = k.spin;
+    p.heat = k.planted ? (k.cut ? 0.25 + 0.75 * k.heat : 0.9) : 0;
+    p.gash = k.cut ? Easing.outCubic(saturate((since - cutAt) / Math.max(0.02, c.cageCutTime * 1.6))) : 0;
+    p.gashHeat = k.heat;
+    p.land = 1.2 * Easing.outCubic(saturate(since / Math.max(0.05, c.groundLand)));
+    p.alpha = fadeT < 1 ? 1 : 1 - saturate((fadeT - c.floorLetGo) / Math.max(0.05, 2 - c.floorLetGo));
+    p.seed = this._seed;
+    this.floorMaterial.userData.sync(p);
+    this.floor.position.set(_focus.x, 0.03, _focus.z);
+    this.floor.scale.set(p.outer * 2, p.outer * 2, 1);
+    this.floor.visible = p.alpha > 0.01 && c.floorOpacity > 0.01;
+  }
+
+  /** Zero the unused bar slots and push the instance buffers. */
+  _finishBars(n, showReal, showFeint) {
+    for (let i = n; i < MAX_BARS; i++) {
+      this.bars.setMatrixAt(i, _zero);
+      this.feints.setMatrixAt(i, _zero);
+    }
+    if (!showFeint) for (let i = 0; i < MAX_BARS; i++) this.feints.setMatrixAt(i, _zero);
+    for (const mesh of [this.bars, this.feints]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.geometry.getAttribute('aBar').needsUpdate = true;
+    }
+    this.barMaterial.userData.sync();
+    this.feintMaterial.userData.sync();
+    this.bars.visible = showReal;
+    this.feints.visible = showFeint && settings[ID].feintGlow >= 0;
+  }
+
+  /** The bars stab in: dust and chips kicked out from every foot, a thud. */
+  _cagePlant(n, ring) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._cage;
+    this._focusPoint(_focus);
+    for (let i = 0; i < n; i++) {
+      const theta = k.spin + (i * TAU) / n;
+      _rv.set(Math.cos(theta), 0, Math.sin(theta));
+      _foot.copy(_focus).addScaledVector(_rv, ring).setY(0.1);
+      const dust = Math.round(c.plantDust * g.particleCount);
+      if (dust > 0) {
+        _dir.copy(_rv).setY(0.25);
+        this._fillEmit(_foot, 0.2, _dir, c.dustSpeed * 1.4, 0.5, 0.5, c.dustLife * 1.3, 0.4);
+        this.dust.emit(dust, _emit);
+      }
+      const chips = Math.round(c.plantChips * g.particleCount);
+      if (chips > 0) {
+        this._fillEmit(_foot, 0.15, _up, c.chipSpeed, 0.7, c.chipSize * 1.3, c.chipLife, 8);
+        this.chips.emit(chips, _emit);
+      }
+    }
+    this.ctx.shake.add(c.plantShake * g.cameraShake * g.explosionIntensity, 5, 20);
+    this.lightBoost += c.plantLight * g.explosionIntensity;
+  }
+
+  /** The real cut: the feint breaks into motes, the blades flash, the camera takes the hit. */
+  _cageCut(n, ring, H) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._cage;
+    this._focusPoint(_focus);
+    this.ctx.shake.add(c.cutShake * g.cameraShake * g.explosionIntensity, 6, 22);
+    this.lightBoost += c.cutLight * g.explosionIntensity;
+    const sparks = Math.round((c.cutSparks / n) * g.particleCount);
+    const motes = Math.round((c.feintMotes / n) * g.particleCount);
+    for (let i = 0; i < n; i++) {
+      const theta = k.spin + (i * TAU) / n;
+      _rv.set(Math.cos(theta), 0, Math.sin(theta));
+      _tip.copy(_focus).addScaledVector(_rv, ring - Math.sin(c.cageLean) * H * 0.9).setY(Math.cos(c.cageLean) * H * 0.92);
+      if (sparks > 0) {
+        _dir.copy(_rv).multiplyScalar(-1).setY(0.6);
+        this._fillEmit(_tip, 0.25, _dir, c.streakSpeed * 1.3, 0.7, 0.07, c.streakLife * 1.4, 2);
+        this.streaks.emit(sparks, _emit);
+      }
+      const ft = k.feintSpin + (i * TAU) / n;
+      const fr = c.zoneRadius * c.feintFit;
+      _tip.copy(_focus).set(_focus.x + Math.cos(ft) * fr, H * 0.5, _focus.z + Math.sin(ft) * fr);
+      if (motes > 0) {
+        this._fillEmit(_tip, H * 0.35, _up, c.moteSpeed * 1.5, 0.9, 0.09, c.moteLife * 1.2, 1);
+        this.motes.emit(motes, _emit);
+      }
+    }
+  }
+
+  /** Sparks off the ploughing feet while the cage turns; smoke off the gashes after the cut. */
+  _cageShed(n, ring, H, since, cutAt, sinkP) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._cage;
+    const dt = this._cageDt;
+    if (!k.planted || sinkP >= 1) return;
+    const sparkRate = k.cut ? c.footSparks * 0.25 * k.heat : c.footSparks;
+    const sn = Math.round(this._sparkEmitter.tick(dt, sparkRate) * g.particleCount);
+    for (let j = 0; j < sn; j++) {
+      const i = Math.floor(Math.random() * n);
+      const theta = k.spin + (i * TAU) / n;
+      _foot.set(_focus.x + Math.cos(theta) * ring, 0.08, _focus.z + Math.sin(theta) * ring);
+      _dir.set(Math.sin(theta), 0.45, -Math.cos(theta));
+      this._fillEmit(_foot, 0.12, _dir, c.streakSpeed * 0.7, 0.35, 0.06, c.streakLife, 2);
+      this.streaks.emit(1, _emit);
+    }
+    if (!k.cut) return;
+    const mn = Math.round(this._smokeEmitter.tick(dt, c.gashSmoke * (1 - sinkP)) * g.particleCount);
+    for (let j = 0; j < mn; j++) {
+      const i = Math.floor(Math.random() * n);
+      const theta = k.spin + (i * TAU) / n;
+      const r = ring * (0.25 + 0.7 * Math.random());
+      _foot.set(_focus.x + Math.cos(theta) * r, 0.1, _focus.z + Math.sin(theta) * r);
+      this._fillEmit(_foot, 0.15, _up, c.dustSpeed * 0.3, 0.4, 0.5, c.dustLife * 1.8, 0.3);
+      this.dust.emit(1, _emit);
+    }
   }
 
   /**
@@ -360,10 +751,10 @@ export class FeintCageAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -741,6 +1132,7 @@ export class FeintCageAbility extends Ability {
   }
 
   onTravel(dt) {
+    this._cageDt = dt;
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
@@ -758,6 +1150,7 @@ export class FeintCageAbility extends Ability {
   }
 
   onFade(dt, t) {
+    this._cageDt = dt;
     const c = settings[ID];
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
@@ -788,9 +1181,17 @@ export class FeintCageAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideCage();
   }
 
   dispose() {
+    this.bars.geometry.dispose();
+    this.feints.geometry.dispose();
+    this.barGeometry.dispose();
+    this.barMaterial.dispose();
+    this.feintMaterial.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -971,6 +1372,62 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const cage = folder.addFolder('14 · Cage');
+  R(cage, c, 'cageCount', 3, 14, 1, 'bars per cage');
+  R(cage, c, 'cageHeight', 0.5, 6, 0.05, 'bar height (m)');
+  R(cage, c, 'cageWidth', 0.05, 1, 0.01, 'bar width (m)');
+  R(cage, c, 'cageFit', 0.2, 1.4, 0.01, 'real ring (x circle)');
+  R(cage, c, 'feintFit', 0.2, 1.6, 0.01, 'feint ring (x circle)');
+  R(cage, c, 'cageDrop', 0, 8, 0.05, 'arrives at (m)');
+  R(cage, c, 'cageArc', 0, 8, 0.05, 'throw arc (m)');
+  R(cage, c, 'cageRoll', -30, 30, 0.1, 'tumble (rad/s)');
+  R(cage, c, 'cageBundle', 0, 2, 0.01, 'sheaf radius (m)');
+  R(cage, c, 'cageFlightScale', 0.1, 1.5, 0.01, 'length in flight');
+  R(cage, c, 'cageFeintGap', 0, 6, 0.05, 'feint sheaf gap (m)');
+  R(cage, c, 'cageOpen', 0.02, 1.5, 0.01, 'stab in (s)');
+  R(cage, c, 'cageDig', 0, 1, 0.01, 'foot depth (m)');
+  R(cage, c, 'cageSpin', -8, 8, 0.05, 'real spin (rad/s)');
+  R(cage, c, 'feintSpin', -8, 8, 0.05, 'feint spin (rad/s)');
+  R(cage, c, 'cageCutAt', 0.05, 1, 0.01, 'cut at (impact)');
+  R(cage, c, 'cageCutTime', 0.02, 1, 0.01, 'clench (s)');
+  R(cage, c, 'cageLean', 0, 1.4, 0.01, 'lean (rad)');
+  R(cage, c, 'cageGrind', -4, 4, 0.05, 'grind (rad/s)');
+  R(cage, c, 'cageCool', 0.05, 4, 0.05, 'blade cools (s)');
+  R(cage, c, 'cageSinkAt', 1, 1.95, 0.01, 'sinks at (fade)');
+  R(cage, c, 'feintDissolve', 0.02, 2, 0.01, 'feint breaks (s)');
+  R(cage, c, 'cageSeamGlow', 0, 6, 0.05, 'seam glow');
+  R(cage, c, 'cageEdgeGlow', 0, 6, 0.05, 'blade glow');
+  R(cage, c, 'cageRimGlow', 0, 4, 0.05, 'rim glow');
+  R(cage, c, 'cageSpecular', 0, 3, 0.05, 'specular');
+  R(cage, c, 'feintGlow', 0, 6, 0.05, 'feint glow');
+  R(cage, c, 'feintOpacity', 0, 1, 0.01, 'feint opacity');
+  R(cage, c, 'cageLit', 0, 2, 0.01, 'lacquer sun gain');
+  cage.addColor(c, 'colorCageDeep').name('lacquer, deep');
+  cage.addColor(c, 'colorCageBody').name('lacquer');
+  cage.addColor(c, 'colorCageSeam').name('seam');
+  cage.addColor(c, 'colorCageHot').name('blade, hot');
+  cage.addColor(c, 'colorFeintBody').name('feint lacquer');
+  cage.addColor(c, 'colorFeintSeam').name('feint seam');
+  R(cage, c, 'plantDust', 0, 30, 1, 'plant dust / bar');
+  R(cage, c, 'plantChips', 0, 30, 1, 'plant chips / bar');
+  R(cage, c, 'plantShake', 0, 2, 0.01, 'plant punch');
+  R(cage, c, 'plantLight', 0, 40, 0.5, 'plant light');
+  R(cage, c, 'cutShake', 0, 2, 0.01, 'cut punch');
+  R(cage, c, 'cutLight', 0, 40, 0.5, 'cut light');
+  R(cage, c, 'cutSparks', 0, 400, 1, 'cut sparks');
+  R(cage, c, 'feintMotes', 0, 400, 1, 'feint motes');
+  R(cage, c, 'footSparks', 0, 400, 1, 'foot sparks / s');
+  R(cage, c, 'gashSmoke', 0, 120, 1, 'gash smoke / s');
+
+  const cageFloor = folder.addFolder('15 · Cage floor');
+  R(cageFloor, c, 'floorOpacity', 0, 1.5, 0.01, 'opacity');
+  R(cageFloor, c, 'floorGlow', 0, 6, 0.05, 'glow');
+  R(cageFloor, c, 'floorGroove', 0.05, 2, 0.01, 'groove (m)');
+  R(cageFloor, c, 'floorReach', 0.3, 2, 0.01, 'reach (x circle)');
+  R(cageFloor, c, 'floorLetGo', 1, 1.95, 0.01, 'lets go at (fade)');
+  cageFloor.addColor(c, 'colorFloorDeep').name('stain, deep');
+  cageFloor.addColor(c, 'colorFloorBody').name('stain');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

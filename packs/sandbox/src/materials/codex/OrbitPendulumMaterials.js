@@ -1054,3 +1054,191 @@ export function createOrbitPendulumScarMaterial() {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the forged mass and the scored orbit floor            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Forged bronze-black metal for the bob, its chain and the anchor: a
+ * MeshStandardMaterial (sun, shadows, CSM) patched with this cast's heat —
+ * per-vertex `aHeat` seams (the bob's belt groove, stud tips, the hub ring)
+ * glow along the four-stop ramp, plus a speed glow (`uStreak`) that brightens
+ * the leading side while the mass is whirling, and a fresnel rim.
+ *
+ * @param {string} part 'bob' | 'chain' | 'anchor' — which heat it reads
+ */
+export function createOrbitForgedMaterial(part) {
+  const material = new MeshStandardMaterial({ color: 0x2e1c14, roughness: 0.4, metalness: 0.8 });
+  const uniforms = {
+    uTime: frame.uTime,
+    uHeat: { value: 1 },
+    uGlow: { value: 1 },
+    uRim: { value: 0.5 },
+    uHot: { value: new Color() },
+    uBody: { value: new Color() },
+    uDeep: { value: new Color() },
+    uRimColor: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aHeat;\nvarying float vHeat;\nvarying vec3 vOrbLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHeat = aHeat;\nvOrbLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uTime; uniform float uHeat; uniform float uGlow; uniform float uRim;
+uniform vec3 uHot; uniform vec3 uBody; uniform vec3 uDeep; uniform vec3 uRimColor;
+varying float vHeat; varying vec3 vOrbLocal;`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  float pulse = 0.78 + 0.22 * sin(uTime * 11.0 + atan(vOrbLocal.z, vOrbLocal.x) * 3.0);
+  float h = clamp(vHeat * uHeat, 0.0, 1.5);
+  vec3 ramp = mix(uDeep, uBody, smoothstep(0.0, 0.3, h));
+  ramp = mix(ramp, uHot, smoothstep(0.3, 0.8, h));
+  ramp = mix(ramp, vec3(1.0, 0.9, 0.82) * 1.5, smoothstep(0.95, 1.4, h));
+  totalEmissiveRadiance += ramp * h * uGlow * pulse;
+  vec3 V = normalize(vViewPosition);
+  float fres = pow(1.0 - abs(dot(normalize(normal), V)), 3.0);
+  totalEmissiveRadiance += uRimColor * fres * uRim;
+}`
+        );
+    },
+    'codex-orbitpendulum-forged'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uGlow.value = c.massGlow * g.glow * (part === 'chain' ? 0.7 : 1);
+    uniforms.uRim.value = c.massRim * g.fresnel;
+    uniforms.uHot.value.copy(getColor(c.colorMassHot));
+    uniforms.uBody.value.copy(getColor(c.colorA));
+    uniforms.uDeep.value.copy(getColor(c.colorC));
+    uniforms.uRimColor.value.copy(getColor(c.colorMassRim));
+    material.color.copy(getColor(part === 'chain' ? c.colorChain : c.colorMass));
+    material.roughness = c.massRough;
+    material.metalness = c.massMetal;
+  };
+  return material;
+}
+
+const ORBIT_FLOOR_VERTEX = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vP = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const ORBIT_FLOOR_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uPhase;   // the bob's angle round the anchor (plane angle, radians)
+  uniform float uRing;    // orbit radius / disc radius
+  uniform float uLand;    // 0..1 how far the scored disc has opened
+  uniform float uHeat;    // 0..1 how hot the wake still is
+  uniform float uErode;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uArms;
+  uniform float uSpinDir; // +1 / -1: which way the bob runs round the floor
+  uniform vec3 uScore;    // the lighter tone of the scored stone
+  uniform vec3 uHot;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  varying vec2 vP;
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vP);
+    if (r > 1.0 || r > uLand) discard;
+    float a = atan(vP.y, vP.x);
+    float n = snoise(vec3(vP * 4.0, uSeed));
+    // A filled, dark scoured disc; heaviest along the track.
+    float track = exp(-pow((r - uRing) / 0.06, 2.0));
+    float groove = exp(-pow((r - uRing) / 0.11, 2.0));
+    float body = smoothstep(1.0, 0.8, r + n * 0.1);
+    // Scoring: log-spiral gouges swept round by the orbit.
+    float sp = fract((a / 6.2831853) * uArms + log(max(r, 0.05)) * 2.2 - uPhase * 0.159 * uArms + n * 0.15);
+    float gouge = smoothstep(0.18, 0.0, abs(sp - 0.5) - 0.32) * smoothstep(0.15, 0.45, r);
+    // The hot wake trails the bob round the track and cools behind it.
+    float behind = mod((uPhase - a) * uSpinDir + 6.2831853 * 4.0, 6.2831853);
+    float wake = exp(-behind * 2.6) * track * uHeat;
+    float hub = smoothstep(0.08, 0.0, r) * uHeat * 0.5;
+    vec3 col = mix(uDeep, uScore, gouge * 0.55 + groove * 0.3) * (1.0 - groove * 0.45);
+    float hot = wake * 1.3 + hub;
+    vec3 glow = mix(uBody, uHot, smoothstep(0.25, 0.75, hot));
+    glow = mix(glow, vec3(1.0, 0.9, 0.8), smoothstep(0.95, 1.3, hot));
+    col += glow * hot * uGlow * (0.85 + 0.15 * sin(uTime * 8.0 + a * 4.0));
+    float alpha = body * uOpacity * (0.85 + 0.15 * groove);
+    float erode = smoothstep(uErode * 1.2 - 0.2, uErode * 1.2, 1.0 - r + n * 0.3);
+    alpha *= mix(1.0, erode, step(0.001, uErode));
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * The floor the orbit scores: a filled dark disc under the anchor, spiral
+ * gouges swept round by the mass, a hot wake trailing the bob round its track
+ * and cooling behind it. Opens on the plant, stays through the linger,
+ * breaks up from the rim at the end.
+ */
+export function createOrbitFloorMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uPhase: { value: 0 },
+      uRing: { value: 0.7 },
+      uLand: { value: 0 },
+      uHeat: { value: 1 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uArms: { value: 5 },
+      uSpinDir: { value: 1 },
+      uScore: { value: new Color() },
+      uHot: { value: new Color() },
+      uBody: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: ORBIT_FLOOR_VERTEX,
+    fragmentShader: ORBIT_FLOOR_FRAGMENT
+  });
+  material.userData.sync = (seed, phase, ring, land, heat, erode, spinDir) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = seed;
+    u.uPhase.value = phase;
+    u.uRing.value = ring;
+    u.uLand.value = land;
+    u.uHeat.value = heat;
+    u.uErode.value = erode;
+    u.uSpinDir.value = spinDir < 0 ? -1 : 1;
+    u.uOpacity.value = c.floorOpacity * g.opacity;
+    u.uGlow.value = c.floorGlow * g.glow;
+    u.uArms.value = Math.max(1, Math.round(c.floorArms));
+    u.uHot.value.copy(getColor(c.colorMassHot));
+    u.uBody.value.copy(getColor(c.colorA));
+    u.uDeep.value.copy(getColor(c.colorFloorDeep));
+    u.uScore.value.copy(getColor(c.colorFloorScore));
+  };
+  return material;
+}

@@ -1,4 +1,5 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshDepthMaterial, NormalBlending, RGBADepthPacking, ShaderMaterial, Vector3 } from 'three';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -989,6 +990,237 @@ export function createRedshiftLanceScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The lance itself — cast-local hero shader                             */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The lance (shaft and head share it): a solid of dark blued steel / obsidian,
+ * lit by the scene sun (key + sky fill + a hard specular) and casting its
+ * shadow. The light does not live in the body: the redshift is carried by a
+ * narrow glowing core line down each flute valley of the shaft and along each
+ * blade edge of the head, interrupted by dark absorption bands that slide
+ * tipward as the light shifts. That line runs a violet four-stop ramp into a
+ * red one by the local redshift (redder toward the tip, all of it redder with
+ * time) and cools through the linger. In the linger the shaft breaks into
+ * segments (`uBreak`) that drift down the line (`uDrift`) and settle
+ * (`uSink`); the whole is eaten from the tail (`uDissolve`).
+ *
+ * Geometry is unit: shaft z 0..1 radius 1 (scaled to metres, tapered and
+ * segmented in the vertex stage — the depth material repeats that, so the
+ * shadow matches), head z 0..1 already shaped (scaled by the mesh).
+ */
+const LANCE_PARS = /* glsl */ `
+  uniform float uHead;
+  uniform float uLen;
+  uniform float uRTail;
+  uniform float uRFront;
+  uniform float uSegments;
+  uniform float uDrift;
+  uniform float uSink;
+  uniform float uSeed;
+  float lanceH1(float n) { return fract(sin(n * 12.9898 + uSeed * 7.13) * 43758.5453); }
+  vec3 lancePlace(vec3 p, out float seg) {
+    seg = 0.0;
+    if (uHead < 0.5) {
+      float along = p.z;
+      float r = mix(uRTail, uRFront, along);
+      seg = floor(min(along, 0.9999) * uSegments);
+      float k = (seg + 0.5) / uSegments;
+      p.xy *= r;
+      p.z = along * uLen + uDrift * k * uLen * (0.8 + 0.4 * lanceH1(seg));
+      p.y -= uSink * (0.4 + 0.6 * lanceH1(seg + 17.0));
+    }
+    return p;
+  }
+`;
+
+const LANCE_VERTEX = /* glsl */ `
+  ${LANCE_PARS}
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vAlong;
+  varying float vAng;
+  void main() {
+    float seg;
+    vec3 p = lancePlace(position, seg);
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vAlong = position.z;
+    vAng = atan(position.y, position.x);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const LANCE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uHead;
+  uniform float uSegments;
+  uniform float uBreak;
+  uniform float uShift;
+  uniform float uGrad;
+  uniform float uHeat;
+  uniform float uGlow;
+  uniform float uLines;
+  uniform float uLineDark;
+  uniform float uCoreWidth;
+  uniform float uSpecular;
+  uniform float uDissolve;
+  uniform vec3 uSteel; uniform vec3 uSheen;
+  uniform vec3 uV0; uniform vec3 uV1; uniform vec3 uV2; uniform vec3 uV3;
+  uniform vec3 uR0; uniform vec3 uR1; uniform vec3 uR2; uniform vec3 uR3;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vAlong;
+  varying float vAng;
+  ${noiseGLSL}
+  vec3 ramp(vec3 c0, vec3 c1, vec3 c2, vec3 c3, float t) {
+    if (t < 0.4) return mix(c3, c2, t / 0.4);
+    if (t < 0.75) return mix(c2, c1, (t - 0.4) / 0.35);
+    return mix(c1, c0, (t - 0.75) / 0.25);
+  }
+  void main() {
+    float n = snoise(vWorld * 1.3);
+    if (uHead < 0.5) {
+      float f = fract(min(vAlong, 0.9999) * uSegments);
+      float gap = uBreak * 0.55;
+      if (f > 1.0 - gap || f < gap * 0.25) discard;
+    }
+    float eat = (uHead > 0.5 ? 0.92 : vAlong * 0.85) + (n * 0.5 + 0.5) * 0.15;
+    if (eat < uDissolve) discard;
+    float edge = (1.0 - smoothstep(0.0, 0.04, eat - uDissolve)) * step(0.001, uDissolve);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Blued steel / obsidian: dark, with a cool sheen and a hard glint.
+    float grain = snoise01(vec3(vAlong * 30.0, vAng * 2.0, 1.7));
+    vec3 albedo = mix(uSteel, uSheen, 0.15 + 0.35 * grain);
+    vec3 color = albedo * (0.2 + 1.1 * ndl);
+    color += albedo * 0.3 * (0.5 + 0.5 * N.y);
+    color += mix(uSheen, vec3(1.0), 0.6) * pow(max(dot(N, H), 0.0), 80.0) * uSpecular;
+    color += uSheen * pow(1.0 - ndv, 4.0) * 0.35;
+
+    // The light lives in a narrow line: the flute valleys of the shaft, the
+    // blade edges of the head.
+    float line = uHead < 0.5
+      ? smoothstep(1.0 - uCoreWidth, 1.0, -cos(4.0 * vAng))
+      : smoothstep(1.0 - uCoreWidth * 1.4, 1.0, abs(cos(2.0 * (vAng - 0.7853982)))) * smoothstep(0.08, 0.14, vAlong);
+    float bands = fract(vAlong * uLines - uShift * 3.0 - uTime * 0.15);
+    float absorb = (1.0 - smoothstep(0.0, 0.12, bands)) * uLineDark;
+    float flow = 0.75 + 0.25 * sin(vAlong * 40.0 - uTime * 14.0);
+    float z = clamp(uShift + (uHead > 0.5 ? uGrad : vAlong * uGrad), 0.0, 1.0);
+    float t = mix(0.3, 0.68, uHeat) + 0.2 * line * line * uHeat; // saturated body/tint, a white thread only at the very centre
+    vec3 lightCol = mix(ramp(uV0, uV1, uV2, uV3, t), ramp(uR0, uR1, uR2, uR3, t), smoothstep(0.0, 1.0, z));
+    float glow = line * (1.0 - absorb) * flow * uHeat * uGlow * uGlobalGlow;
+    color += lightCol * glow * 2.2;
+    // A faint warmth bleeding into the steel round the line.
+    color += lightCol * smoothstep(0.4, 1.0, -cos(4.0 * vAng)) * (1.0 - uHead) * 0.08 * uHeat * uGlow;
+
+    color = mix(color, uR1 * 1.5 * uGlobalGlow, edge);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createRedshiftLanceSpearMaterial(head = false) {
+  const shared = {
+    uHead: { value: head ? 1 : 0 },
+    uLen: { value: 1 },
+    uRTail: { value: 0.1 },
+    uRFront: { value: 0.2 },
+    uSegments: { value: 8 },
+    uDrift: { value: 0 },
+    uSink: { value: 0 },
+    uSeed: { value: 0 }
+  };
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      ...shared,
+      uBreak: { value: 0 },
+      uShift: { value: 0 },
+      uGrad: { value: 0.4 },
+      uHeat: { value: 1 },
+      uGlow: { value: 1 },
+      uLines: { value: 10 },
+      uLineDark: { value: 0.6 },
+      uCoreWidth: { value: 0.1 },
+      uSpecular: { value: 1 },
+      uDissolve: { value: 0 },
+      uSteel: { value: new Color() }, uSheen: { value: new Color() },
+      uV0: { value: new Color() }, uV1: { value: new Color() }, uV2: { value: new Color() }, uV3: { value: new Color() },
+      uR0: { value: new Color() }, uR1: { value: new Color() }, uR2: { value: new Color() }, uR3: { value: new Color() }
+    }),
+    vertexShader: LANCE_VERTEX,
+    fragmentShader: LANCE_FRAGMENT
+  });
+  // The shadow: the same taper, segments, drift and settle in the depth pass.
+  const depth = new MeshDepthMaterial({ depthPacking: RGBADepthPacking, side: DoubleSide });
+  patchOnBeforeCompile(
+    depth,
+    (shader) => {
+      Object.assign(shader.uniforms, shared);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${LANCE_PARS}`)
+        .replace('#include <begin_vertex>', 'float lanceSeg;\nvec3 transformed = lancePlace(vec3(position), lanceSeg);');
+    },
+    'codex-redshift-lance-depth'
+  );
+  material.userData.depth = depth;
+  const baseDispose = material.dispose.bind(material);
+  material.dispose = () => {
+    depth.dispose();
+    baseDispose();
+  };
+  /** @param {object} p len, shift, heat, brk, drift, sink, dissolve, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uLen.value = p.len;
+    u.uRTail.value = c.lanceTail;
+    u.uRFront.value = c.lanceFront;
+    u.uSegments.value = Math.max(1, Math.round(c.lanceSegments));
+    u.uDrift.value = p.drift;
+    u.uSink.value = p.sink;
+    u.uBreak.value = p.brk;
+    u.uShift.value = p.shift;
+    u.uGrad.value = c.lanceGradient;
+    u.uHeat.value = p.heat;
+    u.uGlow.value = c.lanceGlow * g.glow * g.shaderIntensity;
+    u.uLines.value = c.lanceLines;
+    u.uLineDark.value = c.lanceLineDark;
+    u.uCoreWidth.value = Math.max(0.005, c.lanceCoreWidth);
+    u.uSpecular.value = c.lanceSpecular;
+    u.uDissolve.value = p.dissolve;
+    u.uSeed.value = p.seed;
+    u.uSteel.value.copy(getColor(c.colorLanceSteel));
+    u.uSheen.value.copy(getColor(c.colorLanceSheen));
+    u.uV0.value.copy(getColor(c.colorLanceHot));
+    u.uV1.value.copy(getColor(c.colorLanceTint));
+    u.uV2.value.copy(getColor(c.colorLanceBody));
+    u.uV3.value.copy(getColor(c.colorLanceDeep));
+    u.uR0.value.copy(getColor(c.colorRedHot));
+    u.uR1.value.copy(getColor(c.colorRedTint));
+    u.uR2.value.copy(getColor(c.colorRedBody));
+    u.uR3.value.copy(getColor(c.colorRedDeep));
   };
   return material;
 }

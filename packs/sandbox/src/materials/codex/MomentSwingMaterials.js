@@ -1055,3 +1055,182 @@ export function createMomentSwingScarMaterial() {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the maul and the crater                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The forged maul: sun-lit dark iron (MeshStandardMaterial, so it takes the
+ * scene sun, shadows and CSM), patched with this cast's own heat: the
+ * per-vertex `aHeat` seams (striking faces, waist groove, collar) glow along a
+ * four-stop ramp — white-hot → amber → orange → ember — flickering with
+ * noise, and cool through the linger (`uHeat`). A thin fresnel rim in the
+ * body hue keeps the silhouette off the dark floor.
+ */
+export function createMomentMaulMaterial() {
+  const material = new MeshStandardMaterial({ color: 0x2a1d17, roughness: 0.45, metalness: 0.7 });
+  const uniforms = {
+    uTime: frame.uTime,
+    uHeat: { value: 1 },
+    uGlow: { value: 1 },
+    uRim: { value: 0.5 },
+    uHot: { value: new Color() },
+    uBody: { value: new Color() },
+    uDeep: { value: new Color() },
+    uRimColor: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aHeat;\nvarying float vHeat;\nvarying vec3 vMaulLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHeat = aHeat;\nvMaulLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uTime; uniform float uHeat; uniform float uGlow; uniform float uRim;
+uniform vec3 uHot; uniform vec3 uBody; uniform vec3 uDeep; uniform vec3 uRimColor;
+varying float vHeat; varying vec3 vMaulLocal;
+float maulHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  float flick = 0.75 + 0.25 * sin(uTime * 13.0 + vMaulLocal.x * 7.0 + vMaulLocal.y * 5.0);
+  float grain = 0.8 + 0.4 * maulHash(floor(vMaulLocal * 14.0));
+  float h = clamp(vHeat * uHeat * grain, 0.0, 1.5);
+  // white-hot -> hot -> body -> deep, by how hot this seam still is
+  vec3 ramp = mix(uDeep, uBody, smoothstep(0.0, 0.35, h));
+  ramp = mix(ramp, uHot, smoothstep(0.35, 0.8, h));
+  ramp = mix(ramp, vec3(1.0, 0.92, 0.8) * 1.6, smoothstep(0.95, 1.4, h));
+  totalEmissiveRadiance += ramp * h * uGlow * flick;
+  vec3 V = normalize(vViewPosition);
+  float fres = pow(1.0 - abs(dot(normalize(normal), V)), 3.0);
+  totalEmissiveRadiance += uRimColor * fres * uRim;
+}`
+        );
+    },
+    'codex-moment-maul'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uGlow.value = c.maulGlow * g.glow;
+    uniforms.uRim.value = c.maulRim * g.fresnel;
+    uniforms.uHot.value.copy(getColor(c.colorMaulHot));
+    uniforms.uBody.value.copy(getColor(c.colorA));
+    uniforms.uDeep.value.copy(getColor(c.colorC));
+    uniforms.uRimColor.value.copy(getColor(c.colorA));
+    material.color.copy(getColor(c.colorMaulIron));
+    material.roughness = c.maulRough;
+    material.metalness = c.maulMetal;
+  };
+  return material;
+}
+
+const CRATER_VERTEX = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vP = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CRATER_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uOpen;     // 0..1 how far the cracks have run out
+  uniform float uHeat;     // 0..1 how hot the seams still are
+  uniform float uErode;    // 0..1 the crater breaking up at the end
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uCracks;
+  uniform vec3 uHot;
+  uniform vec3 uBody;
+  uniform vec3 uDeep;
+  varying vec2 vP;
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vP);            // 0 at the centre, 1 at the rim
+    if (r > 1.0) discard;
+    float a = atan(vP.y, vP.x);
+    float n = snoise(vec3(vP * 3.2, uSeed));
+    // A filled bowl: dark and heavy, darkest in the pit, a raised lip at 0.55.
+    float bowl = smoothstep(1.0, 0.55, r + n * 0.08);
+    float lip = exp(-pow((r - 0.5 - n * 0.05) / 0.09, 2.0));
+    // Radial fissures: jagged, uneven, running out from the pit with uOpen.
+    float k = uCracks;
+    float wob = snoise(vec3(r * 4.0, a * 2.0, uSeed + 3.0)) * 0.22;
+    float spoke = abs(fract((a / 6.2831853) * k + wob + uSeed) - 0.5) * 2.0;
+    float width = mix(0.08, 0.02, r);
+    float crack = smoothstep(width, 0.0, spoke * (0.6 + r)) * step(r, uOpen) * smoothstep(1.0, 0.75, r);
+    float pit = smoothstep(0.32, 0.0, r + n * 0.06);
+    float hot = (crack + pit * 0.8) * uHeat;
+    // Four-stop ramp: white-hot -> hot -> body -> deep.
+    vec3 col = mix(uDeep, uBody * 0.55, lip * 0.6 + pit * 0.25);
+    vec3 glow = mix(uBody, uHot, smoothstep(0.2, 0.7, hot));
+    glow = mix(glow, vec3(1.0, 0.9, 0.75), smoothstep(0.85, 1.2, hot));
+    float flick = 0.8 + 0.2 * sin(uTime * 9.0 + a * 5.0 + r * 11.0);
+    col += glow * hot * uGlow * flick;
+    float alpha = bowl * uOpacity * (0.88 + lip * 0.12);
+    float erode = smoothstep(uErode * 1.15 - 0.15, uErode * 1.15, 1.0 - r + n * 0.25);
+    alpha *= mix(1.0, erode, step(0.001, uErode));
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * The crater the maul punches: a filled, dark bowl with a raised lip and
+ * radial fissures that run out from the pit on the slam and glow along the
+ * four-stop ramp, cooling through the linger; it breaks up from the rim in.
+ * Normal-blended so its deep stop darkens the floor.
+ */
+export function createMomentCraterMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uOpen: { value: 0 },
+      uHeat: { value: 1 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uCracks: { value: 9 },
+      uHot: { value: new Color() },
+      uBody: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: CRATER_VERTEX,
+    fragmentShader: CRATER_FRAGMENT
+  });
+  material.userData.sync = (seed, open, heat, erode) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = seed;
+    u.uOpen.value = open;
+    u.uHeat.value = heat;
+    u.uErode.value = erode;
+    u.uOpacity.value = c.craterOpacity * g.opacity;
+    u.uGlow.value = c.craterGlow * g.glow;
+    u.uCracks.value = Math.max(2, Math.round(c.craterCracks));
+    u.uHot.value.copy(getColor(c.colorMaulHot));
+    u.uBody.value.copy(getColor(c.colorA));
+    u.uDeep.value.copy(getColor(c.colorCraterDeep));
+  };
+  return material;
+}

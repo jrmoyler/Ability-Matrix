@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +20,9 @@ import {
   createPressCageLensMaterial,
   createPressCageGroundMaterial,
   createPressCageVoiceMaterial,
-  createPressCageDetailMaterial
+  createPressCageDetailMaterial,
+  createPressCageRamMaterial,
+  createPressCageSkidMaterial
 } from '../../materials/codex/PressCageMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +59,67 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Press bars the ring can hold; one more instance is the billet they spit. */
+const MAX_RAMS = 12;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _qb = new Quaternion();
+const _qy = new Quaternion();
+const _mx = new Matrix4();
+const _scale = new Vector3();
+const _axis = new Vector3();
+const _radial = new Vector3();
+const _hand = new Vector3();
+const _target = new Vector3();
+const _slot = new Vector3();
+const _vel = new Vector3();
+const _bx = new Vector3();
+const _bz = new Vector3();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+const _feet = Array.from({ length: MAX_RAMS }, () => new Vector3());
+
+/** A stable 0..1 die per bar from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * One press bar, one unit tall along +Y with its foot at the origin and its
+ * pressing face toward +Z: a forged shaft on a wide shoe, two collars, a
+ * bevelled cap, and a broad platen standing proud of the inner face with a
+ * centre rib. Flat facets so the sun picks out every machined face.
+ */
+function createRamGeometry() {
+  const pos = [];
+  const quad = (a, b, c, d) => pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  // A frustum: bottom rect (bx, bz) at y0, top rect (tx, tz) at y1, centred at (0, z0).
+  const block = (bx0, bx1, bz0, bz1, y0, y1, tx0 = bx0, tx1 = bx1, tz0 = bz0, tz1 = bz1) => {
+    const b = [[bx0, y0, bz0], [bx1, y0, bz0], [bx1, y0, bz1], [bx0, y0, bz1]];
+    const t = [[tx0, y1, tz0], [tx1, y1, tz0], [tx1, y1, tz1], [tx0, y1, tz1]];
+    quad(b[0], t[0], t[1], b[1]);
+    quad(b[1], t[1], t[2], b[2]);
+    quad(b[2], t[2], t[3], b[3]);
+    quad(b[3], t[3], t[0], b[0]);
+    quad(t[0], t[3], t[2], t[1]);
+    quad(b[0], b[1], b[2], b[3]);
+  };
+  block(-0.7, 0.7, -0.7, 0.75, 0, 0.05, -0.6, 0.6, -0.6, 0.65); // shoe
+  block(-0.5, 0.5, -0.5, 0.5, 0.05, 0.9); // shaft
+  block(-0.57, 0.57, -0.57, 0.52, 0.28, 0.35); // collar
+  block(-0.57, 0.57, -0.57, 0.52, 0.6, 0.67); // collar
+  block(-0.55, 0.55, -0.55, 0.55, 0.9, 1.0, -0.3, 0.3, -0.3, 0.3); // cap
+  block(-0.75, 0.75, 0.5, 1.0, 0.14, 0.82, -0.75, 0.75, 0.5, 1.0); // platen
+  block(-0.12, 0.12, 1.0, 1.18, 0.16, 0.8); // platen rib
+  block(-0.75, 0.75, 1.0, 1.1, 0.14, 0.2); // platen lip, bottom
+  block(-0.75, 0.75, 1.0, 1.1, 0.76, 0.82); // platen lip, top
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * PRESS CAGE — motion, zone cast.
@@ -72,6 +146,29 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The press (the hero, cast-local — sections 14–15 of the editor)
+ *
+ * The shared template layers (body, voice, lens, rig, pieces and the template
+ * field) are turned down in the config; the spell is carried by its own forms:
+ *
+ *   - **the volley** — `ramCount` press bars of forged steel (`createRamGeometry`:
+ *     a shaft on a wide shoe, collars, a bevelled cap and a broad platen on the
+ *     inner face; lit, opaque, shadow-casting) are hurled from the hand lying
+ *     along their flight, fanning out, and swing upright as they arrive.
+ *   - **the slam** — on the beat they plant in a ring at `ramFit` × the circle:
+ *     a dip into the floor, scorch, dust and chips at every shoe.
+ *   - **the squeeze** — after a short hold they skid inward with gathering
+ *     momentum (`ramAccel`), ploughing a gouge each (hot just behind the shoe),
+ *     platens glowing red as the pressure builds, and a billet of crushed
+ *     matter is squeezed up out of the floor between them.
+ *   - **the spit** — when they meet (the echo beat, where the hits land) the
+ *     billet is spat straight up with a jet of chips and sparks, the bars recoil
+ *     and topple outward, slamming flat on the floor; the billet falls back.
+ *   - **exit** — the fallen bars and the billet are eaten through behind a
+ *     hot edge and sink; the gouges and the crushed centre stay to the end.
+ *
+ * All of it is presentation: the hits still land on the echo beat, as before.
  *
  * Every metre, rate and colour is read from `settings.presscage` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +204,7 @@ export class PressCageAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildPress();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +249,41 @@ export class PressCageAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The press's own meshes: instanced bars (+ the billet) and the skid floor. */
+  _buildPress() {
+    this.ramGeometry = createRamGeometry();
+    this.ramMaterial = createPressCageRamMaterial();
+    this.rams = new InstancedMesh(this.ramGeometry, this.ramMaterial, MAX_RAMS + 1);
+    const attr = new InstancedBufferAttribute(new Float32Array((MAX_RAMS + 1) * 4), 4);
+    attr.setUsage(DynamicDrawUsage);
+    this.ramGeometry.setAttribute('aBar', attr);
+    this.rams.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.rams.layers.set(LAYER.SHAPED);
+    this.rams.castShadow = true;
+    this.rams.receiveShadow = true;
+    this.rams.frustumCulled = false;
+    this.rams.renderOrder = 14;
+    this.rams.visible = false;
+    this.group.add(this.rams);
+    this.skidGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.skidMaterial = createPressCageSkidMaterial();
+    this.skid = this._mesh(this.skidGeometry, this.skidMaterial, LAYER.VFX, 2);
+    this.skid.rotation.x = -Math.PI / 2;
+    this._ramSpin = 0;
+    this._ramNow = 1; // metres from the centre the bars have reached (deepest)
+    this._ramR = 1;
+    this._skidHeat = 0;
+    this._pressHeat = 0;
+    this._crush = 0;
+    this._billetY = -1;
+    this._spat = false;
+    this._fell = false;
+    this._skidAlpha = 0;
+    this._trailEmitter = new RateEmitter();
+    this._skidEmitter = new RateEmitter();
+    this._skidUniforms = { centre: new Vector3(), outer: 1, start: 1, now: 1, count: 8, spin: 0, heat: 0, crush: 0, alpha: 0, seed: 0 };
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +364,21 @@ export class PressCageAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._ramSpin = Math.random() * TAU;
+    this._ramNow = settings[ID].zoneRadius * settings[ID].ramFit;
+    this._ramR = this._ramNow;
+    this._skidHeat = 0;
+    this._pressHeat = 0;
+    this._crush = 0;
+    this._billetY = -1;
+    this._spat = false;
+    this._fell = false;
+    this._skidAlpha = 0;
+    this._trailEmitter.reset();
+    this._skidEmitter.reset();
+    for (let i = 0; i < MAX_RAMS; i++) _feet[i].set(0, 0, 0);
+    this.rams.visible = false;
+    this.skid.visible = false;
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -294,6 +442,303 @@ export class PressCageAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._press(committed, fadeT);
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Seconds after the beat the echo (the spit) lands: fade progress 1.08. */
+  _echoAt() {
+    return this.impactDuration + 0.08 * this.fadeDuration;
+  }
+
+  /**
+   * Stand the press for this frame: every dimension from settings, every
+   * moment from the travel (`u`) or the seconds since the beat.
+   */
+  _press(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    const echo = this._echoAt();
+    const n = Math.max(3, Math.min(MAX_RAMS, Math.round(c.ramCount)));
+    const R0 = Math.max(0.5, c.zoneRadius * c.ramFit);
+    const Rmin = Math.max(0.2, R0 * c.ramSqueeze);
+    const W = Math.max(0.05, c.ramWidth);
+    const H = Math.max(0.2, c.ramHeight);
+    const D = Math.max(0.05, c.ramDepth);
+    this.pointAt(1, _target);
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+
+    // The clock of the squeeze, the spit and the exit.
+    const hold = c.ramHold * L;
+    const k = since < 0 ? 0 : saturate((since - hold) / Math.max(0.1, echo - hold));
+    const squeeze = Math.pow(k, Math.max(0.5, c.ramAccel));
+    const after = since < echo ? -1 : since - echo;
+    const exitAt = total - Math.max(0.1, c.ramExit * L);
+    const exit = since < 0 ? 0 : saturate((since - exitAt) / Math.max(0.1, c.ramExit * L));
+    let r;
+    if (after < 0) r = R0 - (R0 - Rmin) * squeeze;
+    else r = Rmin + (R0 * c.ramRecoil - Rmin) * Easing.outBack(saturate(after / Math.max(0.05, c.ramRecoilTime * L)));
+    this._ramR = r;
+    if (since >= 0 && after < 0) this._ramNow = Math.min(this._ramNow, r);
+    const heatDecay = after < 0 ? 1 : Math.exp(-after * 2.2 / L);
+    this._skidHeat = since < 0 ? 0 : (after < 0 ? (k > 0 ? 0.35 + 0.65 * squeeze : Math.exp(-since * 4)) : 0.6 * Math.exp(-after * 6 / L));
+    this._pressHeat = after < 0 ? Math.pow(squeeze, 1.4) : heatDecay;
+    const topple = after < 0 ? 0 : saturate(after / Math.max(0.05, c.ramToppleTime * L));
+    let tip = (Math.PI / 2) * topple * topple;
+    if (topple >= 1) tip -= c.ramBounce * Math.abs(Math.sin((after - c.ramToppleTime * L) * 14)) * Math.exp(-(after - c.ramToppleTime * L) * 7);
+    const lean = after < 0 ? -c.ramLean * squeeze : 0;
+    const dip = since < 0 ? 0 : c.ramDip * Math.sin(Math.min(1, since / 0.14) * Math.PI) * Math.exp(-since * 4);
+    const attr = this.ramGeometry.getAttribute('aBar');
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      const ang = this._ramSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      // Facing in: local +Z → −radial; then tipped about the tangent at the foot.
+      _qy.setFromAxisAngle(_up, Math.atan2(-_radial.x, -_radial.z));
+      if (!committed) {
+        const delay = c.ramStagger * d;
+        const p = saturate((this.u - delay) / Math.max(0.05, 1 - delay));
+        if (p <= 0) {
+          _feet[i].set(0, 0, 0);
+          this.rams.setMatrixAt(i, _zero);
+          attr.setXYZW(i, d * 10, 0, 0, 0);
+          continue;
+        }
+        const e = Easing.outCubic(p);
+        _slot.copy(_target).addScaledVector(_radial, R0);
+        _pos.copy(_hand).addScaledVector(this.side, ((i + 0.5) / n - 0.5) * c.ramFan);
+        _vel.subVectors(_slot, _pos);
+        _pos.lerp(_slot, e);
+        _pos.y = _hand.y * (1 - e) + c.ramArc * 4 * p * (1 - p);
+        // In flight the bar lies along its path, nose first; it swings upright as it lands.
+        _vel.y = 0;
+        _bx.copy(_vel).normalize();
+        _axis.crossVectors(_up, _bx).normalize();
+        _qa.setFromAxisAngle(_axis, Math.PI / 2);
+        _qa.multiply(_qy);
+        _qb.copy(_qy);
+        _q.slerpQuaternions(_qa, _qb, Easing.inOutCubic(saturate((p - 0.45) / 0.55)));
+        attr.setXYZW(i, d * 10, 0, 0, 0);
+      } else {
+        _pos.copy(_target).addScaledVector(_radial, r * (1 + (d - 0.5) * 0.06));
+        _axis.set(_radial.z, 0, -_radial.x); // up × radial: tipping +angle sends the top outward
+        _qa.setFromAxisAngle(_axis, tip + lean);
+        _q.copy(_qa).multiply(_qy);
+        _pos.y = -dip - exit * c.ramSink * D + Math.sin(Math.max(0, tip)) * D * 0.5;
+        attr.setXYZW(i, d * 10, this._skidHeat, this._pressHeat, exit);
+      }
+      _feet[i].copy(_pos);
+      if (exit >= 0.999) {
+        this.rams.setMatrixAt(i, _zero);
+        continue;
+      }
+      any = true;
+      _scale.set(W, H, D);
+      _m4.compose(_pos, _q, _scale);
+      this.rams.setMatrixAt(i, _m4);
+    }
+    // The billet: squeezed up out of the floor between the platens, spat up, falls back.
+    const B = Math.max(0.1, c.billetSize);
+    let billet = false;
+    if (committed && exit < 0.999 && c.billetSize > 0.01) {
+      const rise = c.billetRise * L;
+      const gAcc = (2 * c.billetApex) / Math.max(0.01, rise * rise);
+      let y;
+      let roll = 0;
+      if (after < 0) {
+        const m = saturate((k - 0.55) / 0.45);
+        y = -B * 0.9 * (1 - m * m);
+      } else {
+        const a = after;
+        y = gAcc * rise * a - 0.5 * gAcc * a * a;
+        if (y < 0) y = Math.abs(Math.sin(a * 9)) * 0.25 * Math.exp(-(a - 2 * rise) * 5);
+        roll = Math.min(a, 2 * rise) * c.billetSpin;
+      }
+      this._billetY = y;
+      if (y > -B * 0.88) {
+        billet = true;
+        _pos.copy(_target);
+        _pos.y = y - exit * c.ramSink * B;
+        _axis.set(Math.sin(this._seed * 3), 0.4, Math.cos(this._seed * 3)).normalize();
+        _q.setFromAxisAngle(_axis, roll);
+        _scale.set(B, B * 0.75, B * 0.8);
+        _m4.compose(_pos, _q, _scale);
+        this.rams.setMatrixAt(n, _m4);
+        attr.setXYZW(n, 7.3, 0.6 * this._pressHeat, Math.max(this._pressHeat, 0.5 * heatDecay), exit);
+      }
+    }
+    if (!billet) this.rams.setMatrixAt(n, _zero);
+    this.rams.count = n + 1;
+    this.rams.visible = any || billet;
+    this.rams.instanceMatrix.needsUpdate = true;
+    attr.needsUpdate = true;
+    this.ramMaterial.userData.sync();
+
+    // The floor: scoured stain, gouges, crushed centre.
+    if (committed && c.skidOpacity > 0.01) {
+      const press = Easing.outCubic(saturate(since / 0.2));
+      const fadeOut = 1 - saturate((since - (total - c.skidFade * L)) / Math.max(0.05, c.skidFade * L));
+      this._skidAlpha = press * fadeOut;
+      this._crush = after < 0 ? 0 : Easing.outCubic(saturate(after / 0.25));
+      const outer = R0 * c.skidReach;
+      const p = this._skidUniforms;
+      p.centre.copy(_target);
+      p.outer = outer;
+      p.start = R0;
+      p.now = this._ramNow;
+      p.count = n;
+      p.spin = this._ramSpin;
+      p.heat = this._skidHeat;
+      p.crush = this._crush;
+      p.alpha = this._skidAlpha;
+      p.seed = this._seed;
+      this.skid.visible = this._skidAlpha > 0.01;
+      this.skid.position.set(_target.x, 0.03, _target.z);
+      this.skid.scale.set(outer * 2, outer * 2, 1);
+      this.skidMaterial.userData.sync(p);
+    } else {
+      this._skidAlpha = 0;
+      this.skid.visible = false;
+    }
+  }
+
+  /** The bars plant: a scorch under every shoe, chips and dust thrown out. */
+  _ramSlam() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(3, Math.min(MAX_RAMS, Math.round(c.ramCount)));
+    for (let i = 0; i < n; i++) {
+      _pos.copy(_feet[i]).setY(0);
+      if (c.shoeScorch > 0.01) {
+        this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+          radius: c.shoeScorch,
+          life: c.groundLife * g.lifetime,
+          width: 0.7,
+          intensity: 0.9,
+          colorA: getColor(c.colorSkidDeep),
+          colorB: getColor(c.colorRamRim),
+          height: 0.028
+        });
+      }
+      this._ramKick(i, c.shoeDust, c.shoeChips, 1);
+    }
+  }
+
+  /** Dust and chips off bar `i`'s shoe; `out` 1 throws them outward, −1 inward. */
+  _ramKick(i, dust, chips, out) {
+    const c = settings[ID];
+    const g = settings.global;
+    this.pointAt(1, _target);
+    _radial.subVectors(_feet[i], _target).setY(0);
+    if (_radial.lengthSq() < 1e-6) _radial.copy(this.direction);
+    _radial.normalize();
+    _pos.copy(_feet[i]).setY(0.1);
+    const nd = Math.round(dust * g.particleCount);
+    if (nd > 0) {
+      _dir.copy(_radial).multiplyScalar(out).setY(0.25);
+      this._fillEmit(_pos, 0.25, _dir, c.dustSpeed * 1.2, 0.5, 0.55, c.dustLife * 1.3, 0.4);
+      this.dust.emit(nd, _emit);
+    }
+    const nc = Math.round(chips * g.particleCount * g.explosionIntensity);
+    if (nc > 0) {
+      _dir.copy(_radial).multiplyScalar(out).setY(1.4);
+      this._fillEmit(_pos, 0.15, _dir, c.chipSpeed, 0.6, c.chipSize * 1.5, c.chipLife, 8);
+      this.chips.emit(nc, _emit);
+    }
+  }
+
+  /** The press meets and spits: the billet goes up on a jet of chips and sparks. */
+  _spit() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._spat = true;
+    this.pointAt(1, _target);
+    this.ctx.shake.add(c.spitShake * power * g.cameraShake, 5, 18);
+    this.lightBoost += c.spitLight * power;
+    _pos.copy(_target).setY(0.3);
+    const chips = Math.round(c.spitChips * g.particleCount * power);
+    if (chips > 0) {
+      this._fillEmit(_pos, 0.4, _up, c.spitSpeed, 0.28, c.chipSize * 1.6, c.chipLife * 1.6, 9);
+      this.chips.emit(chips, _emit);
+    }
+    const sparks = Math.round(c.spitSparks * g.particleCount);
+    if (sparks > 0) {
+      this._fillEmit(_pos, 0.3, _up, c.spitSpeed * 1.4, 0.22, 0.08, c.streakLife * 1.5, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const dust = Math.round(c.spitDust * g.particleCount);
+    for (let i = 0; i < dust; i++) {
+      const a = (i / Math.max(1, dust)) * TAU;
+      _dir.set(Math.cos(a), 0.2, Math.sin(a));
+      this._fillEmit(_pos, 0.5, _dir, c.dustSpeed * 1.8, 0.3, 0.65, c.dustLife * 1.5, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    if (c.crushRadius > 0.01) {
+      this.ctx.decals.spawn(DecalType.CRACK, _target, {
+        radius: c.crushRadius * 1.6,
+        life: c.groundLife * g.lifetime,
+        width: 0.6,
+        intensity: 0.9,
+        colorA: getColor(c.colorSkidDeep),
+        colorB: getColor(c.colorRamRim),
+        height: 0.034
+      });
+    }
+  }
+
+  /** The bars slam flat: dust along each, a thud. */
+  _ramFall() {
+    const c = settings[ID];
+    const g = settings.global;
+    this._fell = true;
+    this.ctx.shake.add(c.fallShake * g.cameraShake * g.explosionIntensity, 4, 14);
+    const n = Math.max(3, Math.min(MAX_RAMS, Math.round(c.ramCount)));
+    for (let i = 0; i < n; i++) this._ramKick(i, c.fallDust, 0, 1);
+  }
+
+  /** Motion lines behind the flying bars; skid sparks and grit off the shoes in the squeeze. */
+  _ramShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(3, Math.min(MAX_RAMS, Math.round(c.ramCount)));
+    if (!committed) {
+      const m = Math.round(this._trailEmitter.tick(dt, c.flightStreaks) * g.particleCount);
+      for (let k = 0; k < m; k++) {
+        const i = Math.floor(Math.random() * n);
+        if (_feet[i].lengthSq() < 1e-6) continue;
+        _dir.subVectors(_hand, _feet[i]).setY(0.05);
+        _pos.copy(_feet[i]).addScaledVector(_up, c.ramHeight * 0.1);
+        this._fillEmit(_pos, c.ramWidth * 0.6, _dir, c.streakSpeed, 0.12, 0.1, c.streakLife, 0);
+        this.streaks.emit(1, _emit);
+      }
+      return;
+    }
+    if (this._skidHeat <= 0.05 || this._spat) return;
+    const m = Math.round(this._skidEmitter.tick(dt, c.skidSparks * this._skidHeat) * g.particleCount);
+    for (let k = 0; k < m; k++) {
+      const i = Math.floor(Math.random() * n);
+      _radial.subVectors(_feet[i], _target).setY(0).normalize();
+      _pos.copy(_feet[i]).setY(0.08);
+      _dir.copy(_radial).setY(0.6);
+      this._fillEmit(_pos, c.ramWidth * 0.5, _dir, c.streakSpeed * 0.7, 0.5, 0.07, c.streakLife, 2);
+      this.streaks.emit(1, _emit);
+      if (k % 3 === 0) {
+        _dir.setY(0.2);
+        this._fillEmit(_pos, 0.2, _dir, c.dustSpeed * 0.6, 0.6, 0.45, c.dustLife, 0.4);
+        this.dust.emit(1, _emit);
+      }
+    }
   }
 
   /**
@@ -747,6 +1192,7 @@ export class PressCageAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._ramShed(dt, false);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -754,6 +1200,8 @@ export class PressCageAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._pose(true, 0);
+    this._ramSlam();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -765,6 +1213,9 @@ export class PressCageAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._ramShed(dt, true);
+    if (!this._spat && this._since(true, t) >= this._echoAt()) this._spit();
+    if (this._spat && !this._fell && this._since(true, t) >= this._echoAt() + c.ramToppleTime * g.lifetime) this._ramFall();
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -788,9 +1239,16 @@ export class PressCageAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.rams.visible = false;
+    this.skid.visible = false;
   }
 
   dispose() {
+    this.ramGeometry.dispose();
+    this.ramMaterial.dispose();
+    this.rams.dispose?.();
+    this.skidGeometry.dispose();
+    this.skidMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -977,6 +1435,62 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const press = folder.addFolder('14 · The press');
+  R(press, c, 'ramCount', 3, 12, 1, 'bars');
+  R(press, c, 'ramWidth', 0.1, 1.5, 0.01, 'bar width (m)');
+  R(press, c, 'ramHeight', 0.4, 5, 0.05, 'bar height (m)');
+  R(press, c, 'ramDepth', 0.1, 1.5, 0.01, 'bar depth (m)');
+  R(press, c, 'ramFit', 0.3, 1.4, 0.01, 'ring, × circle');
+  R(press, c, 'ramFan', 0, 6, 0.05, 'fan at the hand (m)');
+  R(press, c, 'ramArc', 0, 6, 0.05, 'flight arc (m)');
+  R(press, c, 'ramStagger', 0, 0.6, 0.01, 'flight stagger');
+  R(press, c, 'ramDip', 0, 1, 0.01, 'slam dip (m)');
+  R(press, c, 'ramHold', 0, 1.5, 0.01, 'hold before the squeeze (s)');
+  R(press, c, 'ramSqueeze', 0.05, 1, 0.01, 'squeezes to, × ring');
+  R(press, c, 'ramAccel', 0.5, 5, 0.05, 'momentum (ease-in power)');
+  R(press, c, 'ramLean', 0, 0.6, 0.01, 'lean into the push (rad)');
+  R(press, c, 'ramRecoil', 0.1, 1.4, 0.01, 'recoils to, × ring');
+  R(press, c, 'ramRecoilTime', 0.05, 1, 0.01, 'recoil (s)');
+  R(press, c, 'ramToppleTime', 0.05, 2, 0.01, 'topple (s)');
+  R(press, c, 'ramBounce', 0, 0.6, 0.01, 'bounce when flat (rad)');
+  R(press, c, 'ramExit', 0.1, 2, 0.01, 'exit (s)');
+  R(press, c, 'ramSink', 0, 3, 0.05, 'sinks as it goes, × depth');
+  R(press, c, 'ramPressGlow', 0, 6, 0.05, 'platen heat');
+  R(press, c, 'ramSkidGlow', 0, 6, 0.05, 'shoe heat');
+  R(press, c, 'ramRimGlow', 0, 4, 0.05, 'rim glow');
+  R(press, c, 'ramSpecular', 0, 4, 0.05, 'specular');
+  press.addColor(c, 'colorRamDeep').name('steel, deep');
+  press.addColor(c, 'colorRamBody').name('steel, body');
+  press.addColor(c, 'colorRamRim').name('red heat');
+  press.addColor(c, 'colorRamHot').name('white-hot');
+  R(press, c, 'shoeScorch', 0, 2, 0.01, 'shoe scorch (m)');
+  R(press, c, 'shoeDust', 0, 30, 1, 'shoe dust');
+  R(press, c, 'shoeChips', 0, 30, 1, 'shoe chips');
+  R(press, c, 'flightStreaks', 0, 400, 1, 'flight streaks / s');
+  R(press, c, 'skidSparks', 0, 400, 1, 'skid sparks / s');
+  R(press, c, 'fallDust', 0, 40, 1, 'dust when flat');
+  R(press, c, 'fallShake', 0, 2, 0.01, 'punch when flat');
+
+  const spit = folder.addFolder('15 · The spit and the floor');
+  R(spit, c, 'billetSize', 0, 2, 0.01, 'billet (m)');
+  R(spit, c, 'billetApex', 0, 8, 0.05, 'spat to (m)');
+  R(spit, c, 'billetRise', 0.1, 2, 0.01, 'rise time (s)');
+  R(spit, c, 'billetSpin', 0, 20, 0.1, 'tumble (rad/s)');
+  R(spit, c, 'spitChips', 0, 200, 1, 'jet chips');
+  R(spit, c, 'spitSparks', 0, 300, 1, 'jet sparks');
+  R(spit, c, 'spitDust', 0, 120, 1, 'dust roll');
+  R(spit, c, 'spitSpeed', 0, 30, 0.1, 'jet speed');
+  R(spit, c, 'spitShake', 0, 2, 0.01, 'camera punch');
+  R(spit, c, 'spitLight', 0, 40, 0.5, 'light punch');
+  R(spit, c, 'crushRadius', 0, 3, 0.01, 'crushed centre (m)');
+  R(spit, c, 'skidWidth', 0.5, 3, 0.01, 'gouge, × bar width');
+  R(spit, c, 'skidReach', 0.5, 2, 0.01, 'stain, × ring');
+  R(spit, c, 'skidGlow', 0, 4, 0.05, 'gouge glow');
+  R(spit, c, 'skidOpacity', 0, 1, 0.01, 'opacity');
+  R(spit, c, 'skidFade', 0.05, 3, 0.01, 'lets go over (s)');
+  spit.addColor(c, 'colorSkidDeep').name('floor, deep');
+  spit.addColor(c, 'colorSkidBody').name('floor, body');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

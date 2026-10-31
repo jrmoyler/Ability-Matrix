@@ -1,15 +1,18 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { InstancedMesh, Matrix4, Mesh, Object3D, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createDuskSpirePieceGeometry, createDuskSpireHeroGeometry } from '../../assets/codex/DuskSpireGeometry.js';
+import { createDuskSpireColumnGeometry, createDuskSpireSpireGeometry } from '../../assets/codex/DuskSpireSignatureGeometry.js';
 import {
   createDuskSpireBodyMaterial,
   createDuskSpireLensMaterial,
   createDuskSpireGroundMaterial,
   createDuskSpireVoiceMaterial,
-  createDuskSpireDetailMaterial
+  createDuskSpireDetailMaterial,
+  createDuskSpireStoneMaterial,
+  createDuskSpireFloorMaterial
 } from '../../materials/codex/DuskSpireMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -43,6 +46,21 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _o = new Object3D();
+const _q = new Quaternion();
+const _axis = new Vector3();
+const _radial = new Vector3();
+const _basis = new Matrix4();
+const TAU = Math.PI * 2;
+
+/** Columns the ring can stand (the `spireColumns` slider is clamped to it). */
+const MAX_COLUMNS = 12;
+
+/** Stable 0..1 dice from a seed and an index. */
+function dice(seed, i, k) {
+  const h = Math.sin(seed * 91.7 + i * 12.9898 + k * 78.233) * 43758.5453;
+  return h - Math.floor(h);
+}
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +90,30 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The spire (upgrade pass — the cast's own silhouette)
+ *
+ * The template body, voice, rig, pieces, field and lens are off by default
+ * (their opacity / count keys are 0); the spell's noun is now real stone:
+ *
+ *  - **anticipation / travel** — a shadow *runner* (`createDuskSpireFloorMaterial(1)`)
+ *    crawls along the floor from the hand to the circle; ahead of it the
+ *    dark pool starts to open and the tips of the columns break the floor.
+ *  - **impact** — a ring of `spireColumns` faceted obsidian columns
+ *    (`createDuskSpireColumnGeometry`, lit, `LAYER.WORLD`, shadows) erupts
+ *    round the circle at `columnRing` × radius, each cracking the floor and
+ *    throwing chips; the centre spire (`createDuskSpireSpireGeometry`) drives
+ *    up through the pool.
+ *  - **linger — the drink** — over `drinkTime` the columns lean in toward the
+ *    spire and sink as their light drains from the tip down, while the spire
+ *    grows and fills with light from its foot up; the pool's spiral filaments
+ *    crawl inward and its edge contracts (`poolEnd`); motes stream from the
+ *    column tips into the needle. Bodies are dragged in (unchanged `carry`).
+ *  - **exit** — from `sinkFrom` the stone sinks back into the floor, the pool
+ *    breaks up from the rim, the residue decal and cracks stay.
+ *
+ * All placement is derived from `zoneRadius` each frame. Dark stone carries the
+ * mass; only seams, veins and the pool's filaments glow.
  *
  * Every metre, rate and colour is read from `settings.duskspire` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +193,204 @@ export class DuskSpireAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+
+    // The stone and its floor — the cast's own hero (see the class comment).
+    this.columnGeometry = createDuskSpireColumnGeometry();
+    this.spireGeometry = createDuskSpireSpireGeometry();
+    this.columnMaterial = createDuskSpireStoneMaterial();
+    this.spireMaterial = createDuskSpireStoneMaterial();
+    this.columns = new InstancedMesh(this.columnGeometry, this.columnMaterial, MAX_COLUMNS);
+    this.columns.count = 0;
+    this.spire = new Mesh(this.spireGeometry, this.spireMaterial);
+    for (const m of [this.columns, this.spire]) {
+      m.layers.set(LAYER.WORLD);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.frustumCulled = false;
+      m.visible = false;
+      this.group.add(m);
+    }
+    this.floorGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.poolMaterial = createDuskSpireFloorMaterial(0);
+    this.runnerMaterial = createDuskSpireFloorMaterial(1);
+    this.pool = this._mesh(this.floorGeometry, this.poolMaterial, LAYER.VFX, 2);
+    this.pool.rotation.x = -Math.PI / 2;
+    this.runner = this._mesh(this.floorGeometry, this.runnerMaterial, LAYER.VFX, 3);
+    this._since = -1;
+    this._erupted = false;
+    this.drinkEmitter = new RateEmitter();
+    this.runnerEmitter = new RateEmitter();
+  }
+
+  /** How far the drink has gone, 0..1 (eased), from the beat's own clock. */
+  _drinkT() {
+    if (this._since < 0) return 0;
+    const c = settings[ID];
+    const x = Math.max(0, Math.min(1, this._since / Math.max(0.05, c.drinkTime * settings.global.lifetime)));
+    return 0.5 - 0.5 * Math.cos(Math.PI * x);
+  }
+
+  /**
+   * Pose the stone, the pool and the runner this frame. Presentation only:
+   * hits and the drag are the template's, untouched.
+   *
+   * @param {number} dt
+   * @param {number} fadeT -1 in travel; the onFade clock (0..2) after the beat
+   */
+  _stone(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const R = Math.max(0.2, c.zoneRadius);
+    this.pointAt(1, _focus);
+    const committed = fadeT >= 0;
+    if (committed) this._since += dt;
+    const since = Math.max(0, this._since);
+    const drink = this._drinkT();
+    const sink = committed && fadeT > c.sinkFrom ? Easing.inCubic(saturate((fadeT - c.sinkFrom) / Math.max(0.05, 2 - c.sinkFrom))) : 0;
+    const flash = committed ? Math.exp(-since / 0.25) : 0;
+
+    // Columns round the circle.
+    const n = Math.max(0, Math.min(MAX_COLUMNS, Math.round(c.spireColumns)));
+    const ring = R * c.columnRing;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + this._seed + (dice(this._seed, i, 1) - 0.5) * (TAU / n) * 0.35;
+      const h = c.columnHeight * (1 - c.columnVary * 0.5 + c.columnVary * dice(this._seed, i, 2));
+      const w = c.columnWidth * (0.85 + 0.3 * dice(this._seed, i, 3));
+      _radial.set(Math.cos(a), 0, Math.sin(a));
+      let rise;
+      let lean;
+      if (!committed) {
+        rise = c.columnTease * Easing.outCubic(saturate(this.u * 1.6 - dice(this._seed, i, 4) * 0.5));
+        lean = 0;
+      } else {
+        const local = since - i * c.columnStagger;
+        rise = c.columnTease + (1 - c.columnTease) * Easing.outBack(saturate(local / Math.max(0.02, c.columnRise)));
+        lean = -c.columnKick * Math.exp(-Math.max(0, local) / 0.18) * saturate(local / 0.05) + c.columnLean * drink;
+      }
+      const drained = 1 - c.columnDrain * drink;
+      const top = h * drained;
+      _o.position.copy(_focus).addScaledVector(_radial, ring - Math.sin(Math.max(0, lean)) * top * 0.15);
+      _o.position.y = -top * (1 - rise) - sink * (top + 0.4);
+      _axis.crossVectors(_radial, _up).normalize();
+      _o.quaternion.setFromAxisAngle(_axis, lean);
+      _q.setFromAxisAngle(_up, -a + dice(this._seed, i, 5) * 2);
+      _o.quaternion.multiply(_q);
+      _o.scale.set(w, top, w);
+      _o.updateMatrix();
+      this.columns.setMatrixAt(i, _o.matrix);
+    }
+    this.columns.count = n;
+    this.columns.instanceMatrix.needsUpdate = true;
+    this.columns.visible = n > 0 && c.columnHeight > 0.01 && (committed || this.u > 0.02) && sink < 0.999;
+    this.columnMaterial.userData.sync(committed ? 1 - c.columnDrainLight * drink : 1, (committed ? 1 + c.stoneFlash * flash : 0.55) * (1 - sink * 0.6));
+
+    // The centre spire: below the floor in travel, drives up on the beat, swells as it drinks.
+    const sh = Math.min(c.spireHeight * (c.spireStart + (1 - c.spireStart) * drink), c.heroMaxHeight);
+    const sRise = committed ? Easing.outCubic(saturate((since - c.spireDelay) / Math.max(0.02, c.spireRise))) : 0;
+    this.spire.position.copy(_focus);
+    this.spire.position.y = -sh * (1 - sRise) - sink * (sh + 0.5);
+    this.spire.rotation.set(0, this._seed + this.age * c.spireTurn * g.animationSpeed, 0);
+    this.spire.scale.set(c.spireWidth, sh, c.spireWidth);
+    this.spire.visible = committed && c.spireHeight > 0.01 && sRise > 0.001 && sink < 0.999;
+    this.spireMaterial.userData.sync(committed ? 0.12 + 0.88 * drink : 0, (1 + c.stoneFlash * flash * 0.6) * (1 - sink * 0.6));
+
+    // The pool: opens a little ahead of the runner, lands on the beat, then is drunk inward.
+    let reach;
+    let erode = 0;
+    if (!committed) reach = c.poolTelegraph * Easing.outCubic(saturate(this.u * 1.3 - 0.2));
+    else {
+      const land = Easing.outCubic(saturate(since / Math.max(0.05, c.groundLand)));
+      reach = Math.max(c.poolTelegraph, land) * (1 - (1 - c.poolEnd) * drink);
+      erode = fadeT > 1.45 ? saturate((fadeT - 1.45) / 0.55) : 0;
+    }
+    this.pool.position.copy(_focus).setY(0.03);
+    this.pool.scale.set(R * c.poolReach, R * c.poolReach, 1);
+    this.poolMaterial.userData.sync(this._seed, reach, committed ? 0.7 + 0.3 * flash : 0.5, erode);
+    this.pool.visible = c.poolOpacity > 0.01 && reach > 0.01 && erode < 0.99;
+
+    // The runner: the shadow crawling from the hand to the circle, then drawn in after it.
+    const start = Math.min(c.handForward + c.runnerStart, this.length * 0.5);
+    let tail;
+    let head;
+    let solid;
+    if (!committed) {
+      tail = start;
+      head = Math.max(start + 0.05, this.front);
+      solid = saturate(this.age / 0.06);
+    } else {
+      const k = Easing.inCubic(saturate(since / Math.max(0.05, c.runnerRetract)));
+      head = this.length;
+      tail = start + (this.length - R * 0.6 - start) * k;
+      solid = 1 - k;
+    }
+    const len = Math.max(0.05, head - tail);
+    _basis.makeBasis(this.side, this.direction, _up);
+    this.runner.quaternion.setFromRotationMatrix(_basis);
+    this.pointAt((tail + len * 0.5) / Math.max(0.1, this.length), this.runner.position).setY(0.035);
+    this.runner.scale.set(c.runnerWidth * 0.5, len * 0.5, 1);
+    this.runnerMaterial.userData.sync(this._seed, solid, 1, 0, len);
+    this.runner.visible = c.runnerOpacity > 0.01 && solid > 0.01 && len > 0.1;
+    // The runner's head churns dark smoke and throws violet sparks as it crawls.
+    if (!committed) {
+      const n = Math.round(this.runnerEmitter.tick(dt, c.runnerSmoke) * g.particleCount);
+      if (n > 0) {
+        this.pointAt(this.u, _pos).setY(0.15);
+        this._fillEmit(_pos, c.runnerWidth * 0.35, _up, c.dustSpeed * 0.5, 0.6, 0.5, c.dustLife, 0.4);
+        this.dust.emit(n, _emit);
+        _dir.copy(this.direction).setY(0.6).normalize();
+        this._fillEmit(_pos, c.runnerWidth * 0.3, _dir, c.streakSpeed * 0.6, 0.5, 0.08, c.streakLife, 2);
+        this.streaks.emit(Math.ceil(n * 0.6), _emit);
+      }
+    }
+  }
+
+  /** Motes drawn off the column tips into the spire through the drink. */
+  _drinkMotes(dt, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(this.drinkEmitter.tick(dt, c.drinkMotes * strength) * g.particleCount);
+    if (n <= 0 || this.columns.count === 0) return;
+    const R = Math.max(0.2, c.zoneRadius);
+    this.pointAt(1, _focus);
+    for (let k = 0; k < n; k++) {
+      const i = Math.floor(Math.random() * this.columns.count);
+      const a = (i / this.columns.count) * TAU + this._seed;
+      _pos.copy(_focus).addScaledVector(_radial.set(Math.cos(a), 0, Math.sin(a)), R * c.columnRing * 0.92);
+      _pos.y = c.columnHeight * (0.5 + Math.random() * 0.4) * (1 - c.columnDrain * this._drinkT());
+      _dir.copy(_focus).setY(c.spireHeight * 0.55).sub(_pos);
+      const d = _dir.length();
+      _dir.multiplyScalar(1 / Math.max(0.01, d));
+      this._fillEmit(_pos, 0.15, _dir, d / Math.max(0.2, c.streakLife * 2.2), 0.08, 0.2, c.streakLife * 2.2, 1);
+      this.streaks.emit(1, _emit);
+    }
+  }
+
+  /** On the beat: each column cracks the floor at its foot and throws stone. */
+  _erupt() {
+    const c = settings[ID];
+    const g = settings.global;
+    const R = Math.max(0.2, c.zoneRadius);
+    const n = Math.max(0, Math.min(MAX_COLUMNS, Math.round(c.spireColumns)));
+    this.pointAt(1, _focus);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + this._seed;
+      _pos.copy(_focus).addScaledVector(_radial.set(Math.cos(a), 0, Math.sin(a)), R * c.columnRing);
+      this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+        radius: c.columnWidth * c.columnCrack,
+        life: c.groundLife * g.lifetime,
+        width: 0.1,
+        intensity: 0.85,
+        colorA: getColor(c.colorPoolVoid),
+        colorB: getColor(c.colorA),
+        height: 0.032
+      });
+      const chips = Math.round(c.columnChips * g.particleCount * g.explosionIntensity);
+      if (chips > 0) {
+        _pos.y = 0.2;
+        this._fillEmit(_pos, c.columnWidth * 0.25, _up, c.chipSpeed * 1.3, 0.7, c.chipSize * 1.6, c.chipLife * 1.4, 8);
+        this.chips.emit(chips, _emit);
+      }
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +471,15 @@ export class DuskSpireAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._since = -1;
+    this._erupted = false;
+    this.drinkEmitter.reset();
+    this.runnerEmitter.reset();
+    this.columns.count = 0;
+    this.columns.visible = false;
+    this.spire.visible = false;
+    this.pool.visible = false;
+    this.runner.visible = false;
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -360,10 +609,10 @@ export class DuskSpireAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -756,6 +1005,7 @@ export class DuskSpireAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._stone(dt, -1);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -763,6 +1013,11 @@ export class DuskSpireAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._since = 0;
+    if (!this._erupted) {
+      this._erupted = true;
+      this._erupt();
+    }
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -774,6 +1029,8 @@ export class DuskSpireAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._stone(dt, t);
+    this._drinkMotes(dt, t < 1.4 ? 1 : 0);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -797,9 +1054,21 @@ export class DuskSpireAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.columns.visible = false;
+    this.spire.visible = false;
+    this.pool.visible = false;
+    this.runner.visible = false;
   }
 
   dispose() {
+    this.columnGeometry.dispose();
+    this.spireGeometry.dispose();
+    this.columnMaterial.dispose();
+    this.spireMaterial.dispose();
+    this.floorGeometry.dispose();
+    this.poolMaterial.dispose();
+    this.runnerMaterial.dispose();
+    this.columns.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -980,6 +1249,54 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const stone = folder.addFolder('14 · The spire');
+  R(stone, c, 'spireColumns', 0, 12, 1, 'columns');
+  R(stone, c, 'columnRing', 0.2, 1.3, 0.01, 'ring (× circle)');
+  R(stone, c, 'columnHeight', 0, 6, 0.05, 'column height (m)');
+  R(stone, c, 'columnVary', 0, 1, 0.01, 'height jitter');
+  R(stone, c, 'columnWidth', 0.2, 5, 0.05, 'column girth (× 0.4 m)');
+  R(stone, c, 'columnTease', 0, 0.6, 0.01, 'tips before the beat');
+  R(stone, c, 'columnRise', 0.02, 1.5, 0.01, 'erupts in (s)');
+  R(stone, c, 'columnStagger', 0, 0.2, 0.005, 'stagger (s)');
+  R(stone, c, 'columnKick', 0, 0.6, 0.01, 'outward kick (rad)');
+  R(stone, c, 'columnLean', 0, 1.2, 0.01, 'lean in (rad)');
+  R(stone, c, 'columnDrain', 0, 0.9, 0.01, 'sinks as drunk');
+  R(stone, c, 'columnDrainLight', 0, 1, 0.01, 'light drained');
+  R(stone, c, 'columnCrack', 0, 6, 0.05, 'crack (× girth)');
+  R(stone, c, 'columnChips', 0, 60, 1, 'chips each');
+  R(stone, c, 'spireHeight', 0, 6, 0.05, 'spire height (m)');
+  R(stone, c, 'spireWidth', 0.2, 6, 0.05, 'spire girth (× 0.48 m)');
+  R(stone, c, 'spireStart', 0.1, 1, 0.01, 'spire before it drinks');
+  R(stone, c, 'spireDelay', 0, 0.6, 0.01, 'spire delay (s)');
+  R(stone, c, 'spireRise', 0.02, 1.5, 0.01, 'spire rises in (s)');
+  R(stone, c, 'spireTurn', -2, 2, 0.01, 'spire turn (rad/s)');
+  R(stone, c, 'drinkTime', 0.2, 4, 0.05, 'drinks over (s)');
+  R(stone, c, 'drinkMotes', 0, 200, 1, 'motes drawn / s');
+  R(stone, c, 'sinkFrom', 1, 1.95, 0.01, 'sinks from');
+  R(stone, c, 'stoneGlow', 0, 8, 0.05, 'seam glow');
+  R(stone, c, 'stoneVeins', 0.01, 0.4, 0.005, 'vein width');
+  R(stone, c, 'stoneFlow', 0, 4, 0.05, 'vein crawl');
+  R(stone, c, 'stoneFlash', 0, 3, 0.05, 'flash on the beat');
+  R(stone, c, 'stoneRim', 0, 3, 0.01, 'rim');
+  R(stone, c, 'stoneRough', 0, 1, 0.01, 'roughness');
+  R(stone, c, 'stoneMetal', 0, 1, 0.01, 'metalness');
+  stone.addColor(c, 'colorStone').name('stone');
+
+  const pool = folder.addFolder('15 · The pool and the runner');
+  R(pool, c, 'poolOpacity', 0, 1.5, 0.01, 'pool opacity');
+  R(pool, c, 'poolReach', 0.2, 1.6, 0.01, 'pool (× circle)');
+  R(pool, c, 'poolTelegraph', 0, 1, 0.01, 'opens before the beat');
+  R(pool, c, 'poolEnd', 0.05, 1, 0.01, 'drunk down to');
+  R(pool, c, 'poolGlow', 0, 6, 0.05, 'filament glow');
+  R(pool, c, 'poolArms', 1, 12, 1, 'spiral arms');
+  R(pool, c, 'poolFlow', -6, 6, 0.05, 'inward crawl');
+  pool.addColor(c, 'colorPoolVoid').name('void');
+  R(pool, c, 'runnerOpacity', 0, 1.5, 0.01, 'runner opacity');
+  R(pool, c, 'runnerWidth', 0.1, 4, 0.05, 'runner width (m)');
+  R(pool, c, 'runnerStart', 0, 4, 0.05, 'starts past the hand (m)');
+  R(pool, c, 'runnerRetract', 0.05, 1.5, 0.01, 'runner drawn in (s)');
+  R(pool, c, 'runnerSmoke', 0, 300, 1, 'smoke at its head / s');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

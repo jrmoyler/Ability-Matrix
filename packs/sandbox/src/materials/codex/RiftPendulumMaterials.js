@@ -994,3 +994,364 @@ export function createRiftPendulumScarMaterial() {
   };
   return material;
 }
+
+/* ======================================================================== */
+/* The pendulum and the rift (cast-local hero, sections 15–17 of the editor) */
+/* ======================================================================== */
+
+/**
+ * The swinging blade, its arm and the pivot collar: lit, opaque void-iron.
+ * Four-stop ramp — white-violet edge core → pale violet tint → saturated
+ * indigo body → near-black deep — with sun diffuse, a hard specular on the
+ * bevels, a violet fresnel at grazing angles and a hot cutting edge along
+ * the convex rim (`aEdge`). Shatters along voronoi cells on the exit
+ * (`uDissolve`). `LAYER.WORLD`, casts shadows.
+ */
+/* The crescent's outline constants — must match createPendulumBladeGeometry
+ * in RiftPendulumAbility.js (outer radius 1, horns at T0, belly depth W). */
+const CRESCENT = { t0: 0.3, w: 0.42 };
+CRESCENT.socket = 1 - CRESCENT.w - 0.012;
+CRESCENT.span = 2 * Math.cos(CRESCENT.t0);
+const glsl = (x) => x.toFixed(6);
+
+const PEND_VERTEX = /* glsl */ `
+  attribute float aEdge;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vEdge;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vLocal = position;
+    vEdge = aEdge;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const PEND_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uDissolve;
+  uniform float uHeat;
+  uniform float uSpecular;
+  uniform float uFresnel;
+  uniform float uAmbient;
+  uniform float uEdgeGlow;
+  uniform float uVein;
+  uniform float uCrescent;   // 1: the blade (edge from its crescent outline), 0: the arm (edge from aEdge)
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vEdge;
+
+  ${noiseGLSL}
+
+  // Edge factor of the crescent, worked out per fragment: the cap faces are
+  // triangulated from the outline alone, so a per-vertex edge would smear
+  // the hot rim across the whole face. Mirrors createPendulumBladeGeometry.
+  float crescentEdge(vec3 p) {
+    vec2 q = p.xy * ${glsl(CRESCENT.span)} - vec2(0.0, ${glsl(CRESCENT.socket)});
+    float r = length(q);
+    float phi = atan(-q.y, q.x);
+    float f = clamp((phi - ${glsl(CRESCENT.t0)}) / (3.14159265 - 2.0 * ${glsl(CRESCENT.t0)}), 0.0, 1.0);
+    float w = ${glsl(CRESCENT.w)} * pow(max(sin(f * 3.14159265), 0.0), 0.75) + 0.012;
+    return clamp((r - (1.0 - w)) / w, 0.0, 1.0);
+  }
+
+  void main() {
+    float vEdgeF = uCrescent > 0.5 ? crescentEdge(vLocal) : vEdge;
+    vec2 cell = voronoi2(vLocal.xy * 5.0 + vLocal.z * 3.0);
+    float dn = cell.y * 0.75 + snoise01(vLocal * 3.0) * 0.25;
+    float thr = 1.0 - uDissolve * 1.1;
+    if (uDissolve > 0.0 && dn > thr) discard;
+    float bite = uDissolve > 0.0 ? 1.0 - smoothstep(0.0, 0.07, thr - dn) : 0.0;
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    if (dot(N, V) < 0.0) N = -N;
+    // Hammered/brushed micro-relief: a flat face must not mirror the sun as one sheet.
+    N = normalize(N + 0.35 * vec3(snoise(vLocal * 9.0), snoise(vLocal * 9.0 + 3.1), snoise(vLocal * 9.0 + 7.3)));
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 48.0) * uSpecular;
+    float fres = pow(1.0 - abs(dot(N, V)), 2.4) * uFresnel;
+
+    // Void-iron: deep in the spine, the saturated body toward the edge; slow
+    // veins of rift crawl through the metal.
+    float vein = smoothstep(0.62, 0.9, snoise01(vLocal * 4.0 + vec3(0.0, uTime * 0.6, 0.0)));
+    float depthT = clamp(1.0 - vEdgeF * 0.75 + snoise01(vLocal * 7.0) * 0.2, 0.0, 1.0);
+    vec3 albedo = mix(uColorBody * 0.3, uColorDeep, depthT);
+    vec3 col = albedo * (uAmbient + ndl * 1.05);
+    col += uColorTint * spec;
+    col += uColorBody * fres * 1.1;
+    col += uColorBody * vein * uVein * 0.9 * uShaderIntensity;
+    float rim = smoothstep(0.9, 1.0, vEdgeF);
+    float hairline = smoothstep(0.975, 1.0, vEdgeF);
+    col += uColorBody * 1.2 * rim * uEdgeGlow * (0.5 + 0.5 * uHeat) * uShaderIntensity;
+    col += uColorCore * hairline * uEdgeGlow * uHeat * 0.9 * uShaderIntensity;
+    col += uColorCore * bite * 2.4;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+export function createRiftPendulumBladeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDissolve: { value: 0 },
+      uHeat: { value: 1 },
+      uSpecular: { value: 1.2 },
+      uFresnel: { value: 0.8 },
+      uAmbient: { value: 0.28 },
+      uEdgeGlow: { value: 1.6 },
+      uVein: { value: 0.5 },
+      uCrescent: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: PEND_VERTEX,
+    fragmentShader: PEND_FRAGMENT
+  });
+  material.userData.sync = (dissolve, heat, edgeScale = 1) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDissolve.value = dissolve;
+    u.uHeat.value = heat;
+    u.uSpecular.value = c.bladeSpecular;
+    u.uFresnel.value = c.bladeFresnel * g.fresnel;
+    u.uAmbient.value = c.bladeAmbient;
+    u.uEdgeGlow.value = c.bladeEdgeGlow * g.glow * edgeScale;
+    u.uVein.value = c.bladeVeins;
+    u.uCrescent.value = edgeScale >= 1 ? 1 : 0;
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
+    u.uColorTint.value.copy(getColor(c.colorBladeTint));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorDeep.value.copy(getColor(c.colorBladeDeep));
+  };
+  return material;
+}
+
+/**
+ * The rift: a tear in the world. A vesica slit (vertical in the air, or laid
+ * flat as the floor wound) — black inside with deep-violet streaks draining
+ * to the seam, a jagged lip that burns violet to white at its very edge.
+ * `uOpen` 0..1 parts it; `uZip` 0..1 zips it shut from both ends to the
+ * middle. Opaque where it is open (it eats the light behind it), discarded
+ * outside.
+ */
+const TEAR_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TEAR_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uOpen;
+  uniform float uZip;
+  uniform float uLip;
+  uniform float uJag;
+  uniform float uSwirl;
+  uniform float uGlow;
+  uniform float uSeed;
+  uniform float uAspect;   // length / width of the quad
+  uniform float uOpacity;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uLipColor;
+  uniform vec3  uHot;
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+
+  void main() {
+    // v runs along the tear (0..1), x across it (-1..1 of the hw width).
+    float v = vUv.y;
+    float x = (vUv.x - 0.5) * 2.0;
+    float m = 2.0 * v - 1.0;
+    // Zip: the tear closes from both ends toward the middle.
+    float reach = 1.0 - uZip;
+    if (abs(m) > reach) discard;
+    float mz = m / max(0.001, reach);
+    float jag = (snoise(vec3(v * 9.0 * uAspect * 0.25, uSeed, uTime * 0.7)) * 0.6
+               + snoise(vec3(v * 23.0 * uAspect * 0.25, uSeed * 2.0, uTime * 1.3)) * 0.4) * uJag;
+    float hw = uOpen * pow(max(0.0, 1.0 - mz * mz), 0.65) * (0.82 + jag * 0.35);
+    float ax = abs(x);
+    // A smoky dark-violet skirt round the tear gives it mass against the dark floor.
+    float skirt = uLip * 5.0 * (0.6 + 0.4 * pow(max(0.0, 1.0 - mz * mz), 0.5));
+    if (ax > hw + skirt) discard;
+    // Inside: filled black, warming to deep violet toward the lip, with
+    // streaks draining toward the seam.
+    float flow = snoise(vec3(x * 3.0, v * 5.0 * uAspect * 0.3 - uTime * uSwirl, uSeed));
+    float inner = smoothstep(0.0, max(0.02, hw), ax);
+    float streak = smoothstep(0.35, 0.9, flow) * (1.0 - inner);
+    vec3 col = uDeep + uBody * (streak * 0.35 + inner * inner * 0.3) * uGlow;
+    // The lip: a narrow violet seam, only its very edge pale, flickering.
+    float flick = 0.75 + 0.25 * snoise(vec3(v * 30.0, uTime * 6.0, uSeed));
+    float e = 1.0 - smoothstep(0.0, uLip, abs(ax - hw));
+    col = mix(col, uLipColor * 1.2 * uGlow * flick, e * 0.85);
+    float hot = 1.0 - smoothstep(0.0, uLip * 0.3, abs(ax - hw));
+    col += uHot * hot * 0.35 * uGlow * flick * uShaderIntensity;
+    float alpha = 1.0;
+    if (ax > hw) {
+      float k = (ax - hw) / max(0.001, skirt);
+      float smoke = 0.55 + 0.45 * snoise(vec3(x * 4.0, v * 6.0 - uTime * 0.8, uSeed + 7.0));
+      col = mix(col, uDeep + uBody * 0.18 * uGlow, smoothstep(uLip * 0.5 / max(0.001, skirt), 1.0, k));
+      alpha = max(e, (1.0 - k) * (1.0 - k) * 0.75 * smoke);
+    }
+    alpha *= uOpacity;
+    gl_FragColor = vec4(col * uGlobalGlow, alpha);
+  }
+`;
+
+export function createRiftPendulumTearMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uOpen: { value: 0 },
+      uZip: { value: 0 },
+      uLip: { value: 0.1 },
+      uJag: { value: 1 },
+      uSwirl: { value: 1 },
+      uGlow: { value: 1 },
+      uSeed: { value: 0 },
+      uAspect: { value: 3 },
+      uOpacity: { value: 1 },
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uLipColor: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: TEAR_VERTEX,
+    fragmentShader: TEAR_FRAGMENT
+  });
+  /** `width` is the quad's full width in metres; `lip` metres. */
+  material.userData.sync = (open, zip, width, length, lip, glow, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpen.value = saturateJS(open);
+    u.uZip.value = saturateJS(zip);
+    u.uLip.value = Math.max(0.01, (2 * lip) / Math.max(0.05, width));
+    u.uJag.value = c.riftJag * (0.5 + 0.5 * g.noiseStrength);
+    u.uSwirl.value = c.riftSwirl * g.turbulence;
+    u.uGlow.value = glow * g.glow;
+    u.uSeed.value = seed;
+    u.uAspect.value = length / Math.max(0.05, width);
+    u.uOpacity.value = g.opacity;
+    u.uDeep.value.copy(getColor(c.colorRiftDeep));
+    u.uBody.value.copy(getColor(c.colorBladeBody));
+    u.uLipColor.value.copy(getColor(c.colorRiftLip));
+    u.uHot.value.copy(getColor(c.colorBladeCore));
+  };
+  return material;
+}
+
+/**
+ * The pivot: a knot of void the pendulum hangs from. A sphere carrier pushed
+ * out into slow-churning spikes in the vertex stage; black with a violet
+ * horizon and a white-hot fresnel.
+ */
+const KNOT_VERTEX = /* glsl */ `
+  uniform float uTime;
+  uniform float uSpikes;
+  uniform float uSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSpike;
+  ${noiseGLSL}
+  void main() {
+    vec3 n = normalize(position);
+    float s = snoise(n * 2.4 + vec3(uTime * 1.5, uSeed, -uTime * 1.2));
+    float spike = pow(max(s, 0.0), 2.0);
+    vec3 p = position * (1.0 + uSpikes * spike * 2.4);
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * n);
+    vSpike = spike;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const KNOT_FRAGMENT = /* glsl */ `
+  uniform float uGlobalGlow;
+  uniform vec3 uDeep;
+  uniform vec3 uRim;
+  uniform vec3 uHot;
+  uniform float uGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying float vSpike;
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    float f = pow(1.0 - clamp(abs(dot(N, V)), 0.0, 1.0), 2.2);
+    vec3 color = uDeep;
+    color += uRim * f * 1.5 * uGlow * uGlobalGlow;
+    color += uHot * pow(f, 4.0) * 1.6 * uGlow * uGlobalGlow;
+    color += uRim * vSpike * 0.7 * uGlow * uGlobalGlow;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createRiftPendulumKnotMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSpikes: { value: 0.3 },
+      uSeed: { value: 0 },
+      uGlow: { value: 1 },
+      uDeep: { value: new Color() },
+      uRim: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: KNOT_VERTEX,
+    fragmentShader: KNOT_FRAGMENT
+  });
+  material.userData.sync = (seed) => {
+    const c = settings[ID];
+    const u = material.uniforms;
+    u.uSpikes.value = c.pivotSpikes;
+    u.uSeed.value = seed;
+    u.uGlow.value = c.pivotGlow * settings.global.glow;
+    u.uDeep.value.copy(getColor(c.colorRiftDeep));
+    u.uRim.value.copy(getColor(c.colorRiftLip));
+    u.uHot.value.copy(getColor(c.colorBladeCore));
+  };
+  return material;
+}
+
+function saturateJS(x) {
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}

@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +20,9 @@ import {
   createAureoleRingLensMaterial,
   createAureoleRingGroundMaterial,
   createAureoleRingVoiceMaterial,
-  createAureoleRingDetailMaterial
+  createAureoleRingDetailMaterial,
+  createAureoleRingGiltMaterial,
+  createAureoleRingSunMaterial
 } from '../../materials/codex/AureoleRingMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +59,135 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Rays the crown can stand (the geometry is instanced once). */
+const MAX_RAYS = 24;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qy = new Quaternion();
+const _scale = new Vector3();
+const _radial = new Vector3();
+const _top = new Vector3();
+const _hand = new Vector3();
+const _face = new Vector3();
+const _zAxis = new Vector3(0, 0, 1);
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/** A stable 0..1 die per ray from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Append a lofted solid from a list of cross-section rings (each a list of [x, z, edge]). */
+function loft(rings, heights, pos, axis, edge) {
+  for (let r = 0; r < rings.length - 1; r++) {
+    const A = rings[r];
+    const B = rings[r + 1];
+    const ya = heights[r];
+    const yb = heights[r + 1];
+    const n = A.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const quad = [[A[i], ya], [B[j], yb], [A[j], ya], [A[i], ya], [B[i], yb], [B[j], yb]];
+      for (const [p, y] of quad) {
+        pos.push(p[0], y, p[1]);
+        axis.push(y);
+        edge.push(p[2]);
+      }
+    }
+  }
+}
+
+/**
+ * One ray of the aureole, one unit tall along +Y: a wavy flamberge blade of
+ * diamond section — broad at the foot, rippled edges, a needle tip — curved
+ * so its face bows in toward the centre (local −Z). Flat facets so the sun
+ * picks out every face. `aAxis` 0 foot .. 1 tip, `aEdge` on the two edges.
+ */
+function createRayGeometry() {
+  const rings = [];
+  const heights = [];
+  const steps = 26;
+  for (let k = 0; k <= steps; k++) {
+    const y = k / steps;
+    const taper = Math.pow(1 - y, 0.85);
+    const ripple = 1 + 0.16 * Math.sin(y * Math.PI * 7) * (1 - y);
+    const w = (0.06 + 0.16 * taper) * ripple * (y < 0.06 ? 0.7 + 5 * y : 1);
+    const t = 0.012 + 0.035 * taper;
+    const bow = -0.09 * y * y;
+    rings.push([[w, bow, 1], [0, bow + t, 0], [-w, bow, 1], [0, bow - t, 0]]);
+    heights.push(y);
+  }
+  const pos = [];
+  const axis = [];
+  const edge = [];
+  loft(rings, heights, pos, axis, edge);
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('aAxis', new Float32BufferAttribute(axis, 1));
+  geometry.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * The sun-star, radius one, facing +Z: a twelve-pointed star plate with a
+ * raised, faceted boss — thick enough to read as cast gold, with lit facets.
+ * `aAxis` runs 0 at the centre to 1 at the points; `aEdge` on the points.
+ */
+function createStarGeometry(points = 12) {
+  const n = points * 2;
+  const pos = [];
+  const axis = [];
+  const edge = [];
+  const tri = (a, b, c) => {
+    for (const p of [a, b, c]) {
+      pos.push(p[0], p[1], p[2]);
+      axis.push(p[3]);
+      edge.push(p[4]);
+    }
+  };
+  const outline = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    const r = i % 2 === 0 ? 1 : 0.5;
+    outline.push([Math.cos(a) * r, Math.sin(a) * r, r, i % 2 === 0 ? 1 : 0]);
+  }
+  const front = 0.07;
+  const back = -0.05;
+  const boss = 0.32;
+  const bossR = 0.3;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const A = outline[i];
+    const B = outline[j];
+    // Front: points ridge up toward a faceted boss.
+    const a = (i / n) * TAU;
+    const b = (j / n) * TAU;
+    const ia = [Math.cos(a) * bossR, Math.sin(a) * bossR, front + 0.1, 0.3, 0];
+    const ib = [Math.cos(b) * bossR, Math.sin(b) * bossR, front + 0.1, 0.3, 0];
+    const fa = [A[0], A[1], front * (A[2] > 0.9 ? 0.4 : 1), A[2], A[3]];
+    const fb = [B[0], B[1], front * (B[2] > 0.9 ? 0.4 : 1), B[2], B[3]];
+    tri(ia, fa, fb);
+    tri(ia, fb, ib);
+    tri([0, 0, boss, 0, 0], ia, ib);
+    // Back plate.
+    tri([0, 0, back, 0, 0], [B[0], B[1], back, B[2], B[3]], [A[0], A[1], back, A[2], A[3]]);
+    // Rim wall.
+    const ba = [A[0], A[1], back, A[2], A[3]];
+    const bb = [B[0], B[1], back, B[2], B[3]];
+    tri(fa, ba, bb);
+    tri(fa, bb, fb);
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('aAxis', new Float32BufferAttribute(axis, 1));
+  geometry.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  geometry.setAttribute('aRay', new Float32BufferAttribute(new Float32Array((pos.length / 3) * 4), 4));
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * AUREOLE RING — light, zone cast.
@@ -72,6 +214,34 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The aureole (the hero, cast-local — sections 14–16 of the editor)
+ *
+ * The shared template layers (body, voice, rig, pieces, template field) are
+ * switched off in the config through their own keys; the spell is carried by
+ * its own forms:
+ *
+ *   - **the sun-star** — a twelve-pointed star of cast gold
+ *     (`createStarGeometry`, `star*`) is thrown spinning from the hand on an
+ *     arc and comes to hang over the centre of the circle, face to the
+ *     caster, on the beat.
+ *   - **the crown** — `rayCount` gilt flamberge rays (`createRayGeometry`,
+ *     `ray*`), alternating tall and short, rise out of the floor wide of the
+ *     circle while the star flies, leaning out, and tighten in onto the rim.
+ *   - **the flare** — on the beat (the moment the radius meets) the crown
+ *     snaps in, every ray leans its tip toward the star, and a band of
+ *     white-gold runs up each ray from foot to tip; sparks are shot up the
+ *     blades, the bodies are thrown out.
+ *   - **the linger** — the crown turns slowly while its heat cools from gold
+ *     to bronze; the star turns and breathes over it; motes of light rise
+ *     off the floor.
+ *   - **the exit** — the rays sink back into the floor one after another
+ *     round the ring, and the star drops and shrinks into the boss.
+ *   - **the sunburst** — a filled disc of alternating long and short gilt
+ *     rays burned into an umber floor (`sun*`), landing from the centre on
+ *     the beat, cooling, eroding at the end.
+ *
+ * All of it is presentation: hits still land once, on the beat, exactly as before.
  *
  * Every metre, rate and colour is read from `settings.aureole` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +277,7 @@ export class AureoleRingAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildAureole();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +322,229 @@ export class AureoleRingAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The aureole's own meshes: the instanced crown of rays, the sun-star, the sunburst floor. */
+  _buildAureole() {
+    this.rayGeometry = createRayGeometry();
+    this.giltMaterial = createAureoleRingGiltMaterial();
+    this.rays = new InstancedMesh(this.rayGeometry, this.giltMaterial, MAX_RAYS);
+    const attr = new InstancedBufferAttribute(new Float32Array(MAX_RAYS * 4), 4);
+    attr.setUsage(DynamicDrawUsage);
+    this.rayGeometry.setAttribute('aRay', attr);
+    this.rays.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.rays.layers.set(LAYER.SHAPED);
+    this.rays.castShadow = true;
+    this.rays.receiveShadow = true;
+    this.rays.frustumCulled = false;
+    this.rays.renderOrder = 14;
+    this.rays.visible = false;
+    this.group.add(this.rays);
+    this.starGeometry = createStarGeometry(12);
+    this.star = this._mesh(this.starGeometry, this.giltMaterial, LAYER.SHAPED, 15);
+    this.star.castShadow = true;
+    this.sunGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.sunMaterial = createAureoleRingSunMaterial();
+    this.sun = this._mesh(this.sunGeometry, this.sunMaterial, LAYER.VFX, 2);
+    this.sun.rotation.x = -Math.PI / 2;
+    this._floor = { radius: 1, land: 0, spin: 0, feet: 0.9, heat: 0, erode: 0, seed: 0 };
+    this._crownSpin = 0;
+    this._starSpin = 0;
+    this._crownR = 1;
+    this._riseEmitter = new RateEmitter();
+    this._starEmitter = new RateEmitter();
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Stand the aureole for this frame: every dimension from settings, every
+   * moment from the travel (`u`) or the seconds since the beat.
+   */
+  _aureole(committed, fadeT, dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const Lg = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    const R = Math.max(0.3, c.zoneRadius);
+    this.pointAt(1, _end);
+    const n = Math.max(3, Math.min(MAX_RAYS, Math.round(c.rayCount)));
+    const H = Math.max(0.2, c.rayHeight);
+    const W = Math.max(0.05, c.rayWidth);
+
+    // Wide and leaning out while the star flies; tightening onto the rim as it arrives; snapping in on the beat.
+    const u = saturate(this.u);
+    const snap = since < 0 ? 0 : Easing.outBack(saturate(since / Math.max(0.02, c.raySnapTime * Lg)));
+    let ring;
+    let lean;
+    let grow;
+    if (since < 0) {
+      const k = Easing.inOutCubic(u);
+      ring = c.rayStart + (c.rayFit - c.rayStart) * k;
+      lean = -c.rayLeanOut * (1 - k);
+      grow = 0.2 + 0.8 * Easing.outCubic(saturate(u * 1.3));
+    } else {
+      ring = c.rayFit * (1 - c.raySnap * snap);
+      lean = c.rayLean * snap;
+      grow = 1;
+    }
+    this._crownR = R * ring;
+    const spinRate = since < 0 ? c.raySpin * 2.5 : c.raySpin * (1 + 2 * Math.exp(-since * 3));
+    this._crownSpin += dt * spinRate * g.animationSpeed;
+    const heat = since < 0 ? 0.15 + 0.25 * u : Math.exp(-since * c.rayCool / Lg);
+    const band = since < 0 ? -1 : saturate(since / Math.max(0.05, c.rayFlareTime * Lg)) * 1.3 - 0.1;
+    const sinkStart = total * c.raySinkStart;
+
+    const attr = this.rayGeometry.getAttribute('aRay');
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      const tall = i % 2 === 0 ? 1 : c.rayShort;
+      const order = (i / n + 0.2 * d) % 1;
+      const sink = since < 0 ? 0 : Easing.inQuad(saturate((since - sinkStart - c.raySinkStagger * order * Lg) / Math.max(0.05, c.raySinkTime * Lg)));
+      // Before the beat each ray rises on its own little delay.
+      const rise = since < 0 ? Easing.outCubic(saturate(grow * 1.15 - d * 0.15)) : 1;
+      const h = H * tall * (0.85 + 0.3 * d) * rise;
+      attr.setXYZW(i, d * 10, saturate(heat * (0.85 + 0.3 * d)), band - d * 0.08, 0);
+      if (h < 0.02 || sink >= 0.999) {
+        this.rays.setMatrixAt(i, _zero);
+        continue;
+      }
+      any = true;
+      const ang = this._crownSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      _pos.copy(_end).addScaledVector(_radial, this._crownR);
+      _pos.y = -sink * h * 1.05 - 0.05;
+      // Lean the tip in toward the centre (or out, before the beat), then face the blade inward.
+      const tilt = lean * (0.8 + 0.4 * d) + c.rayBreathe * Math.sin(this.age * 3 + i) * (since < 0 ? 0 : 1);
+      _top.set(0, Math.cos(tilt), 0).addScaledVector(_radial, -Math.sin(tilt));
+      _q.setFromUnitVectors(_up, _top);
+      _qy.setFromAxisAngle(_up, Math.atan2(-_radial.x, -_radial.z));
+      _q.multiply(_qy);
+      _scale.set(W * (0.8 + 0.4 * tall), h, W * (0.8 + 0.4 * tall));
+      _m4.compose(_pos, _q, _scale);
+      this.rays.setMatrixAt(i, _m4);
+    }
+    this.rays.count = n;
+    this.rays.visible = any;
+    this.rays.instanceMatrix.needsUpdate = true;
+    attr.needsUpdate = true;
+    this.giltMaterial.userData.sync();
+
+    // The sun-star: thrown from the hand, hanging over the centre, dropping into the boss at the end.
+    const S = Math.max(0.05, c.starSize);
+    let starScale;
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    if (since < 0) {
+      _pos.lerpVectors(_hand, _end, u);
+      _pos.y = _hand.y * (1 - u) + c.starHeight * u + c.starArc * 4 * u * (1 - u);
+      starScale = S * (0.35 + 0.65 * Easing.outCubic(u));
+      this._starSpin += dt * c.starSpinFlight * g.animationSpeed;
+    } else {
+      const drop = Easing.inQuad(saturate((since - total * c.starExit) / Math.max(0.05, total * (1 - c.starExit))));
+      const bob = c.starBob * Math.sin(since * 2.4);
+      _pos.copy(_end);
+      _pos.y = (c.starHeight + bob + c.starRise * Easing.outCubic(saturate(since / 0.4))) * (1 - drop) + 0.1 * drop;
+      starScale = S * (1 + c.starPop * Math.exp(-since * 6) * Math.min(1, since * 30)) * (1 - drop);
+      this._starSpin += dt * c.starSpin * (1 + 3 * Math.exp(-since * 2)) * g.animationSpeed;
+    }
+    const showStar = starScale > 0.01;
+    this.star.visible = showStar;
+    if (showStar) {
+      // Face the caster, turning about that facing.
+      _face.copy(this.origin).sub(_pos).setY(0);
+      if (_face.lengthSq() < 1e-4) _face.copy(this.direction).multiplyScalar(-1);
+      _face.normalize();
+      _q.setFromUnitVectors(_zAxis, _face);
+      _qy.setFromAxisAngle(_zAxis, this._starSpin);
+      _q.multiply(_qy);
+      this.star.quaternion.copy(_q);
+      this.star.position.copy(_pos);
+      this.star.scale.set(starScale, starScale, starScale * c.starDepth);
+      const sa = this.starGeometry.getAttribute('aRay');
+      if (this._starHeat !== heat) {
+        const band2 = since < 0 ? -1 : band;
+        for (let k = 0; k < sa.count; k++) sa.setXYZW(k, 3.7, saturate(heat * 1.1 + 0.15), band2, 0);
+        sa.needsUpdate = true;
+        this._starHeat = heat;
+      }
+    }
+
+    // The sunburst on the floor.
+    const f = this._floor;
+    f.radius = R * c.sunFit;
+    f.land = since < 0 ? 0 : 1.15 * Easing.outCubic(saturate(since / Math.max(0.03, c.sunLand * Lg)));
+    f.spin = this._crownSpin * c.sunTurn;
+    f.feet = this._crownR / Math.max(0.01, f.radius);
+    f.heat = since < 0 ? 0 : 0.25 + 0.75 * heat;
+    const erodeStart = total * c.sunErodeStart;
+    f.erode = since < 0 ? 0 : saturate((since - erodeStart) / Math.max(0.1, total - erodeStart));
+    f.seed = this._seed;
+    const showSun = c.sunOpacity > 0.01 && f.land > 0.01 && f.erode < 0.999;
+    this.sun.visible = showSun;
+    if (showSun) {
+      const span = f.radius * 2.2;
+      this.sun.position.set(_end.x, 0.04, _end.z);
+      this.sun.scale.set(span, span, 1);
+      this.sunMaterial.userData.sync(f);
+    }
+  }
+
+  /** The aureole's own particles: sparks shot up the blades on the flare, motes rising off the sunburst, the star's wake. */
+  _aureoleShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (!committed) {
+      if (!this.star.visible) return;
+      const n = Math.round(this._starEmitter.tick(dt, c.starTrail) * g.particleCount);
+      if (n > 0) {
+        this._fillEmit(this.star.position, c.starSize * 0.5, _up, c.moteSpeed * 0.4, 1, 0.09, c.moteLife * 0.6, 1);
+        this.motes.emit(n, _emit);
+      }
+      return;
+    }
+    if (!this.sun.visible) return;
+    const R = this._floor.radius;
+    this.pointAt(1, _end);
+    const n = Math.round(this._riseEmitter.tick(dt, c.sunMotes * (1 - this._floor.erode)) * g.particleCount);
+    for (let k = 0; k < n; k++) {
+      const ang = Math.random() * TAU;
+      const r = R * Math.sqrt(Math.random()) * 0.9;
+      _pos.set(_end.x + Math.cos(ang) * r, 0.1, _end.z + Math.sin(ang) * r);
+      this._fillEmit(_pos, 0.05, _up, c.moteSpeed, 0.25, 0.08, c.moteLife * 1.3, 1);
+      this.motes.emit(1, _emit);
+    }
+  }
+
+  /** The flare: sparks shot up every blade, a light punch. */
+  _flare() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(3, Math.min(MAX_RAYS, Math.round(c.rayCount)));
+    this.pointAt(1, _end);
+    this.lightBoost += c.flareLight * g.explosionIntensity;
+    const per = Math.round(c.flareSparks * g.particleCount);
+    if (per <= 0) return;
+    for (let i = 0; i < n; i++) {
+      const ang = this._crownSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      _pos.copy(_end).addScaledVector(_radial, this._crownR).setY(0.3);
+      _dir.copy(_radial).multiplyScalar(-0.35).setY(1);
+      this._fillEmit(_pos, 0.15, _dir, c.streakSpeed * 1.4, 0.18, 0.08, c.streakLife * 1.6, 2);
+      this.streaks.emit(per, _emit);
+    }
+  }
+
+  _hideAureole() {
+    this.rays.visible = false;
+    this.star.visible = false;
+    this.sun.visible = false;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +625,13 @@ export class AureoleRingAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._crownSpin = Math.random() * TAU;
+    this._starSpin = 0;
+    this._starHeat = -1;
+    this._crownR = settings[ID].zoneRadius * settings[ID].rayStart;
+    this._riseEmitter.reset();
+    this._starEmitter.reset();
+    this._hideAureole();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -745,8 +1146,10 @@ export class AureoleRingAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._aureole(false, 0, dt);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._aureoleShed(dt, false);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -754,6 +1157,7 @@ export class AureoleRingAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._flare();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -763,8 +1167,10 @@ export class AureoleRingAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._aureole(true, t, dt);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._aureoleShed(dt, true);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -788,9 +1194,15 @@ export class AureoleRingAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideAureole();
   }
 
   dispose() {
+    this.rayGeometry.dispose();
+    this.starGeometry.dispose();
+    this.giltMaterial.dispose();
+    this.sunGeometry.dispose();
+    this.sunMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -971,6 +1383,60 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const crown = folder.addFolder('14 · The crown');
+  R(crown, c, 'rayCount', 3, 24, 1, 'rays');
+  R(crown, c, 'rayHeight', 0.3, 6, 0.05, 'height (m)');
+  R(crown, c, 'rayShort', 0.2, 1, 0.01, 'short rays, × height');
+  R(crown, c, 'rayWidth', 0.2, 4, 0.05, 'width');
+  R(crown, c, 'rayStart', 0.5, 3, 0.01, 'rises at, × circle');
+  R(crown, c, 'rayFit', 0.2, 1.5, 0.01, 'meets at, × circle');
+  R(crown, c, 'raySnap', 0, 0.6, 0.01, 'snaps in, × ring');
+  R(crown, c, 'raySnapTime', 0.02, 0.6, 0.01, 'snap (s)');
+  R(crown, c, 'rayLeanOut', 0, 1, 0.01, 'leans out before (rad)');
+  R(crown, c, 'rayLean', -0.5, 1, 0.01, 'leans in after (rad)');
+  R(crown, c, 'rayBreathe', 0, 0.2, 0.005, 'breathes (rad)');
+  R(crown, c, 'raySpin', -3, 3, 0.01, 'turn (rad/s)');
+  R(crown, c, 'rayFlareTime', 0.05, 1.5, 0.01, 'flare runs up in (s)');
+  R(crown, c, 'rayCool', 0.1, 6, 0.05, 'cools');
+  R(crown, c, 'raySinkStart', 0, 1, 0.01, 'sinks from, share of life');
+  R(crown, c, 'raySinkStagger', 0, 2, 0.01, 'sink sweep (s)');
+  R(crown, c, 'raySinkTime', 0.05, 2, 0.01, 'sinks in (s)');
+  R(crown, c, 'giltRimGlow', 0, 4, 0.05, 'rim glow');
+  R(crown, c, 'giltSpecular', 0, 4, 0.05, 'specular');
+  R(crown, c, 'giltEdgeGlow', 0, 4, 0.05, 'edge glow');
+  R(crown, c, 'giltFlareGlow', 0, 6, 0.05, 'flare glow');
+  R(crown, c, 'giltHeatGlow', 0, 4, 0.05, 'heat glow');
+  crown.addColor(c, 'colorGiltDeep').name('bronze, deep');
+  crown.addColor(c, 'colorGiltBody').name('gold, body');
+  crown.addColor(c, 'colorGiltPale').name('gold, pale');
+  crown.addColor(c, 'colorGiltHot').name('white-gold');
+  R(crown, c, 'flareSparks', 0, 60, 1, 'sparks per ray');
+  R(crown, c, 'flareLight', 0, 40, 0.5, 'flare light');
+
+  const star = folder.addFolder('15 · The sun-star');
+  R(star, c, 'starSize', 0, 3, 0.01, 'radius (m)');
+  R(star, c, 'starDepth', 0.2, 4, 0.05, 'thickness');
+  R(star, c, 'starHeight', 0.5, 6, 0.05, 'hangs at (m)');
+  R(star, c, 'starRise', 0, 2, 0.01, 'rises after (m)');
+  R(star, c, 'starArc', 0, 6, 0.05, 'arc (m)');
+  R(star, c, 'starSpinFlight', -40, 40, 0.5, 'spin in flight');
+  R(star, c, 'starSpin', -10, 10, 0.05, 'spin after');
+  R(star, c, 'starPop', 0, 1, 0.01, 'pop on the beat');
+  R(star, c, 'starBob', 0, 0.6, 0.01, 'bob (m)');
+  R(star, c, 'starExit', 0.3, 1, 0.01, 'drops from, share of life');
+  R(star, c, 'starTrail', 0, 300, 1, 'wake motes / s');
+
+  const sun = folder.addFolder('16 · The sunburst');
+  R(sun, c, 'sunFit', 0.3, 2, 0.01, 'reach, × circle');
+  R(sun, c, 'sunTurn', 0, 2, 0.01, 'turns with the crown');
+  R(sun, c, 'sunOpacity', 0, 1.5, 0.01, 'opacity');
+  R(sun, c, 'sunHeat', 0, 3, 0.01, 'heat');
+  R(sun, c, 'sunLand', 0.03, 2, 0.01, 'lands in (s)');
+  R(sun, c, 'sunErodeStart', 0, 1, 0.01, 'erodes from, share of life');
+  R(sun, c, 'sunMotes', 0, 300, 1, 'motes / s');
+  sun.addColor(c, 'colorSunBed').name('bed');
+  sun.addColor(c, 'colorSunRay').name('rays');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

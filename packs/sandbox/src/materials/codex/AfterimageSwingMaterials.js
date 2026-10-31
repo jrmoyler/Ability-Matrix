@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -991,6 +991,457 @@ export function createAfterimageSwingScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* The upgrade: the real blade, its afterimages, the cut, the floor.   */
+/* ------------------------------------------------------------------ */
+
+const BLADE_VERTEX = /* glsl */ `
+  attribute float aEdge;
+  attribute float aAlong;
+  attribute vec4  aGhost;    // ghosts only: alpha, flicker seed, chroma shift, shatter 0..1
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vEdge;
+  varying float vAlong;
+  varying vec4  vGhost;
+  void main() {
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 w = model * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vLocal = position;
+    vEdge = aEdge;
+    vAlong = aAlong;
+    vGhost = aGhost;
+    vNormalW = normalize(mat3(model) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const BLADE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uDissolve;   // 0 whole .. 1 shattered away (and the reverse when it forms)
+  uniform float uHeat;       // 0..1 how hot the edge runs (the cut)
+  uniform float uSpecular;
+  uniform float uFresnel;
+  uniform float uAmbient;
+  uniform float uEdgeGlow;
+  uniform float uSheen;      // iridescent sheen across the flat
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vEdge;
+  varying float vAlong;
+
+  ${noiseGLSL}
+
+  void main() {
+    // Shatter along facet cells: whole panes go at once, a hot rim on the break.
+    vec2 cell = voronoi2(vLocal.xz * 7.0);
+    float dn = cell.y * 0.7 + (snoise(vLocal * 4.0) * 0.5 + 0.5) * 0.3;
+    float thr = 1.0 - uDissolve * 1.1;
+    if (uDissolve > 0.0 && dn > thr) discard;
+    float bite = uDissolve > 0.0 ? 1.0 - smoothstep(0.0, 0.06, thr - dn) : 0.0;
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 64.0) * uSpecular;
+    float fres = pow(1.0 - abs(dot(N, V)), 2.5) * uFresnel;
+
+    // Dark plum glass: deep in the spine, the saturated body toward the edge.
+    float depthT = clamp(1.0 - vEdge * 0.85 + (snoise(vLocal * 6.0) * 0.5 + 0.5) * 0.25, 0.0, 1.0);
+    vec3 albedo = mix(uColorBody, uColorDeep, depthT);
+    vec3 col = albedo * (uAmbient + ndl * 0.9);
+    // Thin-film sheen: the illusion's oil-on-glass shimmer, sliding with the view.
+    float film = sin((dot(V, N) * 9.0 + vAlong * 6.0 + uTime * 1.5));
+    vec3 sheen = mix(uColorBody, uColorTint, film * 0.5 + 0.5);
+    col += sheen * uSheen * pow(1.0 - abs(dot(N, V)), 1.5) * 0.6;
+    float blade = step(0.0, vEdge);   // the wrapped grip (vEdge < 0) is dull
+    col += uColorTint * spec * mix(0.15, 1.0, blade);
+    col += uColorBody * fres * 0.9 * blade;
+    // The cutting edge: a white-hot line along the convex rim.
+    float rim = smoothstep(0.82, 1.0, vEdge);
+    col += mix(uColorBody * 1.4, uColorCore * 1.5, uHeat) * rim * uEdgeGlow * (0.6 + 0.4 * uHeat) * uShaderIntensity;
+    col += uColorCore * bite * 2.5;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+/**
+ * The real blade: lit, opaque dark-plum glass (four-stop ramp: white-hot edge
+ * → pale pink sheen → saturated magenta body → near-black plum spine), sun
+ * diffuse + sharp specular on the facets, an iridescent thin-film sheen at
+ * grazing angles and a hot cutting edge. Shatters along facet cells on the
+ * exit (`uDissolve`) and forms the same way, reversed, when it appears.
+ * `LAYER.WORLD`, casts shadows.
+ */
+export function createAfterimageBladeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDissolve: { value: 0 },
+      uHeat: { value: 1 },
+      uSpecular: { value: 1.4 },
+      uFresnel: { value: 0.9 },
+      uAmbient: { value: 0.3 },
+      uEdgeGlow: { value: 1.6 },
+      uSheen: { value: 0.8 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: BLADE_VERTEX,
+    fragmentShader: BLADE_FRAGMENT
+  });
+  material.userData.sync = (dissolve, heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDissolve.value = dissolve;
+    u.uHeat.value = heat;
+    u.uSpecular.value = c.bladeSpecular;
+    u.uFresnel.value = c.bladeFresnel * g.fresnel;
+    u.uAmbient.value = c.bladeAmbient;
+    u.uEdgeGlow.value = c.bladeEdgeGlow * g.glow;
+    u.uSheen.value = c.bladeSheen;
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
+    u.uColorTint.value.copy(getColor(c.colorBladeTint));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorDeep.value.copy(getColor(c.colorBladeDeep));
+  };
+  return material;
+}
+
+const GHOST_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uOpacity;
+  uniform float uScan;       // scanline density
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vEdge;
+  varying float vAlong;
+  varying vec4  vGhost;
+
+  ${noiseGLSL}
+
+  void main() {
+    float alpha = vGhost.x;
+    if (alpha < 0.003) discard;
+    // Shatter: the ghost breaks into panes that drop out.
+    vec2 cell = voronoi2(vLocal.xz * 6.0 + vGhost.y);
+    if (vGhost.w > 0.0 && cell.y < vGhost.w * 1.05) discard;
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    float facing = abs(dot(N, V));
+    float fres = pow(1.0 - facing, 2.0);
+    // Scanlines sliding along the blade and a stutter: an image, not a thing.
+    float scan = 0.55 + 0.45 * sin(vWorld.y * uScan + uTime * 18.0 + vGhost.y * 6.0);
+    float stutter = step(0.18, fract(sin(floor(uTime * 14.0 + vGhost.y * 31.0) * 12.9898) * 43758.5));
+    float rim = smoothstep(0.78, 1.0, vEdge);
+    // A ghost of the plum blade: a dark, see-through plum body, banded by
+    // scanlines, with only its cutting edge (and a chromatic fringe) in pink.
+    float split = smoothstep(-0.05, 0.05, vLocal.y + (vGhost.z - 0.5) * 0.04);
+    vec3 body = mix(uColorDeep, uColorBody * 0.45, fres * 0.8 + (1.0 - scan) * 0.15);
+    vec3 edge = mix(uColorBody, uColorTint, split) * rim * 1.5 + uColorCore * rim * rim * 0.6;
+    vec3 col = body + edge * uShaderIntensity;
+    float a = alpha * uOpacity * (0.55 + 0.45 * stutter) * (0.45 + 0.35 * scan + 0.5 * rim);
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(a, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The afterimages: ghosts of the plum blade — a dark, see-through plum body
+ * (normal blending, so the deep tone reads on the floor) with only the
+ * cutting edge in pink, scanlines sliding through it, a stutter, a chromatic
+ * split along the edge. Instanced; `aGhost` carries each copy's alpha,
+ * flicker seed, split and how far it has shattered.
+ */
+export function createAfterimageGhostMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uOpacity: { value: 1 },
+      uScan: { value: 40 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: BLADE_VERTEX,
+    fragmentShader: GHOST_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpacity.value = c.ghostOpacity * g.opacity;
+    u.uScan.value = c.ghostScan;
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
+    u.uColorTint.value.copy(getColor(c.colorBladeTint));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorDeep.value.copy(getColor(c.colorBladeDeep));
+  };
+  return material;
+}
+
+const CUT_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv * 2.0 - 1.0;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CUT_FRAGMENT = /* glsl */ `
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uLead;       // leading angle of the sweep, rad (0 = +x of the quad)
+  uniform float uStart;      // angle the sweep began at
+  uniform float uAlpha;
+  uniform float uInner;      // inner radius 0..1
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec2 vUv;
+
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vUv);
+    if (r > 1.0 || uAlpha < 0.003) discard;
+    float a = atan(vUv.y, vUv.x);
+    // Only the arc already swept: from the start angle up to the leading edge.
+    float swept = uLead - uStart;
+    float into = (a - uStart) * sign(swept);
+    float span = abs(swept);
+    if (into < 0.0 || into > span) discard;
+    float behind = span - into;          // 0 at the leading edge
+    float head = exp(-behind * 3.5);
+    float band = smoothstep(uInner, uInner + 0.06, r) * (1.0 - smoothstep(0.88, 0.94, r));
+    float edge = exp(-pow((r - 0.86) / 0.025, 2.0));
+    float streak = 0.6 + 0.4 * snoise(vec3(r * 40.0, behind * 0.6, 3.0));
+    // A bright knife-line at the blade's radius, a hot wedge at the leading edge.
+    float k = band * (0.15 + 0.85 * head) * streak + edge * (0.55 + 0.45 * head) * 1.6;
+    vec3 col = gradient4(uColorDeep, uColorBody, uColorTint, uColorCore, clamp(k * 1.1, 0.0, 1.0));
+    gl_FragColor = vec4(col * k * uAlpha * uGlobalGlow * uShaderIntensity, 1.0);
+  }
+`;
+
+/**
+ * The cut: a flat crescent of light swept through the group by the returning
+ * blade — only the arc already crossed is drawn, brightest at the leading
+ * edge, combed into streaks, a hard white line at the blade's radius.
+ * Additive, VFX layer.
+ */
+export function createAfterimageCutMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uLead: { value: 0 },
+      uStart: { value: 0 },
+      uAlpha: { value: 0 },
+      uInner: { value: 0.45 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: CUT_VERTEX,
+    fragmentShader: /* glsl */ `${commonGLSL}\n${CUT_FRAGMENT}`
+  });
+  material.userData.sync = (start, lead, alpha) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uStart.value = start;
+    u.uLead.value = lead;
+    u.uAlpha.value = alpha * c.cutOpacity * g.opacity;
+    u.uInner.value = c.cutInner;
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
+    u.uColorTint.value.copy(getColor(c.colorBladeTint));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorDeep.value.copy(getColor(c.colorBladeDeep));
+  };
+  return material;
+}
+
+const FLOOR_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const FLOOR_FRAGMENT = /* glsl */ `
+  #define MAX_GHOSTS 8
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform vec4  uEcho[MAX_GHOSTS];  // x, z, strength 0..1, radius
+  uniform vec3  uCut;               // end x, z, seconds since the cut (<0 = not yet)
+  uniform vec2  uDir;               // cast heading (x, z)
+  uniform float uCutRadius;
+  uniform float uCutWidth;
+  uniform float uCutSpan;           // half-angle of the gash, rad
+  uniform float uCutLead;           // the blade's angle on the arc: the gash is open behind it
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uErode;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vWorld.xz;
+    float cover = 0.0;
+    float dark = 0.0;
+    float hot = 0.0;
+    float sheen = 0.0;
+    // Echo footprints: a mirror-dark pool under each afterimage, a pink fringe.
+    for (int i = 0; i < MAX_GHOSTS; i++) {
+      vec4 E = uEcho[i];
+      if (E.z <= 0.001) continue;
+      vec2 d = p - E.xy;
+      float r = length(d * vec2(1.0, 1.0)) / max(0.05, E.w);
+      float pool = 1.0 - smoothstep(0.55, 1.0, r + snoise(vec3(p * 2.5, float(i))) * 0.12);
+      float fringe = exp(-pow((r - 0.85) / 0.16, 2.0)) * (0.5 + 0.5 * snoise(vec3(p * 4.0, float(i) + uTime * 0.5)));
+      cover = max(cover, pool * 0.9 * E.z);
+      dark = max(dark, pool * E.z);
+      sheen = max(sheen, (pool * 0.3 + fringe * 0.35) * E.z);
+    }
+    // The gash: a crescent cut across the line at the end, pointing back up it.
+    if (uCut.z >= 0.0) {
+      vec2 d = p - uCut.xy;
+      vec2 fwd = normalize(uDir);
+      vec2 side = vec2(fwd.y, -fwd.x);
+      float x = dot(d, side);
+      float y = dot(d, fwd);
+      // Arc centre sits back up the line, so the crescent bows away from the caster.
+      vec2 q = vec2(x, y + uCutRadius);
+      float rr = length(q);
+      float ang = atan(q.x, q.y);
+      // Opened behind the blade as it sweeps, tapering to points at both ends.
+      float taper = (1.0 - smoothstep(uCutSpan * 0.6, uCutSpan, abs(ang))) * smoothstep(0.0, 0.08, uCutLead - ang);
+      float w = uCutWidth * taper;
+      float band = 1.0 - smoothstep(w * 0.3, w, abs(rr - uCutRadius));
+      float seam = exp(-pow((rr - uCutRadius) / max(0.01, w * 0.18), 2.0)) * taper;
+      float lip = exp(-pow((abs(rr - uCutRadius) - w) / max(0.01, w * 0.4), 2.0)) * taper;
+      cover = max(cover, max(band, lip * 0.5));
+      dark = max(dark, band);
+      hot = max(hot, seam * exp(-uCut.z * 1.2) * 0.7);
+      sheen = max(sheen, lip);
+    }
+    if (cover < 0.01) discard;
+    float er = snoise(vec3(p * 1.6, 5.0)) * 0.5 + 0.5;
+    if (uErode > 0.0 && er < uErode) discard;
+    // Mirror-dark plum, a slow iridescent shimmer in the sheen.
+    float shimmer = 0.5 + 0.5 * sin(p.x * 3.0 + p.y * 2.0 + uTime * 2.0);
+    vec3 col = mix(uColorBody * 0.2, uColorDeep * 0.35, dark);
+    col += mix(uColorBody, uColorTint, shimmer) * sheen * 0.35 * uGlow;
+    col += mix(uColorBody * 1.4, uColorCore, hot) * hot * uGlow * 1.4 * uShaderIntensity;
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(cover * uOpacity, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The floor: a mirror-dark pool with a pink fringe under every afterimage
+ * (fading as the ghost goes), and the gash — a filled crescent cut into the
+ * floor across the group, bowed away from the caster, a hot seam that cools
+ * and an iridescent lip. Normal blending; erodes on the exit.
+ */
+export function createAfterimageFloorMaterial() {
+  const echo = Array.from({ length: 8 }, () => new Vector4());
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uEcho: { value: echo },
+      uCut: { value: new Vector3(0, 0, -1) },
+      uDir: { value: new Vector3(0, 1, 0) },
+      uCutRadius: { value: 2 },
+      uCutWidth: { value: 0.3 },
+      uCutSpan: { value: 0.8 },
+      uCutLead: { value: -10 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uErode: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: FLOOR_VERTEX,
+    fragmentShader: FLOOR_FRAGMENT
+  });
+  material.userData.sync = (erode, lead) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCutLead.value = lead;
+    u.uCutRadius.value = c.gashRadius;
+    u.uCutWidth.value = c.gashWidth;
+    u.uCutSpan.value = c.gashSpan;
+    u.uOpacity.value = c.floorOpacity * g.opacity;
+    u.uGlow.value = c.floorGlow * g.glow;
+    u.uErode.value = erode;
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
+    u.uColorTint.value.copy(getColor(c.colorBladeTint));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorDeep.value.copy(getColor(c.colorBladeDeep));
   };
   return material;
 }

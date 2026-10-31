@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -988,6 +988,260 @@ export function createAbsenceLanceScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* -------------------------------------------------------------------- */
+/* The lance itself — cast-local hero shaders                            */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The lance: lit void-obsidian. A near-black violet body with glassy strata,
+ * sun-lit (key + sky fill + a hard specular glint) so it reads as a solid
+ * spear, a violet fresnel rim, a seam of light up each arris of the cruciform
+ * head, and the unmaking: an erase front that eats the lance from the butt
+ * to the tip with a white-hot cut edge (`uErase` 0..1 along the axis).
+ * Opaque, on LAYER.SHAPED so it casts the sun's shadow. The geometry carries
+ * `aAxis` (0 butt .. 1 tip) and `aArris` (1 on the blade edges).
+ */
+const LANCE_VERTEX = /* glsl */ `
+  attribute float aAxis;
+  attribute float aArris;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vAxis;
+  varying float vArris;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vLocal = position;
+    vAxis = aAxis;
+    vArris = aArris;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const LANCE_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uRim;
+  uniform vec3  uHot;
+  uniform float uRimGlow;
+  uniform vec3  uCold;
+  uniform float uColdRim;
+  uniform float uSpecular;
+  uniform float uSeam;
+  uniform float uErase;
+  uniform float uCutWidth;
+  uniform float uHeat;
+  uniform float uSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vAxis;
+  varying float vArris;
+
+  ${noiseGLSL}
+
+  void main() {
+    float n = snoise(vec3(vLocal.x * 6.0, vAxis * 14.0, vLocal.z * 6.0 + uSeed));
+    // Unmade from the butt toward the tip: what is left is everything ahead of the cut.
+    float cut = vAxis - (uErase * 1.15 - 0.08) + n * 0.035;
+    if (cut < 0.0) discard;
+    float edge = 1.0 - smoothstep(0.0, uCutWidth, cut);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    float strata = smoothstep(0.3, 0.95, snoise01(vec3(vAxis * 5.0, vLocal.x * 3.0 + vLocal.z * 3.0, uSeed)));
+    vec3 albedo = mix(uDeep, uBody, 0.25 + 0.75 * strata);
+    vec3 color = albedo * (0.3 + 1.15 * ndl);
+    color += albedo * 0.3 * (0.5 + 0.5 * N.y);
+    color += mix(uRim, vec3(1.0), 0.45) * pow(max(dot(N, H), 0.0), 80.0) * uSpecular;
+    color += uRim * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow;
+    // A cold rim light that lifts the black silhouette off the night floor.
+    color += uCold * smoothstep(0.55, 0.95, 1.0 - ndv) * uColdRim * (0.6 + 0.4 * N.y) * uGlobalGlow;
+    // A seam of light runs up every arris of the head, brightest at the tip.
+    float seam = smoothstep(0.88, 0.99, vArris) * (0.15 + 0.85 * smoothstep(0.6, 0.75, vAxis) + 0.6 * (1.0 - smoothstep(0.1, 0.16, vAxis)));
+    color += mix(uRim, uHot, 0.3 * seam) * seam * uSeam * (0.75 + 0.25 * sin(uTime * 9.0 + vAxis * 20.0)) * uGlobalGlow;
+    // Heat at the buried tip just after the plant.
+    color += uRim * uHeat * smoothstep(0.82, 1.0, vAxis) * uGlobalGlow;
+
+    // The unmaking front burns white, then violet, then into the dark.
+    color = mix(color, uHot * 2.2 * uGlobalGlow, edge * edge);
+    color += uRim * edge * 1.4 * uGlobalGlow;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createAbsenceLanceSpearMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uRim: { value: new Color() },
+      uHot: { value: new Color() },
+      uRimGlow: { value: 1 },
+      uCold: { value: new Color() },
+      uColdRim: { value: 1 },
+      uSpecular: { value: 1 },
+      uSeam: { value: 1 },
+      uErase: { value: 0 },
+      uCutWidth: { value: 0.05 },
+      uHeat: { value: 0 },
+      uSeed: { value: 0 }
+    }),
+    vertexShader: LANCE_VERTEX,
+    fragmentShader: LANCE_FRAGMENT
+  });
+  material.userData.sync = (erase, heat, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorLanceDeep));
+    u.uBody.value.copy(getColor(c.colorLanceBody));
+    u.uRim.value.copy(getColor(c.colorLanceRim));
+    u.uHot.value.copy(getColor(c.colorLanceHot));
+    u.uRimGlow.value = c.lanceRimGlow * g.fresnel;
+    u.uCold.value.copy(getColor(c.colorLanceCold));
+    u.uColdRim.value = c.lanceColdRim * g.fresnel;
+    u.uSpecular.value = c.lanceSpecular;
+    u.uSeam.value = c.lanceSeam * g.shaderIntensity;
+    u.uErase.value = erase;
+    u.uCutWidth.value = Math.max(0.005, c.lanceCutWidth);
+    u.uHeat.value = heat * c.lanceHeat;
+    u.uSeed.value = seed;
+  };
+  return material;
+}
+
+/**
+ * The unmade line: a filled strip of absence cut into the floor behind the
+ * lance. Black at its heart (the floor is simply not there), a crumbling edge
+ * that eats into the ground on noise, a thin violet seam along each lip, and
+ * faint violet flecks drifting down into it. It opens behind the head and,
+ * through the linger, closes from the caster's end toward the lance: the
+ * lips draw together into a seam and the seam goes out.
+ * The quad is laid along the line: x across (metres), y along (metres from origin).
+ */
+const TRENCH_VERTEX = /* glsl */ `
+  uniform vec2 uSpan;
+  varying vec2 vXY;
+  void main() {
+    vXY = position.xy * uSpan;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const TRENCH_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uHead;     // metres of line the head has crossed
+  uniform float uClosed;   // metres from the origin already closed
+  uniform float uCloseSpan;// metres over which a closing lip narrows
+  uniform float uWidth;    // half width, metres
+  uniform float uOpen;     // 0..1 how far the lips have drawn back just behind the head
+  uniform float uSeamGlow;
+  uniform float uOpacity;
+  uniform float uFade;
+  uniform float uSeed;
+  uniform vec3  uVoid;
+  uniform vec3  uLip;
+  uniform vec3  uSeamColor;
+  varying vec2 vXY;
+
+  ${noiseGLSL}
+
+  void main() {
+    float x = vXY.x;
+    float y = vXY.y;
+    if (y > uHead) discard;
+    float n = fbm3(vec3(x * 1.6, y * 0.9, uSeed));
+    float fine = snoise01(vec3(x * 7.0, y * 5.0, uSeed + 4.0));
+    // Opens behind the head over the first metre and a half.
+    float behind = smoothstep(0.0, 1.5, uHead - y);
+    // Closes from the origin toward the head.
+    float close = smoothstep(uClosed - uCloseSpan, uClosed, y);
+    float hw = uWidth * (0.25 + 0.75 * behind) * close * (0.85 + 0.3 * (n - 0.5) * 2.0);
+    float d = abs(x) / max(hw, 0.001);
+    if (d > 1.35) discard;
+    float hole = 1.0 - smoothstep(0.82, 1.0, d + (fine - 0.5) * 0.18);
+    float lip = smoothstep(0.7, 0.95, d) * (1.0 - smoothstep(1.0, 1.3, d));
+    vec3 color = mix(uLip, uVoid, hole);
+    // A thin violet seam along each lip, flickering.
+    float seam = smoothstep(0.88, 0.98, d) * (1.0 - smoothstep(0.98, 1.08, d));
+    color += uSeamColor * seam * uSeamGlow * (0.7 + 0.3 * sin(uTime * 7.0 + y * 3.0)) * uGlobalGlow;
+    // Faint flecks drifting down into the void.
+    float fleck = smoothstep(0.93, 0.99, snoise01(vec3(x * 9.0, y * 4.0 + uTime * 0.8, uTime * 0.6 + uSeed)));
+    color += uSeamColor * fleck * hole * 0.6 * uGlobalGlow;
+    float alpha = uOpacity * uFade * max(hole, lip * 0.7);
+    if (alpha < 0.004) discard;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+export function createAbsenceLanceTrenchMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSpan: { value: new Vector2(1, 1) },
+      uHead: { value: 0 },
+      uClosed: { value: 0 },
+      uCloseSpan: { value: 2 },
+      uWidth: { value: 0.5 },
+      uOpen: { value: 1 },
+      uSeamGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uFade: { value: 1 },
+      uSeed: { value: 0 },
+      uVoid: { value: new Color() },
+      uLip: { value: new Color() },
+      uSeamColor: { value: new Color() }
+    }),
+    vertexShader: TRENCH_VERTEX,
+    fragmentShader: TRENCH_FRAGMENT
+  });
+  material.userData.sync = (head, closed, fade, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uHead.value = head;
+    u.uClosed.value = closed;
+    u.uCloseSpan.value = Math.max(0.1, c.trenchCloseSpan);
+    u.uWidth.value = Math.max(0.02, c.trenchWidth * 0.5);
+    u.uSeamGlow.value = c.trenchSeam * g.glow;
+    u.uOpacity.value = c.trenchOpacity * g.opacity;
+    u.uFade.value = fade;
+    u.uSeed.value = seed;
+    u.uVoid.value.copy(getColor(c.colorTrenchVoid));
+    u.uLip.value.copy(getColor(c.colorTrenchLip));
+    u.uSeamColor.value.copy(getColor(c.colorLanceRim));
   };
   return material;
 }

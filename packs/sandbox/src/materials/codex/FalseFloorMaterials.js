@@ -1,9 +1,10 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
-import { sharedUniforms } from '../../core/FrameUniforms.js';
+import { frame, sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 
 const ID = 'falsefloor';
 
@@ -691,6 +692,246 @@ export function createFalseFloorDetailMaterial(rig = false) {
     u.uColorA.value.copy(getColor(c['color' + K + 'A']));
     u.uColorB.value.copy(getColor(c['color' + K + 'B']));
     u.uColorC.value.copy(getColor(c['color' + K + 'C']));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the flagstones and the pit                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The flagstones of the false floor: sun-lit slate (MeshStandardMaterial, on
+ * `LAYER.WORLD`, casting shadows) that pretends to be the floor. Patched with
+ * this cast's own light: the seams (`aHeat`: chamfer and the top of the
+ * sides) glow along the four-stop ramp — deep → body → tint → white core —
+ * at `uSeam`, flickering harder with `uStrain` as the lie wears thin; a faint
+ * sheen sweeps across the tops in world space (the illusion shimmering); and
+ * each tile's own `aState` (written per frame: 0 resting, up to 1 falling or
+ * rising) lights its seams and underside while it moves. Dark stone carries
+ * the mass; only the seams glow.
+ */
+export function createFalseFloorTileMaterial() {
+  const material = new MeshStandardMaterial({ color: 0x262b38, roughness: 0.82, metalness: 0.05, flatShading: true });
+  const uniforms = {
+    uTime: frame.uTime,
+    uSeam: { value: 1 },
+    uStrain: { value: 0 },
+    uSheen: { value: 0.3 },
+    uGlow: { value: 1 },
+    uCore: { value: new Color() },
+    uTint: { value: new Color() },
+    uBody: { value: new Color() },
+    uDeep: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aHeat;\nattribute float aState;\nvarying float vSigHeat;\nvarying float vSigState;\nvarying vec3 vSigLocal;\nvarying vec3 vSigWorld;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vSigHeat = aHeat;
+vSigState = aState;
+vSigLocal = position;
+vec4 sigW = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+sigW = instanceMatrix * sigW;
+#endif
+vSigWorld = (modelMatrix * sigW).xyz;`
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+uniform float uTime; uniform float uSeam; uniform float uStrain; uniform float uSheen; uniform float uGlow;
+uniform vec3 uCore; uniform vec3 uTint; uniform vec3 uBody; uniform vec3 uDeep;
+varying float vSigHeat; varying float vSigState; varying vec3 vSigLocal; varying vec3 vSigWorld;
+float ffHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+{
+  // Slate grain on the faces so a tile reads as stone, not plastic.
+  float grain = ffHash(floor(vSigWorld * 9.0));
+  diffuseColor.rgb *= 0.82 + 0.3 * grain;
+}`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  float st = clamp(vSigState, 0.0, 1.5);
+  float flick = 1.0 - uStrain * 0.6 * step(0.5, fract(sin(floor(uTime * 18.0) * 7.31 + vSigWorld.x * 3.1 + vSigWorld.z * 1.7) * 91.7));
+  float under = smoothstep(-0.1, -0.24, vSigLocal.y);
+  float s = clamp(vSigHeat * (uSeam * flick + st * 0.55) + under * st * 0.3, 0.0, 1.6);
+  vec3 ramp = mix(uDeep, uBody, smoothstep(0.0, 0.4, s));
+  ramp = mix(ramp, uTint, smoothstep(0.5, 0.95, s));
+  ramp = mix(ramp, uCore * 1.3, smoothstep(1.1, 1.5, s));
+  totalEmissiveRadiance += ramp * s * uGlow;
+  // the lie shimmering: a soft band of sheen sweeping the tops
+  float top = step(-0.005, vSigLocal.y);
+  float band = exp(-pow(fract((vSigWorld.x * 0.6 + vSigWorld.z * 0.35) * 0.25 - uTime * 0.35) - 0.5, 2.0) / 0.01);
+  totalEmissiveRadiance += uTint * band * top * uSheen * (0.4 + uStrain);
+}`
+        );
+    },
+    'codex-falsefloor-tile'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (seam, strain) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uSeam.value = seam;
+    uniforms.uStrain.value = strain;
+    uniforms.uSheen.value = c.tileSheen;
+    uniforms.uGlow.value = c.tileGlow * g.glow * g.shaderIntensity;
+    uniforms.uCore.value.copy(getColor(c.colorB));
+    uniforms.uTint.value.copy(getColor(c.colorDetailA));
+    uniforms.uBody.value.copy(getColor(c.colorA));
+    uniforms.uDeep.value.copy(getColor(c.colorC));
+    material.color.copy(getColor(c.colorTile));
+    material.roughness = c.tileRough;
+  };
+  return material;
+}
+
+const PIT_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const PIT_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3 uCenter;
+  uniform float uRadius;
+  uniform float uDepth;
+  uniform float uOpen;    // 0..1 radius the pit has opened to, from the centre out
+  uniform float uClose;   // 0..1 share closed again, from the rim in
+  uniform float uScroll;  // metres the wall has slid up past the eye: the fall that never lands
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uSeed;
+  uniform vec3 uWall;
+  uniform vec3 uSeam;
+  uniform vec3 uTint;
+  uniform vec3 uDeep;
+  uniform vec3 uHaze;
+  uniform vec3 uPitSeam;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+
+  void main() {
+    vec2 q = vWorld.xz - uCenter.xz;
+    float r = length(q) / uRadius;
+    if (r > 1.0) discard;
+    float vis = smoothstep(uOpen, uOpen - 0.06, r);
+    if (uClose > 0.001) vis *= smoothstep(1.0 - uClose, 1.0 - uClose - 0.06, r);
+    if (vis < 0.003) discard;
+    // Interior mapping: follow the eye ray down into a virtual shaft of radius uRadius, depth uDepth.
+    vec3 v = normalize(vWorld - cameraPosition);
+    vec2 d = v.xz;
+    float a = max(dot(d, d), 1e-5);
+    float b = 2.0 * dot(q, d);
+    float c = dot(q, q) - uRadius * uRadius;
+    float t = (-b + sqrt(max(b * b - 4.0 * a * c, 0.0))) / (2.0 * a);
+    float depth = -v.y * t;
+    vec3 col;
+    if (depth < uDepth) {
+      vec2 hit = q + d * t;
+      float around = atan(hit.y, hit.x) * uRadius;
+      float dy = depth + uScroll;
+      float row = floor(dy / 0.55);
+      float bx = fract((around + row * 0.41 + uSeed) / 1.0);
+      float by = fract(dy / 0.55);
+      float mortar = max(max(smoothstep(0.05, 0.0, bx), smoothstep(0.95, 1.0, bx)), max(smoothstep(0.08, 0.0, by), smoothstep(0.92, 1.0, by)));
+      float shade = exp(-depth / 1.3);
+      float n = snoise(vec3(around * 1.3, dy * 1.3, uSeed));
+      col = uWall * (1.3 + 0.45 * n) * shade;
+      col = mix(col, uDeep, mortar * 0.7);
+      // rose seams in the mortar near the top, and slow bands sliding up the shaft
+      float band = exp(-pow(fract(dy * 0.28) - 0.5, 2.0) / 0.006);
+      col += uPitSeam * (mortar * 0.45 + band * 0.3) * shade * uGlow;
+    } else {
+      float tb = uDepth / max(-v.y, 1e-3);
+      vec2 hb = q + d * tb;
+      col = uDeep + uHaze * 0.3 * snoise01(vec3(hb * 0.7, uTime * 0.2 + uSeed));
+    }
+    // haze thickening with depth: the bottom you never see
+    col = mix(col, uHaze * 0.3, smoothstep(0.4, uDepth, depth) * 0.7);
+    // the lip of the hole: the cut edge of the false floor
+    float lip = exp(-pow((r - 0.975) / 0.025, 2.0)) + exp(-pow((r - uOpen + 0.03) / 0.03, 2.0)) * step(uOpen, 0.98);
+    col += uPitSeam * lip * uGlow * 0.35;
+    float alpha = vis * uOpacity;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * The pit the false floor drops into: a flat disc on the floor that shades,
+ * by interior mapping, the inside of a shaft `pitDepth` deep — the eye ray is
+ * followed into a virtual cylinder, so the far wall rises and the near wall
+ * falls away correctly from any camera. Stone courses darken with depth into
+ * a near-black bottom with a violet haze; rose seams in the mortar and slow
+ * bands sliding up the shaft (`uScroll`) make the fall feel endless. It opens
+ * from the centre out on the drop and closes from the rim in as the floor
+ * reforms. Normal-blended; the deep stop is what you see most.
+ */
+export function createFalseFloorPitMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uCenter: { value: new Vector3() },
+      uRadius: { value: 4 },
+      uDepth: { value: 3.5 },
+      uOpen: { value: 0 },
+      uClose: { value: 0 },
+      uScroll: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uSeed: { value: 0 },
+      uWall: { value: new Color() },
+      uSeam: { value: new Color() },
+      uTint: { value: new Color() },
+      uDeep: { value: new Color() },
+      uHaze: { value: new Color() },
+      uPitSeam: { value: new Color() }
+    }),
+    vertexShader: PIT_VERTEX,
+    fragmentShader: PIT_FRAGMENT
+  });
+  material.userData.sync = (center, radius, open, close, scroll, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCenter.value.copy(center);
+    u.uRadius.value = radius;
+    u.uDepth.value = c.pitDepth;
+    u.uOpen.value = open;
+    u.uClose.value = close;
+    u.uScroll.value = scroll;
+    u.uSeed.value = seed;
+    u.uOpacity.value = c.pitOpacity * g.opacity;
+    u.uGlow.value = c.pitGlow * g.glow;
+    u.uWall.value.copy(getColor(c.colorTile));
+    u.uSeam.value.copy(getColor(c.colorA));
+    u.uTint.value.copy(getColor(c.colorDetailA));
+    u.uDeep.value.copy(getColor(c.colorPitDeep));
+    u.uHaze.value.copy(getColor(c.colorPitHaze));
+    u.uPitSeam.value.copy(getColor(c.colorPitSeam));
   };
   return material;
 }

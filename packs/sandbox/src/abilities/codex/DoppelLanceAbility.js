@@ -1,4 +1,15 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  DynamicDrawUsage,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  PlaneGeometry,
+  Quaternion,
+  Vector3
+} from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +23,9 @@ import {
   createDoppelLanceVoiceMaterial,
   createDoppelLanceDetailMaterial,
   createDoppelLanceTrailMaterial,
-  createDoppelLanceScarMaterial
+  createDoppelLanceScarMaterial,
+  createDoppelRealLanceMaterial,
+  createDoppelGhostMaterial
 } from '../../materials/codex/DoppelLanceMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,9 +59,103 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _axisX = new Vector3(1, 0, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Panes the decoy can shatter into. */
+const MAX_SHARDS = 32;
+const TAU = Math.PI * 2;
+const GRAVITY = 9.8;
+const _tipAt = new Vector3();
+const _vec = new Vector3();
+const _plant = new Vector3();
+const _axisV = new Vector3();
+const _scale = new Vector3();
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+const hash = (i, k) => {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+/*
+ * Cast-local geometry. It lives here, not in the generated
+ * `DoppelLanceGeometry.js`, which must stay byte-identical to its rig recipe
+ * (tests/pure-rigs.test.mjs).
+ */
+
+/**
+ * The hero: a drilling lance, one unit long along +Y with its point at the
+ * origin. A three-fluted blade twisted `twist` turns along its length (so it
+ * reads as a drill when it spins), a flared guard, a wrapped grip and a
+ * pommel. Radii are in units of the length. `aRidge` (0..1) marks the flute
+ * ridges for the shader.
+ */
+export function createDrillLanceGeometry(twist = 2.5) {
+  const M = 36;
+  const stations = [];
+  const BLADE = 0.74;
+  for (let k = 0; k <= 36; k++) {
+    const y = (k / 36) * BLADE;
+    const R = 0.092 * Math.pow(Math.min(1, y / BLADE), 0.72);
+    stations.push([y, R, true]);
+  }
+  for (const [y, R] of [[0.748, 0.1], [0.755, 0.122], [0.775, 0.122], [0.785, 0.055], [0.8, 0.04], [0.83, 0.046], [0.85, 0.04], [0.88, 0.046], [0.9, 0.04], [0.93, 0.06], [0.97, 0.06], [0.995, 0.028], [1.0, 0.0]]) stations.push([y, R, false]);
+  const pos = [];
+  const ridge = [];
+  const idx = [];
+  for (const [y, R, blade] of stations) {
+    const phase = blade ? twist * TAU * (y / BLADE) : 0;
+    for (let k = 0; k < M; k++) {
+      const th = (k / M) * TAU;
+      const f = 0.5 + 0.5 * Math.cos(3 * (th - phase));
+      const r = blade ? R * (0.42 + 0.58 * Math.pow(f, 1.4)) : R;
+      pos.push(Math.cos(th) * r, y, Math.sin(th) * r);
+      ridge.push(blade ? f : 0.35);
+    }
+  }
+  for (let i = 0; i < stations.length - 1; i++) {
+    for (let k = 0; k < M; k++) {
+      const j = (k + 1) % M;
+      const a = i * M + k;
+      const b = i * M + j;
+      const c = (i + 1) * M + k;
+      const d = (i + 1) * M + j;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('aRidge', new Float32BufferAttribute(ridge, 1));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** One pane of the shattered decoy: a thin chipped triangle, about one unit across. */
+export function createDecoyShardGeometry() {
+  const tri = [[0, 0.55], [-0.45, -0.35], [0.5, -0.3]];
+  const t = 0.04;
+  const pos = [];
+  const face = (a, b, c) => pos.push(...a, ...b, ...c);
+  const top = tri.map(([x, y]) => [x, y, t]);
+  const bot = tri.map(([x, y]) => [x, y, -t]);
+  face(top[0], top[1], top[2]);
+  face(bot[0], bot[2], bot[1]);
+  for (let i = 0; i < 3; i++) {
+    const j = (i + 1) % 3;
+    face(top[i], bot[i], bot[j]);
+    face(top[i], bot[j], top[j]);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
 
 /**
  * DOPPEL LANCE — illusion, line cast.
@@ -75,6 +182,29 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The upgrade — two lances (cast-local, sections 15–16)
+ *
+ * The template's pink fan, voice, rig, pieces and ribbon are turned off in
+ * the config; the spell is carried by its own forms:
+ *
+ *  11. **the decoy** — the lance you see: a glamour image of the drill
+ *      (`createDoppelGhostMaterial`: dark plum body, hot pink edge, crawling
+ *      scanlines, slices stuttering sideways) flies down the aim line, late
+ *      (`decoyLate`), drilling as it goes. It kills nothing.
+ *  12. **the real lance, unseen** — a body-width to the side, on exactly the
+ *      offset the hits use (`_aim`), the real drill cuts down the line as a
+ *      rim of heat-haze only (`lanceCloak`); bodies on that offset fall.
+ *  13. **the reveal** — on the beat the decoy shatters into `shardCount`
+ *      tumbling panes that fall and wink out on the floor, while the real
+ *      lance burns into view from the tip back (`createDoppelRealLanceMaterial`,
+ *      `createDrillLanceGeometry`: lit dark magenta crystal-steel, three
+ *      twisted flutes glowing, `LAYER.WORLD`, shadows) and is slammed down
+ *      into the floor at `lancePlantPitch` beside where the decoy died:
+ *      cracked floor, chips, dust, shake, light.
+ *  14. **the drill** — through the linger it keeps drilling: spinning down
+ *      into the floor, slowing, chips and sparks off the flutes.
+ *  15. **the exit** — it is eaten from the butt to the tip into glamour motes.
  *
  * Every metre, rate and colour is read from `settings.doppel` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -158,7 +288,55 @@ export class DoppelLanceAbility extends Ability {
     this.scarMaterial = createDoppelLanceScarMaterial();
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
+    this._buildLances();
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+  }
+
+  /** The two lances and the decoy's panes. */
+  _buildLances() {
+    const c = settings[ID];
+    this._builtTwist = c.lanceTwist;
+    this.lanceGeometry = createDrillLanceGeometry(this._builtTwist);
+    this.lanceMaterial = createDoppelRealLanceMaterial();
+    this.lance = new Mesh(this.lanceGeometry, this.lanceMaterial);
+    this.lance.layers.set(LAYER.WORLD);
+    this.lance.castShadow = true;
+    this.lance.receiveShadow = true;
+    this.lance.frustumCulled = false;
+    this.lance.renderOrder = 14;
+    this.lance.visible = false;
+    this.group.add(this.lance);
+    this.ghostMaterial = createDoppelGhostMaterial();
+    // Two images of the drill: 0 the decoy, 1 the real one while unseen.
+    this.ghostGeometry = this.lanceGeometry.clone();
+    this._ghostState = new Float32Array(2 * 4);
+    this._ghostAttr = new InstancedBufferAttribute(this._ghostState, 4).setUsage(DynamicDrawUsage);
+    this.ghostGeometry.setAttribute('aGhost', this._ghostAttr);
+    this.ghosts = new InstancedMesh(this.ghostGeometry, this.ghostMaterial, 2);
+    this.ghosts.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.ghosts.layers.set(LAYER.VFX);
+    this.ghosts.renderOrder = 15;
+    this.ghosts.frustumCulled = false;
+    this.ghosts.visible = false;
+    this.group.add(this.ghosts);
+    this.shardGeometry = createDecoyShardGeometry();
+    this._shardState = new Float32Array(MAX_SHARDS * 4);
+    this._shardAttr = new InstancedBufferAttribute(this._shardState, 4).setUsage(DynamicDrawUsage);
+    this.shardGeometry.setAttribute('aGhost', this._shardAttr);
+    this.shards = new InstancedMesh(this.shardGeometry, this.ghostMaterial, MAX_SHARDS);
+    this.shards.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.shards.layers.set(LAYER.VFX);
+    this.shards.renderOrder = 15;
+    this.shards.frustumCulled = false;
+    this.shards.visible = false;
+    this.shards.count = 0;
+    this.group.add(this.shards);
+    this._shatterAge = -1;
+    this._planted = false;
+    this._drillAngle = 0;
+    this._lanceRoll = 0;
+    this._drillEmitter = new RateEmitter();
+    this._exitEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +412,13 @@ export class DoppelLanceAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._shatterAge = -1;
+    this._planted = false;
+    this._drillAngle = 0;
+    this._lanceRoll = Math.random() * TAU;
+    this._drillEmitter.reset();
+    this._exitEmitter.reset();
+    this._hideLances();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -370,10 +555,11 @@ export class DoppelLanceAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    if (c.trailOpacity <= 0.01 && c.scarOpacity <= 0.01) this.trail.show(false);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -745,6 +931,261 @@ export class DoppelLanceAbility extends Ability {
     });
   }
 
+  /* ------------------------------------------------------------------ */
+  /* The upgrade: the decoy, the real lance, the shatter, the drill      */
+  /* ------------------------------------------------------------------ */
+
+  /** Sideways offset of the real cut — the same one the hits use (`_aim`). */
+  _offset() {
+    return settings[ID].thickness * 4;
+  }
+
+  /** Orientation for a lance flying down the line: tip forward, dipped, rolled. */
+  _flyPose(roll, lean = 1) {
+    const c = settings[ID];
+    const p = c.lanceFlightPitch;
+    const y = c.lanceFlightYaw * lean;
+    _axisV.copy(this.direction).multiplyScalar(-Math.cos(p) * Math.cos(y)).addScaledVector(this.side, Math.cos(p) * Math.sin(y));
+    _axisV.y = Math.sin(p);
+    _axisV.normalize();
+    _q.setFromUnitVectors(_up, _axisV);
+    _qa.setFromAxisAngle(_up, roll);
+    _q.multiply(_qa);
+    return _axisV;
+  }
+
+  /** Put ghost instance `i` with its tip at `_tipAt` along the current `_q`. */
+  _ghostAt(i, len, mode, alpha, flicker) {
+    _scale.set(len, len, len);
+    _m4.compose(_tipAt, _q, _scale);
+    this.ghosts.setMatrixAt(i, _m4);
+    this._ghostState[i * 4] = i * 0.37 + 0.1;
+    this._ghostState[i * 4 + 1] = mode;
+    this._ghostState[i * 4 + 2] = alpha;
+    this._ghostState[i * 4 + 3] = flicker;
+  }
+
+  /** The beat: the decoy shatters where the line ends. */
+  _shatter() {
+    this._shatterAge = this.age;
+  }
+
+  /** The real lance is driven in: cracked floor, chips, dust, a punch. */
+  _plantHit() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._planted = true;
+    this.pointAt(1, _plant).addScaledVector(this.side, this._offset()).setY(0);
+    this.ctx.decals.spawn(DecalType.CRACK, _plant, {
+      radius: c.plantCrack * power,
+      life: c.groundLife * g.lifetime,
+      width: 0.7,
+      intensity: 0.95,
+      colorA: getColor(c.colorLanceDeep),
+      colorB: getColor(c.colorLanceTint),
+      height: 0.03
+    });
+    this.ctx.decals.spawn(DecalType.DUSTRING, _plant, {
+      radius: c.plantCrack * 1.4,
+      life: c.shockLife,
+      width: 0.1,
+      intensity: 0.55,
+      colorA: getColor(c.colorDustD),
+      colorB: getColor(c.colorDustC),
+      height: 0.035
+    });
+    const chips = Math.round(c.plantChips * g.particleCount * power);
+    if (chips > 0) {
+      this._fillEmit(_pos.copy(_plant).setY(0.15), 0.3, _up, c.chipSpeed * 1.4, 0.7, c.chipSize * 1.5, c.chipLife * 1.3, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const puffs = Math.round(c.plantDust * g.particleCount);
+    for (let k = 0; k < puffs; k++) {
+      const ang = (k / Math.max(1, puffs)) * TAU;
+      _dir.set(Math.cos(ang), 0.15, Math.sin(ang));
+      this._fillEmit(_pos.copy(_plant).setY(0.1), 0.3, _dir, c.dustSpeed * 1.5, 0.3, 0.55, c.dustLife * 1.4, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.shake.add(c.plantShake * power * g.cameraShake, 5, 20);
+    this.lightBoost += c.plantLight * power;
+  }
+
+  /**
+   * Lay out the decoy, the real lance (cloaked, revealed, planted, drilling,
+   * dissolving) and the decoy's panes for this frame. `since` is seconds
+   * after the beat (−1 while travelling). Allocation-free.
+   */
+  _lances(dt, since) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    if (c.lanceTwist !== this._builtTwist) this._rebuildLance();
+    const len = Math.max(0.2, c.lanceLength);
+    const total = this.impactDuration + this.fadeDuration;
+    const off = this._offset();
+    this._lanceRoll += dt * c.lanceSpin * g.animationSpeed;
+
+    if (since < 0) {
+      // In flight: the real one, cloaked, on the offset at the head; the decoy late on the aim.
+      const u = this.u;
+      this._flyPose(this._lanceRoll);
+      this.pointAt(u, _pos).addScaledVector(this.side, off);
+      _pos.y = c.lanceHeight;
+      _tipAt.copy(_pos).addScaledVector(_axisV, -len * 0.5);
+      const grow = saturate(this.age / 0.1);
+      this._ghostAt(1, len, 1, c.lanceCloak * grow, 1);
+      const sd = Math.pow(u, 1 + 2 * c.decoyLate);
+      this._flyPose(this._lanceRoll + 1.3, -1);
+      this.pointAt(sd, _pos);
+      _pos.y = c.lanceHeight;
+      _tipAt.copy(_pos).addScaledVector(_axisV, -len * 0.5);
+      this._ghostAt(0, len, 0, grow, 0.4);
+      this.ghosts.count = 2;
+      this.ghosts.visible = true;
+      this.ghosts.instanceMatrix.needsUpdate = true;
+      this._ghostAttr.needsUpdate = true;
+      this.ghostMaterial.userData.sync(c.decoyScan, c.decoyStutter / len);
+      this.lance.visible = false;
+      this.shards.visible = false;
+      return;
+    }
+
+    this.ghosts.visible = false;
+    // The real lance: revealed tip-first while it is slammed down beside where the decoy died.
+    const tau = this._shatterAge >= 0 ? this.age - this._shatterAge : since;
+    const slam = Math.max(0.02, c.lanceSlam * L);
+    const k = Easing.outBack(saturate(tau / slam));
+    if (!this._planted && tau >= slam) this._plantHit();
+    const drillRate = c.lanceDrillSpin * Math.exp(-tau * c.lanceDrillDecay / L);
+    this._drillAngle += dt * drillRate * g.animationSpeed;
+    // From its flying line to its planted lean: steep, the butt thrown back and out to the side.
+    const fp = c.lanceFlightPitch;
+    const fy = c.lanceFlightYaw;
+    _vec.copy(this.direction).multiplyScalar(-Math.cos(fp) * Math.cos(fy)).addScaledVector(this.side, Math.cos(fp) * Math.sin(fy));
+    _vec.y = Math.sin(fp);
+    const lean = saturate(c.lancePlantLean);
+    _axisV.copy(this.direction).multiplyScalar(-(1 - lean)).addScaledVector(this.side, lean).normalize();
+    _axisV.multiplyScalar(Math.cos(c.lancePlantPitch));
+    _axisV.y = Math.sin(c.lancePlantPitch);
+    _axisV.normalize().sub(_vec).multiplyScalar(k).add(_vec).normalize();
+    _q.setFromUnitVectors(_up, _axisV);
+    _qa.setFromAxisAngle(_up, this._lanceRoll * (1 - saturate(tau / slam)) + this._drillAngle);
+    _q.multiply(_qa);
+    this.pointAt(1, _plant).addScaledVector(this.side, off).setY(0);
+    // Tip: from the flying point to buried in the floor, then drilling on down its own axis.
+    _pos.copy(_plant).addScaledVector(_axisV, -len * 0.5).setY(c.lanceHeight);
+    const depth = c.lancePlantDepth + c.lanceDrill * (1 - Math.exp(-Math.max(0, tau - slam) * 0.9 / L));
+    _tipAt.copy(_plant).addScaledVector(_axisV, -depth);
+    _tipAt.lerpVectors(_pos, _tipAt, saturate(k));
+    _scale.set(len * c.lanceGirth, len, len * c.lanceGirth);
+    this.lance.position.copy(_tipAt);
+    this.lance.quaternion.copy(_q);
+    this.lance.scale.copy(_scale);
+    const reveal = saturate(tau / Math.max(0.02, c.lanceReveal * L));
+    const exit = saturate((since - c.lanceExitAt * total) / Math.max(0.05, total * (1 - c.lanceExitAt)));
+    const heat = 0.3 + 0.7 * Math.exp(-tau * 1.2 / L);
+    this.lance.visible = exit < 0.999;
+    this.lanceMaterial.userData.sync(reveal, exit, heat);
+
+    // Drilling: chips off the floor and sparks off the flutes, slowing with the spin.
+    const spin = drillRate / Math.max(0.01, c.lanceDrillSpin);
+    if (this._planted && exit < 0.5) {
+      const nc = Math.round(this._drillEmitter.tick(dt, c.drillChips * spin) * g.particleCount);
+      for (let j = 0; j < nc; j++) {
+        const a = Math.random() * TAU;
+        _dir.set(Math.cos(a), 1.2, Math.sin(a));
+        this._fillEmit(_pos.copy(_plant).setY(0.1), 0.2, _dir, c.chipSpeed, 0.5, c.chipSize, c.chipLife, 8);
+        this.chips.emit(1, _emit);
+        if (Math.random() < c.drillSparks / Math.max(1, c.drillChips)) {
+          this._fillEmit(_pos, 0.15, _dir, c.streakSpeed, 0.6, 0.05, c.streakLife, 2);
+          this.streaks.emit(1, _emit);
+        }
+      }
+    }
+    // The exit: glamour motes off the eaten edge.
+    if (exit > 0.001 && exit < 0.999) {
+      const nm = Math.round(this._exitEmitter.tick(dt, c.exitMotes) * g.particleCount);
+      for (let j = 0; j < nm; j++) {
+        const h = 1 - exit * (0.8 + 0.4 * Math.random());
+        _pos.copy(_tipAt).addScaledVector(_axisV, Math.max(0, h) * len);
+        this._fillEmit(_pos, 0.15, _up, c.moteSpeed, 0.8, 0.09, c.moteLife, 1);
+        this.motes.emit(1, _emit);
+      }
+    }
+    this._shards(tau);
+  }
+
+  /** The decoy's panes: burst from where it died, tumble, fall, lie flickering, wink out. */
+  _shards(tau) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(0, Math.min(MAX_SHARDS, Math.round(c.shardCount)));
+    if (this._shatterAge < 0 || n === 0) {
+      this.shards.visible = false;
+      return;
+    }
+    const len = Math.max(0.2, c.lanceLength);
+    const life = Math.max(0.05, c.shardLife * g.lifetime);
+    this.pointAt(1, _plant);
+    let live = 0;
+    for (let i = 0; i < n; i++) {
+      const r1 = hash(i, 1);
+      const r2 = hash(i, 2);
+      const r3 = hash(i, 3);
+      const along = (r1 - 0.5) * len * 0.8;
+      const a = r2 * TAU;
+      const sp = c.shardSpeed * (0.4 + 0.6 * r3);
+      const vy = c.shardLift * (0.4 + 0.8 * hash(i, 4));
+      const y0 = c.lanceHeight + (r3 - 0.5) * 0.3;
+      // Ground hit, solved: the pane lies where it lands.
+      const tl = (vy + Math.sqrt(vy * vy + 2 * GRAVITY * Math.max(0, y0 - 0.04))) / GRAVITY;
+      const t = Math.min(tau, tl);
+      _pos.copy(_plant).addScaledVector(this.direction, -along);
+      _pos.x += Math.cos(a) * sp * t;
+      _pos.z += Math.sin(a) * sp * t;
+      _pos.y = Math.max(0.04, y0 + vy * t - 0.5 * GRAVITY * t * t);
+      _vec.set(hash(i, 5) - 0.5, hash(i, 6) - 0.5, hash(i, 7) - 0.5).normalize();
+      const landed = tau >= tl;
+      if (landed) _q.setFromAxisAngle(_axisX, Math.PI / 2 + (r1 - 0.5) * 0.3);
+      else _q.setFromAxisAngle(_vec, c.shardSpin * t + r2 * TAU);
+      const size = c.shardSize * (0.5 + 0.9 * hash(i, 8));
+      const fade = 1 - saturate((tau - life * (0.6 + 0.4 * r1)) / 0.2);
+      _scale.set(size, size, size);
+      _m4.compose(_pos, _q, _scale);
+      this.shards.setMatrixAt(i, fade > 0.002 ? _m4 : _zero);
+      this._shardState[i * 4] = r1 * 10;
+      this._shardState[i * 4 + 1] = 0;
+      this._shardState[i * 4 + 2] = fade;
+      this._shardState[i * 4 + 3] = landed ? 1 : 0.3;
+      if (fade > 0.002) live++;
+    }
+    this.shards.count = n;
+    this.shards.visible = live > 0;
+    this.shards.instanceMatrix.needsUpdate = true;
+    this._shardAttr.needsUpdate = true;
+    this.ghostMaterial.userData.sync(c.decoyScan, c.decoyStutter / len);
+  }
+
+  /** The flute twist changed in the editor: rebuild the drill (an editor action, not per frame). */
+  _rebuildLance() {
+    this._builtTwist = settings[ID].lanceTwist;
+    const g = createDrillLanceGeometry(this._builtTwist);
+    this.lanceGeometry.dispose();
+    this.ghostGeometry.dispose();
+    this.lanceGeometry = g;
+    this.lance.geometry = g;
+    this.ghostGeometry = g.clone();
+    this.ghostGeometry.setAttribute('aGhost', this._ghostAttr);
+    this.ghosts.geometry = this.ghostGeometry;
+  }
+
+  _hideLances() {
+    this.lance.visible = false;
+    this.ghosts.visible = false;
+    this.shards.visible = false;
+  }
+
   /** Seconds the head takes over the whole line — the trail's clock. */
   _travelTime() {
     return Math.max(0.05, this.length / Math.max(1, settings[ID].speed * settings.global.speed));
@@ -780,11 +1221,13 @@ export class DoppelLanceAbility extends Ability {
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._lances(dt, -1);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
 
   onImpact() {
+    this._shatter();
     this._beat();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
@@ -798,6 +1241,7 @@ export class DoppelLanceAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._lances(dt, t < 1 ? t * this.impactDuration : this.impactDuration + (t - 1) * this.fadeDuration);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -822,9 +1266,15 @@ export class DoppelLanceAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hideLances();
   }
 
   dispose() {
+    this.lanceGeometry.dispose();
+    this.ghostGeometry.dispose();
+    this.shardGeometry.dispose();
+    this.lanceMaterial.dispose();
+    this.ghostMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1025,6 +1475,56 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const lance = folder.addFolder('15 · The real lance');
+  R(lance, c, 'lanceLength', 0.5, 8, 0.05, 'length (m)');
+  R(lance, c, 'lanceGirth', 0.3, 3, 0.01, 'girth');
+  R(lance, c, 'lanceHeight', 0.3, 3, 0.01, 'flies at (m)');
+  R(lance, c, 'lanceFlightPitch', -0.6, 0.8, 0.01, 'dip in flight (rad)');
+  R(lance, c, 'lanceFlightYaw', -1.4, 1.4, 0.01, 'lean across in flight (rad)');
+  R(lance, c, 'lanceTwist', 0, 6, 0.05, 'flute turns');
+  R(lance, c, 'lanceSpin', -60, 60, 0.5, 'drill in flight (rad/s)');
+  R(lance, c, 'lanceCloak', 0, 1, 0.01, 'seen while unseen');
+  R(lance, c, 'lanceReveal', 0.02, 1, 0.01, 'reveal (s)');
+  R(lance, c, 'lancePlantPitch', 0.1, 1.55, 0.01, 'slammed in at (rad)');
+  R(lance, c, 'lancePlantLean', 0, 1, 0.01, 'leans back .. out');
+  R(lance, c, 'lanceSlam', 0.02, 0.8, 0.01, 'slam (s)');
+  R(lance, c, 'lancePlantDepth', 0, 2, 0.01, 'buried (m)');
+  R(lance, c, 'lanceDrill', 0, 3, 0.01, 'drills down (m)');
+  R(lance, c, 'lanceDrillSpin', 0, 60, 0.5, 'drill spin (rad/s)');
+  R(lance, c, 'lanceDrillDecay', 0, 8, 0.05, 'drill slows (/s)');
+  R(lance, c, 'lanceExitAt', 0, 1, 0.01, 'dissolves from, share of life');
+  R(lance, c, 'lanceSpecular', 0, 4, 0.05, 'glint');
+  R(lance, c, 'lanceRimGlow', 0, 4, 0.05, 'rim');
+  R(lance, c, 'lanceFluteGlow', 0, 6, 0.05, 'flute glow');
+  R(lance, c, 'lanceHeat', 0, 6, 0.05, 'burn front');
+  lance.addColor(c, 'colorLanceDeep').name('deep');
+  lance.addColor(c, 'colorLanceBody').name('body');
+  lance.addColor(c, 'colorLanceTint').name('ridge');
+  lance.addColor(c, 'colorLanceHot').name('white-hot');
+  R(lance, c, 'plantCrack', 0, 5, 0.05, 'cracked floor (m)');
+  R(lance, c, 'plantChips', 0, 120, 1, 'slam chips');
+  R(lance, c, 'plantDust', 0, 60, 1, 'slam dust');
+  R(lance, c, 'plantShake', 0, 1.5, 0.01, 'slam punch');
+  R(lance, c, 'plantLight', 0, 30, 0.1, 'slam light');
+  R(lance, c, 'drillChips', 0, 200, 1, 'drill chips / s');
+  R(lance, c, 'drillSparks', 0, 200, 1, 'drill sparks / s');
+  R(lance, c, 'exitMotes', 0, 400, 1, 'exit motes / s');
+
+  const decoy = folder.addFolder('16 · The decoy');
+  R(decoy, c, 'decoyLate', 0, 1, 0.01, 'late by');
+  R(decoy, c, 'decoyOpacity', 0, 1, 0.01, 'opacity');
+  R(decoy, c, 'decoyScan', 1, 80, 1, 'scanlines');
+  R(decoy, c, 'decoyStutter', 0, 0.5, 0.005, 'stutter (m)');
+  R(decoy, c, 'decoyGlow', 0, 4, 0.05, 'edge glow');
+  R(decoy, c, 'shardCount', 0, 32, 1, 'panes');
+  R(decoy, c, 'shardSize', 0.05, 1.5, 0.01, 'pane size (m)');
+  R(decoy, c, 'shardSpeed', 0, 15, 0.1, 'burst (m/s)');
+  R(decoy, c, 'shardLift', 0, 12, 0.1, 'thrown up (m/s)');
+  R(decoy, c, 'shardSpin', 0, 40, 0.5, 'tumble (rad/s)');
+  R(decoy, c, 'shardLife', 0.1, 4, 0.05, 'lingers (s)');
+  decoy.addColor(c, 'colorDecoyBody').name('body');
+  decoy.addColor(c, 'colorDecoyEdge').name('edge');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

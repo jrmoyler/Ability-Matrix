@@ -1,23 +1,23 @@
 # Mirage Procession — `matrix-expansion/mirage-procession`
-Illusion · line · range 1–20 m · three lanes 1.8 m apart · ≈ 0.8 s travel (12 m/s) + 0.7 s break + 1.5 s linger
+Illusion · line · range 1–20 m · three lanes 1.8 m apart · ≈ 0.8 s travel (12 m/s) + 0.7 s break + 2.0 s linger
 
 ## Read in one line
-Three lacquered masks walk down three lanes looking back at the caster, deep plum in the hollows and magenta on the lit planes; only one lane is real. At the end they rear, fall back onto the floor and sink, turning, into swirling pools of their own lacquer while the true lane's victim is answered by a looming mask that drives down on it.
+Three carved theatrical faces in dark lit lacquer walk down three lanes looking back at the caster — brow ridge, eye holes you see the floor through, nose bridge, hard cheekbones, a mouth slit — with magenta only as fire in the eyes, an ember in the mouth and the gilded border; only one lane is real. At the end they rear, fall back onto the floor and sink, turning, into swirling pools of their own lacquer while the true lane's victim is answered by a looming mask that drives down on it.
 
 ## Beats
 | t (s) | Beat | On screen (shape, size in m, colour, motion) |
 |-------|------|------------------------------------------------|
-| 0.00–0.25 | Anticipation | Three ~1 × 1.5 m sculpted half-face masks fade and grow in over the caster's lanes, 1.15 m up; glitter and soft puffs gather at each. |
-| 0.25–arrival | Travel | The masks bob and sway out of step down the lanes (yaw π: faces toward the caster), veil plumes behind, eight mirror shards orbiting each; each lane carries a deep-plum haze with saturated violet shimmer bands; air shimmer (`LAYER.DISTORTION`) at the front. Identical in all three lanes. |
-| on contact | True strike | Only for a committed hit: a 1.5× copy of the mask in hot magenta lacquer rises 1.1 m over the struck body, lunges 0.9 m down the line and burns away over 0.7 s; 1.8 m shockwave, puff burst, magenta flash, knock, light punch. |
+| 0.00–0.25 | Anticipation | Three ≈1.5 × 2.2 m carved faces (`maskSize` 1.55) materialise through the noise dissolve over the caster's lanes, 1.45 m up: near-black plum lacquer (#181116) lit by the sun and a camera-side key (lit planes dusky mauve, sockets and cheek hollows black), eye rims burning magenta (#cf2a92, white-hot at the cut), a 4 cm gilded border glowing magenta; the outer two stand three-quarter (`maskTurn` 0.32 rad) toward the centre so the nose and cheekbones read in profile. Glitter and soft puffs gather at each. |
+| 0.25–arrival | Travel | The masks bob and sway out of step down the lanes (yaw π: faces toward the caster), veil plumes behind, eight mirror shards orbiting each; each lane is a filled runner of lacquer haze laid on the floor (`wakeFill` 0.72): a continuous deep-plum body, mottled, with broad violet swells and flowing veins rolling down it, feathered at both ends; air shimmer (`LAYER.DISTORTION`) at the front. Identical in all three lanes. |
+| on contact | True strike | Only for a committed hit: a 1.3× (≈2 m) copy of the face — lacquer still dark, eyes and gilding blazing, a magenta fresnel aura — looms 0.6 m over the struck body, lunges 0.9 m down the line and burns away over 0.7 s; a 1.9 m AIR pressure shell (pale → magenta → deep) driven into the body, a dark lacquer SCORCH splash 1.6 m that stays 2.2 s, a 2.6 m shockwave, puff burst, magenta flash 0.16, knock 0.22, light punch. |
 | arrival | Impact | Three identical dark-magenta AIR shells (0.9 m), finale puffs, light punch, knock, flash. |
 | +0.0–0.2 | Rear | The masks rear up 0.35 m, faces tipping up; shards peel outward. |
 | +0.2–0.5 | Fall | Under gravity the masks drop back onto the floor at a 1 rad lean, faces still toward the viewer; shards rain down round them; three RIPPLE decals and a knock as they land. |
-| +0.5–2.2 | Linger | A 1.35 m deep-plum pool spreads under each mask: saturated veins swirl round it, ripple fronts roll out to a pale broken lip. The masks turn 0.7 rad in their pools and sink 0.45 m; shards spiral inward. |
-| last 55 % | Exit | The lacquer burns away through a noise dissolve with a white-hot edge; the pools dry from the lip inward; the lane haze fades. |
+| +0.5–2.7 | Linger | A 1.35 m deep-plum pool spreads under each mask: saturated veins swirl round it, ripple fronts roll out to a pale broken lip. The masks lean back only 0.6 rad (faces still presented), turn 0.7 rad in their pools and sink 0.22 m; they hold whole for the first 55 % of the linger (`maskHold`), so all three are still standing in their pools at 2.3 s; shards spiral inward. |
+| last 45 % | Exit | The lacquer burns away through a noise dissolve with a white-hot edge; the pools dry from the lip inward; the lane haze fades. |
 
 ## Layers
-1. Masks — `createMaskGeometry` (extruded, sculpted half-face) under `createMaskMaterial`: normal-blended, depth-writing, key-lit lacquer on the four-stop ramp, thin-film rim, scan bands, slice glitch, burn dissolve; engraving glints.
+1. Masks — `createMaskGeometry`: a carved full face as a displaced heightfield (`faceRelief`: domed forehead, arched brow ridge, sunk sockets, nose bridge to a proud tip with nostril wings, high cheekbones over hollows, lips, chin) over an oval outline, 5.5 cm lacquer thickness, eye apertures and mouth slit cut through with snapped contours, every open edge walled. `createFaceMaterial`: `MeshPhysicalMaterial` lacquer + clearcoat on `LAYER.WORLD`, casting shadows, patched with a camera-side key, gilded metal border (`aEdge`) with magenta glow and a running scan band, magenta eye fire and mouth ember, slice glitch, appear/burn dissolve with a white-hot edge. Engraving (forehead diamond, brow arcs, tear lines, cheek spirals) glints on the carving.
 2. Veils (fluttered ribbon plumes).
 3. Wakes — normal-blended deep haze + violet shimmer bands per lane.
 4. Mirror shards (24 instanced) that peel, rain and spiral into the pools.
@@ -27,11 +27,17 @@ Three lacquered masks walk down three lanes looking back at the caster, deep plu
 8. Pools — `createPoolMaterial`, swirling lacquer linger (one shared material: lanes identical).
 9. True strike — four pooled mask copies, honest feedback after a committed hit only.
 
+## Fix-up pass (2026-10-31)
+New keys (10): `maskDeep, maskHold, wakeFill, wakeVeins, strikeBurst, strikeBurstLife, strikeBurstOpacity, strikeBurstIntensity, strikeStain, strikeStainLife`. Retuned: maskSize 1→1.6, maskHeight 1.15→1.45, key modelling stronger, lingerTime 1.5→2.0 (presentation only, after every hit), wake from line bands to a filled runner, strike rise 1.1→0.6 so it stays in frame. Hit rules, lanes, `laneGap`, `hitWidth`, speed and `impactDuration` unchanged.
+
+## Face pass (2026-10-31, second fix-up)
+Coordinator read at 7: masks read as magenta buckets/curved panels. Replaced the extruded half-face with authored carved-face geometry and the unlit magenta ramp with lit dark lacquer; magenta now only in eyes, mouth slit and gilding. New keys (13): `maskLacquer, maskRoughness, maskMetalness, maskClearcoat, maskKeyFill, maskRimLight, maskTurn, gildWidth, gildGlow, gildMetal, eyeGlow, eyeSpread, mouthGlow`. Retuned: maskSize 1.6→1.55, glitch 1→0.5, engravingGlow 1.4→0.9, lightColor #ff9ad8→#d8a8cc and lightIntensity 5→2.5 (the cast's light no longer paints the lacquer pink). Lanes, strike, pools and hold through the linger unchanged; hit rules, `laneGap`, `hitWidth`, speed, `impactDuration`, `contactCount` unchanged.
+
 ## Signature
 Masks that look back at you, fall, and melt into the floor — and the one that was real looms over its victim.
 
 ## Palette
-core #fff4fb, pale #ffb3e6, body #d42a96, deep #2a0838; lanes #7a2fc4
+core #fff4fb, pale #ffb3e6, body #cf2a92 (eyes, mouth, gilding only), deep #24062f; lacquer #181116; lanes #7a2fc4
 
 ## Gameplay
 Unchanged: `handlesOwnHits`, only `trueLane` sweeps (`hitWidth` either side), each body once, same UCSM `hit` event and force. `impactDuration` 0.7 s unchanged; the linger (`lingerTime`) only lengthens the presentation fade, after every hit has landed. Nothing visible distinguishes the lanes before a hit commits.

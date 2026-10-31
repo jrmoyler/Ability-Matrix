@@ -53,7 +53,7 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template body sheet; the cage carries the read now
     edgeGlow: 0.62,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.22,
@@ -62,10 +62,10 @@ export default {
     colorA: '#4b3be3',
     colorB: '#f0ecff',
     colorC: '#060416',
-    lensWarp: 1.12, // strength of the distortion it writes
+    lensWarp: 0, // off: the body shape it warps is gone // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the cage carries the read)
     colorVoiceA: '#4b3be3',
     colorVoiceB: '#f0ecff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.55, // strength of the field
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#050308', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the bars are the pieces)
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -108,7 +108,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 0.77, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local cage is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -160,7 +160,7 @@ export default {
     colorFlash: '#7a6cff',
     burstRadius: 3.2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 4, // fragments thrown up and out on the beat
     impactDust: 10, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#f0ecff',
@@ -195,6 +195,65 @@ export default {
     markRimGlow: 1.12, // rim light on a marked body
     colorMarkEdge: '#7a6cff',
     markEdgeGlow: 1.82, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the cage (cast-local hero) --- */
+    cageBars: 10, // bars in the ring (max 16)
+    cageWidth: 0.38, // bar thickness, metres
+    cageHeight: 3.4, // bar height, metres
+    cageFit: 0.92, // ring radius, × the circle
+    cageLintel: 0.24, // thickness of the beam joining the tops, metres (0 = none)
+    cageDropHeight: 7, // metres above the floor the bars fall from
+    cageDropSpan: 0.55, // share of the travel the fall takes
+    cageStagger: 0.12, // how unevenly the bars land, share of the travel
+    cageBounce: 0.18, // how far the bars punch into the floor on the slam, metres
+    cageLean: 0.2, // radians the tops lean in once the cage closes
+    cageSteps: 4, // closing events through the linger
+    cageCloseStart: 0.3, // seconds after the beat the first event lands, × global lifetime
+    cageCloseEnd: 0.72, // the cage is fully closed by this share of the life after the beat
+    cageClose: 0.4, // how far it closes, × the ring radius
+    cageStepSnap: 0.14, // seconds each event's snap takes, × global lifetime
+    cageStepShake: 0.18, // camera punch of each event
+    cageStepLight: 3.5, // light punch of each event
+    cageStepDust: 3, // dust kicked off each foot per event
+    cageEraseStart: 1.05, // seconds after the beat the erase begins, × global lifetime
+    cageEraseStagger: 0.7, // seconds the erase takes to sweep round the ring, × global lifetime
+    cageEraseTime: 0.45, // seconds one bar takes to be erased, × global lifetime
+    cageSink: 0.3, // how far a bar sinks as it is erased, × its height
+    cageCutWidth: 0.07, // width of the white-hot erase edge, share of the bar
+    cageNotches: 14, // event notches up each bar
+    cageNotchGlow: 2.2, // brightness of the lit notches
+    cageRimGlow: 0.45, // violet fresnel rim on the glass
+    cageSpecular: 0.8, // sun glint on the glass
+    cageHeat: 2.6, // glow at the feet just after the slam
+    colorCageDeep: '#06040f', // glass, deep
+    colorCageBody: '#1a1248', // glass, body (the veins)
+    colorCageRim: '#7a6cff', // horizon rim
+    colorCageHot: '#f0ecff', // white-hot core: cuts, notches, lip
+    footScorch: 0.75, // scorch under each foot, metres
+    footDust: 6, // dust thrown off each foot on the slam
+    footChips: 4, // chips thrown off each foot on the slam
+    eraseSparks: 70, // sparks per second off the erase cuts
+
+    /* --- 15 · the missing centre --- */
+    pitFit: 0.66, // hole radius when the cage is closed, × the ring
+    pitGrow: 0.3, // seconds the hole takes to open, × global lifetime
+    pitClose: 0.4, // seconds it takes to close at the end, × global lifetime
+    pitLip: 0.32, // width of the horizon lip, metres
+    pitSkirt: 1.1, // the dark skirt round it, × the hole
+    pitSwirl: 1, // how fast it drains
+    pitGlow: 1.3, // brightness of the lip
+    pitOpacity: 1,
+    colorPitDeep: '#010004', // the hole
+    colorPitLip: '#9a8cff', // the lip
+    pullMotes: 60, // motes per second dragged across the floor into the hole
+    pullSpeed: 2.6, // metres/second they are dragged at
+
+    /* --- 16 · the event in flight --- */
+    seedSize: 0.42, // radius of the thrown event, metres
+    seedArc: 2.2, // height of its arc, metres
+    seedSpikes: 0.32, // how far its spikes churn out
+    seedGlow: 1.4, // its violet horizon
+    seedTrail: 70 // wake motes per second
   }
 };

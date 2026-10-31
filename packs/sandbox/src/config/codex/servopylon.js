@@ -53,7 +53,7 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template body sheet (off: it read as a striped hex screen; the machine carries the read)
     edgeGlow: 0.97,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#25d9f4',
     colorB: '#ffffff',
     colorC: '#043c44',
-    lensWarp: 0.56, // strength of the distortion it writes
+    lensWarp: 0, // off: the body shape it warps is gone // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the deck carries the floor)
     colorVoiceA: '#25d9f4',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field (off: its cyan glow washed the machine; the deck carries the floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.08, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#101820', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: they read as thin glowing rods)
     detailSize: 0.45, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -111,7 +111,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the tall template pylon left the frame; the cast-local ring is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -162,11 +162,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.44, // camera punch on the beat
-    impactFlash: 0.16, // screen flash on the beat
+    impactFlash: 0.06, // screen flash on the beat
     colorFlash: '#bffaff',
     burstRadius: 3.2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.06, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 34, // fragments thrown up and out on the beat
     impactDust: 13, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -174,7 +174,7 @@ export default {
     colorBurstC: '#043c44',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#25d9f4',
     colorShockB: '#ffffff',
 
@@ -201,6 +201,60 @@ export default {
     markRimGlow: 1.76, // rim light on a marked body
     colorMarkEdge: '#bffaff',
     markEdgeGlow: 2.86, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the pylons (cast-local hero) --- */
+    pylonCount: 6, // pylons in the ring (max 12)
+    pylonRing: 0.68, // ring radius, × the circle — inside the group, so the rams hammer outward through it
+    pylonHeight: 3.2, // pylon height, metres
+    pylonWidth: 0.5, // plinth width, metres
+    riseSpan: 0.4, // share of the travel the stamp-up takes (they rise as the core lands)
+    riseStagger: 0.15, // how unevenly they stamp up, share of the travel
+    stampDip: 0.18, // how far they punch into the floor on the beat, metres
+    ringTurn: 0.12, // how fast the ring indexes round while the servo drives, rad/s
+    pylonExit: 0.32, // seconds one pylon takes to sink back into the floor, × global lifetime
+    pylonExitStagger: 0.3, // seconds the sinking takes to go round the ring, × global lifetime
+    ramHeight: 0.54, // where the ram fires from, × pylon height (the housing)
+    ramRadius: 0.07, // piston rod radius, metres
+    ramBase: 0.08, // rod showing at rest, metres
+    ramReach: 1, // how far the beat stroke drives the head out, metres
+    ramOut: 0.07, // seconds a stroke takes to drive out, × global lifetime
+    ramHold: 0.05, // seconds it holds out, × global lifetime
+    ramBack: 0.16, // seconds it takes to pull back, × global lifetime
+    headLength: 0.42, // hammer head length, metres
+    headSize: 0.42, // hammer head height and depth, metres
+
+    /* --- 15 · the servo cycle --- */
+    cycleStart: 0.5, // seconds after the beat the round-robin starts, × global lifetime
+    cyclePeriod: 0.9, // seconds for the firing to go once round the ring, × global lifetime
+    cycleReach: 1, // each cycle stroke, × the beat stroke
+    strokeShake: 0.1, // camera punch once per turn of the ring
+    strokeLight: 1.4, // light tick on every stroke
+    strokeSparks: 10, // sparks off the head on every stroke
+    strokeDust: 4, // dust kicked off the floor under the head on every stroke
+    hubRadius: 0.28, // radius of the servo core, metres
+    hubArc: 2.2, // height of its throw, metres
+    hubTravelScale: 0.6, // thrown size, × radius
+    hubSpin: 5, // its rotor, rad/s
+    hubBed: 0.18, // how far it beds into the floor, metres
+    hubDip: 0.2, // its landing dip, metres
+
+    /* --- 16 · machined steel and the deck --- */
+    machineSpecular: 1.1, // sun glint on the panels
+    machineFresnel: 0.15, // cool rim at grazing angles
+    machineAmbient: 0.26, // how much of the steel shows away from the sun
+    machineSeamGlow: 0.7, // cyan panel seams
+    machineHeatGlow: 0.6, // vents and striking faces when a ram fires
+    machineSeams: 2, // panel seams per pylon height
+    machineLamp: 2.4, // the status lamp at each pylon's crown
+    colorMachineCore: '#e8fdff', // white-hot core
+    colorMachineTint: '#9ff1ff', // pale cyan glint
+    colorMachineBody: '#1fb8d2', // saturated cyan (seams, vents, conduits)
+    colorMachineDeep: '#030506', // near-black blue steel
+    colorMachineSteel: '#323d44', // machined steel albedo
+    deckFit: 0.95, // deck plate radius, × the circle
+    deckOpacity: 0.92, // how solid the deck plate is
+    deckGlow: 1.1, // brightness of the conduits and pulses
+    deckPulseLife: 0.45 // seconds a stroke's pulse takes to run out along its conduit, × global lifetime
   }
 };

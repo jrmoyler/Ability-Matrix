@@ -143,6 +143,8 @@ const FORK_FRAGMENT = /* glsl */ `
   uniform float uFresnel;
   uniform vec3  uColor;      // the fundamental tone
   uniform vec3  uMetal;
+  uniform vec3  uDeep;       // the dark deep stop of the steel
+  uniform vec3  uRimColor;   // fresnel rim tone (the second harmonic)
   uniform vec3  uLightDir;
   uniform float uGlobalGlow;
   uniform float uShaderIntensity;
@@ -161,8 +163,16 @@ const FORK_FRAGMENT = /* glsl */ `
     float rim = fresnelTerm(vViewV, vNormalV, 3.0, uFresnel);
     // Nodal bands glow on the strike: the standing wave made visible.
     float nodes = pow(abs(cos(vUv.y * 3.14159 * 3.0)), 18.0) * uStrike;
-    vec3 col = uMetal * (0.25 + 0.75 * lambert) * brush + uMetal * sheen * 0.6;
-    col += uColor * (rim * 0.9 + nodes * 2.5 + uStrike * 0.25) * uGlowGain * uGlobalGlow * uShaderIntensity;
+    // Four-stop ramp on the steel: the deep stop owns the shadowed side and
+    // the foot, the body tone the lit faces, the sheen the pale tint, and the
+    // white-hot core lives only in the nodal bands on a strike.
+    float lit = (0.15 + 0.85 * lambert) * brush;
+    float foot = smoothstep(0.0, 0.55, vUv.y);
+    vec3 col = mix(uDeep, uMetal, clamp(lit * (0.45 + 0.55 * foot), 0.0, 1.0));
+    col += mix(uMetal, vec3(1.0), 0.35) * sheen * 0.45;
+    col += uRimColor * rim * 0.9 * uGlowGain * uGlobalGlow * uShaderIntensity;
+    col += uColor * (nodes * 3.2 + uStrike * 0.18) * uGlowGain * uGlobalGlow * uShaderIntensity;
+    col += vec3(1.0) * nodes * uStrike * 0.6 * uGlowGain;
     gl_FragColor = vec4(col, uFade);
   }
 `;
@@ -183,7 +193,9 @@ export function createResonatorMaterial() {
       uGlowGain: { value: 1 },
       uFresnel: { value: 1 },
       uColor: { value: new Color(0xa6ff85) },
-      uMetal: { value: new Color('#c9d6c2') }
+      uMetal: { value: new Color('#c9d6c2') },
+      uDeep: { value: new Color('#071312') },
+      uRimColor: { value: new Color(0x54ebe6) }
     }),
     vertexShader: FORK_VERTEX,
     fragmentShader: FORK_FRAGMENT
@@ -192,6 +204,8 @@ export function createResonatorMaterial() {
     const u = material.uniforms;
     u.uColor.value.set(c.toneA);
     u.uMetal.value.set(c.metalColor ?? '#c9d6c2');
+    u.uDeep.value.set(c.metalDeep ?? '#071312');
+    u.uRimColor.value.set(c.toneB);
     u.uGlowGain.value = c.resonatorGlow ?? 1;
     u.uBuzz.value = c.forkBuzz ?? 0.02;
     u.uFresnel.value = g().fresnel;
@@ -538,4 +552,118 @@ export function createPressureWarpMaterial() {
     vertexShader: CARRIER_VERTEX,
     fragmentShader: WARP_FRAGMENT
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* 8 · The carrier's wake — caster to fork                             */
+/* ------------------------------------------------------------------ */
+
+const WAKE_VERTEX = /* glsl */ `
+  uniform float uTime;
+  uniform float uLength;     // metres, hand to head
+  uniform float uStartY;     // metres, hand height
+  uniform float uEndY;       // metres, head height
+  uniform float uWidth;      // half-width at the belly, metres
+  uniform float uAmp;        // standing-wave swing, metres
+  uniform float uWaves;      // wavelengths along the wake
+  uniform float uCross;      // 0 flat ribbon, 1 the crossed (upright) one
+  varying vec2  vUv;
+  varying float vNode;
+  void main() {
+    vUv = uv;
+    float s = uv.x;
+    // Pinched at the hand and at the head, full in the middle.
+    float env = sin(3.14159 * clamp(s, 0.0, 1.0));
+    float wave = sin(s * uWaves * 6.28318 - uTime * 14.0);
+    float stand = sin(s * uWaves * 3.14159) * cos(uTime * 22.0);
+    float swing = (0.65 * wave + 0.35 * stand) * uAmp * env;
+    float w = uWidth * (0.35 + 0.65 * env);
+    vec3 side = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), uCross);
+    vec3 swingDir = mix(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), uCross);
+    vec3 p = vec3(0.0, mix(uStartY, uEndY, s), s * uLength);
+    p += side * position.x * w + swingDir * swing;
+    vNode = abs(wave);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }
+`;
+
+const WAKE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uDraw;       // 0..1: the head has reached this far
+  uniform float uTail;       // 0..1: the tail has been reeled in to here
+  uniform float uFade;
+  uniform float uGlowGain;
+  uniform vec3  uCore;       // white-hot core (toneA, pushed past 1)
+  uniform vec3  uBody;       // saturated body (toneB)
+  uniform vec3  uDeep;       // the dark deep stop
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  varying vec2  vUv;
+  varying float vNode;
+  ${noiseGLSL}
+  void main() {
+    if (vUv.x > uDraw || vUv.x < uTail) discard;
+    float across = abs(vUv.y * 2.0 - 1.0);          // 0 centre .. 1 edge
+    float core = pow(1.0 - across, 6.0);
+    float body = 1.0 - smoothstep(0.25, 0.95, across);
+    float deepEdge = smoothstep(0.3, 0.8, across);
+    // Pressure beads travel down the wake toward the fork.
+    float beads = pow(abs(sin(vUv.x * 46.0 - uTime * 30.0)), 10.0);
+    float grain = 0.75 + 0.25 * snoise(vec3(vUv.x * 30.0, vUv.y * 4.0, uTime * 4.0));
+    // The head glows hotter; the tail darkens toward the deep tone.
+    float head = smoothstep(uDraw - 0.12, uDraw, vUv.x);
+    vec3 col = mix(uBody, uDeep, deepEdge) * grain;
+    col = mix(col, uCore * 1.5, clamp(core * (0.6 + 0.4 * vNode) + beads * core * 0.8 + head * core, 0.0, 1.0));
+    col *= uGlowGain * uGlobalGlow;
+    float ends = smoothstep(uTail, uTail + 0.06, vUv.x);
+    float alpha = (0.85 * body + core) * uFade * uShaderIntensity * ends;
+    if (alpha < 0.01) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The wake: a ribbon of sound strung from the caster to the carrier, then to
+ * the fork. Normal-blended so its deep edges darken the floor behind it and
+ * its core can glow: a four-stop ramp across the ribbon (deep → body → tint →
+ * hot core), beads of pressure running down it toward the target.
+ */
+export function createWakeMaterial(cross = 0) {
+  const material = new ShaderMaterial({
+    transparent: true,
+    side: DoubleSide,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uTime: { value: 0 },
+      uLength: { value: 1 },
+      uStartY: { value: 1.3 },
+      uEndY: { value: 1 },
+      uWidth: { value: 0.3 },
+      uAmp: { value: 0.3 },
+      uWaves: { value: 3 },
+      uCross: { value: cross },
+      uDraw: { value: 0 },
+      uTail: { value: 0 },
+      uFade: { value: 1 },
+      uGlowGain: { value: 1 },
+      uCore: { value: new Color(0xa6ff85) },
+      uBody: { value: new Color(0x54ebe6) },
+      uDeep: { value: new Color(0x072423) }
+    }),
+    vertexShader: WAKE_VERTEX,
+    fragmentShader: WAKE_FRAGMENT
+  });
+  material.userData.sync = (c) => {
+    const u = material.uniforms;
+    u.uCore.value.set(c.toneA);
+    u.uBody.value.set(c.toneB);
+    u.uDeep.value.set(c.colorDeep ?? '#072423');
+    u.uWidth.value = c.wakeWidth ?? 0.3;
+    u.uAmp.value = c.wakeSwing ?? 0.3;
+    u.uWaves.value = c.wakeWaves ?? 3;
+    u.uGlowGain.value = c.wakeGlow ?? 1;
+  };
+  return material;
 }

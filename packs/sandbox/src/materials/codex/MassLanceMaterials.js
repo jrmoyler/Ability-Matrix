@@ -1051,3 +1051,320 @@ export function createMassLanceScarMaterial() {
   };
   return material;
 }
+
+/* ==================================================================== */
+/* The signature — the lance, the trench it drags and the crush field    */
+/* ==================================================================== */
+/*
+ * Four more shaders, written for this cast:
+ *   lance   — forged near-black lead (MeshStandardMaterial, patched): lit and
+ *             shadow-casting; its collar and band seams glow copper, and a slow
+ *             pulse of weight runs from tail to nose, where the core is hot.
+ *   trench  — the torn floor behind it: flat-shaded stone lips, and down the
+ *             bed a copper seam hottest at the head and cooling back toward the
+ *             caster, with pulses drawn toward the lance.
+ *   collar  — the crush ring heaved up where it goes in: dark stone, hot
+ *             cracks on its inner face.
+ *   crush   — a filled field round the buried lance: the floor dragged in,
+ *             radial striations converging on a dark heart.
+ */
+
+const LANCE_FRAGMENT_PARS = /* glsl */ `
+  uniform float uSeamGlow;
+  uniform float uNoseGlow;
+  uniform float uPulse;
+  uniform float uRimGlow;
+  uniform float uHeat;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorSeam;
+  uniform vec3  uColorCore;
+  varying vec3  vLanceLocal;
+  ${noiseGLSL}
+  float gLanceSeam;
+`;
+const LANCE_COLOR = /* glsl */ `
+  {
+    // Lance layout (unit length along z, tail -0.5 .. point +0.5): pommel
+    // -0.5..-0.42, grip -0.41..-0.32, vamplate -0.315..-0.23, fluted shaft
+    // -0.23..0.2, socket 0.2..0.26, leaf head 0.26..0.5.
+    float z = vLanceLocal.z;
+    float grain = snoise(vLanceLocal * vec3(3.0, 3.0, 14.0)) * 0.5 + 0.5;
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.35 + 0.5 * grain);
+    // The head is bright forged steel-lead, the shaft dark, the grip darker.
+    float head = smoothstep(0.255, 0.27, z);
+    diffuseColor.rgb = mix(diffuseColor.rgb, mix(uColorDeep, uColorBody, 0.8 + 0.2 * grain), head * 0.8);
+    float grip = step(-0.41, z) * step(z, -0.32);
+    diffuseColor.rgb *= 1.0 - 0.45 * grip;
+    // Seams: pommel equator, vamplate rim, the socket bands, a wrap on the grip.
+    float seam = 1.0 - smoothstep(0.0, 0.006, abs(z + 0.455));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.008, abs(z + 0.25)));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.006, abs(z - 0.205)));
+    seam = max(seam, 1.0 - smoothstep(0.0, 0.006, abs(z - 0.25)));
+    seam = max(seam, (1.0 - smoothstep(0.0, 0.08, abs(fract(z * 60.0) - 0.5))) * 0.5 * grip);
+    gLanceSeam = seam;
+    diffuseColor.rgb *= 1.0 - 0.6 * seam;
+  }
+`;
+const LANCE_EMISSIVE = /* glsl */ `
+  {
+    float z = vLanceLocal.z;
+    // A pulse of weight running pommel to point.
+    float pulse = exp(-pow((z + 0.5 - fract(uPulse) * 1.2) * 7.0, 2.0));
+    vec3 seamCol = mix(uColorSeam, uColorCore, pulse);
+    totalEmissiveRadiance += seamCol * gLanceSeam * uSeamGlow * uHeat * (0.6 + 1.6 * pulse);
+    // A hairline copper flute line down the shaft, carrying the pulse.
+    float shaft = step(-0.23, z) * step(z, 0.2);
+    totalEmissiveRadiance += uColorSeam * shaft * pulse * 0.25 * uSeamGlow * uHeat;
+    // The leaf head: hot cutting edges and point, a dark midrib.
+    float head = smoothstep(0.255, 0.27, z);
+    float edge = smoothstep(0.42, 0.78, abs(vLanceLocal.y)) * head;
+    float point = smoothstep(0.38, 0.5, z);
+    float hot = max(edge, point * point);
+    totalEmissiveRadiance += mix(uColorSeam, uColorCore, hot * hot * 0.4) * hot * uNoseGlow * uHeat;
+    vec3 nV = normalize(normal);
+    float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
+    totalEmissiveRadiance += uColorSeam * rim * uRimGlow;
+  }
+`;
+
+/** The lance: opaque, lit, shadow-casting near-black lead with copper seams and a hot nose. */
+export function createMassLanceLanceMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.6, flatShading: true });
+  const uniforms = {
+    uSeamGlow: { value: 1 },
+    uNoseGlow: { value: 1 },
+    uPulse: { value: 0 },
+    uRimGlow: { value: 1 },
+    uHeat: { value: 1 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorSeam: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n  varying vec3 vLanceLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLanceLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${LANCE_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${LANCE_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${LANCE_EMISSIVE}`);
+    },
+    'masslance-lance'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat, pulse) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uPulse.value = pulse;
+    uniforms.uSeamGlow.value = c.lanceSeamGlow * g.glow;
+    uniforms.uNoseGlow.value = c.lanceNoseGlow * g.glow;
+    uniforms.uRimGlow.value = c.lanceRimGlow * g.fresnel * g.glow;
+    uniforms.uColorDeep.value.copy(getColor(c.colorLanceDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorLanceBody));
+    uniforms.uColorSeam.value.copy(getColor(c.colorLanceSeam));
+    uniforms.uColorCore.value.copy(getColor(c.colorLanceCore));
+    material.roughness = c.lanceRough;
+    material.metalness = c.lanceMetal;
+  };
+  return material;
+}
+
+const TRENCH_FRAGMENT_PARS = /* glsl */ `
+  uniform float uLength;
+  uniform float uHeat;
+  uniform float uSeamGlow;
+  uniform float uCool;
+  uniform float uPulse;
+  uniform vec3  uColorStone;
+  uniform vec3  uColorBed;
+  uniform vec3  uColorSeam;
+  uniform vec3  uColorCore;
+  varying vec2  vTrench;
+  varying vec3  vTrenchLocal;
+  ${noiseGLSL}
+`;
+
+/** The trench: flat-shaded stone lips and a bed with a copper seam, hottest at the head. */
+export function createMassLanceTrenchMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0, flatShading: true });
+  const uniforms = {
+    uLength: { value: 1 },
+    uHeat: { value: 1 },
+    uSeamGlow: { value: 1 },
+    uCool: { value: 4 },
+    uPulse: { value: 0 },
+    uColorStone: { value: new Color() },
+    uColorBed: { value: new Color() },
+    uColorSeam: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n  attribute vec2 aTrench;\n  varying vec2 vTrench;\n  varying vec3 vTrenchLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTrench = aTrench;\n  vTrenchLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${TRENCH_FRAGMENT_PARS}`)
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+  {
+    float grain = snoise(vec3(vTrenchLocal.x * 3.0, vTrenchLocal.y * 2.0, vTrench.y * uLength * 2.0)) * 0.5 + 0.5;
+    diffuseColor.rgb = mix(uColorBed, uColorStone * (0.7 + 0.6 * grain), smoothstep(0.05, 0.6, vTrench.x));
+  }`
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  {
+    // Metres back from the head: the seam is hottest at the lance and cools behind it.
+    float back = (1.0 - vTrench.y) * uLength;
+    float hot = exp(-back / max(0.1, uCool));
+    // Pulses dragged toward the lance.
+    float pulse = pow(0.5 + 0.5 * sin(back * 2.2 + uPulse), 6.0);
+    float bed = 1.0 - smoothstep(0.0, 0.14, vTrench.x);
+    float crack = 1.0 - smoothstep(0.0, 0.1, abs(snoise(vec3(vTrenchLocal.x * 5.0, vTrench.y * uLength * 1.5, 3.1))));
+    vec3 col = mix(uColorSeam, uColorCore, hot * hot);
+    totalEmissiveRadiance += col * uSeamGlow * uHeat * (bed * (0.25 + hot + 0.6 * pulse * (0.3 + hot)) + crack * 0.35 * hot * (1.0 - bed));
+  }`
+        );
+    },
+    'masslance-trench'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (length, heat, pulse) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uLength.value = Math.max(0.1, length);
+    uniforms.uHeat.value = heat;
+    uniforms.uPulse.value = pulse;
+    uniforms.uSeamGlow.value = c.trenchGlow * g.glow;
+    uniforms.uCool.value = c.trenchCool;
+    uniforms.uColorStone.value.copy(getColor(c.colorTrenchStone));
+    uniforms.uColorBed.value.copy(getColor(c.colorLanceDeep));
+    uniforms.uColorSeam.value.copy(getColor(c.colorLanceSeam));
+    uniforms.uColorCore.value.copy(getColor(c.colorLanceCore));
+  };
+  return material;
+}
+
+/** The crush ring: dark stone with hot cracks on its inner face while the lance is hot. */
+export function createMassLanceCollarMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0, flatShading: true });
+  const uniforms = {
+    uHeat: { value: 1 },
+    uGlow: { value: 1 },
+    uColorStone: { value: new Color() },
+    uColorSeam: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n  varying vec3 vCollarLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCollarLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n  uniform float uHeat;\n  uniform float uGlow;\n  uniform vec3 uColorStone;\n  uniform vec3 uColorSeam;\n  varying vec3 vCollarLocal;\n${noiseGLSL}`)
+        .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = uColorStone * (0.7 + 0.6 * (snoise(vCollarLocal * 6.0) * 0.5 + 0.5));')
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  {
+    float r = length(vCollarLocal.xz);
+    float inner = 1.0 - smoothstep(0.5, 0.75, r);
+    float crack = 1.0 - smoothstep(0.0, 0.14, abs(snoise(vec3(atan(vCollarLocal.z, vCollarLocal.x) * 2.5, vCollarLocal.y * 8.0, 0.7))));
+    totalEmissiveRadiance += uColorSeam * uGlow * uHeat * (inner * 0.6 + crack * 0.8);
+  }`
+        );
+    },
+    'masslance-collar'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uGlow.value = c.collarGlow * g.glow;
+    uniforms.uColorStone.value.copy(getColor(c.colorTrenchStone));
+    uniforms.uColorSeam.value.copy(getColor(c.colorLanceSeam));
+  };
+  return material;
+}
+
+const CRUSH_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const CRUSH_FRAGMENT = /* glsl */ `
+  uniform float uPull;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uHeat;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorSeam;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    float a = atan(p.y, p.x);
+    // Striations dragged in toward the heart, flowing inward with the pull.
+    float stri = snoise(vec3(a * 7.0, r * 2.0 + uPull, uSeed));
+    stri = smoothstep(0.2, 0.85, stri * 0.5 + 0.5);
+    float heart = 1.0 - smoothstep(0.0, 0.45, r);
+    vec3 col = mix(uColorBody * 0.35, uColorDeep, heart);
+    col += uColorSeam * stri * (1.0 - heart) * (1.0 - smoothstep(0.6, 1.0, r)) * uGlow * uHeat;
+    float alpha = uOpacity * (1.0 - smoothstep(0.75, 1.0, r)) * (0.65 + 0.35 * heart + 0.2 * stri);
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The crush field: a filled disc of floor dragged in toward the buried lance. */
+export function createMassLanceCrushMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    uniforms: sharedUniforms({
+      uPull: { value: 0 },
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uHeat: { value: 1 },
+      uSeed: { value: 0 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorSeam: { value: new Color() }
+    }),
+    vertexShader: CRUSH_VERTEX,
+    fragmentShader: CRUSH_FRAGMENT
+  });
+  material.userData.sync = (pull, opacity, heat, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uPull.value = pull;
+    u.uOpacity.value = opacity * c.crushOpacity * g.opacity;
+    u.uGlow.value = c.crushGlow * g.glow;
+    u.uHeat.value = heat;
+    u.uSeed.value = seed;
+    u.uColorDeep.value.copy(getColor(c.colorLanceDeep));
+    u.uColorBody.value.copy(getColor(c.colorLanceBody));
+    u.uColorSeam.value.copy(getColor(c.colorLanceSeam));
+  };
+  return material;
+}

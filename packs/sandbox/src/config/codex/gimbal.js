@@ -33,7 +33,7 @@ export default {
 
     /* --- light --- */
     lightColor: '#25cbf4',
-    lightIntensity: 8.8, // the glow riding the cast
+    lightIntensity: 6, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.4, // 0..1 how much it shimmers
     impactLight: 11, // extra light on the beat, decays on its own
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template body sheet (off: the cutter carries the read)
     edgeGlow: 2.31,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#25cbf4',
     colorB: '#ffffff',
     colorC: '#043744',
-    lensWarp: 0.8, // strength of the distortion it writes
+    lensWarp: 0, // off: the body shape it warps is gone
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#25cbf4',
     colorVoiceB: '#ffffff',
 
@@ -73,17 +73,17 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template field (off: the kerf is the ground)
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.08, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
-    groundStain: 0.9, // strength of the residue decal left at the beat
+    groundStain: 0.5, // strength of the residue decal left at the beat
     groundStainReach: 0.9, // residue radius, × the circle (zone) or × the ground width (line)
     colorGroundA: '#25cbf4',
     colorGroundB: '#043744',
     colorGroundStain: '#101820', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the cutter is the piece)
     detailSize: 0.45, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -109,7 +109,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the template rig is (off: the cast-local cutter is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -121,7 +121,7 @@ export default {
     colorHeroC: '#043744',
 
     /* --- 6 · shed --- */
-    dustRate: 40, // puffs per second
+    dustRate: 4, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -130,7 +130,7 @@ export default {
     colorDustB: '#25cbf4',
     colorDustC: '#043744',
     colorDustD: '#1a140e',
-    streakRate: 117, // sparks per second
+    streakRate: 0, // sparks per second (off: the blade throws its own)
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -139,7 +139,7 @@ export default {
     colorStreakB: '#c8f6ff',
     colorStreakC: '#25cbf4',
     colorStreakD: '#25cbf4',
-    chipRate: 36, // fragments per second
+    chipRate: 0, // fragments per second (off)
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
@@ -149,7 +149,7 @@ export default {
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
-    moteRate: 26, // motes per second off the pieces
+    moteRate: 0, // motes per second off the pieces (none: no pieces)
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
@@ -160,11 +160,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.44, // camera punch on the beat
-    impactFlash: 0.16, // screen flash on the beat
+    impactFlash: 0.04, // screen flash on the beat (a tint, never a full-frame flash)
     colorFlash: '#c8f6ff',
     burstRadius: 2.6, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell (off: the bite hits with sparks and chips)
     impactChips: 34, // fragments thrown up and out on the beat
     impactDust: 13, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -172,7 +172,7 @@ export default {
     colorBurstC: '#043744',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#25cbf4',
     colorShockB: '#ffffff',
 
@@ -204,19 +204,61 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.68, // ribbon width at the head, metres
     trailLife: 1.3, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // strength of the template ribbon (off: the cutter and kerf carry the travel)
     trailGlow: 1.21, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 1.4, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.85, // strength of the scar
+    scarOpacity: 0, // strength of the template scar (off: the kerf is the scar)
     scarGlow: 1.76, // brightness of its hot seam
     colorScarA: '#25cbf4',
     colorScarB: '#043744',
-    wakeSpacing: 2, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 1, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 4 // fragments thrown at each wake
+    wakeChips: 4, // fragments thrown at each wake
+
+    /* --- 15 · the cutter (cast-local signature) --- */
+    cutterSize: 1.5, // yoke radius, metres
+    cutterHeight: 1.6, // hub height above the floor in flight, metres
+    whipAmp: 0.95, // how far it whips side to side, metres
+    whipWavelength: 5.5, // metres per full side-to-side swing
+    whipRamp: 1.5, // metres from the hand over which the whip builds
+    whipYaw: 0.9, // radians the yoke yaws into each swing
+    cradleSpin: 7, // radians/second the cradle tumbles in the yoke
+    bladeSpin: 32, // radians/second the saw spins
+    biteDepth: 0.42, // how far it drops into the floor at the end, metres
+    biteTime: 0.12, // seconds the drop takes
+    precessSpin: 2.6, // radians/second it precesses on its gimbals after the bite
+    precessDecay: 1.1, // seconds for the spin to run down
+    cutterFoldAt: 1.15, // fade progress at which the cradle folds flat
+    cutterSinkAt: 1.45, // fade progress at which it sinks into the bite
+    cutterSeamGlow: 0.9, // glow of the inset channels
+    cutterEdgeGlow: 2, // glow of the teeth and edges
+    cutterSpecular: 1.2, // sun highlight on the gunmetal
+    cutterRimGlow: 0.15, // fresnel rim in the channel colour
+    colorMetalDeep: '#05090c', // gunmetal, deep
+    colorMetal: '#2a3a42', // gunmetal, lit
+    colorCutterSeam: '#25cbf4', // channels and edges
+    colorCutterHot: '#e8fbff', // edges at their hottest
+    cutSparks: 160, // contact sparks per second in flight
+    biteSparks: 220, // sparks per second at the bite, running down
+    biteChips: 40, // chips thrown at the bite
+    biteShake: 0.35, // camera punch of the bite
+    biteLight: 12, // light punch of the bite
+
+    /* --- 16 · the kerf --- */
+    kerfOpacity: 0.95, // strength of the cut floor
+    kerfGlow: 1.3, // glow of the kerf seam
+    kerfWidth: 0.24, // width of the groove, metres
+    kerfBedWidth: 1.6, // width of the scorched bed, metres
+    kerfCool: 3.5, // metres behind the cutter over which the seam cools
+    kerfHeatLife: 1.4, // seconds the cut stays hot after the bite
+    kerfLetGo: 1.6, // fade progress at which the kerf starts to go
+    biteRadius: 1.1, // the gouge at the end, metres
+    kerfSmoke: 20, // smoke puffs per second off the kerf
+    colorKerfDeep: '#03080a', // scorch, deep
+    colorKerf: '#13232a' // scorch, lit
   }
 };

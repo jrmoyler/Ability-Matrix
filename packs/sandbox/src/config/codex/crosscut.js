@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0,
     edgeGlow: 1.67,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.29,
@@ -62,10 +62,10 @@ export default {
     colorA: '#47e1bc',
     colorB: '#ffffff',
     colorC: '#0a4335',
-    lensWarp: 1.02, // strength of the distortion it writes
+    lensWarp: 0.5, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement
     colorVoiceA: '#47e1bc',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.35, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#3a4a46', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48)
     detailSize: 0.5, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 0.99, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -115,7 +115,7 @@ export default {
     colorHeroC: '#0a4335',
 
     /* --- 6 · shed --- */
-    dustRate: 80, // puffs per second
+    dustRate: 40, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -124,7 +124,7 @@ export default {
     colorDustB: '#47e1bc',
     colorDustC: '#0a4335',
     colorDustD: '#1a140e',
-    streakRate: 144, // sparks per second
+    streakRate: 60, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -158,7 +158,7 @@ export default {
     colorFlash: '#e7fff8',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.04, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 4, // fragments thrown up and out on the beat
     impactDust: 8, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -166,7 +166,7 @@ export default {
     colorBurstC: '#0a4335',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#47e1bc',
     colorShockB: '#ffffff',
 
@@ -198,19 +198,104 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.3, // ribbon width at the head, metres
     trailLife: 0.9, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.55, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon
     trailGlow: 0.99, // brightness of the ribbon
     trailCore: 0.4, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.6, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
+    scarOpacity: 0, // strength of the scar
     scarGlow: 1.44, // brightness of its hot seam
     colorScarA: '#47e1bc',
     colorScarB: '#0a4335',
-    wakeSpacing: 1.8, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.7, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.6 // fragments thrown at each wake
+    wakeChips: 1.6, // fragments thrown at each wake
+
+    /* --- 15 · the shear blades (upgrade) --- */
+    frontWidth: 4.6, // span of each scythe blade, horn to horn, metres
+    frontHeight: 1.25, // how far its crescent arcs up (the sagitta), metres
+    frontDepth: 0.3, // how far its horns trail back, × span
+    frontSkew: 0.3, // radians each blade's face swings across as it runs
+    frontGrow: 0.12, // seconds a blade takes to open off the fist
+    frontOpacity: 0.95, // strength of the dark body of the blades
+    frontFlow: 6, // speed of the streaks racing along the blades
+    frontFlutter: 0.03, // how much the blades shiver
+    crashTime: 0.28, // seconds the blades take to run on past the crossing
+    crashPitch: 0.5, // radians the blades pitch forward as they tear apart
+    crashLunge: 5.5, // metres the blades run on past the crossing (the X's far arms)
+
+    /* --- 16 · the debris spiral (upgrade) --- */
+    rotorLength: 4.6, // length of the spiral of debris rolling over the group, metres
+    rotorRadius: 1, // radius of the spiral, metres
+    rotorGrow: 0.32, // seconds it takes to wind up
+    rotorSpin: 9, // radians/second it rolls
+    rotorSpinDown: 1.4, // seconds its roll slows over, × global lifetime
+    rotorDrift: 1.6, // metres it drifts on past the group
+    rotorSway: 0.45, // metres it sways side to side
+    rotorSwayRate: 2.2, // sway rate (radians/second)
+    rotorLift: 0.9, // metres it lifts as it unwinds
+    rotorExitAt: 1.4, // fade progress it starts to unwind at
+    rotorOpacity: 1, // strength of the debris ribbons
+    rotorFlow: 4.5, // speed of the debris running round the spiral
+    rotorFlutter: 0.04, // how much the ribbons flutter
+    coreOpacity: 0, // strength of the old translucent body inside the roll (0 = none: the wind is read by what it carries)
+    coreSize: 0.85, // its radius, × the roll's
+
+    /* --- 17 · the wind's look (upgrade) --- */
+    windStreaks: 1.2, // brightness of the flow streaks
+    windFresnel: 0.7, // rim brightening at grazing angles
+    colorWindCore: '#f2fffb', // white cutting edge
+    colorWindTint: '#9ff5dc', // pale mint
+    colorWindBody: '#1f9e80', // saturated teal
+    colorWindDeep: '#04211b', // deep teal, carries the mass
+    leafRate: 150, // leaves per second torn up along the blades / flung round the spiral
+    leafSize: 0.17, // leaf size
+    leafSpeed: 5.5, // metres/second they are flung at
+    leafLife: 0.9, // seconds a leaf lives
+    leafFall: 2.5, // how hard they fall (gravity)
+    colorLeafA: '#3e4a28',
+    colorLeafB: '#26301a',
+    colorLeafC: '#151c0e',
+    colorLeafD: '#0b0f08',
+
+    /* --- 18 · the gash (upgrade) --- */
+    scourWidth: 1.5, // width of each gash at the crossing, metres
+    scourCross: 0.65, // half-angle the two sweeps cross at over the group, radians (sets how wide they swing out)
+    scourOpacity: 0.95, // strength of the gashes
+    scourGlow: 1, // fresh dust right behind the blades
+    scourErodeAt: 1.6, // fade progress the gashes start to break up at
+    eddyRadius: 1.3, // radius of the torn patch where the blades cross, metres
+    eddySpin: 2, // how fast its combed arms turn (radians/second, slowing with the spiral)
+
+    /* --- 19 · blades & debris (upgrade) --- */
+    bladeReach: 3.2, // most the two sweeps swing out from the line, metres
+    bladeRoll: 0.6, // radians each blade is tilted, opposite ways, so the pair crosses as an X
+    bladeSweep: 0.5, // radians the tilt swings through over the run (the scythe stroke)
+    bladeThickness: 0.16, // thickness at the spine, metres
+    bladeEdge: 2.4, // brightness of the cutting edge
+    bladeLift: 1.15, // height of the blade's middle, metres
+    bladeFade: 0.45, // seconds a blade takes to tear apart after the crossing
+    bladeWisp: 0.6, // how far the trailing horn frays into wisps
+    debrisCount: 220, // turf clods, grit and stones the blades tear up (max 240)
+    debrisSize: 0.34, // mean clod size, metres
+    debrisSizeJitter: 0.35, // ± fraction of that
+    debrisBand: 1.9, // width of the band of debris each blade drags, metres
+    debrisLift: 4.2, // metres/second the clods are thrown up
+    debrisCarry: 5, // metres the clods are dragged on after the blade
+    debrisGravity: 13, // how hard they fall
+    debrisSpin: 9, // radians/second they tumble
+    debrisGlow: 0.15, // teal rim light on the clods
+    debrisShadow: 1, // 1 = the clods cast shadows
+    debrisCaught: 0.3, // share of the clods near the group the spiral catches and rolls round before flinging them down
+    colorDebrisA: '#36421f', // turf
+    colorDebrisB: '#3f2c1b', // soil
+    colorDebrisC: '#33373a', // grit and stone
+    gashReach: 6.5, // metres before the crossing the blades bite into the floor (the X's near arms)
+    gashTaper: 0.35, // gash width where the bite starts, × its width at the crossing
+    gashDepth: 0.9, // how dark the gouged middle of a gash is
+    gashLip: 1 // brightness of the torn turf lips
+
   }
 };

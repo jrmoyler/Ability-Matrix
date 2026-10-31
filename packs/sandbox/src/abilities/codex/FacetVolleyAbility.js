@@ -1,10 +1,11 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { InstancedBufferAttribute, InstancedMesh, Mesh, Object3D, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
 import { createFacetVolleyPieceGeometry, createFacetVolleyHeroGeometry } from '../../assets/codex/FacetVolleyGeometry.js';
+import { createFacetVolleySeedGeometry, createFacetVolleyPrismGeometry } from '../../assets/codex/FacetVolleySignatureGeometry.js';
 import {
   createFacetVolleyBodyMaterial,
   createFacetVolleyLensMaterial,
@@ -12,7 +13,8 @@ import {
   createFacetVolleyVoiceMaterial,
   createFacetVolleyDetailMaterial,
   createFacetVolleyTrailMaterial,
-  createFacetVolleyScarMaterial
+  createFacetVolleyScarMaterial,
+  createFacetVolleyCrystalMaterial
 } from '../../materials/codex/FacetVolleyMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +48,26 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _o = new Object3D();
+const _q = new Quaternion();
+const _qPlant = new Quaternion();
+const _axis = new Vector3();
+const _vel = new Vector3();
+const _hand = new Vector3();
+const _land = new Vector3();
+const _out = new Vector3();
+const TAU = Math.PI * 2;
+
+/** Seeds one volley can throw (the template's `count`, max 12). */
+const MAX_SEEDS = 12;
+/** Prisms one planted cluster can grow (`clusterSize` is clamped to it). */
+const MAX_PRISMS = 7;
+
+/** Stable 0..1 dice from a seed and two indices. */
+function dice(seed, i, k) {
+  const h = Math.sin(seed * 91.7 + i * 12.9898 + k * 78.233) * 43758.5453;
+  return h - Math.floor(h);
+}
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -75,6 +97,27 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The crystals (upgrade pass — the cast's own silhouette)
+ *
+ * The template curtain body, voice, rig, pieces, strip field, ribbon and
+ * lens are off by default (their opacity / count keys are 0). The spell's
+ * noun is now solid amethyst (`createFacetVolleyCrystalMaterial`: dark, lit,
+ * opaque, `LAYER.WORLD`, shadows; only terminations and a climbing glint glow):
+ *
+ *  - **travel** — `count` double-terminated seeds (`createFacetVolleySeedGeometry`,
+ *    `seedSize` long) leave the hand one after another on staggered arcs
+ *    (`seedArc`), each pitched along its own flight and spinning on its axis.
+ *    Seed *i* lands exactly where and when the template strikes part *i*
+ *    (`_partPoint`, `u = (i + 0.98) / n`), so the plant is the hit.
+ *  - **plant (each impact)** — the seed buries its point at the landing angle,
+ *    the floor frosts and cracks dark round it, chips fly and a short shake
+ *    lands; then a cluster of `clusterSize` prisms (`createFacetVolleyPrismGeometry`)
+ *    bursts out of the ground round it, fanned outward (`clusterSplay`).
+ *  - **linger** — each cluster keeps accreting (`clusterAccrete`), its tips
+ *    cooling from white-hot through violet, a glint climbing every crystal.
+ *  - **exit** — from `shatterFrom` the clusters crack (a chip burst each) and
+ *    shrink back into the floor; the frost residue stays.
  *
  * Every metre, rate and colour is read from `settings.facetvolley` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +202,233 @@ export class FacetVolleyAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The amethyst — the cast's own hero (see the class comment).
+    this.seedGeometry = createFacetVolleySeedGeometry();
+    this.prismGeometry = createFacetVolleyPrismGeometry();
+    this.seedPlant = new InstancedBufferAttribute(new Float32Array(MAX_SEEDS), 1);
+    this.prismPlant = new InstancedBufferAttribute(new Float32Array(MAX_SEEDS * MAX_PRISMS), 1);
+    this.seedGeometry.setAttribute('aPlant', this.seedPlant);
+    this.prismGeometry.setAttribute('aPlant', this.prismPlant);
+    this.crystalMaterial = createFacetVolleyCrystalMaterial();
+    this.seeds = new InstancedMesh(this.seedGeometry, this.crystalMaterial, MAX_SEEDS);
+    this.prisms = new InstancedMesh(this.prismGeometry, this.crystalMaterial, MAX_SEEDS * MAX_PRISMS);
+    for (const m of [this.seeds, this.prisms]) {
+      m.count = 0;
+      m.layers.set(LAYER.WORLD);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.frustumCulled = false;
+      m.visible = false;
+      this.group.add(m);
+    }
+    /** Per seed: seconds since it planted (−1 = still in the air). Dice only. */
+    this._plantAge = new Float32Array(MAX_SEEDS).fill(-1);
+    this._shattered = false;
+  }
+
+  /** How many seeds this volley throws: the template's part count. */
+  _seedCount() {
+    return Math.max(1, Math.min(MAX_SEEDS, Math.round(settings[ID].count)));
+  }
+
+  /** Where the hand releases the seeds. */
+  _handPoint(out) {
+    const c = settings[ID];
+    return out.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide).setY(c.handHeight);
+  }
+
+  /** u at which seed i lands: the very frame the template strikes part i. */
+  _landU(i, n) {
+    return Math.min(1, (i + 0.98) / n);
+  }
+
+  /** u at which seed i leaves the hand. */
+  _launchU(i, n) {
+    const c = settings[ID];
+    return Math.max(0, this._landU(i, n) - c.seedFlight) * c.seedStagger;
+  }
+
+  /**
+   * Seed i at flight fraction f: position into `out`, velocity into `_vel`.
+   * A parabola from the hand to the part point, its height derived from the
+   * distance so a short throw is a low lob and a long one a high arc.
+   */
+  _seedAt(i, n, f, out) {
+    const c = settings[ID];
+    this._handPoint(_hand);
+    this._partPoint(i, n, _land).setY(0);
+    const dist = _hand.distanceTo(_land);
+    const arc = c.seedArc * Math.min(1, dist / 6) * (0.7 + 0.6 * dice(this._seed, i, 1));
+    out.lerpVectors(_hand, _land, f);
+    out.y += arc * 4 * f * (1 - f);
+    _vel.subVectors(_land, _hand);
+    _vel.y += arc * 4 * (1 - 2 * f);
+    return out;
+  }
+
+  /** Seed i strikes the floor: a dark frost bloom, a crack, chips, dust and a short shake. */
+  _plant(i, n) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._plantAge[i] = 0;
+    this._partPoint(i, n, _pos).setY(0);
+    this.ctx.decals.spawn(DecalType.SCORCH, _pos, {
+      radius: c.plantFrost * (0.85 + 0.3 * dice(this._seed, i, 2)),
+      life: c.groundLife * g.lifetime,
+      width: 0.5,
+      intensity: 0.95,
+      colorA: getColor(c.colorPlantBed),
+      colorB: getColor(c.colorPlantEmber),
+      height: 0.026 + i * 0.0005
+    });
+    this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+      radius: c.plantCrack,
+      life: c.groundLife * g.lifetime,
+      width: 0.08,
+      intensity: 0.6,
+      colorA: getColor(c.colorPlantBed),
+      colorB: getColor(c.colorA),
+      height: 0.03 + i * 0.0005
+    });
+    const chips = Math.round(c.plantChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      _pos.y = 0.15;
+      this._fillEmit(_pos, 0.25, _up, c.chipSpeed * 1.2, 0.75, c.chipSize * 1.5, c.chipLife * 1.2, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.plantDust * g.particleCount);
+    for (let k = 0; k < dust; k++) {
+      const a = (k / Math.max(1, dust)) * TAU + i;
+      _dir.set(Math.cos(a), 0.15, Math.sin(a));
+      this._fillEmit(_pos, 0.2, _dir, c.dustSpeed * 1.2, 0.3, 0.45, c.dustLife, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.shake.add(c.plantShake * g.cameraShake * g.explosionIntensity, 3, 20);
+    this.lightBoost += c.plantLight * g.explosionIntensity;
+  }
+
+  /** The clusters crack at the start of the exit: one chip burst each. */
+  _shatter() {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = this._seedCount();
+    for (let i = 0; i < n; i++) {
+      if (this._plantAge[i] < 0) continue;
+      this._partPoint(i, n, _pos).setY(c.clusterHeight * 0.4);
+      const chips = Math.round(c.shatterChips * g.particleCount);
+      if (chips > 0) {
+        this._fillEmit(_pos, c.clusterHeight * 0.3, _up, c.chipSpeed, 0.9, c.chipSize * 1.3, c.chipLife, 10);
+        this.chips.emit(chips, _emit);
+      }
+    }
+  }
+
+  /**
+   * Pose every seed and prism this frame. Presentation only: the template's
+   * part strikes are the hits.
+   *
+   * @param {number} dt
+   * @param {number} fadeT -1 in travel; the onFade clock (0..2) after the beat
+   */
+  _crystals(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = this._seedCount();
+    const K = Math.max(0, Math.min(MAX_PRISMS, Math.round(c.clusterSize)));
+    const exit = fadeT > c.shatterFrom ? Easing.inCubic(saturate((fadeT - c.shatterFrom) / Math.max(0.05, 2 - c.shatterFrom))) : 0;
+    const len = c.seedSize;
+    const wide = c.seedWidth;
+    let seeds = 0;
+    let prisms = 0;
+    for (let i = 0; i < n; i++) {
+      const age = this._plantAge[i];
+      if (age >= 0) this._plantAge[i] += dt;
+      if (age < 0) {
+        // In flight (or still in the hand).
+        const u0 = this._launchU(i, n);
+        const u1 = this._landU(i, n);
+        if (this.u < u0 || fadeT >= 0) continue;
+        const f = saturate((this.u - u0) / Math.max(0.01, u1 - u0));
+        this._seedAt(i, n, f, _o.position);
+        _vel.normalize();
+        // Broadside in flight: the long axis across the line, spinning like a
+        // thrown shard about the flight path, so the camera behind the caster
+        // sees its whole length; it swings point-first only for the strike.
+        _qPlant.setFromUnitVectors(_up, _vel);
+        _q.setFromUnitVectors(_up, this.side);
+        _o.quaternion.setFromAxisAngle(this.direction, this.age * c.seedSpin + i * 1.7).multiply(_q);
+        _o.quaternion.slerp(_qPlant, Easing.inCubic(saturate((f - c.seedTurn) / Math.max(0.02, 1 - c.seedTurn))));
+        const grow = Easing.outCubic(saturate(f * 6));
+        _o.scale.set(wide * grow, len * grow, wide * grow);
+        _o.updateMatrix();
+        this.seeds.setMatrixAt(seeds, _o.matrix);
+        this.seedPlant.array[seeds] = 0.6;
+        seeds++;
+        continue;
+      }
+      // Planted: the seed stays, point buried at its landing angle.
+      const t = this._plantAge[i];
+      const fresh = Math.exp(-t / Math.max(0.05, c.crystalCool * g.lifetime));
+      const shrink = 1 - exit;
+      this._seedAt(i, n, 1, _land);
+      _vel.normalize();
+      _o.position.copy(_land).addScaledVector(_vel, (c.seedBury - 0.5) * len * shrink);
+      _o.quaternion.setFromUnitVectors(_up, _vel);
+      _q.setFromAxisAngle(_up, i * 1.3);
+      _o.quaternion.multiply(_q);
+      _o.scale.set(wide * shrink, len * shrink, wide * shrink);
+      _o.updateMatrix();
+      if (shrink > 0.01) {
+        this.seeds.setMatrixAt(seeds, _o.matrix);
+        this.seedPlant.array[seeds] = 0.3 + 1.2 * fresh;
+        seeds++;
+      }
+      // The cluster bursts out round it and keeps accreting.
+      // Later seeds strike harder: the clusters grow along the line (the first lands at the caster's feet).
+      const along = c.clusterNear + (1 - c.clusterNear) * ((i + 0.5) / n);
+      const accrete = along * (1 - c.clusterAccrete + c.clusterAccrete * Easing.outCubic(saturate(t / Math.max(0.1, c.accreteTime * g.lifetime))));
+      for (let k = 0; k < K; k++) {
+        const local = t - c.clusterDelay - k * c.clusterStagger;
+        if (local <= 0) continue;
+        const pop = Easing.outBack(saturate(local / Math.max(0.02, c.clusterGrow)));
+        const h = c.clusterHeight * (k === 0 ? 1 : 0.45 + 0.45 * dice(this._seed, i * 7 + k, 3)) * pop * accrete * shrink;
+        if (h < 0.01) continue;
+        const a = (k / Math.max(1, K)) * TAU + dice(this._seed, i, 4) * TAU;
+        _out.set(Math.cos(a), 0, Math.sin(a));
+        const tilt = k === 0 ? c.clusterSplay * 0.25 : c.clusterSplay * (0.6 + 0.6 * dice(this._seed, i * 7 + k, 5));
+        _axis.crossVectors(_up, _out).normalize();
+        _o.position.copy(_land).addScaledVector(_out, k === 0 ? 0.1 : c.clusterSpread * (0.6 + 0.6 * dice(this._seed, i * 7 + k, 6)));
+        _o.position.y = -0.05 - exit * 0.3;
+        _o.quaternion.setFromAxisAngle(_axis, tilt);
+        _q.setFromAxisAngle(_up, dice(this._seed, i * 7 + k, 7) * TAU);
+        _o.quaternion.multiply(_q);
+        const w = c.clusterWidth * along * (k === 0 ? 1.15 : 0.7 + 0.4 * dice(this._seed, i * 7 + k, 8));
+        _o.scale.set(w * Math.min(1, pop + 0.2), h, w * Math.min(1, pop + 0.2));
+        _o.updateMatrix();
+        this.prisms.setMatrixAt(prisms, _o.matrix);
+        this.prismPlant.array[prisms] = fresh * 1.3 + 0.15;
+        prisms++;
+      }
+    }
+    this.seeds.count = seeds;
+    this.prisms.count = prisms;
+    this.seeds.instanceMatrix.needsUpdate = true;
+    this.prisms.instanceMatrix.needsUpdate = true;
+    this.seedPlant.needsUpdate = true;
+    this.prismPlant.needsUpdate = true;
+    this.seeds.visible = seeds > 0 && c.seedSize > 0.01;
+    this.prisms.visible = prisms > 0;
+    this.crystalMaterial.userData.sync();
+  }
+
+  /** Plant every seed whose part the front has reached (the same test the template strikes with). */
+  _plantDue(forceAll) {
+    const n = this._seedCount();
+    for (let i = 0; i < n; i++) {
+      if (this._plantAge[i] >= 0) continue;
+      if (forceAll || this.u >= this._landU(i, n)) this._plant(i, n);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +504,12 @@ export class FacetVolleyAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._plantAge.fill(-1);
+    this._shattered = false;
+    this.seeds.count = 0;
+    this.prisms.count = 0;
+    this.seeds.visible = false;
+    this.prisms.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -366,14 +642,14 @@ export class FacetVolleyAbility extends Ability {
     this.heroMaterial.userData.sync(st);
     this.trailMaterial.userData.sync(st, this.trail, this._travelTime());
     this.scarMaterial.userData.sync(st, this.trail, this._travelTime());
-    this.trail.show(this.isActive);
+    this.trail.show(this.isActive && (c.trailOpacity > 0.01 || c.scarOpacity > 0.01));
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -788,6 +1064,8 @@ export class FacetVolleyAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
+    this._plantDue(false);
+    this._crystals(dt, -1);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -795,6 +1073,7 @@ export class FacetVolleyAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._plantDue(true);
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -807,6 +1086,11 @@ export class FacetVolleyAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._crystals(dt, t);
+    if (!this._shattered && t > c.shatterFrom) {
+      this._shattered = true;
+      this._shatter();
+    }
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -831,9 +1115,16 @@ export class FacetVolleyAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.seeds.visible = false;
+    this.prisms.visible = false;
   }
 
   dispose() {
+    this.seeds.dispose();
+    this.prisms.dispose();
+    this.seedGeometry.dispose();
+    this.prismGeometry.dispose();
+    this.crystalMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1040,6 +1331,49 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const seeds = folder.addFolder('15 · The seeds');
+  R(seeds, c, 'seedSize', 0, 3, 0.01, 'length (m)');
+  R(seeds, c, 'seedWidth', 0.2, 4, 0.01, 'girth (× 0.34 m)');
+  R(seeds, c, 'seedArc', 0, 6, 0.05, 'arc (m)');
+  R(seeds, c, 'seedFlight', 0.05, 1, 0.01, 'flight (share of the line)');
+  R(seeds, c, 'seedStagger', 0, 1, 0.01, 'launch stagger');
+  R(seeds, c, 'seedSpin', -30, 30, 0.5, 'spin (rad/s)');
+  R(seeds, c, 'seedBury', 0, 0.8, 0.01, 'point buried');
+  R(seeds, c, 'seedTurn', 0, 0.98, 0.01, 'turns point-first from');
+
+  const plant = folder.addFolder('16 · The planting');
+  R(plant, c, 'clusterSize', 0, 7, 1, 'prisms per cluster');
+  R(plant, c, 'clusterNear', 0.1, 1, 0.01, 'first cluster (× last)');
+  R(plant, c, 'clusterHeight', 0, 4, 0.05, 'height (m)');
+  R(plant, c, 'clusterWidth', 0.2, 4, 0.01, 'girth (× 0.32 m)');
+  R(plant, c, 'clusterSpread', 0, 1.5, 0.01, 'spread (m)');
+  R(plant, c, 'clusterSplay', 0, 1.4, 0.01, 'splay (rad)');
+  R(plant, c, 'clusterDelay', 0, 0.5, 0.01, 'bursts after (s)');
+  R(plant, c, 'clusterStagger', 0, 0.2, 0.005, 'stagger (s)');
+  R(plant, c, 'clusterGrow', 0.02, 1, 0.01, 'grows in (s)');
+  R(plant, c, 'clusterAccrete', 0, 0.8, 0.01, 'keeps growing');
+  R(plant, c, 'accreteTime', 0.1, 4, 0.05, 'grows over (s)');
+  R(plant, c, 'shatterFrom', 1, 1.95, 0.01, 'shatters from');
+  R(plant, c, 'shatterChips', 0, 60, 1, 'shatter chips');
+  R(plant, c, 'plantFrost', 0, 4, 0.05, 'frost bed (m)');
+  R(plant, c, 'plantCrack', 0, 4, 0.05, 'crack (m)');
+  R(plant, c, 'plantChips', 0, 60, 1, 'chips');
+  R(plant, c, 'plantDust', 0, 40, 1, 'dust');
+  R(plant, c, 'plantShake', 0, 1, 0.01, 'camera punch');
+  R(plant, c, 'plantLight', 0, 20, 0.1, 'light punch');
+  plant.addColor(c, 'colorPlantBed').name('bed');
+  plant.addColor(c, 'colorPlantEmber').name('bed, embers');
+
+  const crystal = folder.addFolder('17 · The crystal');
+  R(crystal, c, 'crystalGlow', 0, 8, 0.05, 'tip glow');
+  R(crystal, c, 'crystalCool', 0.05, 4, 0.05, 'cools in (s)');
+  R(crystal, c, 'crystalGlint', 0, 3, 0.01, 'glint');
+  R(crystal, c, 'crystalGlintRate', 0, 4, 0.05, 'glint rate');
+  R(crystal, c, 'crystalRim', 0, 3, 0.01, 'rim');
+  R(crystal, c, 'crystalRough', 0, 1, 0.01, 'roughness');
+  R(crystal, c, 'crystalMetal', 0, 1, 0.01, 'metalness');
+  crystal.addColor(c, 'colorCrystal').name('crystal');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

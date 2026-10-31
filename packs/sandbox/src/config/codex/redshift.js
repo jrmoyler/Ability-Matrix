@@ -32,18 +32,18 @@ export default {
     zoneRadius: 0, // circle radius for zone casts, metres
 
     /* --- light --- */
-    lightColor: '#7555f1',
-    lightIntensity: 10.4, // the glow riding the cast
+    lightColor: '#c04a7a',
+    lightIntensity: 6, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.3, // 0..1 how much it shimmers
-    impactLight: 13.2, // extra light on the beat, decays on its own
+    impactLight: 7, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
     handSide: 0.22, // metres to the right of the caster
     handHeight: 1.35, // metres off the floor
     handFlare: 0.22, // size of the flare round the fist as the cast leaves it, metres
-    handSparks: 30.8, // sparks thrown off the hand at release
+    handSparks: 14, // sparks thrown off the hand at release
     handMotes: 12, // motes left hanging at the hand
 
     /* --- 1 · the body --- */
@@ -53,7 +53,7 @@ export default {
     height: 2.6, // how tall the body stands, metres
     sweep: 1.1, // lateral reach, metres
     lean: 0.45, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template body (off: the lance carries the read)
     edgeGlow: 2.08,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.42,
@@ -62,10 +62,10 @@ export default {
     colorA: '#7555f1',
     colorB: '#ffffff',
     colorC: '#13044e',
-    lensWarp: 0.7, // strength of the distortion it writes
+    lensWarp: 0, // off: the body shape it warps is gone
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the lance carries the read)
     colorVoiceA: '#7555f1',
     colorVoiceB: '#ffffff',
 
@@ -73,17 +73,17 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.45, // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.1, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
     groundStainReach: 0.9, // residue radius, × the circle (zone) or × the ground width (line)
-    colorGroundA: '#7555f1',
-    colorGroundB: '#13044e',
+    colorGroundA: '#4a121a',
+    colorGroundB: '#12040e',
     colorGroundStain: '#141a3a', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the lance is the read)
     detailSize: 0.5, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.43, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the template rig is (off: the cast-local lance is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -115,7 +115,7 @@ export default {
     colorHeroC: '#13044e',
 
     /* --- 6 · shed --- */
-    dustRate: 64, // puffs per second
+    dustRate: 10, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -124,16 +124,16 @@ export default {
     colorDustB: '#7555f1',
     colorDustC: '#13044e',
     colorDustD: '#1a140e',
-    streakRate: 126, // sparks per second
+    streakRate: 20, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
     streakStretch: 1.4,
-    colorStreakA: '#ffffff',
-    colorStreakB: '#d8ccff',
-    colorStreakC: '#7555f1',
-    colorStreakD: '#7555f1',
-    chipRate: 18, // fragments per second
+    colorStreakA: '#ff9a6a',
+    colorStreakB: '#a8301c',
+    colorStreakC: '#4a0e0a',
+    colorStreakD: '#1a0405',
+    chipRate: 6, // fragments per second
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
@@ -143,22 +143,22 @@ export default {
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
-    moteRate: 26, // motes per second off the pieces
+    moteRate: 0, // motes per second off the pieces
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
-    colorMoteA: '#ffffff',
-    colorMoteB: '#d8ccff',
-    colorMoteC: '#7555f1',
-    colorMoteD: '#7555f1',
+    colorMoteA: '#ffb08a',
+    colorMoteB: '#c03a1e',
+    colorMoteC: '#5a0e0c',
+    colorMoteD: '#3a0610',
 
     /* --- 8 · the beat --- */
     impactShake: 0.55, // camera punch on the beat
-    impactFlash: 0.19, // screen flash on the beat
+    impactFlash: 0.06, // screen flash on the beat
     colorFlash: '#d8ccff',
     burstRadius: 2, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell (off: the plunge hits with debris and sparks)
     impactChips: 5, // fragments thrown up and out on the beat
     impactDust: 6, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -166,9 +166,9 @@ export default {
     colorBurstC: '#13044e',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
-    colorShockA: '#7555f1',
-    colorShockB: '#ffffff',
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
+    colorShockA: '#5a0e14',
+    colorShockB: '#a8301c',
 
     /* --- 9 · the aftershock --- */
     aftershockAt: 1.06, // fade progress the aftershock lands at (1 = fade start)
@@ -198,19 +198,68 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.38, // ribbon width at the head, metres
     trailLife: 1.6, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon (off: the lance is the beam)
     trailGlow: 1.43, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
-    scarWidth: 0.9, // width of the scar on the floor, metres
-    scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
-    scarGlow: 2.08, // brightness of its hot seam
-    colorScarA: '#7555f1',
-    colorScarB: '#13044e',
-    wakeSpacing: 1.6, // metres between wake decals along the path (0 = none)
-    wakeRadius: 0.9, // size of each wake decal, metres
-    wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 2 // fragments thrown at each wake
+    scarWidth: 1.0, // width of the scar on the floor, metres
+    scarLife: 3.4, // seconds the scar takes to cool and go
+    scarOpacity: 0.95, // strength of the scar
+    scarGlow: 0.9, // brightness of its hot seam
+    colorScarA: '#7a1612',
+    colorScarB: '#0e0306',
+    wakeSpacing: 1.1, // metres between wake decals along the path (0 = none)
+    wakeRadius: 1.0, // size of each wake decal, metres
+    wakeLife: 2.8, // seconds each wake decal lingers
+    wakeChips: 2, // fragments thrown at each wake
+
+    /* --- 15 · the lance (cast-local hero) --- */
+    lanceOpacity: 1, // 0 hides the lance
+    lanceTail: 0.14, // shaft radius at the hand, metres
+    lanceFront: 0.4, // shaft radius where it meets the head, metres
+    lanceHeadWidth: 1.1, // spearhead width across the blades, metres
+    lanceHeadLength: 2.4, // spearhead length, metres
+    lanceTipHeight: 1.3, // height of the tip as it flies down the line, metres
+    lanceStretchStart: 1.5, // lance length as it leaves the hand, metres
+    lanceStretch: 6, // lance length when it lands, metres
+    lanceLodgeRake: 0.5, // radians the shaft stands up once lodged
+    lanceLodgeYaw: 0.75, // radians the shaft swings aside once lodged (so it reads as a slash from behind)
+    lanceLodgeTime: 0.35, // seconds it takes to settle, × global lifetime
+    lanceStretchLinger: 1.2, // how much further it draws out through the linger, metres
+    lanceRake: -0.1, // radians the tail rises above the head; below 0 it trails low along the line (reads down the line from behind)
+    lancePlunge: 0.5, // how far the tip is driven into the floor at the end, metres
+    lancePlungeTime: 0.12, // seconds the plunge takes, × global lifetime
+    lanceShiftTravel: 0.3, // how far toward red it has shifted when it lands
+    lanceShiftTime: 1.4, // seconds after the hit it is fully red, × global lifetime
+    lanceGradient: 0.35, // how much redder the tip runs than the tail
+    lanceCool: 0.7, // how far it cools (dims toward the deep stop) by the end
+    lanceGlow: 1.3, // brightness of the glowing core line (the body itself is lit steel)
+    lanceLines: 14, // dark absorption lines along the shaft
+    lanceLineDark: 0.8, // how dark they are
+    lanceSegments: 9, // segments the shaft breaks into
+    lanceBreakAt: 0.55, // seconds after the hit it starts to come apart, × global lifetime
+    lanceBreakTime: 1.1, // seconds the break-up takes, × global lifetime
+    lanceBreak: 0.8, // how wide the gaps open
+    lanceDrift: 0.06, // how far the segments drift down the line, × its length
+    lanceSettle: 0.9, // how far the segments settle toward the floor, metres
+    lanceExit: 0.6, // seconds it takes to be eaten from the tail, × global lifetime
+    lanceCoreWidth: 0.2, // width of the glowing core line down each flute and blade edge
+    lanceSpecular: 1.1, // sun glint on the steel
+    colorLanceSteel: '#06070e', // steel / obsidian, deep
+    colorLanceSheen: '#2c3550', // steel, blued sheen
+    colorLanceHot: '#f4f0ff', // violet ramp: white-hot
+    colorLanceTint: '#b8a8ff', // violet ramp: tint
+    colorLanceBody: '#6a48f0', // violet ramp: body
+    colorLanceDeep: '#0e0336', // violet ramp: deep
+    colorRedHot: '#fff0e8', // red ramp: white-hot
+    colorRedTint: '#ff9a7a', // red ramp: tint
+    colorRedBody: '#e02a2a', // red ramp: body
+    colorRedDeep: '#2a0308', // red ramp: deep
+    lanceStream: 70, // light streaks per second running tipward along it in flight
+    lanceEmbers: 45, // red embers per second off the cooling segments
+    plungeSparks: 70, // red sparks sprayed back up the line by the plunge
+    plungeChips: 26, // chips thrown up by the plunge
+    plungeDust: 18, // dust thrown up by the plunge
+    plungeCrack: 1.6 // crack under the plunge, metres
   }
 };
