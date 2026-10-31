@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, DynamicDrawUsage, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, LatheGeometry, Matrix4, Mesh, PlaneGeometry, Quaternion, Vector2, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +9,9 @@ import {
   createServoPylonLensMaterial,
   createServoPylonGroundMaterial,
   createServoPylonVoiceMaterial,
-  createServoPylonDetailMaterial
+  createServoPylonDetailMaterial,
+  createServoPylonMachineMaterial,
+  createServoPylonDeckMaterial
 } from '../../materials/codex/ServoPylonMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -19,7 +21,7 @@ import { LAYER } from '../../core/Layers.js';
 import { frame } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-import { saturate, Easing } from '../../utils/math.js';
+import { saturate, lerp, Easing } from '../../utils/math.js';
 
 export const ID = 'servopylon';
 
@@ -46,6 +48,119 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Pylons the ring can stand (the parts are instanced once). */
+const MAX_PYLONS = 12;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _q = new Quaternion();
+const _scale = new Vector3();
+const _radial = new Vector3();
+const _hand = new Vector3();
+const _head = new Vector3();
+const _zero = new Matrix4().makeScale(1e-5, 1e-5, 1e-5);
+
+/** A stable 0..1 die per pylon from the cast's seed. */
+function dice(i, seed) {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** A chamfered square, half-size 0.5, in the plane of the two given axes. */
+const CHAMFER = 0.16;
+const OCTAGON = [
+  [0.5, -0.5 + CHAMFER], [0.5, 0.5 - CHAMFER], [0.5 - CHAMFER, 0.5], [-0.5 + CHAMFER, 0.5],
+  [-0.5, 0.5 - CHAMFER], [-0.5, -0.5 + CHAMFER], [-0.5 + CHAMFER, -0.5], [0.5 - CHAMFER, -0.5]
+];
+
+/**
+ * Loft the chamfered section through `stations` ([t, scale, part]) along an
+ * axis: `place(t, a, b)` returns the vertex for station t and section
+ * coordinates (a, b). Flat facets (non-indexed, face normals) so the sun
+ * picks out every panel; both ends capped. `aPart` marks the parts that glow
+ * when the servo fires (vents, striking faces).
+ */
+function loft(stations, place) {
+  const pos = [];
+  const part = [];
+  const n = OCTAGON.length;
+  const ring = stations.map(([t, k]) => OCTAGON.map(([a, b]) => place(t, a * k, b * k)));
+  for (let r = 0; r < ring.length - 1; r++) {
+    const A = ring[r];
+    const B = ring[r + 1];
+    const p = Math.max(stations[r][2] ?? 0, stations[r + 1][2] ?? 0) > 0 && (stations[r][2] ?? 0) === (stations[r + 1][2] ?? 0) ? stations[r][2] : 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pos.push(...A[i], ...B[j], ...A[j], ...A[i], ...B[i], ...B[j]);
+      for (let v = 0; v < 6; v++) part.push(p);
+    }
+  }
+  const last = ring[ring.length - 1];
+  const first = ring[0];
+  const lastPart = stations[stations.length - 1][2] ?? 0;
+  for (let i = 1; i < n - 1; i++) {
+    pos.push(...last[0], ...last[i + 1], ...last[i]);
+    pos.push(...first[0], ...first[i], ...first[i + 1]);
+    part.push(lastPart, lastPart, lastPart, 0, 0, 0);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('aPart', new Float32BufferAttribute(part, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The pylon: one unit tall along +Y, one unit across at the plinth. A
+ * stepped plinth, a shaft, the servo housing the ram fires from (its vents
+ * glow when it fires), a narrower mast and a capped top.
+ */
+export function createServoPylonColumnGeometry() {
+  // aPart 1 = vents (glow when the ram fires), 2 = the status lamp at the crown (always lit while powered).
+  return loft([
+    [0.0, 1.3], [0.06, 1.3], [0.08, 1.08], [0.12, 0.92], [0.44, 0.82], [0.46, 1.12, 1], [0.62, 1.12, 1], [0.66, 1.0],
+    [0.7, 0.62], [0.86, 0.54], [0.88, 0.7], [0.9, 1.3], [0.95, 1.3], [0.96, 0.8, 2], [1.0, 0.45, 2]
+  ], (t, a, b) => [a, t, b]);
+}
+
+/** The hammer head: one unit long along +X (the ram end at 0, the striking face at 1). */
+export function createServoPylonHeadGeometry() {
+  return loft([
+    [0.0, 0.55], [0.12, 0.92], [0.2, 1.0], [0.78, 1.0], [0.84, 0.86], [0.88, 1.08], [1.0, 1.04, 1]
+  ], (t, a, b) => [t, a, b]);
+}
+
+/** The ram: a piston rod one unit long along +X, radius one, with a gland collar at the root. */
+export function createServoPylonRamGeometry() {
+  const profile = [[0.001, 0], [1.6, 0], [1.6, 0.06], [1.0, 0.1], [1.0, 0.97], [1.25, 0.98], [1.25, 1.0], [0.001, 1.0]];
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), 10).toNonIndexed();
+  g.rotateZ(-Math.PI / 2);
+  g.computeVertexNormals();
+  g.setAttribute('aPart', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count), 1));
+  return g;
+}
+
+/**
+ * The servo core thrown into the circle: a faceted drum around +Y, one unit
+ * radius, 1.15 tall — base flange, a vented motor band (glows), a second
+ * flange and a domed cap with a spindle.
+ */
+export function createServoPylonHubGeometry() {
+  const profile = [
+    [0.001, 0], [0.92, 0], [1.0, 0.08], [1.0, 0.3], [0.78, 0.34], [0.78, 0.62], [1.0, 0.66], [1.0, 0.86],
+    [0.7, 0.96], [0.36, 1.04], [0.2, 1.04], [0.2, 1.15], [0.001, 1.15]
+  ];
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), 12).toNonIndexed();
+  g.computeVertexNormals();
+  const pos = g.getAttribute('position');
+  const part = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const r = Math.hypot(pos.getX(i), pos.getZ(i));
+    part[i] = y > 0.33 && y < 0.63 && r < 0.8 ? 1 : 0;
+  }
+  g.setAttribute('aPart', new Float32BufferAttribute(part, 1));
+  return g;
+}
 
 /**
  * SERVO PYLON — tech, zone cast.
@@ -72,6 +187,31 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The machine (the hero, cast-local — sections 14–16 of the editor)
+ *
+ * The shared template layers (the striped body wall, voice, the tall rig,
+ * the thin rod pieces, lens) are switched off in the config; the spell is
+ * carried by its own machined forms (`LAYER.WORLD`, lit, shadows):
+ *
+ *   - **the servo core** — a faceted drum (`createServoPylonHubGeometry`) is
+ *     thrown on an arc into the circle and beds into the floor on the beat,
+ *     its rotor driving through the linger.
+ *   - **the pylons** — `pylonCount` lofted gunmetal pylons with a stepped
+ *     plinth, a vented servo housing and a mast stamp up out of the floor in
+ *     a ring round the core as it lands (staggered, overshooting) and punch
+ *     into the floor on the beat.
+ *   - **the hammer** — on the beat every ram fires outward at once, driving
+ *     its hammer head through the group (the hit, unchanged). Through the
+ *     linger the rams fire round the ring one after another like a radial
+ *     engine (`cycle*`): each stroke lights its housing vents, throws sparks
+ *     and dust, and sends a cyan pulse out along its conduit in the deck.
+ *   - **the deck** — a filled machined floor plate under the machine
+ *     (`createServoPylonDeckMaterial`): dark plating, conduits, pulses.
+ *   - **the exit** — the rams retract and the pylons sink back into the
+ *     floor one after another round the ring; the core goes last.
+ *
+ * All of it is presentation: hits still land once, on the beat (`_strike`).
  *
  * Every metre, rate and colour is read from `settings.servopylon` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +247,7 @@ export class ServoPylonAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildMachine();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +292,261 @@ export class ServoPylonAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The cast-local hero: the pylons, their rams and hammer heads, the servo hub and the deck. */
+  _buildMachine() {
+    this.machineMaterial = createServoPylonMachineMaterial();
+    const make = (geometry, count) => {
+      const mesh = new InstancedMesh(geometry, this.machineMaterial, count);
+      const attr = new InstancedBufferAttribute(new Float32Array(count * 4), 4);
+      attr.setUsage(DynamicDrawUsage);
+      geometry.setAttribute('aServo', attr);
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.layers.set(LAYER.WORLD);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.columnGeometry = createServoPylonColumnGeometry();
+    this.ramGeometry = createServoPylonRamGeometry();
+    this.headGeometry = createServoPylonHeadGeometry();
+    this.hubGeometry = createServoPylonHubGeometry();
+    this.columns = make(this.columnGeometry, MAX_PYLONS);
+    this.rams = make(this.ramGeometry, MAX_PYLONS);
+    this.heads = make(this.headGeometry, MAX_PYLONS);
+    this.hub = make(this.hubGeometry, 1);
+    this.deckGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.deckMaterial = createServoPylonDeckMaterial();
+    this.deck = this._mesh(this.deckGeometry, this.deckMaterial, LAYER.VFX, 2);
+    this.deck.rotation.x = -Math.PI / 2;
+    this._fired = new Float32Array(MAX_PYLONS).fill(-10);
+    this._cycle = new Float32Array(MAX_PYLONS).fill(-1);
+    this._ringSpin = 0;
+    this._hubSpin = 0;
+    this._strokes = 0;
+    this._maxExt = 0;
+    this._sink = 0;
+    this._spin0 = 0;
+    this._sinceNow = -1;
+  }
+
+  _hideMachine() {
+    this.columns.visible = false;
+    this.rams.visible = false;
+    this.heads.visible = false;
+    this.hub.visible = false;
+    this.deck.visible = false;
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** A ram stroke `t` seconds old: out fast, hold, back slower. 0..1 extension. */
+  _stroke(t, out, hold, back) {
+    if (t < 0) return 0;
+    if (t < out) return Easing.outCubic(t / out);
+    if (t < out + hold) return 1;
+    return Math.max(0, 1 - Easing.inOutCubic(saturate((t - out - hold) / back)));
+  }
+
+  /**
+   * Stand the machine for this frame. Before the beat the servo core is
+   * thrown on an arc into the circle and the pylons stamp up out of the
+   * floor round it (staggered, overshooting). On the beat every ram fires
+   * outward at once — the hit. Through the linger the rams fire round the
+   * ring one after another like a radial engine, each stroke lighting its
+   * housing vents and sending a pulse out along its conduit in the deck. On
+   * the exit the rams retract and the pylons sink back into the floor one
+   * by one. Every dimension is read from settings each frame; the cast holds
+   * only its seed, the ring's phase and the fire clock of each pylon.
+   */
+  _machine(committed, fadeT, dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(1, _end);
+    const n = Math.max(3, Math.min(MAX_PYLONS, Math.round(c.pylonCount)));
+    const R = Math.max(0.3, c.zoneRadius * c.pylonRing);
+    const H = Math.max(0.2, c.pylonHeight);
+    const W = Math.max(0.05, c.pylonWidth);
+    const exitAt = total - Math.max(0.05, (c.pylonExit + c.pylonExitStagger) * L);
+    const out = Math.max(0.02, c.ramOut * L);
+    const hold = Math.max(0, c.ramHold * L);
+    const back = Math.max(0.05, c.ramBack * L);
+    const period = Math.max(0.1, c.cyclePeriod * L);
+    const cycleStart = c.cycleStart * L;
+    this._ringSpin += dt * c.ringTurn * g.animationSpeed * (committed ? 1 : 0);
+
+    // The hub: thrown on an arc, lands and spins as the servo drives.
+    const hubR = Math.max(0.05, c.hubRadius);
+    let hubY;
+    this._hubGone = 0;
+    if (!committed) {
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _hand.y = c.handHeight;
+      const t = saturate(this.u);
+      _pos.lerpVectors(_hand, _end, t);
+      hubY = lerp(_hand.y, 0, t) + c.hubArc * 4 * t * (1 - t);
+      _pos.y = hubY;
+      this._hubSpin += dt * c.hubSpin * 2;
+      _scale.setScalar(hubR * lerp(c.hubTravelScale, 1, Easing.inQuad(saturate((t - 0.5) / 0.5))));
+    } else {
+      const sink = since > exitAt ? Easing.inQuad(saturate((since - exitAt) / Math.max(0.05, (c.pylonExit + c.pylonExitStagger) * L))) : 0;
+      const dip = c.hubDip * Math.sin(Math.min(1, since / 0.12) * Math.PI) * Math.exp(-since * 5);
+      _pos.copy(_end);
+      this._hubGone = sink;
+      _pos.y = -c.hubBed - dip - sink * hubR * 1.4;
+      const drive = since < exitAt ? 1 : 1 - saturate((since - exitAt) / Math.max(0.05, c.pylonExit * L));
+      this._hubSpin += dt * c.hubSpin * drive * g.animationSpeed;
+      _scale.setScalar(hubR);
+    }
+    _q.setFromAxisAngle(_up, this._hubSpin);
+    _m4.compose(_pos, _q, _scale);
+    this.hub.setMatrixAt(0, _m4);
+    const hubAttr = this.hubGeometry.getAttribute('aServo');
+    hubAttr.setXYZW(0, this._seed, committed ? 0.35 + 0.65 * Math.exp(-since * 3) : 0.3, 1, 0);
+    hubAttr.needsUpdate = true;
+    this.hub.instanceMatrix.needsUpdate = true;
+    this.hub.count = 1;
+    this.hub.visible = c.hubRadius > 0.01 && this._hubGone < 0.999;
+
+    // The pylons, rams and heads.
+    const colAttr = this.columnGeometry.getAttribute('aServo');
+    const ramAttr = this.ramGeometry.getAttribute('aServo');
+    const headAttr = this.headGeometry.getAttribute('aServo');
+    let any = false;
+    let maxExt = 0;
+    let sinkMax = 0;
+    for (let i = 0; i < n; i++) {
+      const d = dice(i, this._seed);
+      const span = Math.max(0.05, c.riseSpan);
+      const rise = committed ? 1 : saturate((this.u - (1 - span - c.riseStagger * d)) / span);
+      const sink = since < 0 ? 0 : Easing.inQuad(saturate((since - exitAt - c.pylonExitStagger * L * (i / n)) / Math.max(0.05, c.pylonExit * L)));
+      sinkMax = Math.max(sinkMax, sink);
+      if (rise <= 0 || sink >= 0.999) {
+        this.columns.setMatrixAt(i, _zero);
+        this.rams.setMatrixAt(i, _zero);
+        this.heads.setMatrixAt(i, _zero);
+        continue;
+      }
+      any = true;
+      const ang = this._spin0 + this._ringSpin + (TAU * i) / n;
+      _radial.set(Math.cos(ang), 0, Math.sin(ang));
+      const stamp = since < 0 ? 0 : c.stampDip * Math.sin(Math.min(1, since / 0.12) * Math.PI) * Math.exp(-since * 4);
+      const y = -H * (1 - Easing.outBack(rise)) - stamp - sink * H * 1.05;
+
+      // Ram extension: the beat stroke, then the round-robin cycle.
+      let ext = 0;
+      let heat = 0;
+      if (since >= 0) {
+        ext = this._stroke(since, out, hold, back);
+        if (since >= cycleStart && since < exitAt) {
+          const tau = since - cycleStart - (period * i) / n;
+          if (tau >= 0) {
+            const k = Math.floor(tau / period);
+            const local = tau - k * period;
+            if (k !== this._cycle[i]) {
+              this._cycle[i] = k;
+              this._fire(i, ang);
+            }
+            ext = Math.max(ext, this._stroke(local, out, hold, back) * c.cycleReach);
+          }
+        }
+        heat = saturate(Math.max(ext, Math.exp(-(since - this._fired[i]) * 6)));
+        if (sink > 0) ext *= 1 - saturate(sink * 3);
+      }
+      maxExt = Math.max(maxExt, ext);
+      const power = since < 0 ? rise * 0.4 : 1 - sink;
+      _pos.copy(_end).addScaledVector(_radial, R);
+      _pos.y = y;
+      _q.setFromAxisAngle(_up, -ang);
+      _scale.set(W, H, W);
+      _m4.compose(_pos, _q, _scale);
+      this.columns.setMatrixAt(i, _m4);
+      colAttr.setXYZW(i, d * 10, heat, power, 0);
+
+      // Ram: from inside the housing out past the face.
+      const ramLen = c.ramBase + c.ramReach * ext;
+      const ramY = y + H * c.ramHeight;
+      _head.copy(_pos).addScaledVector(_radial, W * 0.3);
+      _head.y = ramY;
+      _scale.set(ramLen + W * 0.2, c.ramRadius, c.ramRadius);
+      _m4.compose(_head, _q, _scale);
+      this.rams.setMatrixAt(i, _m4);
+      ramAttr.setXYZW(i, d * 10, heat * 0.5, power, 0);
+
+      // Hammer head on the end of the ram, its striking face outward.
+      _head.addScaledVector(_radial, ramLen + W * 0.2);
+      _scale.set(c.headLength, c.headSize, c.headSize * 1.1);
+      _m4.compose(_head, _q, _scale);
+      this.heads.setMatrixAt(i, _m4);
+      headAttr.setXYZW(i, d * 10, heat * 0.7, power, 0);
+    }
+    this._maxExt = maxExt;
+    this._sink = sinkMax;
+    for (const mesh of [this.columns, this.rams, this.heads]) {
+      mesh.count = n;
+      mesh.visible = any;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    colAttr.needsUpdate = true;
+    ramAttr.needsUpdate = true;
+    headAttr.needsUpdate = true;
+    this.machineMaterial.userData.sync();
+
+    // The deck: plates under the machine, pulses out along the conduits.
+    const deckR = Math.max(0.3, c.zoneRadius * c.deckFit);
+    const lay = committed ? 1 : Easing.outCubic(saturate((this.u - 0.4) / 0.6));
+    const cool = since < 0 ? 0 : saturate((since - exitAt) / Math.max(0.05, (c.pylonExit + c.pylonExitStagger) * L));
+    if (c.deckOpacity > 0.01 && lay > 0.01 && cool < 0.999) {
+      this.deck.visible = true;
+      this.deck.position.set(_end.x, 0.03, _end.z);
+      const r = deckR * (0.35 + 0.65 * lay);
+      this.deck.scale.set(r, r, 1);
+      const pulses = this.deckMaterial.uniforms.uPulse.value;
+      const life = Math.max(0.05, c.deckPulseLife * L);
+      for (let i = 0; i < MAX_PYLONS; i++) {
+        const age = since < 0 ? 0 : (since - this._fired[i]) / life;
+        pulses[i] = i < n && age > 0 && age < 1 ? age : 0;
+      }
+      // The deck's sector 0 sits on pylon 0 (the shader measures the world angle atan2(z, x)).
+      this.deckMaterial.userData.sync(r, R, n, this._spin0 + this._ringSpin, committed ? 1 : lay * 0.4, cool, c.deckOpacity * (1 - Easing.inQuad(cool)), this._seed);
+    } else this.deck.visible = false;
+  }
+
+  /** One ram fires on its cycle: sparks and dust off the head, a light tick, a pulse down its conduit. */
+  _fire(i, ang) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._fired[i] = this._sinceNow;
+    this._strokes++;
+    this.lightBoost += c.strokeLight * g.explosionIntensity;
+    if (i === 0) this.ctx.shake.add(c.strokeShake * g.cameraShake * g.explosionIntensity, 4, 14);
+    const R = c.zoneRadius * c.pylonRing + c.ramBase + c.ramReach * c.cycleReach + c.headLength;
+    _radial.set(Math.cos(ang), 0, Math.sin(ang));
+    _pos.copy(_end).addScaledVector(_radial, R);
+    _pos.y = c.pylonHeight * c.ramHeight;
+    const sparks = Math.round(c.strokeSparks * g.particleCount);
+    if (sparks > 0) {
+      this._fillEmit(_pos, 0.15, _radial, c.streakSpeed, 0.6, 0.08, c.streakLife, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const dust = Math.round(c.strokeDust * g.particleCount);
+    if (dust > 0) {
+      _pos.y = 0.1;
+      _dir.copy(_radial).setY(0.1);
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed, 0.4, 0.5, c.dustLife, 0.4);
+      this.dust.emit(dust, _emit);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +627,16 @@ export class ServoPylonAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._fired.fill(-10);
+    this._cycle.fill(-1);
+    this._ringSpin = 0;
+    this._hubSpin = 0;
+    this._strokes = 0;
+    this._maxExt = 0;
+    this._sink = 0;
+    this._sinceNow = -1;
+    this._spin0 = Math.random() * TAU;
+    this._hideMachine();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -754,6 +1160,8 @@ export class ServoPylonAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._sinceNow = -1;
+    this._machine(false, 0, dt);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
@@ -772,6 +1180,8 @@ export class ServoPylonAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._sinceNow = this._since(true, t);
+    this._machine(true, t, dt);
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
@@ -797,9 +1207,21 @@ export class ServoPylonAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideMachine();
   }
 
   dispose() {
+    this.columnGeometry.dispose();
+    this.ramGeometry.dispose();
+    this.headGeometry.dispose();
+    this.hubGeometry.dispose();
+    this.deckGeometry.dispose();
+    this.machineMaterial.dispose();
+    this.deckMaterial.dispose();
+    this.columns.dispose();
+    this.rams.dispose();
+    this.heads.dispose();
+    this.hub.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -986,6 +1408,60 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const machine = folder.addFolder('14 · The pylons (hero)');
+  R(machine, c, 'pylonCount', 3, 12, 1, 'pylons');
+  R(machine, c, 'pylonRing', 0.1, 1.2, 0.01, 'ring, × circle');
+  R(machine, c, 'pylonHeight', 0.3, 5, 0.05, 'height (m)');
+  R(machine, c, 'pylonWidth', 0.1, 1.5, 0.01, 'plinth width (m)');
+  R(machine, c, 'riseSpan', 0.05, 1, 0.01, 'stamp-up span, × travel');
+  R(machine, c, 'riseStagger', 0, 0.5, 0.01, 'stamp-up stagger');
+  R(machine, c, 'stampDip', 0, 0.6, 0.01, 'stamp dip (m)');
+  R(machine, c, 'ringTurn', -2, 2, 0.01, 'ring turn (rad/s)');
+  R(machine, c, 'pylonExit', 0.05, 2, 0.01, 'sink time (s)');
+  R(machine, c, 'pylonExitStagger', 0, 2, 0.01, 'sink stagger (s)');
+  R(machine, c, 'ramHeight', 0.1, 1, 0.01, 'ram height, × pylon');
+  R(machine, c, 'ramRadius', 0.01, 0.4, 0.005, 'ram radius (m)');
+  R(machine, c, 'ramBase', 0, 1.5, 0.01, 'ram at rest (m)');
+  R(machine, c, 'ramReach', 0, 4, 0.01, 'ram stroke (m)');
+  R(machine, c, 'ramOut', 0.02, 0.5, 0.005, 'stroke out (s)');
+  R(machine, c, 'ramHold', 0, 0.5, 0.005, 'stroke hold (s)');
+  R(machine, c, 'ramBack', 0.05, 1, 0.01, 'stroke back (s)');
+  R(machine, c, 'headLength', 0.1, 1.5, 0.01, 'head length (m)');
+  R(machine, c, 'headSize', 0.1, 1.5, 0.01, 'head size (m)');
+
+  const servo = folder.addFolder('15 · The servo cycle');
+  R(servo, c, 'cycleStart', 0, 2, 0.01, 'starts after beat (s)');
+  R(servo, c, 'cyclePeriod', 0.1, 2, 0.01, 'one turn of the ring (s)');
+  R(servo, c, 'cycleReach', 0, 1.5, 0.01, 'stroke, × beat stroke');
+  R(servo, c, 'strokeShake', 0, 1, 0.01, 'camera punch per turn');
+  R(servo, c, 'strokeLight', 0, 10, 0.1, 'light per stroke');
+  R(servo, c, 'strokeSparks', 0, 60, 1, 'sparks per stroke');
+  R(servo, c, 'strokeDust', 0, 30, 1, 'dust per stroke');
+  R(servo, c, 'hubRadius', 0, 1.5, 0.01, 'core radius (m)');
+  R(servo, c, 'hubArc', 0, 5, 0.05, 'throw arc (m)');
+  R(servo, c, 'hubTravelScale', 0.1, 1.5, 0.01, 'thrown size');
+  R(servo, c, 'hubSpin', -20, 20, 0.1, 'rotor (rad/s)');
+  R(servo, c, 'hubBed', 0, 0.6, 0.01, 'bedded in (m)');
+  R(servo, c, 'hubDip', 0, 0.6, 0.01, 'landing dip (m)');
+
+  const mat = folder.addFolder('16 · Machined steel and deck');
+  R(mat, c, 'machineSpecular', 0, 4, 0.01, 'specular');
+  R(mat, c, 'machineFresnel', 0, 3, 0.01, 'fresnel');
+  R(mat, c, 'machineAmbient', 0, 1, 0.01, 'ambient');
+  R(mat, c, 'machineSeamGlow', 0, 6, 0.05, 'seam glow');
+  R(mat, c, 'machineHeatGlow', 0, 6, 0.05, 'firing glow');
+  R(mat, c, 'machineSeams', 0, 24, 0.5, 'panel seams');
+  R(mat, c, 'machineLamp', 0, 8, 0.05, 'crown lamp');
+  mat.addColor(c, 'colorMachineCore').name('core');
+  mat.addColor(c, 'colorMachineTint').name('tint');
+  mat.addColor(c, 'colorMachineBody').name('body (seams)');
+  mat.addColor(c, 'colorMachineDeep').name('deep');
+  mat.addColor(c, 'colorMachineSteel').name('steel');
+  R(mat, c, 'deckFit', 0.1, 1.5, 0.01, 'deck, × circle');
+  R(mat, c, 'deckOpacity', 0, 1, 0.01, 'deck opacity');
+  R(mat, c, 'deckGlow', 0, 4, 0.01, 'conduit glow');
+  R(mat, c, 'deckPulseLife', 0.05, 2, 0.01, 'pulse run (s)');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');
