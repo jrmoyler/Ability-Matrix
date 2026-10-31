@@ -15,17 +15,16 @@ State after PR #23 (branch `claude/castables-finish-upgrades`), which followed P
     - Tempest's shorter column lowers where lifted bodies hang, from about 5.3 m to 2.7 m.
     - Nothing else changes hits, targets, damage or hit timing. Stillpoint's 2.2 s hold, Nebula's beat lengths and Void Bloom's seed speed were restored after agents shortened them.
 - PR #23:
-  - **37 casts raised to an honest 8:** 7 hand-authored (aetherblade, bilelance, miasma, spore, fulminant-relay, overtone-spiral, umbra) and 30 Codex template casts, each with its own lit hero, travel, impact, floor and linger. The coordinator read every after sheet.
-  - **6 casts improved but still at 7**, each with a `nextFix` line in the status file (see below).
+  - **43 casts raised to an honest 8:** all 10 remaining hand-authored casts (aetherblade, bilelance, miasma, spore, fulminant-relay, overtone-spiral, umbra, sonic, tempest, mirage-procession) and 33 Codex template casts, each with its own lit hero, travel, impact, floor and linger. The coordinator read every after sheet. Every near-miss and hand-authored cast is now at 8.
+  - The last six (sonic, tempest, mirage-procession, glissando, crosscut, masslance) only reached 8 when the brief asked for a new shape instead of more colour tuning: a dust shock front, a real funnel, carved face masks, an organ-pipe rank, crossing scythe blades and a slender lance.
   - **Gameplay to review:** Umbra's bigger hand carries held bodies further, so they finish being consumed about 0.03 s earlier. False Floor's existing lift still floats felled dummies to the top of the frame, which fights its "drop" read; it was left alone because it is gameplay.
-  - Geode Cage's presentation beats moved earlier; its hit timing is unchanged. One test assertion changed: `tests/expansion-2026/mirage-procession.test.mjs` compares the departing masks against the configured `maskSize` instead of 1.
+  - Geode Cage's presentation beats moved earlier; its hit timing is unchanged.
+  - **Tests changed:** `tests/expansion-2026/mirage-procession.test.mjs` compares the departing masks against the configured `maskSize` instead of 1. The sonic assertions in `tests/upgrade-collective-chain-sonic.test.mjs` and the glissando assertions in `tests/upgrade-codex-eventcage-filament-glissando.test.mjs` now check the new forms instead of the old rings, domes and lime wall.
+  - **Keys whose meaning changed:** Mass Lance `lanceStab` (planted lean), `lanceBury` (pommel depth), `lanceRadius` (guard radius); Crosscut's `front*` keys size the blades, `crashLunge` is the run-on, `scourCross` the crossing angle.
 
 ## Still to do, in priority order
-1. **6 casts at 7** (`status: upgraded-7`). Each needs a new shape, not more colour tuning; `nextFix` says what:
-   - `collective/sonic`, `collective/tempest`, `matrix-expansion/mirage-procession` (two fix-up passes each already).
-   - `codex/glissando`, `codex/crosscut`, `codex/masslance`.
-2. **45 Codex template casts not started**, the `rig` entries with `status: not-started` (scores 5–7): katabatic, latebolt, latticeflare, lensewell, leywhip, loess, magnetar, mournhalo, needleglass, nullwell, overtone, penumbra, plumbswing, presslance, raster, reliclash, scarp, shearforce, shearorbit, shearstep, sigilvolley, sinter, slingwell, subtone, tensor, tickcage, vectorlance, whisperwell, zodiac, bindrune, caustic, censers, chronowell, hymnwell, manawell, noonblade, photonwell, prismfault, quarkspire, rotor, shardchoir, surgewell, tidebar, vowcage, keystone.
-3. **Re-audit the 31 implemented mechanic moves** in `packs/sandbox/src/combat/ucsm/mechanics/`.
+1. **45 Codex template casts not started**, the `rig` entries with `status: not-started` (scores 5–7): katabatic, latebolt, latticeflare, lensewell, leywhip, loess, magnetar, mournhalo, needleglass, nullwell, overtone, penumbra, plumbswing, presslance, raster, reliclash, scarp, shearforce, shearorbit, shearstep, sigilvolley, sinter, slingwell, subtone, tensor, tickcage, vectorlance, whisperwell, zodiac, bindrune, caustic, censers, chronowell, hymnwell, manawell, noonblade, photonwell, prismfault, quarkspire, rotor, shardchoir, surgewell, tidebar, vowcage, keystone.
+2. **Re-audit the 31 implemented mechanic moves** in `packs/sandbox/src/combat/ucsm/mechanics/`.
 
 ## How the work was run
 - **Briefs** are in `briefs/`: `upgrade.md` for upgrading existing casts, `rig-upgrade.md` for the Codex template casts, `new-cast.md` for building a new one, `codex-system.md` for the shared rig.

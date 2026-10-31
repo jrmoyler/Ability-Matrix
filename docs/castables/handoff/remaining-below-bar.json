@@ -1007,9 +1007,8 @@
    ],
    "onScreen": "A train of lavender pressure-ring shells travels from the caster to the dummies laying ripple discs on the floor, then ends in a pale smoke puff.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "end-on the train still reads as nested rims; boom dome saturated violet"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "collective/tempest",
@@ -1033,9 +1032,8 @@
    ],
    "onScreen": "A wisp leaves the caster's hand, a small funnel forms at the cluster and grows into a tall pale white tornado inside a thin ring that lifts dummies up out of frame.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "funnel reads as a flat cloud cap over a dust skirt, not a column; top touches frame"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/faultwake-bastion",
@@ -1101,9 +1099,8 @@
    ],
    "onScreen": "Three pale pink masks process down three wavy violet floor lanes, turn into pink bubbles at the dummies, then vanish leaving the lanes glowing.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "masks read as magenta buckets, not faces; needs face geometry"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/vector-breakwater",
@@ -1389,9 +1386,8 @@
    ],
    "onScreen": "Pale teal ribbon blades and long thin arcs sweep around the caster, a ring stack forms down the line toward the dummies, and by 2.3 s only a faint teal wake strip and a small swirl at the caster remain.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "roll reads as a mid-teal blob; debris barely visible"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/eventcage",
@@ -1465,9 +1461,8 @@
    ],
    "onScreen": "Flat pale-green piano-key slats and ladders scatter along and around the line over a green ripple stripe, then fade to the stripe and a small flicker at the dummies.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "ridges read as neon lime bars; needs dark ridges and lit body"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/hollowvolley",
@@ -1540,9 +1535,8 @@
    ],
    "onScreen": "Cream faceted stone spheres crowd around the caster and down the line to a large sphere at the dummies over a warm floor stripe, then scatter to small debris.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7,
-   "nextFix": "lance reads as a block in flight, foreshortened"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/mirrorhalo",
