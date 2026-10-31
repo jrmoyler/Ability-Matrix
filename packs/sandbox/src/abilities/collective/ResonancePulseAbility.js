@@ -135,7 +135,7 @@ export class ResonancePulseAbility extends Ability {
         material,
         warp,
         warpMaterial,
-        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 0, lip: 1, fill: 1, warp: 1 },
+        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 0, lip: 1, fill: 1, warp: 1, glow: 1 },
         launched: false,
         landed: false,
         done: false,
@@ -193,7 +193,7 @@ export class ResonancePulseAbility extends Ability {
         material,
         warp,
         warpMaterial,
-        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 1.2, lip: 1, fill: 1, warp: 1 }
+        state: { radius: 1, fade: 0, seed: Math.random() * 10, spread: 1.2, lip: 1, fill: 1, warp: 1, glow: 1 }
       });
     }
 
@@ -644,6 +644,8 @@ export class ResonancePulseAbility extends Ability {
             st.spread = c.humSpread;
             st.lip = 0.8 + 0.3 * breathe;
             st.fill = c.humFill;
+            st.glow = 1;
+            st.tone = 1;
             st.warp = 0.5;
             visible = st.fade > 0.002;
           }
@@ -655,7 +657,9 @@ export class ResonancePulseAbility extends Ability {
             st.fade = (1 - Easing.inQuad(saturate((a - c.boomDomeTime * 0.35) / Math.max(0.05, c.boomDomeLife)))) * out;
             st.spread = c.boomDomeSpread;
             st.lip = 1.25;
-            st.fill = 0.85;
+            st.fill = c.boomDomeFill;
+            st.glow = c.boomDomeGlow;
+            st.tone = 1.35;
             st.warp = 1.4;
             visible = st.fade > 0.002;
           }
@@ -923,6 +927,8 @@ export function buildEditor(gui, c, Editor) {
   R(boom, c, 'floorWidth', 0.02, 1, 0.01, 'wavelet width (m)');
   R(boom, c, 'floorIntensity', 0, 8, 0.05, 'floor ripple intensity');
   R(boom, c, 'floorChroma', 0, 0.5, 0.005, 'floor chromatic split (m)');
+  R(boom, c, 'floorWake', 0, 1, 0.01, 'pressure band opacity');
+  R(boom, c, 'floorWakeLength', 0.1, 8, 0.05, 'pressure band length (m)');
   R(boom, c, 'boomShake', 0, 1.5, 0.01, 'camera kick');
   R(boom, c, 'boomShakeTime', 0.1, 2, 0.01, 'kick dies over (s)');
   R(boom, c, 'boomFlash', 0, 1, 0.01, 'flash');
@@ -938,6 +944,11 @@ export function buildEditor(gui, c, Editor) {
   R(body, c, 'lipSpin', 0, 10, 0.05, 'lip roll speed');
   R(body, c, 'lipBright', 0, 6, 0.05, 'lip brightness');
   R(body, c, 'lipOpacity', 0, 1, 0.01, 'lip opacity');
+  R(body, c, 'bodyGlow', 0, 4, 0.01, 'body glow');
+  R(body, c, 'bodyMottle', 0, 1, 0.01, 'pressure cells');
+  R(body, c, 'bodyMottleScale', 0.2, 10, 0.05, 'cell scale');
+  R(body, c, 'bodyShade', 0, 1, 0.01, 'sun shading');
+  R(body, c, 'bodyTone', 0, 1, 0.01, 'body tone (deep → violet)');
   body.addColor(c, 'colorTint').name('tint');
   body.addColor(c, 'colorDeep').name('deep');
 
@@ -955,6 +966,8 @@ export function buildEditor(gui, c, Editor) {
   R(domes, c, 'humDelay', 0, 1.5, 0.01, 'hum starts after (s)');
   R(domes, c, 'humBright', 0, 1.5, 0.01, 'hum strength');
   R(domes, c, 'humFill', 0, 1.5, 0.01, 'hum body fill (×)');
+  R(domes, c, 'boomDomeFill', 0, 1.5, 0.01, 'dome body fill (×)');
+  R(domes, c, 'boomDomeGlow', 0, 5, 0.01, 'dome body glow (×)');
 
   const plate = folder.addFolder('7 · Chladni plate');
   R(plate, c, 'plateRadius', 0.5, 12, 0.05, 'plate radius (m)');
@@ -967,6 +980,9 @@ export function buildEditor(gui, c, Editor) {
   R(plate, c, 'plateGrain', 1, 120, 1, 'sand grain');
   R(plate, c, 'plateStain', 0, 1, 0.01, 'plate stain');
   R(plate, c, 'plateGlow', 0, 8, 0.05, 'line glow on the hum');
+  R(plate, c, 'plateBodyMix', 0, 1, 0.01, 'stain lift toward violet');
+  R(plate, c, 'plateRimGlow', 0, 4, 0.01, 'crater lip glow');
+  R(plate, c, 'plateRimWidth', 0.01, 0.3, 0.005, 'crater lip width');
   R(plate, c, 'laneWidth', 0.1, 2, 0.01, 'lane half-width (× ring end)');
   R(plate, c, 'laneStripe', 0.2, 5, 0.05, 'lane wavelength (m)');
   R(plate, c, 'laneAcross', 0, 6, 0.5, 'lane nodes across');

@@ -428,6 +428,34 @@ export class Ability extends BaseAbility {
     });
     const power = settings.global.explosionIntensity;
     this.lightBoost = Math.max(this.lightBoost, c.contactLight * power);
+    // The strike lands: a pressure shell of hot lacquer driven into the body
+    // and a dark lacquer splash left on the floor under it — one honest,
+    // distinct impact that only a committed hit ever draws.
+    if (c.strikeBurst > 0) {
+      _contactPoint.copy(position).setY(Math.max(0.6, position.y));
+      this.ctx.bursts?.spawn?.(BurstMode.AIR, _contactPoint, {
+        radius: 0.15,
+        endRadius: c.strikeBurst * power,
+        life: c.strikeBurstLife,
+        intensity: c.strikeBurstIntensity,
+        opacity: c.strikeBurstOpacity * settings.global.opacity,
+        fresnel: c.shellFresnel,
+        squash: 0.8,
+        colorA: getColor(c.edgeColor),
+        colorB: getColor(c.maskColor),
+        colorC: getColor(c.deepColor),
+      });
+    }
+    if (c.strikeStain > 0) {
+      _contactPoint.copy(position).setY(0.02);
+      this.ctx.decals?.spawn?.(DecalType.SCORCH, _contactPoint, {
+        radius: c.strikeStain * power,
+        life: c.strikeStainLife,
+        intensity: 1,
+        colorA: getColor(c.deepColor),
+        colorB: getColor(c.maskColor),
+      });
+    }
     // 9 · the real mask lunges out of the struck body.
     const slot = this._strikeNext % MAX_STRIKES;
     this._strikeNext++;
@@ -553,7 +581,8 @@ export class Ability extends BaseAbility {
     const lying = this._landed ? 1 : 0;
 
     // The lacquer holds while the masks fall, then burns away in the pools.
-    const dissolve = this.phase === 'fade' ? smooth(0.3, 1, fadeT) * 1.02 : 0;
+    const hold = Math.min(0.9, Math.max(0, c.maskHold ?? 0.3));
+    const dissolve = this.phase === 'fade' ? smooth(hold, 1, fadeT) * 1.02 : 0;
     const ms = this._maskState;
     ms.clock = clock;
     ms.fade = appear;
@@ -758,6 +787,8 @@ export function buildEditor(gui, c, Editor) {
   R(masks, c, 'maskGlow', 0, 6, 0.05, 'lacquer glow');
   R(masks, c, 'maskShade', 0, 1, 0.01, 'key-light modelling');
   R(masks, c, 'maskSpecular', 0, 4, 0.05, 'lacquer glint');
+  R(masks, c, 'maskDeep', -0.3, 0.3, 0.005, 'lacquer toward deep');
+  R(masks, c, 'maskHold', 0, 0.9, 0.01, 'fallen masks hold (× linger)');
   R(masks, c, 'maskRear', 0, 1.5, 0.01, 'rear up before the fall (m)');
   R(masks, c, 'fallStart', 0, 0.9, 0.01, 'rear (× impact beat)');
   R(masks, c, 'fallTime', 0.05, 1, 0.01, 'fall (× impact beat)');
@@ -791,6 +822,8 @@ export function buildEditor(gui, c, Editor) {
   R(wakes, c, 'wakeShimmer', 0, 4, 0.01, 'shimmer');
   R(wakes, c, 'wakeScale', 0.2, 4, 0.01, 'band frequency');
   R(wakes, c, 'wakeDeep', 0, 2, 0.01, 'deep haze');
+  R(wakes, c, 'wakeFill', 0, 1, 0.01, 'filled runner');
+  R(wakes, c, 'wakeVeins', 0, 2, 0.01, 'flowing veins');
 
   const shards = sub(folder, '4 · The shards');
   R(shards, c, 'shardSize', 0.03, 0.35, 0.01, 'mirror size');
@@ -868,6 +901,12 @@ export function buildEditor(gui, c, Editor) {
   R(strike, c, 'strikeHeat', 0, 4, 0.05, 'heat');
   R(strike, c, 'strikeFlash', 0, 1, 0.01, 'flash');
   R(strike, c, 'strikeShake', 0, 1, 0.01, 'knock');
+  R(strike, c, 'strikeBurst', 0, 5, 0.05, 'pressure shell (m)');
+  R(strike, c, 'strikeBurstLife', 0.05, 2, 0.01, 'shell life (s)');
+  R(strike, c, 'strikeBurstOpacity', 0, 1, 0.01, 'shell opacity');
+  R(strike, c, 'strikeBurstIntensity', 0, 4, 0.05, 'shell brightness');
+  R(strike, c, 'strikeStain', 0, 4, 0.05, 'floor splash (m)');
+  R(strike, c, 'strikeStainLife', 0.1, 6, 0.05, 'splash lasts (s)');
 
   const shimmer = sub(folder, '7 · The shimmer');
   R(shimmer, c, 'shimmerStrength', 0, 3, 0.01, 'strength');

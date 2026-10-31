@@ -90,6 +90,7 @@ const MASK_FRAGMENT = /* glsl */ `
   uniform float uShade;
   uniform float uSpecular;
   uniform float uHeat;
+  uniform float uDeepBias;
   uniform vec3  uCore;
   uniform vec3  uColor;
   uniform vec3  uEdge;
@@ -123,7 +124,7 @@ const MASK_FRAGMENT = /* glsl */ `
     // vertical face sits in the deep plum, planes turned to the key light
     // come up to the saturated lacquer, only the grazing rim reaches pale.
     float lower = smoothstep(0.3, -0.7, vLocal.y) * 0.08; // the jaw falls into shadow
-    float t = 0.97 - mix(0.25, lam, uShade) * 0.3 - min(rim, 1.0) * 0.12 - n * 0.06 + lower;
+    float t = 0.99 - mix(0.2, lam, uShade) * 0.45 - min(rim, 1.0) * 0.12 - n * 0.06 + lower + uDeepBias;
     vec3 col = gradient4(uCore, uEdge, uColor, uDeep, clamp(t, 0.5, 1.0));
     // The pale tint is a thin grazing rim only.
     col = mix(col, uEdge, smoothstep(0.7, 1.3, rim) * 0.75);
@@ -167,6 +168,7 @@ export function createMaskMaterial() {
       uShade: { value: 0.75 },
       uSpecular: { value: 1.2 },
       uHeat: { value: 0 },
+      uDeepBias: { value: 0 },
       uCore: { value: new Color() },
       uColor: { value: new Color() },
       uEdge: { value: new Color() },
@@ -193,6 +195,7 @@ export function createMaskMaterial() {
     u.uShade.value = c.maskShade;
     u.uSpecular.value = c.maskSpecular;
     u.uHeat.value = s.heat ?? 0;
+    u.uDeepBias.value = c.maskDeep;
     u.uCore.value.copy(getColor(c.coreColor));
     u.uColor.value.copy(getColor(c.maskColor));
     u.uEdge.value.copy(getColor(c.edgeColor));
@@ -381,6 +384,8 @@ const WAKE_FRAGMENT = /* glsl */ `
   uniform float uOpacity;
   uniform float uShimmer;
   uniform float uScale;
+  uniform float uFill;
+  uniform float uVeins;
   uniform vec3  uColor;
   uniform vec3  uEdge;
   uniform vec3  uDeep;
@@ -396,17 +401,22 @@ const WAKE_FRAGMENT = /* glsl */ `
     // uv.y is 0 at the mask, 1 back at the caster.
     float behind = vUv.y;
     float bend = fbm3(vec3(vWorld.xz * 0.6 * uScale, uClock * 0.3)) * 2.0;
-    float bands = pow(max(0.0, cos(behind * 33.0 * uScale - uClock * 5.0 + sin(vUv.x * 9.0) * 2.0 + bend * uShimmer)), 6.0);
-    float side = 1.0 - smoothstep(0.35, 0.5, abs(vUv.x - 0.5));
-    float near = 0.35 + 0.65 * pow(1.0 - behind, 1.2);
+    // The lane is a filled runner of lacquer haze laid on the floor: a
+    // continuous deep-plum body, mottled, with broad swells of saturated
+    // violet rolling down it and flowing veins — a surface, not a drawing.
+    float edgeN = snoise(vec3(vWorld.xz * 1.1 * uScale, uClock * 0.4)) * 0.05;
+    float side = 1.0 - smoothstep(0.3, 0.5, abs(vUv.x - 0.5) + edgeN);
+    float body = fbm3(vec3(vWorld.xz * 0.9 * uScale, uClock * 0.25)) * 0.5 + 0.5;
+    float swell = smoothstep(0.15, 0.95, 0.5 + 0.5 * cos(behind * 16.0 * uScale - uClock * 5.0 + sin(vUv.x * 9.0) * 1.5 + bend * uShimmer));
+    float flow = snoise01(vec3(vWorld.x * 2.2 * uScale + bend, vWorld.z * 0.7 * uScale - uClock * 1.4, uClock * 0.3));
+    float veins = smoothstep(0.72, 0.92, flow) * uVeins;
+    float near = (0.55 + 0.45 * pow(1.0 - behind, 1.2)) * (1.0 - smoothstep(0.82, 1.0, behind + edgeN));
     float haze = (0.25 + 0.75 * snoise01(vec3(vWorld.xz * 1.3 * uScale, uClock * 0.6))) * 0.35 * uShaderIntensity;
-    // Normal blend on the ramp: a deep haze darkens the lane, the saturated
-    // violet rides the bands, the pale tint only right behind the mask.
-    float a = (bands * 0.9 + haze * 3.2 * uDeepWeight) * side * near * uFade * uOpacity;
+    float a = (uFill * (0.7 + 0.3 * body) + swell * 0.25 + haze * uDeepWeight) * side * near * uFade * uOpacity;
     if (a < 0.002) discard;
-    float lift = clamp(bands * 1.4, 0.0, 1.0);
+    float lift = clamp(swell * 0.45 + (body - 0.5) * 0.5 + veins * 0.6, 0.0, 1.0);
     vec3 col = mix(uDeep, uColor * uGlow, lift);
-    col = mix(col, uEdge * uGlow, bands * 0.5 * (1.0 - behind));
+    col = mix(col, uEdge * uGlow, veins * swell * 0.35 * (1.0 - behind));
     gl_FragColor = vec4(col * uGlobalGlow, clamp(a, 0.0, 1.0));
   }
 `;
@@ -424,6 +434,8 @@ export function createWakeMaterial() {
       uOpacity: { value: 0.3 },
       uShimmer: { value: 1 },
       uScale: { value: 1 },
+      uFill: { value: 0.8 },
+      uVeins: { value: 1 },
       uColor: { value: new Color() },
       uEdge: { value: new Color() },
     }),
@@ -443,6 +455,8 @@ export function createWakeMaterial() {
     u.uScale.value = c.wakeScale * g.noiseFrequency;
     u.uDeep.value.copy(getColor(c.deepColor));
     u.uDeepWeight.value = c.wakeDeep;
+    u.uFill.value = c.wakeFill;
+    u.uVeins.value = c.wakeVeins * g.noiseStrength;
     u.uColor.value.copy(getColor(c.trailColor));
     u.uEdge.value.copy(getColor(c.edgeColor));
   };

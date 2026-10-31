@@ -54,23 +54,25 @@ export default {
      * The deep stop carries the body so the masks sit on the dark floor. */
     coreColor: '#fff4fb', // white-hot core
     edgeColor: '#ffb3e6', // pale tint: rims, engraving, shards
-    maskColor: '#d42a96', // saturated body of the lacquer
-    deepColor: '#2a0838', // dark deep: shadowed lacquer, pools, lane haze
+    maskColor: '#cf2a92', // saturated body of the lacquer
+    deepColor: '#24062f', // dark deep: shadowed lacquer, pools, lane haze
     trailColor: '#7a2fc4', // wakes and veils (saturated violet)
 
     /* --- 1 · the masks --- */
-    maskSize: 1, // mask scale
-    maskHeight: 1.15, // floats at (m)
+    maskSize: 1.6, // mask scale — a body-height hero that reads at 8 m
+    maskHeight: 1.45, // floats at (m)
     maskBob: 0.14, // bob height (m)
     maskSway: 0.16, // sway (rad)
     appearTime: 0.25, // fades in over (s)
-    maskGlow: 1, // lacquer brightness (multiplies the whole ramp)
-    maskShade: 0.75, // how much the key light models the lacquer (0 flat, 1 full)
-    maskSpecular: 0.45, // white-hot glint off the lacquer
+    maskGlow: 1.0, // lacquer brightness (multiplies the whole ramp)
+    maskShade: 1.0, // how much the key light models the lacquer (0 flat, 1 full)
+    maskSpecular: 0.8, // white-hot glint off the lacquer
+    maskDeep: 0.0, // pushes the lacquer toward the deep stop (ramp units)
+    maskHold: 0.55, // fraction of the linger the fallen masks hold before they burn away
     maskRear: 0.35, // the masks rear up before they fall (m)
     maskRestHeight: 0.5, // fallen mask's centre rests at (m, × size)
-    fallTilt: 1.0, // the fallen mask leans back this far (rad; π/2 lies flat)
-    maskSink: 0.45, // fallen mask sinks into its pool over the linger (m, × size)
+    fallTilt: 0.6, // the fallen mask leans back this far (rad; π/2 lies flat)
+    maskSink: 0.22, // fallen mask sinks into its pool over the linger (m, × size)
     maskLieSpin: 0.7, // fallen mask turns in its pool over the linger (rad)
     fallStart: 0.3, // fraction of the impact beat spent rearing before the fall
     fallTime: 0.45, // fraction of the impact beat the fall takes
@@ -90,11 +92,13 @@ export default {
     veilOpacity: 0.55,
 
     /* --- 3 · the wakes --- */
-    wakeGlow: 1.7,
-    wakeOpacity: 0.45,
+    wakeGlow: 0.8,
+    wakeOpacity: 0.9,
     wakeShimmer: 1, // heat-shimmer bands
     wakeScale: 1, // band frequency
     wakeDeep: 1, // weight of the deep haze that darkens each lane
+    wakeFill: 0.72, // opacity of the filled lacquer runner down each lane
+    wakeVeins: 1, // weight of the flowing veins in it
 
     /* --- 4 · the shards --- */
     shardSize: 0.12, // mirror shard scale
@@ -106,7 +110,7 @@ export default {
     shardRest: 0.06, // fallen shards lie at (m)
 
     /* --- 4b · the pools (linger) --- */
-    lingerTime: 1.5, // presentation linger after the masks fall (s); no gameplay effect
+    lingerTime: 2.0, // presentation linger after the masks fall (s); no gameplay effect
     poolRadius: 1.5, // pool under each fallen mask (m, × size, capped by lane spacing)
     poolGrow: 0.45, // pool spreads over (s)
     poolOpacity: 0.85,
@@ -153,24 +157,30 @@ export default {
     shellOpacity: 0.22,
     shellFresnel: 2.2, // rim sharpness of the shell
     rippleRadius: 1.6, // ripple decal per lane (m)
-    contactRadius: 1.8, // shockwave at a committed hit (m)
+    contactRadius: 2.6, // shockwave at a committed hit (m)
     decalLife: 0.8,
     rippleIntensity: 0.7, // RIPPLE decal brightness at the endpoints
-    contactIntensity: 0.9, // SHOCKWAVE decal brightness at a hit
-    contactWidth: 0.07, // its ring width
+    contactIntensity: 1.4, // SHOCKWAVE decal brightness at a hit
+    contactWidth: 0.12, // its ring width
     colorBurstA: '#ffd6f1',
     colorBurstB: '#d42a96',
     colorBurstC: '#2a0838',
     landShake: 0.08, // knock as the three masks hit the floor (× explosion intensity)
 
     /* --- 6b · the true strike (honest feedback on a committed hit) --- */
-    strikeSize: 1.5, // the real mask lunging out of the struck body (× mask size)
+    strikeSize: 1.3, // the real mask lunging out of the struck body (× mask size)
     strikeLife: 0.7, // (s)
     strikeLunge: 0.9, // how far it lunges down the line (m)
-    strikeRise: 1.1, // it looms this far above the procession (m)
-    strikeHeat: 0.45, // saturated glow of the strike mask
-    strikeFlash: 0.06, // screen flash in the body colour (× explosion intensity)
-    strikeShake: 0.1, // camera knock (× explosion intensity)
+    strikeRise: 0.6, // it looms this far above the procession (m)
+    strikeHeat: 0.7, // saturated glow of the strike mask
+    strikeFlash: 0.16, // screen flash in the body colour (× explosion intensity)
+    strikeShake: 0.22, // camera knock (× explosion intensity)
+    strikeBurst: 1.9, // the pressure shell the strike drives into the body (m)
+    strikeBurstLife: 0.45, // (s)
+    strikeBurstOpacity: 0.55,
+    strikeBurstIntensity: 1.3,
+    strikeStain: 1.6, // a dark lacquer splash left on the floor under the struck body (m)
+    strikeStainLife: 2.2, // (s)
     impactShake: 0.12, // (× explosion intensity, × camera shake)
     shakeDecay: 7,
     shakeFrequency: 20,

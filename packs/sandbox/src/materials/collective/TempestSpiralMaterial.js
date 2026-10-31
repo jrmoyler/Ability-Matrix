@@ -84,6 +84,9 @@ const FUNNEL_VERTEX = /* glsl */ `
   uniform float uCollapse;    // 0..1 bottom-up thinning
   uniform float uCollapseSoft;
   uniform float uCollapseNoise;
+  uniform float uBandFreq;
+  uniform float uRisePhase;
+  uniform float uBandBulge;   // how far each cloud band bulges out of the wall, fraction
 
   varying vec3  vNormalW;
   varying vec3  vViewDir;
@@ -124,6 +127,10 @@ const FUNNEL_VERTEX = /* glsl */ `
     // Ripples in the wall, travelling with the spin so they read as gusts.
     float n = snoise(vec3(bearing * uWobbleScale * r * 0.6, y * uWobbleScale * 0.35 - uSpinPhase * 0.15 + uSeed));
     r *= 1.0 + n * uWobble;
+    // Medium scale: the stacked cloud bands bulge out of the wall as rolls of
+    // dust, climbing with the same phase the fragment bands use.
+    float roll = smoothstep(-0.4, 0.9, sin(y * uBandFreq * 3.14159 + n * 1.2 - uRisePhase * 2.0));
+    r *= 1.0 + uBandBulge * (roll - 0.5) * smoothstep(0.05, 0.25, v);
     r *= 1.0 - 0.6 * edge;
 
     vec2 off = swayAt(v);
@@ -183,6 +190,8 @@ const FUNNEL_FRAGMENT = /* glsl */ `
   uniform float uDeepMix;      // 0..1 how far the gaps fall to it
   uniform float uBandDark;     // 0..1 how dark the gaps between cloud bands go
   uniform float uDensity;      // dust shell alpha multiplier — weight
+  uniform float uSunLift;      // how much the sun-side of each band roll lifts up the ramp
+  uniform float uBodyFloor;    // 0..1 the least opacity of the dust shell — a column, not a veil
   uniform vec3  uLightDir;
 
   uniform vec2      uResolution;
@@ -234,11 +243,13 @@ const FUNNEL_FRAGMENT = /* glsl */ `
     float cut = max(vCut, n2cut(normalize(vBearing), vCyl.y, vV));
 
     float alpha = density * carve * banded * floorFade * topFade * (1.0 - cut) * uOpacity * uFade;
-    if (alpha < 0.004) discard;
+    if (alpha < 0.004 && uBodyFloor <= 0.0) discard;
 
     vec2 screenUV = gl_FragCoord.xy / uResolution;
-    alpha *= softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
-    if (alpha < 0.004) discard;
+    float soft = softFade(uSceneDepth, screenUV, vViewZ, uCameraNear, uCameraFar, uSoftFade);
+    alpha *= soft;
+    if (alpha < 0.004 && uBodyFloor <= 0.0) discard;
+    float envelope = floorFade * topFade * (1.0 - cut) * uOpacity * uFade * soft;
 
     // A key light off the reconstructed wall normal.
     float key = max(dot(N, normalize(uLightDir)), 0.0);
@@ -249,15 +260,21 @@ const FUNNEL_FRAGMENT = /* glsl */ `
       // the pale tint, everything between them falls to the storm-dark deep
       // stop. Height only nudges it, so the top is not a pale smear.
       float lit = clamp(fil * 1.3, 0.0, 1.0) * mix(1.0 - uBandDark, 1.0, bands);
-      float t = clamp(0.06 + (0.25 + 0.75 * key) * lit * 0.85 + 0.1 * vV + rimTerm * 0.12, 0.0, 1.0);
+      // The sun-side of every band roll catches light (so the column reads
+      // against the night sky); the shadow side and the gaps stay storm-dark.
+      float roll = smoothstep(0.2, 0.9, bands) * (0.3 + 0.7 * key);
+      float t = clamp(0.06 + (0.25 + 0.75 * key) * lit * 0.85 + uSunLift * roll + 0.14 * vV + rimTerm * 0.14, 0.0, 1.0);
       t = mix(0.5, t, uDeepMix);
       if (t < 0.45) color = mix(uColorDeep, uColorMid, t / 0.45);
       else if (t < 0.82) color = mix(uColorMid, uColorTop, (t - 0.45) / 0.37);
       else color = mix(uColorTop, uColorFilament, (t - 0.82) / 0.18);
       // Dirt-dark where it scours the floor.
       color = mix(color, uColorBase * (0.5 + 0.5 * key), (1.0 - smoothstep(0.0, 0.28, vV)) * 0.85);
-      alpha = clamp(alpha * uDensity, 0.0, 1.0);
+      // Opaque enough everywhere to be a column of dirt, not a glass sheet.
+      alpha = clamp(max(alpha * uDensity, uBodyFloor * envelope), 0.0, 1.0);
+      if (alpha < 0.004) discard;
     } else {
+      if (alpha < 0.004) discard;
       color = mix(uColorBase, uColorMid, smoothstep(0.0, 0.35, vV));
       color = mix(color, uColorTop, smoothstep(0.35, 1.0, vV));
       float lit = clamp(fil * 1.3, 0.0, 1.0) * mix(1.0 - uBandDark, 1.0, bands);
@@ -330,7 +347,10 @@ export function createFunnelMaterial(role = 'outer') {
       uColorDeep: { value: new Color() },
       uDeepMix: { value: 0 },
       uBandDark: { value: 0 },
-      uDensity: { value: 1 }
+      uDensity: { value: 1 },
+      uBodyFloor: { value: 0 },
+      uSunLift: { value: 0 },
+      uBandBulge: { value: 0 }
     }),
     vertexShader: FUNNEL_VERTEX,
     fragmentShader: FUNNEL_FRAGMENT
@@ -376,8 +396,10 @@ export function createFunnelMaterial(role = 'outer') {
     u.uTopFade.value = c.topFade;
     u.uSoftFade.value = c.softFade;
     u.uFade.value = state.fade;
+    u.uBandBulge.value = c.bandBulge * g.noiseStrength * (role === 'devil' ? 0.4 : 1);
 
     if (role === 'inner') {
+      u.uBodyFloor.value = 0;
       u.uOpacity.value = c.innerOpacity * g.opacity;
       u.uGlow.value = c.innerGlow * g.glow;
       u.uFilamentGlow.value = c.filamentGlow;
@@ -401,6 +423,8 @@ export function createFunnelMaterial(role = 'outer') {
       u.uDeepMix.value = c.deepMix;
       u.uBandDark.value = c.bandDark;
       u.uDensity.value = role === 'devil' ? Math.max(1, c.outerDensity * 0.8) : c.outerDensity;
+      u.uBodyFloor.value = c.bodyFloor * (role === 'devil' ? 0.7 : 1);
+      u.uSunLift.value = c.sunLift;
     }
   };
 

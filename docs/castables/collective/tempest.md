@@ -12,6 +12,9 @@ A dark dust devil leaves the hand and skims to the circle while the floor there 
 | 0.8–4.0 | Linger | Funnel 4.3 m tall (kept inside the 8 m frame), foot 0.85 m → lip 2.75 m. Dust shell is dense (`outerDensity` 2.2) and coloured by a four-stop ramp driven by filament/band light: deep #0b141b → body #2c4a57 → tint #7fb3c4 → filament #a9dcea; dirt-dark #3a2e22 at the floor. Dark gaps between cloud bands (`bandDark`). Faint additive counter-spinning wind shell inside. Scoured floor spreads to 3 m over 0.6 s: log-spiral grooves lit off a bump normal, a gouged bowl under the foot ringed with grit, turning with the spin; dust rings every 0.32 s; lit CHIP debris (0.26 m) orbits up; streaks; base warp. Bodies knocked off their feet and wound up to 0.62 × height. |
 | 4.0–5.1 | Exit | Funnel thins bottom-up with a ragged edge, bodies flung outward, 110 chips thrown; scour fades with it. |
 
+## Fix-up pass (2026-10-31)
+The funnel was a translucent glassy teal sheet. Now: the dust shell has an opacity floor (`bodyFloor` 0.72) so it is a column of dirt everywhere, not a veil; storm-slate ramp (#05080b deep → #33434d body → #8499a4 tint → #c2d3da filament), the wind shell's teal glow halved (`innerOpacity` 0.08, `innerGlow` 0.3); medium-scale cloud bands that physically roll out of the wall (`bandBulge` 0.16, `bandFrequency` 0.75/m, contrast 0.75, `bandDark` 0.85) with their sun side lit (`sunLift` 0.35) so the column reads against the night sky; debris chips 0.4 m at 210/s carried up; scour disc 1.45 × skirt (≈3.5 m), deeper grooves, more grit and lip; impact shell slate not white; base warp halved so the lower funnel no longer refracts like glass. Height 4.3 m untouched (top stays in the 8 m frame; overshoot 6 %→2 %, top feather 0.16→0.22). New keys (3): `bandBulge, bodyFloor, sunLift`.
+
 ## Layers
 1. Dust devil (`createFunnelMaterial('devil')`).
 2. Funnel — two parameter-space lathe shells: lit dust shell with four-stop ramp, additive wind shell.

@@ -38,7 +38,7 @@ export default {
     pulseCount: 6, // rings per cast (capped at 12)
     pulseInterval: 0.13, // seconds between one ring leaving and the next
     pulseShrink: 0.08, // each later ring is this much smaller, fraction
-    pulseDim: 0.1, // ...and this much dimmer
+    pulseDim: 0.12, // ...and this much dimmer
 
     /* --- one ring's shape on its way down the line --- */
     ringStart: 0.3, // lateral radius as it leaves the hand, metres
@@ -51,19 +51,19 @@ export default {
     arriveFade: 0.32, // seconds it takes to die once it lands
 
     /* --- the shader --- */
-    rimWidth: 0.055, // width of the bright rim, fraction of the shell
-    rimBright: 1.7, // rim brightness
-    chroma: 0.045, // RGB split across the rim, fraction of the shell
+    rimWidth: 0.07, // width of the bright rim, fraction of the shell
+    rimBright: 0.45, // rim brightness
+    chroma: 0.02, // RGB split across the rim, fraction of the shell
     fresnelPower: 2.4,
-    fresnelBright: 0.5,
-    bodyOpacity: 0.38, // brightness of the interference bands through the body
+    fresnelBright: 0.15,
+    bodyOpacity: 0.03, // brightness of the interference bands through the body
     bands: 6.0, // interference bands across the shell
     beat: 1.65, // ratio of the second wave — the beat pattern between them
     bandSpeed: 16.0, // how fast the bands run outward
     bandSharp: 3.0, // >1 thins the bands into lines
     lobes: 5.0, // standing-wave lobes around the ring
     lobeDepth: 0.35, // how much the lobes modulate the bands, 0..1
-    intensity: 2.2, // emissive multiplier — bloom picks this up
+    intensity: 1.3, // emissive multiplier — bloom picks this up
     opacity: 1.0,
     softFade: 0.45, // metres it feathers out where it cuts the floor
     colorRim: '#fff4fb', // white-hot core stop
@@ -73,16 +73,21 @@ export default {
     colorChromaB: '#5a3cff',
 
     /* --- the body: a filled lens of compressed air with a rolled lip --- */
-    bodyFill: 0.8, // opacity of the lens body (normal-blended, it darkens what it crosses)
-    bodyCentre: 0.5, // fill at the apex, × the fill at the front
+    bodyFill: 0.9, // opacity of the lens body (normal-blended, it darkens what it crosses)
+    bodyCentre: 0.72, // fill at the apex, × the fill at the front
     capSplit: 0.78, // share of the shell grid that is the cap; the rest rolls into the lip
-    lipSize: 0.13, // thickness of the vortex lip, × the ring radius
+    lipSize: 0.1, // thickness of the vortex lip, × the ring radius
     lipCurl: 4.4, // radians the lip rolls back over itself
     lipSpin: 2.6, // how fast air streaks roll round it
-    lipBright: 1.0, // lip brightness
+    lipBright: 0.4, // lip brightness
     lipOpacity: 0.92,
     colorTint: '#ff86d2', // pale tint stop
     colorDeep: '#14042a', // the dark deep stop
+    bodyGlow: 0.04, // emissive lift of the filled body where it is compressed hardest
+    bodyMottle: 0.6, // 0..1 how much the swirling pressure cells shape the fill
+    bodyMottleScale: 2.2, // size of those cells (higher = smaller)
+    bodyShade: 0.5, // 0..1 how much the sun shades the lens like a volume
+    bodyTone: 0.16, // 0..1 how far the filled body climbs from the deep stop toward the body violet
 
     /* ================================================================ */
     /* 2 · WARP — the screen bends under every ring                      */
@@ -140,7 +145,7 @@ export default {
     boomBurst: 3.4, // AIR shell end radius, metres (inside the domes)
     boomBurstLife: 0.6,
     boomBurstIntensity: 1.5,
-    boomBurstOpacity: 0.32,
+    boomBurstOpacity: 0.55,
     colorBurstA: '#ffffff',
     colorBurstB: '#ff6fd0',
     colorBurstC: '#2c0b52',
@@ -151,15 +156,17 @@ export default {
     colorShockB: '#8e1fe0',
     floorRadius: 9.0, // how far the floor ripple runs, metres
     floorTime: 1.2, // seconds it takes to get there
-    floorRings: 3, // wavelets in the ripple train (capped at 6)
+    floorRings: 1, // wavelets in the ripple train (capped at 6)
     floorWavelength: 0.85, // metres between them
     floorWidth: 0.14, // width of one wavelet, metres
-    floorIntensity: 2.0,
-    floorChroma: 0.09, // RGB split across a wavelet, metres
+    floorIntensity: 0.9,
+    floorChroma: 0.03, // RGB split across a wavelet, metres
+    floorWake: 0.9, // 0..1 opacity of the filled dark pressure band behind the crest
+    floorWakeLength: 2.6, // metres of that band
     boomDust: 36, // dust thrown out by the boom
     boomShake: 0.55,
     boomShakeTime: 0.5, // seconds the kick takes to die
-    boomFlash: 0.24,
+    boomFlash: 0.3,
     boomLight: 22, // light punch
     pulseShake: 0.035, // a tick of shake per ring leaving
     colorFlash: '#ffe6f6',
@@ -178,6 +185,8 @@ export default {
     humDelay: 0.35, // seconds after the boom before it stands
     humBright: 0.85,
     humFill: 0.8, // body fill, × the rings'
+    boomDomeFill: 1.0, // body fill of the boom domes, × the rings'
+    boomDomeGlow: 3.0, // body glow of the boom domes, × the rings' — the boom's light
 
     /* ================================================================ */
     /* 7 · CHLADNI PLATE — the floor sorts into the sound's figure       */
@@ -190,13 +199,16 @@ export default {
     plateMorphTime: 1.4, // seconds per morph (it swings back and forth)
     plateLineWidth: 0.16, // width of the sand ridges, in pattern units
     plateGrain: 34, // sand grain frequency
-    plateStain: 0.72, // dark stain where the floor shakes
-    plateGlow: 2.2, // ridge glow on each beat
+    plateStain: 0.9, // dark stain where the floor shakes
+    plateGlow: 1.0, // ridge glow on each beat
+    plateBodyMix: 0.55, // 0..1 how far the stain lifts from the deep stop toward the body violet
+    plateRimGlow: 0.35, // glow of the pressed crater lip round the plate
+    plateRimWidth: 0.06, // width of that lip, × the plate radius
     laneWidth: 0.85, // lane half-width, × the rings' end radius
     laneStripe: 0.9, // lane wavelength along the line, metres
     laneAcross: 0, // nodes across the lane (0 = ripples straight across)
-    laneStain: 0.62, // dark stain under the lane
-    laneLines: 0.5, // strength of the sorted ridges in the lane, × the plate's
+    laneStain: 0.95, // dark stain under the lane
+    laneLines: 0.2, // strength of the sorted ridges in the lane, × the plate's
 
     /* --- the light --- */
     lightColor: '#ffd1f0',

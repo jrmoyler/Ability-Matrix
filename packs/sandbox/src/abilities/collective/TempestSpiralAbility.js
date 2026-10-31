@@ -1069,6 +1069,7 @@ export function buildEditor(gui, c, Editor) {
   R(bands, c, 'streak', 0.01, 1, 0.005, 'filament length (smaller = longer)');
   R(bands, c, 'bandFrequency', 0, 6, 0.01, 'bands per metre');
   R(bands, c, 'bandContrast', 0, 1, 0.01, 'band contrast');
+  R(bands, c, 'bandBulge', 0, 0.6, 0.005, 'band roll-out (× radius)');
   R(bands, c, 'filament', 0, 1, 0.01, 'filament carve');
   R(bands, c, 'filamentSharp', 0.2, 8, 0.05, 'filament tightness');
   R(bands, c, 'rimPower', 0.1, 6, 0.01, 'facing-ratio power');
@@ -1094,6 +1095,8 @@ export function buildEditor(gui, c, Editor) {
   look.addColor(c, 'colorWind').name('wind shell');
   R(look, c, 'deepMix', 0, 1, 0.01, 'gaps fall to storm-dark');
   R(look, c, 'outerDensity', 0.2, 4, 0.01, 'dust shell density');
+  R(look, c, 'bodyFloor', 0, 1, 0.01, 'dust shell least opacity');
+  R(look, c, 'sunLift', 0, 1, 0.01, 'sun-side lift of the band rolls');
   R(look, c, 'innerDeepMix', 0, 1, 0.01, 'wind shell gaps darken');
   R(look, c, 'bandDark', 0, 1, 0.01, 'dark between cloud bands');
   look.addColor(c, 'colorFunnelDeep').name('storm-dark deep');

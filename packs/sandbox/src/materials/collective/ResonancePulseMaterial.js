@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2 } from 'three';
+import { Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -125,6 +125,11 @@ const SHELL_FRAGMENT = /* glsl */ `
   uniform float uBody;
   uniform float uBodyFill;
   uniform float uBodyCentre;
+  uniform float uBodyGlow;
+  uniform float uMottle;
+  uniform float uMottleScale;
+  uniform float uShade;
+  uniform float uBodyTone;
   uniform float uBands;
   uniform float uBeat;
   uniform float uBandSpeed;
@@ -190,6 +195,11 @@ const SHELL_FRAGMENT = /* glsl */ `
 
     if (vPart < 0.5) {
       /* ---------- the cap: a filled lens of compressed air ---------- */
+      // The body is a *mass*, not a stack of bands: a lit, mottled lens whose
+      // tone sits low on the ramp (deep → body, a touch of tint where the
+      // pressure is highest), with the beat bands only a faint shimmer
+      // through it. Seen end-on down the line it reads as a dark violet
+      // pressure body, not concentric neon outlines.
       float v = vCapV;
       float phase = v * uBands * 6.28318530718 - uTime * uBandSpeed;
       float beat = (sin(phase) + sin(phase * uBeat + uSeed * 3.0)) * 0.5;
@@ -198,17 +208,31 @@ const SHELL_FRAGMENT = /* glsl */ `
       // Densest toward the rim, where the front is compressed hardest.
       float comp = mix(uBodyCentre, 1.0, smoothstep(0.1, 0.95, v));
       float b = band * lobe * grain;
+      // Swirling pressure cells (polar, not concentric) so the fill has form.
+      vec2 pc = vec2(cos(phi), sin(phi)) * v * uMottleScale;
+      float cellA = snoise(vec3(pc + uSeed, uTime * 0.9 - v * 1.4));
+      float cellB = snoise(vec3(pc * 2.3 - uSeed, uTime * 1.6 + v * 2.0));
+      float mott = clamp(0.5 + 0.35 * cellA + 0.2 * cellB, 0.0, 1.0);
+      float press = comp * (1.0 - uMottle + uMottle * mott);
+      // Lit like a volume: the sun-facing side of the lens lifts a little.
+      float lit = mix(1.0, 0.55 + 0.75 * max(dot(N, normalize(uLightDir)), 0.0), uShade);
 
-      base = mix(uColorDeep, uColorBody, clamp(b * 0.55 + comp * 0.25, 0.0, 1.0));
-      alpha = uBodyFill * comp * (0.75 + 0.25 * b);
+      // Mostly the deep stop: the body violet only where the air is
+      // compressed hardest, so the lens has mass instead of glowing.
+      base = mix(uColorDeep, uColorBody, clamp(uBodyTone * (0.25 + 0.75 * press) + 0.05 * b, 0.0, 1.0)) * lit;
+      alpha = uBodyFill * comp * (0.82 + 0.18 * mott);
 
-      // The chromatic edge where the cap meets the lip.
+      // The chromatic edge where the cap meets the lip — a soft hot edge,
+      // not a neon outline.
       float rr = rim(v + uChroma);
       float rg = rim(v);
       float rb = rim(v - uChroma);
       float white = min(rr, min(rg, rb));
       vec3 rimColor = (uColorR * rr + uColorG * rg + uColorB * rb) * 0.5 + uColorRim * white;
-      emit = rimColor * uRimBright + ramp(0.45 + b * 0.35) * b * uBody * uShaderIntensity + uColorBody * fres * 0.5;
+      emit = rimColor * uRimBright
+           + ramp(0.42 + 0.3 * press) * press * press * uBodyGlow * uShaderIntensity
+           + ramp(0.45 + b * 0.35) * b * uBody * uShaderIntensity
+           + uColorBody * fres * 0.5;
       alpha = max(alpha, max(rr, max(rg, rb)) * 0.9);
     } else {
       /* ---------- the lip: a rolling vortex ring with thickness ---------- */
@@ -222,8 +246,13 @@ const SHELL_FRAGMENT = /* glsl */ `
       float cx = vLipV * 2.6 - 0.35;
       float crest = exp(-cx * cx * 2.0);
       float h = clamp(0.12 + 0.36 * crest + 0.2 * lambert + 0.2 * streak * lobe, 0.0, 1.0);
-      base = ramp(h * 0.8) * (0.55 + 0.45 * facing);
-      emit = ramp(h) * (crest * 0.9 + streak * 0.35) * uLipBright + uColorBody * fres * 0.25;
+      // The tube is the same dense air as the lens: deep-toned and lit by the
+      // sun, with only the narrow crest running hot — nested lips seen
+      // end-on must read as rolls of a body, not as a stack of neon rings.
+      base = mix(uColorDeep, uColorBody, clamp(uBodyTone * (0.5 + 1.6 * h), 0.0, 1.0))
+           * (0.5 + 0.5 * facing) * (0.7 + 0.6 * lambert);
+      float hot = crest * crest * crest;
+      emit = ramp(0.45 + 0.4 * h) * (hot * 0.9 + streak * hot * 0.3) * uLipBright + uColorBody * fres * 0.25;
       alpha = uLipOpacity * (0.75 + 0.25 * streak) * smoothstep(1.0, 0.85, vLipV);
     }
 
@@ -352,33 +381,51 @@ const FLOOR_FRAGMENT = /* glsl */ `
   precision highp float;
 
   uniform float uTime;
+  uniform float uSeed;
   uniform float uChroma;
   uniform float uIntensity;
   uniform float uOpacity;
   uniform float uFade;
+  uniform float uWake;        // 0..1 how dark the compressed band behind the front goes
+  uniform float uWakeLength;  // metres of that band
   uniform vec3  uColorR;
   uniform vec3  uColorG;
   uniform vec3  uColorB;
   uniform vec3  uColorRim;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
   uniform float uGlobalGlow;
 
   varying vec2 vLocal;
   varying float vViewZ;
 
+  ${noiseGLSL}
   ${FLOOR_COMMON}
 
   void main() {
     float d = length(vLocal);
+    // The shockwave is a filled band of compressed air dragged across the
+    // floor — dark deep-violet behind a hot crest — not a set of outlines.
+    float reach = 1.0 - smoothstep(uMaxRadius * 0.6, uMaxRadius, d);
+    float th = atan(vLocal.y, vLocal.x);
+    float ragged = 0.18 * uWakeLength * snoise(vec3(cos(th) * 2.0, sin(th) * 2.0, uTime * 1.5));
+    float inner = uFront - uWakeLength + ragged;
+    float wake = smoothstep(inner, uFront - uWidth, d) * (1.0 - smoothstep(uFront - uWidth * 0.5, uFront + uWidth, d));
+    wake *= reach * step(0.0, uFront - 0.05);
+    float grain = 0.8 + 0.2 * snoise(vec3(vLocal * 3.0, uTime));
+
     float r = wavelets(d + uChroma);
     float g = wavelets(d);
     float b = wavelets(d - uChroma);
+    float crest = clamp(max(r, max(g, b)), 0.0, 1.0);
     float white = min(r, min(g, b));
-    vec3 color = uColorR * r + uColorG * g + uColorB * b;
-    color = color * 0.6 + uColorRim * white * 1.2;
+    vec3 hot = (uColorR * r + uColorG * g + uColorB * b) * 0.6 + uColorRim * white * 1.2;
 
-    float alpha = clamp(max(r, max(g, b)), 0.0, 1.0) * uFade * uOpacity;
+    vec3 body = mix(uColorDeep, uColorBody * 0.3, wake * wake * grain);
+    vec3 color = mix(body, hot * uIntensity * uGlobalGlow, crest);
+    float alpha = max(wake * uWake * grain, crest) * uFade * uOpacity;
     if (alpha < 0.003) discard;
-    gl_FragColor = vec4(color * uIntensity * uGlobalGlow * uFade * uOpacity, alpha);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -424,6 +471,11 @@ export function createResonanceShellMaterial() {
       uCurl: { value: 4.4 },
       uBodyFill: { value: 0.6 },
       uBodyCentre: { value: 0.3 },
+      uBodyGlow: { value: 0.5 },
+      uMottle: { value: 0.6 },
+      uMottleScale: { value: 2.2 },
+      uShade: { value: 0.5 },
+      uBodyTone: { value: 0.5 },
       uLipSpin: { value: 2.5 },
       uLipBright: { value: 1.4 },
       uLipOpacity: { value: 0.9 },
@@ -474,6 +526,11 @@ export function createResonanceShellMaterial() {
     u.uCurl.value = c.lipCurl;
     u.uBodyFill.value = c.bodyFill * (state.fill ?? 1);
     u.uBodyCentre.value = c.bodyCentre;
+    u.uBodyGlow.value = c.bodyGlow * (state.glow ?? 1);
+    u.uMottle.value = c.bodyMottle * g.noiseStrength;
+    u.uMottleScale.value = c.bodyMottleScale * g.noiseFrequency;
+    u.uShade.value = c.bodyShade;
+    u.uBodyTone.value = c.bodyTone * (state.tone ?? 1);
     u.uLipSpin.value = c.lipSpin * g.noiseSpeed;
     u.uLipBright.value = c.lipBright;
     u.uLipOpacity.value = c.lipOpacity;
@@ -550,7 +607,7 @@ export function createResonanceFloorMaterial(pass = 'color') {
     transparent: true,
     depthWrite: false,
     depthTest: !warp,
-    blending: warp ? NormalBlending : AdditiveBlending,
+    blending: NormalBlending,
     side: DoubleSide,
     toneMapped: false,
     uniforms: sharedUniforms({
@@ -568,7 +625,12 @@ export function createResonanceFloorMaterial(pass = 'color') {
       uColorR: { value: new Color(1, 0.3, 0.6) },
       uColorG: { value: new Color(0.6, 1, 0.9) },
       uColorB: { value: new Color(0.4, 0.5, 1) },
-      uColorRim: { value: new Color(1, 1, 1) }
+      uColorRim: { value: new Color(1, 1, 1) },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uWake: { value: 0.6 },
+      uWakeLength: { value: 2.4 },
+      uSeed: { value: Math.random() * 10 }
     }),
     vertexShader: FLOOR_VERTEX,
     fragmentShader: warp ? FLOOR_WARP_FRAGMENT : FLOOR_FRAGMENT
@@ -594,6 +656,10 @@ export function createResonanceFloorMaterial(pass = 'color') {
     u.uColorG.value.copy(getColor(c.colorChromaG));
     u.uColorB.value.copy(getColor(c.colorChromaB));
     u.uColorRim.value.copy(getColor(c.colorRim));
+    u.uColorDeep.value.copy(getColor(c.colorDeep));
+    u.uColorBody.value.copy(getColor(c.colorBody));
+    u.uWake.value = c.floorWake * g.opacity;
+    u.uWakeLength.value = c.floorWakeLength * g.explosionIntensity;
   };
 
   return material;
@@ -649,6 +715,9 @@ const PLATE_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uDissolve;
   uniform float uLineAmt;
+  uniform float uBodyMix;
+  uniform float uRimGlow;
+  uniform float uRimW;
   uniform vec3  uColorDeep;
   uniform vec3  uColorBody;
   uniform vec3  uColorTint;
@@ -711,12 +780,16 @@ const PLATE_FRAGMENT = /* glsl */ `
 
     // The rest of the plate is shaking: the deep stain, darker at the antinodes.
     float anti = smoothstep(0.2, 1.0, abs(pattern));
-    vec3 base = mix(uColorDeep, uColorBody * 0.35, (1.0 - anti) * 0.4);
+    vec3 base = mix(uColorDeep, uColorBody * 0.6, (0.35 + 0.65 * (1.0 - anti)) * uBodyMix);
+    // A pressed crater lip: the floor was struck here, and it stays struck.
+    float rimD = uMode < 0.5 ? (length(vLocal) / max(uRadius, 0.01) - 0.74 - edgeN * 0.5) / max(uRimW, 0.005) : 9.0;
+    float crater = exp(-rimD * rimD);
     float h = clamp(0.35 + 0.35 * hot + 0.35 * uHum, 0.0, 1.0);
     vec3 lineColor = ramp(h);
     vec3 color = mix(base, lineColor, line) + ramp(h) * line * uHum * uGlow * uGlobalGlow * uShaderIntensity * 0.8;
+    color = mix(color, ramp(0.3 + 0.15 * uHum), crater * 0.8) + ramp(0.45) * crater * uRimGlow * (0.6 + 0.4 * uHum) * uGlobalGlow;
 
-    float alpha = max(uStain * (0.55 + 0.45 * anti), line) * mask * uFade;
+    float alpha = max(max(uStain * (0.65 + 0.35 * anti), line), crater * min(1.0, uRimGlow)) * mask * uFade;
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(color, alpha);
   }
@@ -757,6 +830,9 @@ export function createResonancePlateMaterial(kind = 'disc') {
       uFade: { value: 1 },
       uDissolve: { value: 0 },
       uLineAmt: { value: 1 },
+      uBodyMix: { value: 0.5 },
+      uRimGlow: { value: 0.8 },
+      uRimW: { value: 0.06 },
       uColorDeep: { value: new Color() },
       uColorBody: { value: new Color() },
       uColorTint: { value: new Color() },
@@ -788,6 +864,9 @@ export function createResonancePlateMaterial(kind = 'disc') {
     u.uGrain.value = c.plateGrain * g.noiseFrequency;
     u.uStain.value = (lane ? c.laneStain : c.plateStain) * g.opacity;
     u.uLineAmt.value = lane ? c.laneLines : 1;
+    u.uBodyMix.value = c.plateBodyMix;
+    u.uRimGlow.value = lane ? 0 : c.plateRimGlow;
+    u.uRimW.value = c.plateRimWidth;
     u.uGlow.value = c.plateGlow * g.glow * (lane ? c.laneLines * 0.4 : 1);
     u.uColorDeep.value.copy(getColor(c.colorDeep));
     u.uColorBody.value.copy(getColor(c.colorBody));

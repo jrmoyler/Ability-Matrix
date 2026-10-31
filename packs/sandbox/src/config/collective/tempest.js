@@ -57,7 +57,7 @@ export default {
     topRadius: 2.75, // radius at the top of the funnel
     flare: 1.35, // >1 stays thin low and flares late, <1 opens early
     riseTime: 0.55, // seconds for the column to climb to full height
-    riseOvershoot: 0.06, // how far past full height it surges on arrival, × height
+    riseOvershoot: 0.02, // how far past full height it surges on arrival, × height
     sway: 0.7, // how far the top snakes off the axis, metres
     swayFrequency: 1.7, // bends along its height
     swaySpeed: 1.3, // how fast the bends travel
@@ -74,8 +74,9 @@ export default {
     /* --- the banded filaments --- */
     bandScale: 2.4, // around-the-column frequency of the noise
     streak: 0.16, // along-the-spiral stretch (smaller = longer filaments)
-    bandFrequency: 1.1, // horizontal bands per metre of height
-    bandContrast: 0.45, // 0..1 how strongly the bands cut the body
+    bandFrequency: 0.75, // horizontal bands per metre of height
+    bandContrast: 0.75, // 0..1 how strongly the bands cut the body
+    bandBulge: 0.16, // how far each cloud band rolls out of the wall, fraction of the radius
     filament: 0.5, // 0..1 how much the ridged filaments carve the shell
     filamentSharp: 2.6, // filament tightness
     rimPower: 1.4, // facing ratio exponent — shells are densest edge-on
@@ -83,7 +84,7 @@ export default {
 
     /* --- fades --- */
     floorFade: 0.35, // metres over which the funnel fades into the floor
-    topFade: 0.16, // fraction of the height that feathers out at the lip
+    topFade: 0.22, // fraction of the height that feathers out at the lip
     softFade: 0.6, // metres — soft intersection against scene geometry
     collapseTime: 1.1, // seconds the funnel takes to thin out from the bottom up
     collapseSoft: 0.22, // width of the dissolving edge, fraction of the height
@@ -91,19 +92,21 @@ export default {
 
     /* --- look --- */
     outerOpacity: 0.95,
-    outerDensity: 2.2, // dust shell alpha multiplier: a tornado is mostly dirt and has weight
-    innerOpacity: 0.16,
-    innerGlow: 0.6, // emissive gain of the additive wind shell
+    outerDensity: 2.6, // dust shell alpha multiplier: a tornado is mostly dirt and has weight
+    sunLift: 0.35, // how far the sun-side of each band roll climbs the ramp — form against the night sky
+    bodyFloor: 0.72, // 0..1 the least opacity anywhere on the dust shell — a column, not a veil
+    innerOpacity: 0.08,
+    innerGlow: 0.3, // emissive gain of the additive wind shell
     filamentGlow: 0.7, // how much brighter a filament is than the body
-    colorFunnelBase: "#3a2e22", // dust-dark where it scours the floor
-    colorFunnelMid: "#2c4a57", // the body — storm slate
-    colorFunnelTop: "#7fb3c4", // pale where it thins into cloud
-    colorFilament: "#a9dcea", // filament highlights
-    colorWind: "#6fcbe6", // inner wind shell
-    colorFunnelDeep: "#0b141b", // storm-dark deep stop between filaments and bands
+    colorFunnelBase: "#2e251b", // dust-dark where it scours the floor
+    colorFunnelMid: "#33434d", // the body — storm slate
+    colorFunnelTop: "#8499a4", // pale where it thins into cloud
+    colorFilament: "#c2d3da", // filament highlights
+    colorWind: "#5f9fb3", // inner wind shell
+    colorFunnelDeep: "#05080b", // storm-dark deep stop between filaments and bands
     deepMix: 0.85, // 0..1 how far the gaps between filaments fall to it
     innerDeepMix: 0.5, // the same on the additive wind shell (darker = less glow)
-    bandDark: 0.65, // 0..1 how dark the gaps between the cloud bands go
+    bandDark: 0.85, // 0..1 how dark the gaps between the cloud bands go
 
     /* ================================================================ */
     /* 3 · THE DUST SKIRT                                                */
@@ -123,15 +126,15 @@ export default {
     ringIntensity: 0.55,
 
     /* --- the scoured floor (a field shader, stays for the linger) --- */
-    scourRadius: 1.25, // × skirtRadius
+    scourRadius: 1.45, // × skirtRadius
     scourGrowTime: 0.6, // seconds to spread out from the foot
-    scourOpacity: 0.92,
+    scourOpacity: 0.96,
     scourWind: 1.7, // log-spiral winding of the grooves
     scourGrooves: 16, // grooves round the disc
-    scourGrooveDepth: 0.6, // relief of the grooves under the sun
+    scourGrooveDepth: 0.9, // relief of the grooves under the sun
     scourBowl: 0.32, // the gouged bowl under the foot, × radius
-    scourGrit: 0.6, // pale grit flecks
-    scourLipGlow: 0.35, // the rim of thrown grit round the bowl
+    scourGrit: 0.85, // pale grit flecks
+    scourLipGlow: 0.6, // the rim of thrown grit round the bowl
     scourLift: 0.018, // metres off the floor
     telegraphScour: 0.35, // the floor at the circle is already raked this far as the devil arrives
     telegraphDust: 90, // dust/second drawn in and wound up at the circle during travel
@@ -150,8 +153,8 @@ export default {
     /* ================================================================ */
     /* 4 · DEBRIS                                                        */
     /* ================================================================ */
-    debrisRate: 160, // chips/second fed into the column
-    debrisSize: 0.26,
+    debrisRate: 210, // chips/second fed into the column
+    debrisSize: 0.4,
     debrisClimb: 5.5, // m/s the debris climbs
     debrisDrag: 0.45, // how soon it stalls high in the column
     debrisSwirl: 3.4, // rad/s it orbits
@@ -183,7 +186,7 @@ export default {
     /* ================================================================ */
     /* 6 · DISTORTION                                                    */
     /* ================================================================ */
-    warpStrength: 0.9,
+    warpStrength: 0.45,
     warpWidth: 2.4, // × skirt radius
     warpHeight: 0.5, // × column height
     warpScale: 1.6,
@@ -194,15 +197,15 @@ export default {
     /* 7 · IMPACT + THE LIFT                                             */
     /* ================================================================ */
     burstSize: 4.2, // the pressure shell on touchdown, metres
-    burstIntensity: 1.1,
+    burstIntensity: 0.8,
     shockRadius: 5.5,
     impactShake: 0.42,
     shakeDuration: 0.5,
     impactFlash: 0.18,
     colRumble: 0.18, // rumble while the column stands
-    colorBurstA: "#e8fbff",
-    colorBurstB: "#9fe8ff",
-    colorBurstC: "#4f7c8c",
+    colorBurstA: "#cfe6ee",
+    colorBurstB: "#5f7f8c",
+    colorBurstC: "#1a252c",
     colorShockA: "#1d4a5c",
     colorShockB: "#6fb6cc",
     colorFlash: "#d8f6ff",
