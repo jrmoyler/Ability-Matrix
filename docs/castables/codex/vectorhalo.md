@@ -15,19 +15,19 @@ Twelve forged iron arrows stream out of the hand and fall into a ring around the
 | 2.4–2.85 | Exit | The arrows shatter along voronoi cells and sink. The floor fades. The stain and scorches stay. |
 
 ## Layers
-1. Arrows (hero): `createVectorHaloArrowGeometry`, an extruded, bevelled barbed head, square shaft and split fletch with `aEdge` (tail 0 → tip 1). Instanced, max 16. Material: `createVectorHaloArrowMaterial`, lit hammered iron on `LAYER.WORLD` with shadows. Forge heat in the head, a charge that floods the blade, a cooling term and a voronoi shatter (per instance `aVec`).
-2. Floor: `createVectorHaloSweepMaterial`, a filled, scoured char disc under the ring with tangent streaks, and a gouge cut along every flight. Ember in the beds while fresh.
-3. Template ground field (0.45), residue stain, landing scorches, aftershock dust roll.
+1. Arrows (hero): `createVectorHaloArrowGeometry`, an extruded, bevelled barbed head, square shaft and split fletch with `aEdge` (tail 0 → tip 1). Instanced, max 16. Material: `createVectorHaloArrowMaterial`, lit dark hammered iron on `LAYER.WORLD` with shadows. Heat lives only at the tip and on the head's cutting edges; the flats stay dark iron. There is a charge term, a cooling term and a voronoi shatter (per instance `aVec`).
+2. Floor: `createVectorHaloSweepMaterial`, a filled, near-black char disc under the ring, and a gouge cut along every flight with a narrow ember seam while fresh.
+3. Residue stain (darkened), landing scorches, aftershock dust roll.
 4. Particles: flight sparks, landing chips and dust, the template shed, hand flare.
 5. World: shake, flash and light on the lock; a light punch per landing and a camera punch for the volley.
 
-Switched off in the config: body, voice, lens, shared rig (the flat ring on the floor), detail pieces (jagged shards), shock ring.
+Switched off in the config: ground field (it read as a red disc), body, voice, lens, shared rig (the flat ring on the floor), detail pieces (jagged shards), shock ring.
 
 ## Signature
 A ring of arrows that locks and then lets go tangentially all at once: a pinwheel of iron stabbed into the floor.
 
 ## Palette
-core #fff0dc · tint #ffb27a · body #f05a1a · iron #4a3a33 · deep #160803 / char #1a0f0a
+core #fff0dc · tint #ffb27a · body #f05a1a · iron #2c2522 · deep #0b0503 / char #0e0907
 
 ## Gameplay
 Unchanged. `handlesOwnHits`, hit timing `commit`, blow `ring`, carry `orbit`. The stream, lock, release and landings are presentation only.
