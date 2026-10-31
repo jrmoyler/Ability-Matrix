@@ -1,6 +1,6 @@
 {
   "format": "collective-ability-catalog@1",
-  "generated": "2026-10-31T14:06:50.009Z",
+  "generated": "2026-10-31T14:50:33.795Z",
   "elements": [
     {
       "id": "fire",
@@ -1237,7 +1237,7 @@
       "range": 16,
       "minRange": 2,
       "zoneRadius": 3.2,
-      "controls": 160,
+      "controls": 178,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 24H78M28 38H70M36 52H64M42 66H58M47 80H53\"/></svg>"
     },
@@ -1363,7 +1363,7 @@
       "range": 18,
       "minRange": 3,
       "zoneRadius": null,
-      "controls": 156,
+      "controls": 222,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"26\" cy=\"50\" r=\"6\"/><path d=\"M40 34a22 22 0 0 1 0 32\"/><path d=\"M54 24a36 36 0 0 1 0 52\"/><path d=\"M68 14a50 50 0 0 1 0 72\"/></svg>"
     },
@@ -3736,7 +3736,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 0,
-      "controls": 211,
+      "controls": 237,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M50 16V28\"/><path d=\"M18 78L50 28L82 70\"/><circle cx=\"50\" cy=\"18\" r=\"5\"/><path d=\"M30 50H70\"/><path d=\"M68 70C74 64 82 76 88 70\"/></svg>"
     },
@@ -3862,7 +3862,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 0,
-      "controls": 201,
+      "controls": 240,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 62C30 28 48 78 64 36C74 18 80 48 88 30\"/><path d=\"M36 36L64 64M64 36L36 64\"/><path d=\"M70 66C76 70 76 80 70 84M78 62C88 70 88 82 78 88\"/></svg>"
     },
@@ -4240,7 +4240,7 @@
       "range": 18,
       "minRange": 2,
       "zoneRadius": 0,
-      "controls": 212,
+      "controls": 215,
       "status": "live",
       "glyph": "<svg class=\"glyph-svg\" viewBox=\"0 0 100 100\" aria-hidden=\"true\" fill=\"none\"\n     stroke=\"currentColor\" stroke-width=\"4.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 50H70\"/><path d=\"M62 38L86 50L62 62\"/><path d=\"M22 40V60\"/><path d=\"M30 50H70\"/><circle cx=\"78\" cy=\"72\" r=\"3\"/><path d=\"M78 60V66M78 78V84M66 72H72M84 72H90\"/></svg>"
     },
