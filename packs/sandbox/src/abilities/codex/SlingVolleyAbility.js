@@ -1,5 +1,6 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, CatmullRomCurve3, DynamicDrawUsage, Float32BufferAttribute, IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, TubeGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
+import { rng } from '../../assets/codex/RigKit.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
@@ -12,7 +13,10 @@ import {
   createSlingVolleyVoiceMaterial,
   createSlingVolleyDetailMaterial,
   createSlingVolleyTrailMaterial,
-  createSlingVolleyScarMaterial
+  createSlingVolleyScarMaterial,
+  createSlingStoneMaterial,
+  createSlingBlurMaterial,
+  createSlingCraterMaterial
 } from '../../materials/codex/SlingVolleyMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +53,108 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Stones one volley can throw (the `count` slider caps at 12 parts). */
+const MAX_STONES = 12;
+
+const _hand = new Vector3();
+const _target = new Vector3();
+const _touch = new Vector3();
+const _rest = new Vector3();
+const _sp = new Vector3();
+const _scale = new Vector3();
+const _m = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _axisX = new Vector3(1, 0, 0);
+const _axisZ = new Vector3(0, 0, 1);
+const _zero = new Matrix4().makeScale(0, 0, 0);
+const TAU = Math.PI * 2;
+const hash = (i, k) => {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+/* ------------------------------------------------------------------ */
+/* Cast-local geometry for the upgrade. It lives here, not in the      */
+/* generated `SlingVolleyGeometry.js`, which must stay byte-identical to   */
+/* its rig recipe (tests/pure-rigs.test.mjs).                         */
+/* ------------------------------------------------------------------ */
+/**
+ * The sling stone — the hero of the upgraded cast. A lead-grey/basalt
+ * *glans*: the almond (lemon) shot slingers actually threw, pointed at both
+ * ends along +X, chiselled into flat facets by a deterministic lump field so
+ * every face catches the sun differently. Long axis spans x ∈ [-1, 1] (so the
+ * ability's `stoneSize` is its half-length); the waist is ~0.6 thick.
+ *
+ * Attributes: `aGrain` (0..1 per vertex, the crust/clean-stone mix the shader
+ * reads), flat normals (non-indexed, one normal per face).
+ */
+export function createSlingStoneGeometry(seed = 7) {
+  const src = new IcosahedronGeometry(1, 3);
+  const pos = src.getAttribute('position');
+  const rand = rng(seed);
+  // A handful of chisel planes: each knocks a flat facet into the stone.
+  const cuts = [];
+  for (let i = 0; i < 18; i++) {
+    const n = new Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize();
+    cuts.push({ n, d: 0.8 + rand() * 0.14 });
+  }
+  const lumps = [];
+  for (let i = 0; i < 6; i++) lumps.push({ n: new Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize(), f: 2 + rand() * 3, p: rand() * TAU });
+  const out = new Float32Array(pos.count * 3);
+  const grain = new Float32Array(pos.count);
+  const v = new Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    // Lump: low-frequency wobble so no two sides match.
+    let lump = 0;
+    for (const l of lumps) lump += Math.sin(v.dot(l.n) * l.f + l.p) * 0.025;
+    // Glans profile: pointed ends along x, round waist.
+    const x = v.x;
+    const waist = Math.pow(Math.max(0, 1 - x * x), 0.62) * 0.6 + 0.04;
+    const len = Math.hypot(v.y, v.z) || 1;
+    let px = x * (1 + lump);
+    let py = (v.y / len) * waist;
+    let pz = (v.z / len) * waist;
+    py *= 1 + lump * 1.5;
+    pz *= 0.92 + lump * 1.5; // a touch flattened: it flies flat
+    // Chisel: clamp to each cut plane (scaled into the stone's frame).
+    for (const c of cuts) {
+      const d = px * c.n.x + py * c.n.y / 0.6 + pz * c.n.z / 0.6;
+      if (d > c.d) {
+        const k = c.d / d;
+        px *= 1 - (1 - k) * Math.abs(c.n.x);
+        py *= 1 - (1 - k) * Math.abs(c.n.y);
+        pz *= 1 - (1 - k) * Math.abs(c.n.z);
+      }
+    }
+    out[i * 3] = px;
+    out[i * 3 + 1] = py;
+    out[i * 3 + 2] = pz;
+    grain[i] = 0.5 + 0.5 * Math.sin(px * 7.1 + py * 11.3 + pz * 5.7 + seed);
+  }
+  src.dispose();
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(out, 3));
+  g.setAttribute('aGrain', new Float32BufferAttribute(grain, 1));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/**
+ * The sling's cord: one leather thong from the fist (origin) to the pouch at
+ * +X = 1, sagging a little behind the whirl. Scaled by `slingRadius`.
+ */
+export function createSlingCordGeometry() {
+  const curve = new CatmullRomCurve3([
+    new Vector3(0, 0, 0),
+    new Vector3(0.35, 0.03, -0.06),
+    new Vector3(0.7, 0.02, -0.12),
+    new Vector3(1, 0, -0.1)
+  ]);
+  return new TubeGeometry(curve, 24, 0.018, 5, false);
+}
 
 /**
  * SLING VOLLEY — motion, line cast.
@@ -76,8 +182,39 @@ const MAX_MARKS = 12;
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
  *
+ * ## The upgrade — the volley is stones
+ *
+ * The template layers above (body arcs, voice, floor grid, rig, pieces, trail)
+ * are now off by default (their opacity/count sliders still work); the cast
+ * reads through four layers of its own:
+ *
+ *  11. **the sling** — at the fist a leather cord whirls flat overhead
+ *      (`slingRadius`, `slingSpin`) under a smear disc, the first beat:
+ *      anticipation you can see from behind the caster.
+ *  12. **the stones** (`createSlingStoneGeometry`, `createSlingStoneMaterial`,
+ *      `LAYER.WORLD`, cast shadows) — `count` lit, chiselled lemon-shaped
+ *      sling bullets (*glandes*), `stoneSize` metres half-length. Each one is
+ *      thrown on its own flat arc from the fist to the point its part strikes
+ *      (`_partPoint`), timed so it touches down exactly when that part hits
+ *      (the hit timing is unchanged; the stone's flight is solved backwards
+ *      from it). It flies spinning flat about the vertical (`stoneSpin`), hot
+ *      cracks glowing; it lands with a bounce, skids `stoneSkid` metres,
+ *      and keeps spinning on the floor like a spun bottle — slowing over
+ *      `stoneSpinDown`, rocking harder as it slows, cracks cooling
+ *      (`stoneCool`); on the exit it beds into the floor and crumbles.
+ *  13. **the spin blur** (`createSlingBlurMaterial`) — a horizontal smear disc
+ *      round each spinning stone, two comet arms behind its pointed tips,
+ *      strength = the spin left, so the linger visibly winds down.
+ *  14. **the crater floor** (`createSlingCraterMaterial`) — a filled, dark
+ *      crater per landing with a heaped lip, the skid gouge, the scuffed disc
+ *      the tips score, and radial cracks glowing while the stone is hot; plus
+ *      an engine CRACK decal per landing that outlives the cast.
+ *
+ * Every landing is its own small beat (chips, dust ring, a short shake and a
+ * light punch); the template's end-of-line beat stays as the last, biggest one.
+ *
  * Every metre, rate and colour is read from `settings.slingvolley` each frame.
- * A cast only captures a seed and an integrated spin.
+ * A cast only captures a seed, an integrated spin and each stone's landing time.
  */
 export class SlingVolleyAbility extends Ability {
   constructor(ctx) {
@@ -159,6 +296,58 @@ export class SlingVolleyAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The upgrade's own layers: stones, spin blur, sling, crater floor.
+    this.stoneGeometry = createSlingStoneGeometry();
+    this._stoneState = new Float32Array((MAX_STONES + 1) * 4);
+    this._stoneAttr = new InstancedBufferAttribute(this._stoneState, 4).setUsage(DynamicDrawUsage);
+    this.stoneGeometry.setAttribute('aState', this._stoneAttr);
+    this.stoneMaterial = createSlingStoneMaterial();
+    this.stones = new InstancedMesh(this.stoneGeometry, this.stoneMaterial, MAX_STONES + 1);
+    this.stones.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.stones.layers.set(LAYER.WORLD);
+    this.stones.castShadow = true;
+    this.stones.frustumCulled = false;
+    this.stones.visible = false;
+    this.stones.count = 0;
+    this.group.add(this.stones);
+
+    this.blurGeometry = new PlaneGeometry(2, 2, 1, 1).rotateX(-Math.PI / 2);
+    this._blurState = new Float32Array((MAX_STONES + 1) * 4);
+    this._blurAttr = new InstancedBufferAttribute(this._blurState, 4).setUsage(DynamicDrawUsage);
+    this.blurGeometry.setAttribute('aBlur', this._blurAttr);
+    this.blurMaterial = createSlingBlurMaterial();
+    this.blur = new InstancedMesh(this.blurGeometry, this.blurMaterial, MAX_STONES + 1);
+    this.blur.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.blur.layers.set(LAYER.VFX);
+    this.blur.renderOrder = 14;
+    this.blur.frustumCulled = false;
+    this.blur.visible = false;
+    this.blur.count = 0;
+    this.group.add(this.blur);
+
+    this.cordGeometry = createSlingCordGeometry();
+    this.cordMaterial = new MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.85, metalness: 0.05 });
+    this.cord = new Mesh(this.cordGeometry, this.cordMaterial);
+    this.cord.layers.set(LAYER.WORLD);
+    this.cord.castShadow = true;
+    this.cord.frustumCulled = false;
+    this.cord.visible = false;
+    this.group.add(this.cord);
+
+    this.craterGeometry = new PlaneGeometry(1, 1, 1, 1).rotateX(-Math.PI / 2);
+    this.craterMaterial = createSlingCraterMaterial();
+    this.crater = this._mesh(this.craterGeometry, this.craterMaterial, LAYER.VFX, 2);
+
+    this._stones = Array.from({ length: MAX_STONES }, () => ({ land: -1, seed: 0 }));
+    this._fadeT = 0;
+    this._flying = new Float32Array(MAX_STONES * 3);
+    this._flyCount = 0;
+    this._spinning = new Float32Array(MAX_STONES * 4);
+    this._spinCount = 0;
+    this._trailEmitter = new RateEmitter();
+    this._spinDustEmitter = new RateEmitter();
+    this._slingQ = new Quaternion();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -241,6 +430,19 @@ export class SlingVolleyAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    for (let i = 0; i < MAX_STONES; i++) {
+      this._stones[i].land = -1;
+      this._stones[i].seed = Math.random();
+    }
+    this._fadeT = 0;
+    this._trailEmitter.reset();
+    this._spinDustEmitter.reset();
+    this.stones.count = 0;
+    this.stones.visible = false;
+    this.blur.count = 0;
+    this.blur.visible = false;
+    this.cord.visible = false;
+    this.crater.visible = false;
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -370,10 +572,11 @@ export class SlingVolleyAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    if (c.trailOpacity <= 0.01 && c.scarOpacity <= 0.01) this.trail.show(false);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -590,6 +793,7 @@ export class SlingVolleyAbility extends Ability {
       this._parts[i].armed = false;
       this._partPoint(i, n, _end);
       this._gather(_end.x, _end.z, Math.max(0.45, c.thickness * 4 + 0.5));
+      this._stoneLand(i, n);
     }
   }
 
@@ -784,11 +988,13 @@ export class SlingVolleyAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
+    this._fadeT = 0;
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._volley(dt);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
@@ -803,9 +1009,11 @@ export class SlingVolleyAbility extends Ability {
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
+    this._fadeT = t;
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._volley(dt);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
@@ -831,9 +1039,279 @@ export class SlingVolleyAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.stones.visible = false;
+    this.stones.count = 0;
+    this.blur.visible = false;
+    this.blur.count = 0;
+    this.cord.visible = false;
+    this.crater.visible = false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The upgrade: the sling, the stones, their blur, the crater floor    */
+  /* ------------------------------------------------------------------ */
+
+  /** Half-length of stone `i`, metres. */
+  _stoneSize(i) {
+    const c = settings[ID];
+    return Math.max(0.05, c.stoneSize * (1 + c.stoneJitter * (hash(i, 3) * 2 - 1)));
+  }
+
+  /** Where stone `i` touches down and where it comes to rest (derived from its part's strike point). */
+  _stonePath(i, n) {
+    const c = settings[ID];
+    this._partPoint(i, n, _target);
+    const skid = Math.max(0, c.stoneSkid);
+    _touch.copy(_target).addScaledVector(this.direction, -skid * 0.5);
+    _rest.copy(_target).addScaledVector(this.direction, skid * 0.5);
+  }
+
+  /** A stone touches down: its own small beat. */
+  _stoneLand(i, n) {
+    if (i >= MAX_STONES) return;
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._stones[i].land = this.age;
+    this._stonePath(i, n);
+    const r = this._stoneSize(i);
+    _pos.copy(_target).setY(0);
+    if (c.craterDecal > 0.01) {
+      this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+        radius: r * c.craterSize * c.craterCracks * 0.8,
+        life: c.groundLife * g.lifetime,
+        width: 0.7,
+        intensity: c.craterDecal,
+        colorA: getColor(c.colorStoneDeep),
+        colorB: getColor(c.colorStoneBody),
+        height: 0.02
+      });
+    }
+    this.ctx.decals.spawn(DecalType.DUSTRING, _pos, {
+      radius: r * c.landDust,
+      life: c.shockLife,
+      width: 0.1,
+      intensity: 0.55,
+      colorA: getColor(c.colorDustD),
+      colorB: getColor(c.colorDustC),
+      height: 0.03
+    });
+    const chips = Math.round(c.landChips * g.particleCount * power);
+    if (chips > 0) {
+      this._fillEmit(_pos.setY(0.15), r * 0.6, _up, c.chipSpeed * 1.2, 0.75, c.chipSize * 1.3, c.chipLife * 1.2, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const puffs = Math.round(c.landPuffs * g.particleCount);
+    for (let k = 0; k < puffs; k++) {
+      const ang = (k / Math.max(1, puffs)) * TAU + hash(i, 9) * TAU;
+      _dir.set(Math.cos(ang), 0.15, Math.sin(ang));
+      this._fillEmit(_pos, r * 0.5, _dir, c.dustSpeed * 1.4, 0.3, 0.5, c.dustLife * 1.3, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.shake.add(c.landShake * power * g.cameraShake, 5, 20);
+    this.lightBoost += c.landLight * power;
+  }
+
+  /**
+   * Lay out the sling, every stone and its blur, and the crater floor, from
+   * the settings and each stone's landing time. Allocation-free.
+   */
+  _volley(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(1, Math.min(MAX_STONES, Math.round(c.count)));
+    const speed = Math.max(1, c.speed * g.speed);
+    const life = Math.max(0.05, g.lifetime);
+    const exit = saturate((this._fadeT - c.stoneExitAt) / Math.max(0.05, 2 - c.stoneExitAt));
+    const spinRate = c.stoneSpin * g.animationSpeed;
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    let drawn = 0;
+    let landed = 0;
+    this._flyCount = 0;
+    this._spinCount = 0;
+    const rest = this.craterMaterial.uniforms.uRest.value;
+    const touch = this.craterMaterial.uniforms.uTouch.value;
+    for (let i = 0; i < n; i++) {
+      const rec = this._stones[i];
+      const s = (i + 0.5) / n;
+      const r = this._stoneSize(i);
+      this._stonePath(i, n);
+      const pred = rec.land >= 0 ? rec.land : this.age + Math.max(0, ((i + 0.98) / n * this.length - this.front) / speed);
+      const flight = Math.max(0.05, c.stoneFlight * (0.35 + 0.65 * s));
+      const tau = this.age - pred;
+      let yaw;
+      let roll;
+      let heat;
+      let blur;
+      if (tau < 0 || rec.land < 0) {
+        const p = saturate(1 + Math.min(0, tau) / flight);
+        rest[i].z = -1;
+        if (p <= 0) continue;
+        const arc = c.stoneArc * (0.3 + 0.7 * s);
+        _sp.lerpVectors(_hand, _touch, p);
+        _sp.y = c.handHeight + (r * 0.6 - c.handHeight) * p + arc * 4 * p * (1 - p);
+        yaw = rec.seed * TAU + this.age * spinRate;
+        roll = 0.18 * Math.sin(this.age * 7 + i);
+        heat = 1;
+        blur = 1;
+        if (this._flyCount < MAX_STONES) {
+          this._flying[this._flyCount * 3] = _sp.x;
+          this._flying[this._flyCount * 3 + 1] = _sp.y;
+          this._flying[this._flyCount * 3 + 2] = _sp.z;
+          this._flyCount++;
+        }
+      } else {
+        const skidT = 1 - Math.exp(-tau * c.stoneSkidRate);
+        const down = Math.max(0.1, c.stoneSpinDown * life);
+        const left = Math.exp(-tau / down);
+        _sp.lerpVectors(_touch, _rest, skidT);
+        yaw = rec.seed * TAU + pred * spinRate + spinRate * down * (1 - left);
+        roll = c.stoneWobble * (1 - left) * Math.sin(yaw * 0.5 + rec.seed * 7) * (1 - exit * 0.5);
+        const bounce = r * c.stoneBounce * Math.abs(Math.sin(tau * 14)) * Math.exp(-tau * 9);
+        _sp.y = r * 0.55 * (1 - c.stoneSink * exit) - r * 0.1 * skidT + bounce;
+        heat = 0.1 + 0.9 * Math.exp(-tau / Math.max(0.1, c.stoneCool * life));
+        blur = left;
+        rest[i].set(_rest.x, _rest.z, tau, r);
+        touch[i].set(_touch.x, _touch.z, heat, left);
+        landed++;
+        if (this._spinCount < MAX_STONES) {
+          const k = this._spinCount * 4;
+          this._spinning[k] = _sp.x;
+          this._spinning[k + 1] = _sp.y;
+          this._spinning[k + 2] = _sp.z;
+          this._spinning[k + 3] = left * r;
+          this._spinCount++;
+        }
+      }
+      // Stone: yaw about the vertical (it flies and spins flat), rocked about its long axis.
+      _q.setFromAxisAngle(_up, yaw);
+      _qa.setFromAxisAngle(_axisX, roll);
+      _q.multiply(_qa);
+      _qa.setFromAxisAngle(_axisZ, 0.12 * Math.sin(yaw * 0.25 + i));
+      _q.multiply(_qa);
+      _scale.setScalar(r);
+      _m.compose(_sp, _q, _scale);
+      this.stones.setMatrixAt(drawn, _m);
+      const k = drawn * 4;
+      this._stoneState[k] = heat * c.stoneHeat;
+      this._stoneState[k + 1] = exit;
+      this._stoneState[k + 2] = rec.seed * 10 + i;
+      this._stoneState[k + 3] = blur;
+      // Blur disc round it, flat, at its height.
+      _q.identity();
+      _scale.set(r * c.blurSize, 1, r * c.blurSize);
+      _m.compose(_sp, _q, _scale);
+      this.blur.setMatrixAt(drawn, _m);
+      this._blurState[k] = blur * (1 - exit);
+      this._blurState[k + 1] = yaw;
+      this._blurState[k + 2] = 0.5;
+      this._blurState[k + 3] = 2;
+      drawn++;
+    }
+    for (let i = n; i < MAX_STONES; i++) rest[i].z = -1;
+
+    // The sling: a cord whirling over the throwing shoulder, out to the caster's
+    // side and tipped toward the camera so the wind-up reads from behind; a stone
+    // rides in its pouch; it folds away after the throw.
+    const hold = Math.max(0.05, c.slingTime * life);
+    const sling = c.slingRadius > 0.01 ? 1 - saturate((this.age - hold) / 0.18) : 0;
+    let blurs = drawn;
+    if (sling > 0.001) {
+      const phi = this.age * c.slingSpin * g.animationSpeed;
+      const R = c.slingRadius * (0.4 + 0.6 * sling);
+      _sp.copy(_hand).addScaledVector(this.side, c.slingOut).setY(c.handHeight + c.slingLift);
+      // Whirl plane: flat, tipped about the cast line by `slingTilt` (toward the side) and back toward the camera.
+      _qa.setFromAxisAngle(this.direction, -c.slingTilt);
+      _q.setFromAxisAngle(this.side, -c.slingTilt * 0.6).multiply(_qa);
+      this._slingQ.copy(_q);
+      _qa.setFromAxisAngle(_up, phi);
+      this.cord.quaternion.copy(this._slingQ).multiply(_qa);
+      this.cord.position.copy(_sp);
+      this.cord.scale.set(R, c.slingCord, c.slingCord);
+      this.cord.visible = true;
+      this.cordMaterial.color.copy(getColor(c.colorCord));
+      // The stone in the pouch, at the cord's end.
+      _pos.set(R, 0, -0.1 * R).applyQuaternion(this.cord.quaternion).add(_sp);
+      _scale.setScalar(c.stoneSize * 0.6);
+      _m.compose(_pos, this.cord.quaternion, _scale);
+      this.stones.setMatrixAt(drawn, _m);
+      const ps = drawn * 4;
+      this._stoneState[ps] = 0.7 * c.stoneHeat;
+      this._stoneState[ps + 1] = 0;
+      this._stoneState[ps + 2] = 3.3;
+      this._stoneState[ps + 3] = 1;
+      drawn++;
+      _scale.set(R * 1.12, 1, R * 1.12);
+      _m.compose(_sp, this._slingQ, _scale);
+      this.blur.setMatrixAt(blurs, _m);
+      const k = blurs * 4;
+      this._blurState[k] = sling * c.slingBlur;
+      this._blurState[k + 1] = phi;
+      this._blurState[k + 2] = 0.55;
+      this._blurState[k + 3] = 1;
+      blurs++;
+    } else {
+      this.cord.visible = false;
+    }
+    this.stones.count = drawn;
+    this.stones.visible = drawn > 0;
+    this.stones.castShadow = c.stoneShadow >= 0.5;
+    this.stones.instanceMatrix.needsUpdate = true;
+    this._stoneAttr.needsUpdate = true;
+    this.stoneMaterial.userData.sync();
+    this.blur.count = blurs;
+    this.blur.visible = blurs > 0 && c.blurOpacity > 0.01;
+    this.blur.instanceMatrix.needsUpdate = true;
+    this._blurAttr.needsUpdate = true;
+    this.blurMaterial.userData.sync();
+
+    // The crater floor over the strip the volley covers.
+    const erode = saturate((this._fadeT - c.craterErodeAt) / Math.max(0.05, 2 - c.craterErodeAt));
+    if (landed > 0 && erode < 0.99 && c.craterOpacity > 0.01) {
+      const width = 2 * c.sweep + 6 * c.stoneSize * c.craterSize;
+      this.crater.position.copy(this.origin).addScaledVector(this.direction, this.length * 0.5);
+      this.crater.position.y = 0.02;
+      this.crater.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), 0);
+      this.crater.scale.set(width, 1, this.length + 4 * c.stoneSize * c.craterSize + c.stoneSkid);
+      this.crater.visible = true;
+      this.craterMaterial.userData.sync(n, erode);
+    } else {
+      this.crater.visible = false;
+    }
+
+    // Grit streaming off the stones in flight; dust kicked by the ones still spinning.
+    const trailN = Math.round(this._trailEmitter.tick(dt, c.stoneTrail * this._flyCount) * g.particleCount);
+    for (let k = 0; k < trailN && this._flyCount > 0; k++) {
+      const j = Math.floor(Math.random() * this._flyCount) * 3;
+      _pos.set(this._flying[j], this._flying[j + 1], this._flying[j + 2]);
+      _dir.copy(this.direction).multiplyScalar(-1).setY(0.25);
+      this._fillEmit(_pos, c.stoneSize * 0.5, _dir, c.streakSpeed * 0.5, 0.35, 0.07, c.streakLife, 2);
+      this.streaks.emit(1, _emit);
+    }
+    const dustN = Math.round(this._spinDustEmitter.tick(dt, c.stoneSpinDust * this._spinCount) * g.particleCount);
+    for (let k = 0; k < dustN && this._spinCount > 0; k++) {
+      const j = Math.floor(Math.random() * this._spinCount) * 4;
+      if (this._spinning[j + 3] < 0.05) continue;
+      const ang = Math.random() * TAU;
+      _pos.set(this._spinning[j] + Math.cos(ang) * this._spinning[j + 3] * 2, 0.08, this._spinning[j + 2] + Math.sin(ang) * this._spinning[j + 3] * 2);
+      _dir.set(-Math.sin(ang), 0.35, Math.cos(ang));
+      this._fillEmit(_pos, 0.1, _dir, c.dustSpeed * 0.7, 0.3, 0.35, c.dustLife, 0.4);
+      this.dust.emit(1, _emit);
+    }
   }
 
   dispose() {
+    this.stoneGeometry.dispose();
+    this.stoneMaterial.dispose();
+    this.stones.dispose();
+    this.blurGeometry.dispose();
+    this.blurMaterial.dispose();
+    this.blur.dispose();
+    this.cordGeometry.dispose();
+    this.cordMaterial.dispose();
+    this.craterGeometry.dispose();
+    this.craterMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1040,6 +1518,64 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const sling = folder.addFolder('15 · The sling');
+  R(sling, c, 'slingRadius', 0, 3, 0.01, 'whirl radius (m)');
+  R(sling, c, 'slingSpin', 0, 60, 0.5, 'whirl (rad/s)');
+  R(sling, c, 'slingLift', -1, 2, 0.01, 'above the fist (m)');
+  R(sling, c, 'slingTime', 0.05, 2, 0.01, 'whirls for (s)');
+  R(sling, c, 'slingBlur', 0, 3, 0.01, 'whirl smear');
+  R(sling, c, 'slingOut', -2, 2, 0.01, 'out to the side (m)');
+  R(sling, c, 'slingTilt', -1.5, 1.5, 0.01, 'whirl tilt (rad)');
+  R(sling, c, 'slingCord', 0.2, 6, 0.05, 'cord thickness, ×');
+  sling.addColor(c, 'colorCord').name('cord');
+
+  const stones = folder.addFolder('16 · Stones');
+  R(stones, c, 'stoneSize', 0.05, 2, 0.01, 'half-length (m)');
+  R(stones, c, 'stoneJitter', 0, 0.8, 0.01, 'size jitter');
+  R(stones, c, 'stoneFlight', 0.05, 1.5, 0.01, 'flight (s, far stone)');
+  R(stones, c, 'stoneArc', 0, 6, 0.05, 'arc height (m)');
+  R(stones, c, 'stoneSpin', 0, 80, 0.5, 'spin (rad/s)');
+  R(stones, c, 'stoneSpinDown', 0.1, 6, 0.05, 'spins down over (s)');
+  R(stones, c, 'stoneWobble', 0, 1.2, 0.01, 'wobble as it slows');
+  R(stones, c, 'stoneSkid', 0, 4, 0.01, 'skid (m)');
+  R(stones, c, 'stoneSkidRate', 0.5, 30, 0.1, 'skid stops (1/s)');
+  R(stones, c, 'stoneBounce', 0, 2, 0.01, 'bounce');
+  R(stones, c, 'stoneSink', 0, 1.5, 0.01, 'beds in on exit');
+  R(stones, c, 'stoneExitAt', 1, 1.95, 0.01, 'crumbles from');
+  R(stones, c, 'stoneHeat', 0, 2, 0.01, 'heat');
+  R(stones, c, 'stoneCool', 0.1, 6, 0.05, 'cools over (s)');
+  R(stones, c, 'stoneCrackScale', 0.5, 10, 0.05, 'crack scale');
+  R(stones, c, 'stoneCrackGlow', 0, 6, 0.05, 'crack glow');
+  R(stones, c, 'stoneAmbient', 0, 1.5, 0.01, 'ambient');
+  R(stones, c, 'stoneSpecular', 0, 3, 0.01, 'specular');
+  R(stones, c, 'stoneFresnel', 0, 3, 0.01, 'rim');
+  R(stones, c, 'stoneShadow', 0, 1, 1, 'cast shadow');
+  R(stones, c, 'stoneTrail', 0, 200, 1, 'grit / s per stone');
+  R(stones, c, 'stoneSpinDust', 0, 200, 1, 'spin dust / s per stone');
+  stones.addColor(c, 'colorStoneCore').name('core');
+  stones.addColor(c, 'colorStoneTint').name('tint');
+  stones.addColor(c, 'colorStoneBody').name('body');
+  stones.addColor(c, 'colorStoneDeep').name('deep');
+
+  const blur = folder.addFolder('17 · Spin blur');
+  R(blur, c, 'blurOpacity', 0, 3, 0.01, 'strength');
+  R(blur, c, 'blurSize', 0.5, 4, 0.01, 'radius, × stone');
+  R(blur, c, 'blurTrail', 0.05, 4, 0.01, 'smear (rad)');
+
+  const crater = folder.addFolder('18 · Landings');
+  R(crater, c, 'craterSize', 0.3, 4, 0.01, 'crater, × stone');
+  R(crater, c, 'craterCracks', 1, 5, 0.01, 'crack reach, × crater');
+  R(crater, c, 'craterGouge', 0, 2, 0.01, 'gouge width, × stone');
+  R(crater, c, 'craterOpacity', 0, 1.5, 0.01, 'opacity');
+  R(crater, c, 'craterGlow', 0, 5, 0.05, 'crack glow');
+  R(crater, c, 'craterErodeAt', 1, 1.95, 0.01, 'erodes from');
+  R(crater, c, 'craterDecal', 0, 1.5, 0.01, 'crack decal');
+  R(crater, c, 'landChips', 0, 80, 1, 'chips / landing');
+  R(crater, c, 'landPuffs', 0, 40, 1, 'dust / landing');
+  R(crater, c, 'landDust', 0, 8, 0.05, 'dust ring, × stone');
+  R(crater, c, 'landShake', 0, 1, 0.01, 'camera punch');
+  R(crater, c, 'landLight', 0, 20, 0.1, 'light punch');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

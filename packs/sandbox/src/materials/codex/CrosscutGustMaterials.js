@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -990,6 +990,371 @@ export function createCrosscutGustScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* The upgrade: the gust front, the rotor, the scoured floor.          */
+/* ------------------------------------------------------------------ */
+
+const WIND_VERTEX = /* glsl */ `
+  attribute float aU;
+  attribute float aV;
+  uniform float uTime;
+  uniform float uKind;     // 0 front, 1 rotor
+  uniform float uRipple;   // metres-ish flutter in local units
+  varying float vU;
+  varying float vV;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  void main() {
+    vU = aU;
+    vV = aV;
+    vec3 p = position;
+    // A degenerate (collapsed) vertex has no normal: never let it NaN the frame.
+    vec3 nrm = dot(normal, normal) > 1e-8 ? normalize(normal) : vec3(0.0, 1.0, 0.0);
+    // Flutter: the sheet is air, it never holds still.
+    float w = sin(aU * 17.0 + uTime * 9.0) * sin(aV * 11.0 - uTime * 7.0);
+    p += nrm * w * uRipple * mix(aV, 1.0, uKind);
+    vLocal = p;
+    vec4 wp = modelMatrix * vec4(p, 1.0);
+    vWorld = wp.xyz;
+    vNormalW = mat3(modelMatrix) * nrm;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+const WIND_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uKind;
+  uniform float uOpacity;     // body (mass) strength
+  uniform float uStreak;      // bright flow streaks
+  uniform float uFlow;        // flow speed
+  uniform float uDissolve;
+  uniform float uFresnel;
+  uniform float uSeed;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying float vU;
+  varying float vV;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+
+  ${noiseGLSL}
+
+  void main() {
+    // Flow coordinates: up and over the curl for the front, along the ribbon for the rotor.
+    float along = mix(vV + (vU - 0.5) * 0.9, vU, uKind);   // the front's streaks rake across it: the crosscut
+    float across = mix(vU - vV * 0.45, vV, uKind);
+    float flow = along * mix(5.0, 9.0, uKind) - uTime * uFlow;
+    // Streaks: noise stretched along the flow.
+    float n1 = snoise(vec3(across * mix(26.0, 8.0, uKind), flow, uSeed));
+    float n2 = snoise(vec3(across * mix(55.0, 17.0, uKind), flow * 1.7 + 3.0, uSeed + 7.0));
+    float streak = smoothstep(0.45, 0.9, n1) * 0.7 + smoothstep(0.6, 0.95, n2) * 0.5;
+    // Body: torn, translucent mass; thicker low on the front and at the rotor's core.
+    float tear = snoise(vec3(across * 6.0, flow * 0.5, uSeed + 3.0)) * 0.5 + 0.5;
+    // Edges: fade at the horns / ends and at the floor; the front's lip stays crisp.
+    float sideFade = mix(smoothstep(0.0, 0.14, vU) * smoothstep(1.0, 0.86, vU), smoothstep(0.0, 0.14, vV) * smoothstep(1.0, 0.86, vV), uKind);
+    float frontEnds = mix(smoothstep(0.0, 0.08, vV) * (0.55 + 0.45 * smoothstep(1.0, 0.9, vV)), 1.0, uKind);
+    float mass = sideFade * frontEnds * (0.45 + 0.55 * tear);
+    // Dissolve: the wind tears apart.
+    float dn = snoise(vLocal * 2.2 + uSeed) * 0.5 + 0.5;
+    float keep = smoothstep(uDissolve * 1.1 - 0.05, uDissolve * 1.1 + 0.05, dn);
+    if (keep < 0.01) discard;
+    vec3 N = vNormalW / max(1e-4, length(vNormalW));
+    vec3 V = normalize(cameraPosition - vWorld);
+    float fres = pow(clamp(1.0 - abs(dot(N, V)), 0.0, 1.0), 2.0) * uFresnel;
+    // Ramp: deep teal in the body / low, saturated teal mid, pale mint high, white at the lip.
+    // Mostly deep → body; only the crest (and the bright streaks) climb to tint.
+    float h = mix(vV * vV, 0.3 + 0.3 * sin(vU * 6.2831 * 1.5 + vV * 3.0), uKind);
+    vec3 col = gradient4(uColorDeep, uColorBody, uColorTint, uColorCore, clamp(h * 0.7 + streak * 0.3, 0.0, 1.0));
+    col *= 0.55 + 0.45 * tear;
+    float lip = (1.0 - uKind) * smoothstep(0.86, 0.97, vV) * smoothstep(1.0, 0.97, vV);
+    // On the roll the ribbons are quieter, so the body inside carries the read.
+    vec3 glow = (uColorTint * streak * uStreak * (1.0 - 0.45 * uKind) + uColorCore * lip * 1.4 + uColorBody * fres) * uShaderIntensity;
+    float alpha = clamp(mass * uOpacity * (0.55 + 0.45 * fres) + streak * uStreak * 0.25 * sideFade, 0.0, 1.0) * keep;
+    gl_FragColor = vec4((col + glow) * uGlobalGlow, alpha);
+  }
+`;
+
+/**
+ * The wind itself — the breaking gust front (`kind` 'front') or the rotor it
+ * rolls into (`kind` 'rotor'). A translucent, torn sheet of air with mass:
+ * deep teal low and inside, saturated teal through the middle, pale mint
+ * high, a white lip; bright flow streaks race up and over the curl (or round
+ * the roll); the sheet flutters in the vertex stage and tears apart on noise
+ * when it goes. Normal blending so the deep tone reads on the dark floor.
+ */
+export function createCrosscutWindMaterial(kind) {
+  const rotor = kind === 'rotor';
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uKind: { value: rotor ? 1 : 0 },
+      uRipple: { value: 0.03 },
+      uOpacity: { value: 0.6 },
+      uStreak: { value: 1 },
+      uFlow: { value: 3 },
+      uDissolve: { value: 0 },
+      uFresnel: { value: 1 },
+      uSeed: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: WIND_VERTEX,
+    fragmentShader: /* glsl */ `${commonGLSL}\n${WIND_FRAGMENT}`
+  });
+  material.userData.sync = (dissolve, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRipple.value = (rotor ? c.rotorFlutter : c.frontFlutter) * g.turbulence;
+    u.uOpacity.value = (rotor ? c.rotorOpacity : c.frontOpacity) * g.opacity;
+    u.uStreak.value = c.windStreaks * g.glow;
+    u.uFlow.value = (rotor ? c.rotorFlow : c.frontFlow) * g.animationSpeed;
+    u.uDissolve.value = dissolve;
+    u.uFresnel.value = c.windFresnel * g.fresnel;
+    u.uSeed.value = seed;
+    u.uColorCore.value.copy(getColor(c.colorWindCore));
+    u.uColorTint.value.copy(getColor(c.colorWindTint));
+    u.uColorBody.value.copy(getColor(c.colorWindBody));
+    u.uColorDeep.value.copy(getColor(c.colorWindDeep));
+  };
+  return material;
+}
+
+const SCOUR_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const SCOUR_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform vec2  uOrigin;
+  uniform vec2  uDir;
+  uniform float uFront;      // metres the front has crossed
+  uniform float uLength;
+  uniform float uWidth;      // strip width, metres
+  uniform float uCross;      // crosshatch half-angle, rad
+  uniform vec3  uEddy;       // eddy centre x, z, seconds since the break (<0 = none)
+  uniform float uEddyRadius;
+  uniform float uEddySpin;   // integrated eddy turn, rad
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uErode;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vWorld.xz;
+    vec2 fwd = normalize(uDir);
+    vec2 side = vec2(fwd.y, -fwd.x);
+    vec2 d = p - uOrigin;
+    float a = dot(d, fwd);
+    float l = dot(d, side);
+    float cover = 0.0;
+    float groove = 0.0;
+    float fresh = 0.0;
+    // The scoured strip: two families of combed streaks crossing at ±uCross (the crosscut).
+    float edgeN = snoise(vec3(a * 0.8, 0.0, 2.0)) * 0.25;
+    float hw = uWidth * 0.5 * (0.8 + 0.2 * smoothstep(0.0, 3.0, a)) * (1.0 + edgeN);
+    if (a > 0.0 && a < uFront && abs(l) < hw) {
+      vec2 d1 = vec2(cos(uCross), sin(uCross));
+      vec2 d2 = vec2(cos(-uCross), sin(-uCross));
+      vec2 q = vec2(a, l);
+      float s1 = snoise(vec3(dot(q, d1) * 0.16, dot(q, vec2(-d1.y, d1.x)) * 11.0, 1.0));
+      float s2 = snoise(vec3(dot(q, d2) * 0.16, dot(q, vec2(-d2.y, d2.x)) * 11.0, 4.0));
+      groove = max(smoothstep(0.35, 0.8, s1), smoothstep(0.4, 0.85, s2) * 0.8);
+      float edge = smoothstep(hw, hw * 0.55, abs(l)) * (0.75 + 0.25 * snoise(vec3(q * 0.7, 9.0)));
+      cover = edge * (0.4 + 0.6 * groove);
+      // Fresh dust right behind the front, settling as it ages.
+      fresh = exp(-max(0.0, uFront - a) * 0.35) * edge;
+    }
+    // The eddy: a spiral scoured where the gust broke, still turning.
+    if (uEddy.z >= 0.0) {
+      vec2 e = p - uEddy.xy;
+      float r = length(e) / max(0.1, uEddyRadius);
+      float grow = 1.0 - exp(-uEddy.z * 6.0);
+      if (r < 1.0 * grow + 0.001) {
+        float th = atan(e.y, e.x);
+        float arm = sin(th * 3.0 + log(max(r, 0.02)) * 4.5 - uEddySpin);
+        float spiral = smoothstep(0.1, 0.8, arm) * smoothstep(1.0, 0.7, r / max(0.01, grow));
+        cover = max(cover, (0.5 + 0.5 * spiral) * smoothstep(1.0, 0.75, r / max(0.01, grow)));
+        groove = max(groove, spiral);
+        fresh = max(fresh, spiral * exp(-uEddy.z * 0.8));
+      }
+    }
+    if (cover < 0.01) discard;
+    float er = snoise(vec3(p * 1.3, 6.0)) * 0.5 + 0.5;
+    if (uErode > 0.0 && er < uErode) discard;
+    vec3 col = mix(uColorBody * 0.32, uColorDeep * 0.6, groove);
+    col = mix(col, uColorTint * 0.3, (1.0 - groove) * 0.2);
+    col += mix(uColorBody, uColorTint, fresh) * fresh * 0.4 * uGlow * uShaderIntensity;
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(cover * uOpacity, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The scoured floor: a filled strip behind the gust front, combed by two
+ * families of streaks crossing at ±`scourCross` (the crosscut written into
+ * the ground), fresh pale dust right behind the front that settles; and where
+ * the gust broke, a spiral eddy scoured into the floor that keeps turning
+ * through the linger. Deep teal grooves, normal blending, erodes on the exit.
+ */
+export function createCrosscutScourMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uOrigin: { value: new Vector2() },
+      uDir: { value: new Vector2(0, 1) },
+      uFront: { value: 0 },
+      uLength: { value: 1 },
+      uWidth: { value: 3 },
+      uCross: { value: 0.6 },
+      uEddy: { value: new Vector3(0, 0, -1) },
+      uEddyRadius: { value: 2 },
+      uEddySpin: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uErode: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: SCOUR_VERTEX,
+    fragmentShader: SCOUR_FRAGMENT
+  });
+  material.userData.sync = (erode) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uWidth.value = c.scourWidth;
+    u.uCross.value = c.scourCross;
+    u.uEddyRadius.value = c.eddyRadius;
+    u.uOpacity.value = c.scourOpacity * g.opacity;
+    u.uGlow.value = c.scourGlow * g.glow;
+    u.uErode.value = erode;
+    u.uColorCore.value.copy(getColor(c.colorWindCore));
+    u.uColorTint.value.copy(getColor(c.colorWindTint));
+    u.uColorBody.value.copy(getColor(c.colorWindBody));
+    u.uColorDeep.value.copy(getColor(c.colorWindDeep));
+  };
+  return material;
+}
+
+const CORE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uOpacity;
+  uniform float uDissolve;
+  uniform float uSeed;
+  uniform float uStreak;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying float vU;
+  varying float vV;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+
+  ${noiseGLSL}
+
+  void main() {
+    // Churned air inside the roll: dark teal, thickest through the middle of the
+    // body (view-facing), thinning to a soft limb, swirled by noise that turns with it.
+    vec3 N = vNormalW / max(1e-4, length(vNormalW));
+    vec3 V = normalize(cameraPosition - vWorld);
+    float facing = abs(dot(N, V));
+    float swirl = snoise(vec3(vU * 5.0, vV * 6.0, uSeed + uTime * 0.6)) * 0.5 + 0.5;
+    float ends = smoothstep(0.0, 0.18, vU) * smoothstep(1.0, 0.82, vU);
+    float dn = snoise(vLocal * 2.0 + uSeed) * 0.5 + 0.5;
+    float keep = smoothstep(uDissolve * 1.1 - 0.05, uDissolve * 1.1 + 0.05, dn);
+    if (keep < 0.01) discard;
+    float band = smoothstep(0.55, 0.85, snoise(vec3(vU * 3.0, vV * 14.0, uSeed + 4.0)));
+    // Saturated teal churn over a deep core, a lighter limb so the roll reads as a volume.
+    float limb = pow(1.0 - facing, 2.0);
+    vec3 col = mix(uColorDeep * 1.5, uColorBody * 0.9, swirl * 0.55 + limb * 0.35);
+    col += uColorTint * (band * 0.3 * uStreak + limb * 0.25) * uShaderIntensity;
+    float alpha = uOpacity * ends * keep * (0.7 + 0.3 * swirl) * (0.75 + 0.25 * limb);
+    gl_FragColor = vec4(col * uGlobalGlow, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/**
+ * The body of the roll: a dark-teal, translucent churn of air filling the
+ * rotor under its ribbons, densest where it faces the camera, swirled by
+ * noise, torn by the same dissolve as the ribbons. Normal blending.
+ */
+export function createCrosscutCoreMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uKind: { value: 1 },
+      uRipple: { value: 0.03 },
+      uOpacity: { value: 0.6 },
+      uDissolve: { value: 0 },
+      uSeed: { value: 0 },
+      uStreak: { value: 1 },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: WIND_VERTEX,
+    fragmentShader: CORE_FRAGMENT
+  });
+  material.userData.sync = (dissolve, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRipple.value = c.rotorFlutter * g.turbulence;
+    u.uOpacity.value = c.coreOpacity * g.opacity;
+    u.uDissolve.value = dissolve;
+    u.uSeed.value = seed;
+    u.uStreak.value = c.windStreaks * g.glow;
+    u.uColorTint.value.copy(getColor(c.colorWindTint));
+    u.uColorBody.value.copy(getColor(c.colorWindBody));
+    u.uColorDeep.value.copy(getColor(c.colorWindDeep));
   };
   return material;
 }

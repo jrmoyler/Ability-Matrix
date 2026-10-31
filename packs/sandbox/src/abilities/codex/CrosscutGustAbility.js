@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,10 @@ import {
   createCrosscutGustVoiceMaterial,
   createCrosscutGustDetailMaterial,
   createCrosscutGustTrailMaterial,
-  createCrosscutGustScarMaterial
+  createCrosscutGustScarMaterial,
+  createCrosscutWindMaterial,
+  createCrosscutScourMaterial,
+  createCrosscutCoreMaterial
 } from '../../materials/codex/CrosscutGustMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -50,6 +53,151 @@ const _up = new Vector3(0, 1, 0);
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
+const _gp = new Vector3();
+const _fwd = new Vector3();
+const _lat = new Vector3();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _axisX = new Vector3(1, 0, 0);
+const _axisZ = new Vector3(0, 0, 1);
+const TAU = Math.PI * 2;
+const PI = Math.PI;
+const outBack = (t) => {
+  const k = 1.70158;
+  const x = t - 1;
+  return 1 + (k + 1) * x * x * x + k * x * x;
+};
+
+/* ------------------------------------------------------------------ */
+/* Cast-local geometry for the upgrade. It lives here, not in the      */
+/* generated `CrosscutGustGeometry.js`, which must stay byte-identical to   */
+/* its rig recipe (tests/pure-rigs.test.mjs).                         */
+/* ------------------------------------------------------------------ */
+/** Grid of (cols+1)×(rows+1) vertices from `point(u, v)` → [x, y, z], with aU/aV attributes. */
+function sheet(cols, rows, point) {
+  const pos = [];
+  const au = [];
+  const av = [];
+  const index = [];
+  for (let j = 0; j <= rows; j++) {
+    for (let i = 0; i <= cols; i++) {
+      const u = i / cols;
+      const v = j / rows;
+      const p = point(u, v);
+      pos.push(p[0], p[1], p[2]);
+      au.push(u);
+      av.push(v);
+    }
+  }
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const a = j * (cols + 1) + i;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = c + 1;
+      index.push(a, c, b, b, c, d);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('aU', new Float32BufferAttribute(au, 1));
+  g.setAttribute('aV', new Float32BufferAttribute(av, 1));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/**
+ * The gust front — hero of the upgraded cast's travel. A breaking wave of
+ * air: a sheet that rises off the floor, leans forward and curls over into a
+ * lip, bowed into a crescent across its width (the middle leads) and lower at
+ * its two horns. Unit size: x ∈ [-1, 1] across, y ∈ [0, ~1] up, the lip
+ * reaching ~0.55 forward (+Z). `aU` runs across (0..1), `aV` from the floor
+ * (0) over the curl to the lip (1).
+ */
+export function createCrosscutFrontGeometry({ curl = 3.6, bow = 0.35 } = {}) {
+  const N = 40;
+  const prof = [[0, 0]];
+  let z = 0;
+  let y = 0;
+  const ds = 1.45 / N;
+  for (let k = 1; k <= N; k++) {
+    const t = k / N;
+    const a = curl * t * t; // 0 = straight up; past π/2 it leans over; past π it falls back down
+    z += Math.sin(a) * ds;
+    y += Math.cos(a) * ds;
+    prof.push([z, y]);
+  }
+  const top = Math.max(...prof.map((p) => p[1]));
+  return sheet(36, N, (u, v) => {
+    const x = u * 2 - 1;
+    // The crest peaks off-centre, so the wave reads as a diagonal cut, not a dome.
+    const horn = Math.max(0, 1 - Math.pow((x - 0.3) / 1.3, 2)) * Math.sqrt(Math.max(0, 1 - Math.pow(Math.abs(x), 6)));
+    const f = v * N;
+    const k = Math.min(N - 1, Math.floor(f));
+    const w = f - k;
+    const pz = prof[k][0] + (prof[k + 1][0] - prof[k][0]) * w;
+    const py = prof[k][1] + (prof[k + 1][1] - prof[k][1]) * w;
+    return [x, (py / top) * (0.35 + 0.65 * horn), pz / top * (0.5 + 0.5 * horn) + bow * (1 - x * x)];
+  });
+}
+
+/**
+ * The rotor — what the front becomes when it breaks: a horizontal roll of
+ * wind, three helical ribbons wound round the X axis (x ∈ [-1, 1]), radius 1
+ * at the middle tapering to the ends. `aU` runs along the axis, `aV` across a
+ * ribbon. Spin it about X and it rolls.
+ */
+export function createCrosscutRotorGeometry({ ribbons = 3, turns = 1.6, width = 1.1 } = {}) {
+  const parts = [];
+  for (let k = 0; k < ribbons; k++) {
+    parts.push(sheet(56, 5, (u, v) => {
+      const x = u * 2 - 1;
+      const r = Math.max(0.06, Math.pow(Math.max(0, 1 - Math.pow(Math.abs(x), 5)), 0.5)) * (0.82 + 0.18 * Math.cos(u * PI * 3 + k));
+      const th = (k / ribbons) * PI * 2 + turns * PI * x + (v - 0.5) * width;
+      const rr = r * (1 - 0.12 * Math.abs(v - 0.5));
+      return [x, Math.sin(th) * rr, Math.cos(th) * rr];
+    }));
+  }
+  // Merge.
+  const pos = [];
+  const au = [];
+  const av = [];
+  const index = [];
+  let base = 0;
+  for (const g of parts) {
+    pos.push(...g.getAttribute('position').array);
+    au.push(...g.getAttribute('aU').array);
+    av.push(...g.getAttribute('aV').array);
+    for (const i of g.getIndex().array) index.push(i + base);
+    base += g.getAttribute('position').count;
+    g.dispose();
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('aU', new Float32BufferAttribute(au, 1));
+  g.setAttribute('aV', new Float32BufferAttribute(av, 1));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/**
+ * The roll's body: a closed tube along X (x ∈ [-1, 1], radius 1 at the middle,
+ * pinched at the ends), lumpy so it never reads as a cylinder. `aU` along the
+ * axis, `aV` round it.
+ */
+export function createCrosscutCoreGeometry() {
+  return sheet(40, 28, (u, v) => {
+    const x = u * 2 - 1;
+    const a = v * PI * 2;
+    const r = Math.max(0.05, Math.pow(Math.max(0, 1 - Math.pow(Math.abs(x), 4)), 0.5)) * (0.9 + 0.1 * Math.sin(a * 3 + x * 4));
+    return [x, Math.sin(a) * r, Math.cos(a) * r];
+  });
+}
+
 /**
  * CROSSCUT GUST — wind, line cast.
  *
@@ -76,8 +224,36 @@ const MAX_MARKS = 12;
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
  *
+ * ## The upgrade — a gust you can see
+ *
+ * The template layers above (ribbon sweep at the caster, voice, floor grid,
+ * rig, pieces, trail) are off by default (their opacity/count sliders still
+ * work). The cast now reads through its own layers:
+ *
+ *  11. **the gust front** (`createCrosscutFrontGeometry`,
+ *      `createCrosscutWindMaterial('front')`) — a breaking wave of air
+ *      `frontWidth` × `frontHeight` metres that runs down the line with the
+ *      hit front: it rises off the floor, leans over and curls into a white
+ *      lip, bowed into a crescent; a translucent torn body (deep teal low,
+ *      saturated teal, pale mint, white lip) with flow streaks racing up and
+ *      over the curl. Its face *crosses* as it runs — skewed from
+ *      `-frontSkew` to `+frontSkew` — the same way the blow it deals swings
+ *      across the line (the kill direction is unchanged).
+ *  12. **the rotor** (`createCrosscutRotorGeometry`, `…('rotor')`) — on the
+ *      beat the front breaks over the group and rolls up into a horizontal
+ *      roll of wind (`rotorLength` × `rotorRadius`): three helical ribbons
+ *      spinning about an axis across the line, drifting and swaying, debris
+ *      thrown round it; on the exit it unwinds (swells, tears apart).
+ *  13. **leaves and grit** — a lit LEAF system (`crosscut.leaf`) shed off
+ *      the curl and flung tangentially off the rotor so they ride the roll.
+ *  14. **the scoured floor** (`createCrosscutScourMaterial`) — a filled strip
+ *      behind the front combed by two crossing families of streaks (the
+ *      crosscut, written into the ground), fresh dust right behind the front,
+ *      and a spiral eddy scoured where it broke that keeps turning through
+ *      the linger; erodes on the exit.
+ *
  * Every metre, rate and colour is read from `settings.crosscut` each frame.
- * A cast only captures a seed and an integrated spin.
+ * A cast only captures a seed, an integrated spin and the break time.
  */
 export class CrosscutGustAbility extends Ability {
   constructor(ctx) {
@@ -159,6 +335,25 @@ export class CrosscutGustAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The upgrade's own layers: the gust front, the rotor, the scoured floor.
+    this.frontGeometry = createCrosscutFrontGeometry();
+    this.frontMaterial = createCrosscutWindMaterial('front');
+    this.gustFront = this._mesh(this.frontGeometry, this.frontMaterial, LAYER.VFX, 11);
+    this.rotorGeometry = createCrosscutRotorGeometry();
+    this.rotorMaterial = createCrosscutWindMaterial('rotor');
+    this.rotor = this._mesh(this.rotorGeometry, this.rotorMaterial, LAYER.VFX, 11);
+    // The roll's body: a dark translucent churn under the ribbons.
+    this.coreGeometry = createCrosscutCoreGeometry();
+    this.coreMaterial = createCrosscutCoreMaterial();
+    this.core = this._mesh(this.coreGeometry, this.coreMaterial, LAYER.VFX, 10);
+    this.scourGeometry = new PlaneGeometry(1, 1, 1, 1).rotateX(-Math.PI / 2);
+    this.scourMaterial = createCrosscutScourMaterial();
+    this.scour = this._mesh(this.scourGeometry, this.scourMaterial, LAYER.VFX, 2);
+    this._breakAt = -1;
+    this._rotorTurn = 0;
+    this._eddyTurn = 0;
+    this._fadeT = 0;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -204,6 +399,14 @@ export class CrosscutGustAbility extends Ability {
     this.streakEmitter = new RateEmitter();
     this.chipEmitter = new RateEmitter();
     this.moteEmitter = new RateEmitter();
+    this.leaves = particles.get('crosscut.leaf', {
+      capacity: 700,
+      shape: ParticleShape.LEAF,
+      additive: false,
+      lit: true,
+      softFade: 0.15
+    });
+    this.leafEmitter = new RateEmitter();
   }
 
   get impactDuration() {
@@ -241,6 +444,15 @@ export class CrosscutGustAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    this._breakAt = -1;
+    this._rotorTurn = 0;
+    this._eddyTurn = 0;
+    this._fadeT = 0;
+    this.leafEmitter.reset();
+    this.gustFront.visible = false;
+    this.rotor.visible = false;
+    this.core.visible = false;
+    this.scour.visible = false;
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -370,10 +582,11 @@ export class CrosscutGustAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    if (c.trailOpacity <= 0.01 && c.scarOpacity <= 0.01) this.trail.show(false);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -785,11 +998,13 @@ export class CrosscutGustAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
+    this._fadeT = 0;
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._gust(dt);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
@@ -804,11 +1019,14 @@ export class CrosscutGustAbility extends Ability {
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
+    this._fadeT = t;
+    if (this._breakAt < 0) this._breakAt = this.age;
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
+    this._gust(dt);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
       this._aftershock();
@@ -832,9 +1050,161 @@ export class CrosscutGustAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.gustFront.visible = false;
+    this.rotor.visible = false;
+    this.core.visible = false;
+    this.scour.visible = false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The upgrade: the gust front, the rotor, leaves, the scoured floor   */
+  /* ------------------------------------------------------------------ */
+
+  /** Point `_fwd` along the line turned by `yaw` about the vertical, `_lat` across it. */
+  _frame(yaw) {
+    _fwd.copy(this.direction).applyAxisAngle(_up, yaw);
+    _lat.crossVectors(_fwd, _up).normalize();
+  }
+
+  _gust(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const life = Math.max(0.05, g.lifetime);
+    const broke = this._breakAt >= 0;
+    const tau = broke ? this.age - this._breakAt : 0;
+    const crash = broke ? saturate(tau / Math.max(0.05, c.crashTime)) : 0;
+    const W = Math.max(0.2, c.frontWidth * 0.5);
+    const H = Math.max(0.2, c.frontHeight);
+    const leafRate = c.leafRate;
+    let leafFrom = 0; // 0 none, 1 front curl, 2 rotor
+    this._syncLeaves();
+
+    // --- the front: runs with the hit front, its face crossing as it goes ---
+    if (crash < 0.999 && c.frontOpacity > 0.01) {
+      const along = broke ? 1 : this.u;
+      const skew = c.frontSkew * (2 * along - 1) * (broke ? 1 + crash * 0.4 : 1);
+      this._frame(skew);
+      this.pointAt(along, _gp);
+      _gp.addScaledVector(_fwd, broke ? crash * c.crashLunge : 0);
+      _gp.addScaledVector(_fwd, -H * 0.35);
+      _gp.y = 0;
+      // Basis: local X across (lat), Y up, Z forward; the break pitches it over its base.
+      _q.setFromAxisAngle(_up, Math.atan2(_fwd.x, _fwd.z));
+      _qa.setFromAxisAngle(_axisX, crash * c.crashPitch);
+      _q.multiply(_qa);
+      this.gustFront.position.copy(_gp);
+      this.gustFront.quaternion.copy(_q);
+      const squash = 1 - crash * 0.45;
+      const grow = broke ? 1 : outBack(saturate(this.age / Math.max(0.02, c.frontGrow)));
+      this.gustFront.scale.set(W * grow, H * squash * grow, H * c.frontDepth * grow);
+      this.gustFront.visible = true;
+      this.frontMaterial.userData.sync(Math.max(crash, 0), this._seed);
+      leafFrom = 1;
+    } else {
+      this.gustFront.visible = false;
+    }
+
+    // --- the rotor: the front rolled up over the group, rolling, swaying, unwinding ---
+    if (broke && c.rotorOpacity > 0.01) {
+      const grow = outBack(saturate(tau / Math.max(0.05, c.rotorGrow)));
+      const exit = saturate((this._fadeT - c.rotorExitAt) / Math.max(0.05, 1.95 - c.rotorExitAt));
+      const slow = Math.exp(-tau / Math.max(0.1, c.rotorSpinDown * life));
+      this._rotorTurn += dt * c.rotorSpin * g.animationSpeed * (0.35 + 0.65 * slow);
+      const sway = Math.sin(tau * c.rotorSwayRate) * c.rotorSway;
+      this._frame(c.frontSkew + sway * 0.6);
+      this.pointAt(1, _gp);
+      _gp.addScaledVector(this.direction, c.rotorDrift * (1 - Math.exp(-tau * 0.9)));
+      _gp.addScaledVector(this.side, sway);
+      const R = Math.max(0.1, c.rotorRadius) * grow * (1 + exit * 0.6);
+      _gp.y = R * 1.02 + c.rotorLift * exit;
+      // Axis across the heading (local X along _lat), rolling forward about it.
+      _q.setFromAxisAngle(_up, Math.atan2(_fwd.x, _fwd.z));
+      _qa.setFromAxisAngle(_axisX, this._rotorTurn);
+      _q.multiply(_qa);
+      this.rotor.position.copy(_gp);
+      this.rotor.quaternion.copy(_q);
+      this.rotor.scale.set(Math.max(0.1, c.rotorLength * 0.5) * (0.6 + 0.4 * grow), R, R);
+      this.rotor.visible = exit < 0.99;
+      this.rotorMaterial.userData.sync(exit, this._seed + 3);
+      this.core.position.copy(_gp);
+      this.core.quaternion.copy(_q);
+      this.core.scale.copy(this.rotor.scale).multiplyScalar(c.coreSize);
+      this.core.scale.x = this.rotor.scale.x;
+      this.core.visible = this.rotor.visible && c.coreOpacity > 0.01;
+      this.coreMaterial.userData.sync(exit, this._seed + 5);
+      if (this.rotor.visible) leafFrom = 2;
+    } else {
+      this.rotor.visible = false;
+      this.core.visible = false;
+    }
+
+    // --- leaves: shed off the curl, or flung round the roll ---
+    const n = Math.round(this.leafEmitter.tick(dt, leafFrom ? leafRate * (leafFrom === 2 ? 1 : 0.7) : 0) * g.particleCount);
+    for (let k = 0; k < n; k++) {
+      if (leafFrom === 1) {
+        const x = (Math.random() * 2 - 1) * W * 0.9;
+        _pos.copy(this.gustFront.position).addScaledVector(_lat, x).addScaledVector(_fwd, H * 0.25);
+        _pos.y = H * (0.55 + 0.4 * Math.random());
+        _dir.copy(_fwd).multiplyScalar(1.2).setY(0.6);
+      } else {
+        const a = Math.random() * TAU;
+        const x = (Math.random() * 2 - 1) * c.rotorLength * 0.45;
+        const R = this.rotor.scale.y;
+        _pos.copy(this.rotor.position).addScaledVector(_lat, x).addScaledVector(_fwd, Math.cos(a) * R);
+        _pos.y += Math.sin(a) * R;
+        // Tangent of a forward roll about the lateral axis.
+        _dir.copy(_fwd).multiplyScalar(-Math.sin(a)).setY(Math.cos(a));
+      }
+      this._fillEmit(_pos, 0.15, _dir, c.leafSpeed, 0.35, c.leafSize, c.leafLife, 6);
+      this.leaves.emit(1, _emit);
+    }
+
+    // --- the scoured floor ---
+    const erode = saturate((this._fadeT - c.scourErodeAt) / Math.max(0.05, 2 - c.scourErodeAt));
+    if (c.scourOpacity > 0.01 && erode < 0.99) {
+      const u = this.scourMaterial.uniforms;
+      u.uOrigin.value.set(this.origin.x, this.origin.z);
+      u.uDir.value.set(this.direction.x, this.direction.z);
+      u.uFront.value = this.front;
+      u.uLength.value = this.length;
+      this._eddyTurn += dt * c.eddySpin * g.animationSpeed * (broke ? Math.exp(-tau / Math.max(0.1, c.rotorSpinDown * life * 1.5)) * 0.8 + 0.2 : 0);
+      u.uEddySpin.value = this._eddyTurn;
+      this.pointAt(1, _gp);
+      u.uEddy.value.set(_gp.x, _gp.z, broke ? tau : -1);
+      this.scour.position.copy(this.origin).addScaledVector(this.direction, this.length * 0.5 + c.eddyRadius * 0.5);
+      this.scour.position.y = 0.02;
+      this.scour.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), 0);
+      const w = Math.max(c.scourWidth * 1.3, c.eddyRadius * 2.2);
+      this.scour.scale.set(w, 1, this.length + c.eddyRadius * 2.5);
+      this.scourMaterial.userData.sync(erode);
+      this.scour.visible = this.front > 0.05;
+    } else {
+      this.scour.visible = false;
+    }
+  }
+
+  _syncLeaves() {
+    const c = settings[ID];
+    const g = settings.global;
+    const p = this.leaves;
+    p.setGradient(getColor(c.colorLeafA), getColor(c.colorLeafB), getColor(c.colorLeafC), getColor(c.colorLeafD));
+    p.uniforms.uSizeScale.value = c.leafSize * g.particleSize * 7;
+    p.uniforms.uLifeScale.value = g.particleLifetime;
+    p.uniforms.uSpeedScale.value = g.particleSpeed;
+    p.uniforms.uOpacity.value = g.opacity;
+    p.uniforms.uGlow.value = 1;
+    p.uniforms.uGravity.value.set(0, -c.leafFall, 0);
   }
 
   dispose() {
+    this.frontGeometry.dispose();
+    this.frontMaterial.dispose();
+    this.rotorGeometry.dispose();
+    this.rotorMaterial.dispose();
+    this.coreGeometry.dispose();
+    this.coreMaterial.dispose();
+    this.scourGeometry.dispose();
+    this.scourMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1035,6 +1405,59 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const gust = folder.addFolder('15 · Gust front');
+  R(gust, c, 'frontWidth', 0.5, 10, 0.05, 'width (m)');
+  R(gust, c, 'frontHeight', 0.3, 6, 0.05, 'height (m)');
+  R(gust, c, 'frontDepth', 0.1, 2, 0.01, 'curl reach, × height');
+  R(gust, c, 'frontSkew', 0, 1.4, 0.01, 'crosses (rad)');
+  R(gust, c, 'frontGrow', 0.02, 0.6, 0.01, 'rises over (s)');
+  R(gust, c, 'frontOpacity', 0, 2, 0.01, 'body');
+  R(gust, c, 'frontFlow', 0, 12, 0.05, 'flow');
+  R(gust, c, 'frontFlutter', 0, 0.3, 0.005, 'flutter');
+  R(gust, c, 'crashTime', 0.05, 1, 0.01, 'breaks over (s)');
+  R(gust, c, 'crashPitch', 0, 2, 0.01, 'falls over (rad)');
+  R(gust, c, 'crashLunge', 0, 4, 0.05, 'lunges (m)');
+
+  const roll = folder.addFolder('16 · Rotor');
+  R(roll, c, 'rotorLength', 0.5, 10, 0.05, 'length (m)');
+  R(roll, c, 'rotorRadius', 0.1, 3, 0.01, 'radius (m)');
+  R(roll, c, 'rotorGrow', 0.05, 1, 0.01, 'rolls up over (s)');
+  R(roll, c, 'rotorSpin', 0, 30, 0.1, 'roll (rad/s)');
+  R(roll, c, 'rotorSpinDown', 0.1, 6, 0.05, 'slows over (s)');
+  R(roll, c, 'rotorDrift', 0, 4, 0.05, 'drifts on (m)');
+  R(roll, c, 'rotorSway', 0, 2, 0.01, 'sway (m)');
+  R(roll, c, 'rotorSwayRate', 0, 8, 0.05, 'sway rate');
+  R(roll, c, 'rotorLift', 0, 3, 0.01, 'lifts on exit (m)');
+  R(roll, c, 'rotorExitAt', 1, 1.95, 0.01, 'unwinds from');
+  R(roll, c, 'rotorOpacity', 0, 2, 0.01, 'body');
+  R(roll, c, 'rotorFlow', 0, 12, 0.05, 'flow');
+  R(roll, c, 'rotorFlutter', 0, 0.3, 0.005, 'flutter');
+  R(roll, c, 'coreOpacity', 0, 1.5, 0.01, 'body (dark core)');
+  R(roll, c, 'coreSize', 0.2, 1.2, 0.01, 'body radius, × roll');
+
+  const air = folder.addFolder('17 · Wind look');
+  R(air, c, 'windStreaks', 0, 4, 0.01, 'streaks');
+  R(air, c, 'windFresnel', 0, 3, 0.01, 'rim');
+  air.addColor(c, 'colorWindCore').name('core');
+  air.addColor(c, 'colorWindTint').name('tint');
+  air.addColor(c, 'colorWindBody').name('body');
+  air.addColor(c, 'colorWindDeep').name('deep');
+  R(air, c, 'leafRate', 0, 400, 1, 'leaves / s');
+  R(air, c, 'leafSize', 0.01, 0.5, 0.005, 'leaf size');
+  R(air, c, 'leafSpeed', 0, 20, 0.1, 'leaf speed');
+  R(air, c, 'leafLife', 0.05, 4, 0.01, 'leaf life');
+  R(air, c, 'leafFall', -5, 15, 0.1, 'leaf fall');
+  Editor.gradient(air, c, 'colorLeaf', 'leaf colour');
+
+  const scour = folder.addFolder('18 · Scoured floor');
+  R(scour, c, 'scourWidth', 0.2, 10, 0.05, 'width (m)');
+  R(scour, c, 'scourCross', 0, 1.4, 0.01, 'cross (rad)');
+  R(scour, c, 'scourOpacity', 0, 1.5, 0.01, 'opacity');
+  R(scour, c, 'scourGlow', 0, 4, 0.05, 'fresh dust');
+  R(scour, c, 'scourErodeAt', 1, 1.95, 0.01, 'erodes from');
+  R(scour, c, 'eddyRadius', 0.2, 6, 0.05, 'eddy (m)');
+  R(scour, c, 'eddySpin', 0, 12, 0.05, 'eddy turn');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');
