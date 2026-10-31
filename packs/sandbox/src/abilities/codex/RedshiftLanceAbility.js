@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,8 @@ import {
   createRedshiftLanceVoiceMaterial,
   createRedshiftLanceDetailMaterial,
   createRedshiftLanceTrailMaterial,
-  createRedshiftLanceScarMaterial
+  createRedshiftLanceScarMaterial,
+  createRedshiftLanceSpearMaterial
 } from '../../materials/codex/RedshiftLanceMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +50,93 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+const TAU = Math.PI * 2;
+const _zAxis = new Vector3(0, 0, 1);
+const _tail = new Vector3();
+const _tip = new Vector3();
+const _base = new Vector3();
+const _span = new Vector3();
+const _lq = new Quaternion();
+
+/**
+ * The shaft: a fluted rod one unit long along +Z with radius 1 (the shader
+ * scales it to metres, tapers it from tail to front and breaks it into
+ * segments). Four shallow flutes so the light runs along it in lines.
+ */
+function createShaftGeometry() {
+  const AROUND = 16;
+  const ALONG = 160;
+  const pos = [];
+  const nor = [];
+  const ring = (j) => {
+    const out = [];
+    const z = j / ALONG;
+    for (let i = 0; i <= AROUND; i++) {
+      const a = (i / AROUND) * TAU;
+      const r = 1 + 0.16 * Math.cos(4 * a);
+      out.push([Math.cos(a) * r, Math.sin(a) * r, z, Math.cos(a), Math.sin(a)]);
+    }
+    return out;
+  };
+  let prev = ring(0);
+  for (let j = 1; j <= ALONG; j++) {
+    const next = ring(j);
+    for (let i = 0; i < AROUND; i++) {
+      const q = [prev[i], next[i], next[i + 1], prev[i], next[i + 1], prev[i + 1]];
+      for (const v of q) {
+        pos.push(v[0], v[1], v[2]);
+        nor.push(v[3], v[4], 0);
+      }
+    }
+    prev = next;
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  return geometry;
+}
+
+/**
+ * The head: a four-bladed spearhead one unit long along +Z (base at 0, point
+ * at 1) and one unit across: a socket collar, then a leaf-shaped body whose
+ * cross-section is drawn out into four thin blades.
+ */
+function createHeadGeometry() {
+  const AROUND = 32;
+  const ALONG = 28;
+  const radius = (z) => {
+    if (z < 0.08) return 0.22 + 0.06 * Math.sin((z / 0.08) * Math.PI);
+    if (z < 0.3) return 0.22 + 0.78 * Math.sin(((z - 0.08) / 0.22) * Math.PI * 0.5);
+    return Math.pow(1 - (z - 0.3) / 0.7, 0.85);
+  };
+  const pts = [];
+  for (let j = 0; j <= ALONG; j++) {
+    const z = j / ALONG;
+    const row = [];
+    const R = radius(z) * 0.5;
+    const blade = z < 0.08 ? 0 : 1;
+    for (let i = 0; i <= AROUND; i++) {
+      const a = (i / AROUND) * TAU + Math.PI / 4;
+      const k = 0.18 + 0.82 * Math.pow(Math.abs(Math.cos(2 * a)), 6) * blade + (1 - blade) * 0.82;
+      row.push(new Vector3(Math.cos(a) * R * k, Math.sin(a) * R * k, z));
+    }
+    pts.push(row);
+  }
+  const pos = [];
+  for (let j = 0; j < ALONG; j++) {
+    for (let i = 0; i < AROUND; i++) {
+      const a = pts[j][i];
+      const b = pts[j + 1][i];
+      const c = pts[j + 1][i + 1];
+      const d = pts[j][i + 1];
+      pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z);
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * REDSHIFT LANCE — cosmic, line cast.
@@ -75,6 +163,31 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The lance (the hero, cast-local — section 15 of the editor)
+ *
+ * The shared template layers (body, voice, lens, rig, pieces and the trail
+ * ribbon) are turned down in the config; the spell is carried by its own form:
+ *
+ *   - **the stretch** — a four-bladed spearhead (`createHeadGeometry`) rides
+ *     the head of the line while a fluted shaft (`createShaftGeometry`) trails
+ *     behind it, low along the line, and stretches as it flies (`lanceStretch*`) — short
+ *     leaving the hand, metres long when it lands, still drawing out after.
+ *     It is solid blued steel / obsidian, sun-lit and casting its shadow; the
+ *     light lives only in a narrow core line down the flutes and along the
+ *     blade edges: violet leaving the hand, redder toward the tip, all of it
+ *     reddening as it goes (`lanceShift*`), cut by dark absorption bands that
+ *     slide tipward.
+ *   - **the hit** — at the end the head plunges into the floor (`lancePlunge`)
+ *     and the shaft swings up and aside like a landed javelin (`lanceLodge*`):
+ *     a red spray back up the line, chips, a crack and the template beat.
+ *   - **the linger** — the light goes on shifting to deep red and cooling while
+ *     the shaft comes apart into segments (`lanceSegments`, `lanceBreak`) that
+ *     drift and settle onto the scar the line has burnt, shedding red embers.
+ *   - **exit** — eaten from the tail forward behind a red edge; the head goes
+ *     last. The scar and its wake scorches stay on the floor.
+ *
+ * All of it is presentation: hits still land at the head as it travels.
  *
  * Every metre, rate and colour is read from `settings.redshift` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +272,30 @@ export class RedshiftLanceAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildLance();
+  }
+
+  /** The lance's own meshes: the fluted shaft and the spearhead. */
+  _buildLance() {
+    this.shaftGeometry = createShaftGeometry();
+    this.headGeometry = createHeadGeometry();
+    this.shaftMaterial = createRedshiftLanceSpearMaterial(false);
+    this.headMaterial = createRedshiftLanceSpearMaterial(true);
+    this.shaft = this._mesh(this.shaftGeometry, this.shaftMaterial, LAYER.SHAPED, 15);
+    this.head = this._mesh(this.headGeometry, this.headMaterial, LAYER.SHAPED, 15);
+    // Solid matter: sun-lit, casting a shadow that follows the shaped shaft.
+    for (const m of [this.shaft, this.head]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.customDepthMaterial = m.material.userData.depth;
+    }
+    this._lanceP = { len: 1, shift: 0, heat: 1, brk: 0, drift: 0, sink: 0, dissolve: 0, seed: 0 };
+    this._headP = { len: 1, shift: 0, heat: 1, brk: 0, drift: 0, sink: 0, dissolve: 0, seed: 0 };
+    this._lanceLen = 0;
+    this._shift = 0;
+    this._plunged = false;
+    this._emberEmitter = new RateEmitter();
+    this._streamEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +371,13 @@ export class RedshiftLanceAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._lanceLen = 0;
+    this._shift = 0;
+    this._plunged = false;
+    this._emberEmitter.reset();
+    this._streamEmitter.reset();
+    this.shaft.visible = false;
+    this.head.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -303,6 +447,151 @@ export class RedshiftLanceAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+    this._lance(committed, fadeT);
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Stand the lance for this frame: tail in the hand, head at the front of the
+   * line (then plunged into the floor at the end), shaft stretched between.
+   */
+  _lance(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(committed ? 1 : saturate(this.u), _tip);
+    let plunge = 0;
+    if (committed) plunge = Easing.outCubic(saturate(since / Math.max(0.02, c.lancePlungeTime * L)));
+    _tip.y = c.lanceTipHeight * (1 - plunge) - c.lancePlunge * plunge;
+    // The tail trails the head, raked up, and the lance stretches as it goes:
+    // short leaving the hand, longest once it has landed, still drawing out in the linger.
+    const reach = Math.max(0.5, this.front - c.handForward);
+    let stretch = committed
+      ? c.lanceStretch + c.lanceStretchLinger * saturate(since / Math.max(0.05, total))
+      : c.lanceStretchStart + (c.lanceStretch - c.lanceStretchStart) * Easing.outCubic(saturate(this.u));
+    stretch = Math.min(stretch, reach);
+    // In flight it trails low along the line; once lodged its shaft swings up
+    // and over to one side, the way a javelin settles, so it stands as a slash.
+    const lodge = committed ? Easing.outBack(saturate(since / Math.max(0.05, c.lanceLodgeTime * L))) : 0;
+    const rake = c.lanceRake + (c.lanceLodgeRake - c.lanceRake) * lodge;
+    const yaw = c.lanceLodgeYaw * lodge;
+    const flat = stretch * Math.cos(rake);
+    _tail.copy(_tip).addScaledVector(this.direction, -flat * Math.cos(yaw)).addScaledVector(this.side, flat * Math.sin(yaw));
+    _tail.y = Math.max(0.3, Math.max(c.lanceTipHeight * (1 - lodge), _tip.y) + stretch * Math.sin(rake));
+    _span.subVectors(_tip, _tail);
+    const full = _span.length();
+    if (full < 0.05) {
+      this.shaft.visible = false;
+      this.head.visible = false;
+      return;
+    }
+    _span.divideScalar(full);
+    const headLen = Math.min(c.lanceHeadLength, full * 0.6);
+    _base.copy(_tip).addScaledVector(_span, -headLen);
+    const len = Math.max(0.01, full - headLen * 0.92);
+    this._lanceLen = full;
+    _lq.setFromUnitVectors(_zAxis, _span);
+    // The shift: violet leaving the hand, reddening as it travels and lingers.
+    const travelShift = c.lanceShiftTravel * saturate(this.u);
+    this._shift = committed ? travelShift + (1 - travelShift) * saturate(since / Math.max(0.05, c.lanceShiftTime * L)) : travelShift;
+    const heat = committed ? 1 - c.lanceCool * saturate(since / Math.max(0.05, total)) : 1;
+    const brk = committed ? Easing.inOutCubic(saturate((since - c.lanceBreakAt * L) / Math.max(0.05, c.lanceBreakTime * L))) : 0;
+    const exitAt = total - Math.max(0.1, c.lanceExit * L);
+    const dissolve = committed ? saturate((since - exitAt) / Math.max(0.1, c.lanceExit * L)) * 1.05 : 0;
+    const p = this._lanceP;
+    p.len = len;
+    p.shift = this._shift;
+    p.heat = heat;
+    p.brk = brk * c.lanceBreak;
+    p.drift = brk * c.lanceDrift;
+    p.sink = brk * c.lanceSettle;
+    p.dissolve = dissolve;
+    p.seed = this._seed;
+    const h = this._headP;
+    h.len = 1;
+    h.shift = this._shift;
+    h.heat = heat;
+    h.brk = 0;
+    h.drift = 0;
+    h.sink = 0;
+    h.dissolve = dissolve;
+    h.seed = this._seed;
+    this.shaftMaterial.userData.sync(p);
+    this.headMaterial.userData.sync(h);
+    const on = c.lanceOpacity > 0.01 && dissolve < 1;
+    this.shaft.visible = on;
+    this.shaft.position.copy(_tail);
+    this.shaft.quaternion.copy(_lq);
+    this.shaft.scale.set(1, 1, 1);
+    this.head.visible = on;
+    this.head.position.copy(_base);
+    this.head.quaternion.copy(_lq);
+    const grow = committed ? 1 : Easing.outCubic(saturate(this.age / 0.12));
+    this.head.scale.set(c.lanceHeadWidth * grow, c.lanceHeadWidth * grow, headLen);
+  }
+
+  /** The head plunges into the floor: a red spray back up the line, chips, a crack. */
+  _lancePlunge() {
+    const c = settings[ID];
+    const g = settings.global;
+    this._plunged = true;
+    this.pointAt(1, _pos);
+    this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+      radius: c.plungeCrack,
+      life: c.groundLife * g.lifetime,
+      width: 0.6,
+      intensity: 0.9,
+      colorA: getColor(c.colorRedDeep),
+      colorB: getColor(c.colorRedBody),
+      height: 0.034
+    });
+    _pos.y = 0.2;
+    const sparks = Math.round(c.plungeSparks * g.particleCount);
+    if (sparks > 0) {
+      _dir.copy(this.direction).multiplyScalar(-1).setY(0.9);
+      this._fillEmit(_pos, 0.3, _dir, c.streakSpeed * 1.4, 0.55, 0.09, c.streakLife * 1.6, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+    const chips = Math.round(c.plungeChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      this._fillEmit(_pos, 0.3, _up, c.chipSpeed * 1.3, 0.7, c.chipSize * 1.5, c.chipLife * 1.2, 8);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.plungeDust * g.particleCount);
+    if (dust > 0) {
+      this._fillEmit(_pos, 0.5, _up, c.dustSpeed, 1, 0.6, c.dustLife * 1.4, 0.4);
+      this.dust.emit(dust, _emit);
+    }
+  }
+
+  /** Light streaming tipward along the stretching shaft; red embers off the cooling segments. */
+  _lanceShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (!this.shaft.visible) return;
+    const rate = committed ? c.lanceEmbers * (1 - this._lanceP.dissolve) : c.lanceStream;
+    const emitter = committed ? this._emberEmitter : this._streamEmitter;
+    const n = Math.round(emitter.tick(dt, rate) * g.particleCount);
+    for (let k = 0; k < n; k++) {
+      const s = Math.random();
+      _pos.copy(_tail).lerp(_base, s);
+      if (committed) {
+        _pos.y = Math.max(0.1, _pos.y - this._lanceP.sink);
+        _dir.set((Math.random() - 0.5) * 0.4, 1, (Math.random() - 0.5) * 0.4);
+        this._fillEmit(_pos, 0.15, _dir, c.moteSpeed * 0.6, 0.6, 0.09, c.moteLife * 1.3, 1);
+        this.motes.emit(1, _emit);
+      } else {
+        this._fillEmit(_pos, 0.1, this.direction, c.streakSpeed * 1.2, 0.08, 0.06, c.streakLife, 0);
+        this.streaks.emit(1, _emit);
+      }
+    }
   }
 
   /**
@@ -787,6 +1076,7 @@ export class RedshiftLanceAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._lanceShed(dt, false);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
@@ -795,6 +1085,7 @@ export class RedshiftLanceAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._lancePlunge();
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -806,6 +1097,7 @@ export class RedshiftLanceAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._lanceShed(dt, true);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
@@ -831,9 +1123,15 @@ export class RedshiftLanceAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.shaft.visible = false;
+    this.head.visible = false;
   }
 
   dispose() {
+    this.shaftGeometry.dispose();
+    this.headGeometry.dispose();
+    this.shaftMaterial.dispose();
+    this.headMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1034,6 +1332,55 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const lance = folder.addFolder('15 · The lance');
+  R(lance, c, 'lanceOpacity', 0, 1, 0.01, 'shown');
+  R(lance, c, 'lanceTail', 0.01, 1, 0.005, 'shaft at the hand (m)');
+  R(lance, c, 'lanceFront', 0.01, 1, 0.005, 'shaft at the head (m)');
+  R(lance, c, 'lanceHeadWidth', 0.05, 3, 0.01, 'head width (m)');
+  R(lance, c, 'lanceHeadLength', 0.1, 5, 0.05, 'head length (m)');
+  R(lance, c, 'lanceTipHeight', 0, 3, 0.01, 'tip height in flight (m)');
+  R(lance, c, 'lanceStretchStart', 0.2, 10, 0.05, 'length leaving the hand (m)');
+  R(lance, c, 'lanceStretch', 0.5, 20, 0.05, 'length when it lands (m)');
+  R(lance, c, 'lanceStretchLinger', 0, 10, 0.05, 'draws out after (m)');
+  R(lance, c, 'lanceRake', -0.4, 1.2, 0.01, 'tail raised in flight (rad; below 0 it trails low)');
+  R(lance, c, 'lanceLodgeRake', 0, 1.4, 0.01, 'shaft raised once lodged (rad)');
+  R(lance, c, 'lanceLodgeYaw', -1.5, 1.5, 0.01, 'shaft swung aside once lodged (rad)');
+  R(lance, c, 'lanceLodgeTime', 0.05, 2, 0.01, 'settles in (s)');
+  R(lance, c, 'lancePlunge', 0, 2, 0.01, 'plunges into the floor (m)');
+  R(lance, c, 'lancePlungeTime', 0.02, 1, 0.01, 'plunge (s)');
+  R(lance, c, 'lanceShiftTravel', 0, 1, 0.01, 'shift reached in flight');
+  R(lance, c, 'lanceShiftTime', 0.05, 4, 0.05, 'fully red after (s)');
+  R(lance, c, 'lanceGradient', 0, 1, 0.01, 'tip runs redder by');
+  R(lance, c, 'lanceCool', 0, 1, 0.01, 'cools by the end');
+  R(lance, c, 'lanceGlow', 0, 4, 0.05, 'glow');
+  R(lance, c, 'lanceCoreWidth', 0.005, 0.6, 0.005, 'core line width');
+  R(lance, c, 'lanceSpecular', 0, 4, 0.05, 'steel glint');
+  lance.addColor(c, 'colorLanceSteel').name('steel, deep');
+  lance.addColor(c, 'colorLanceSheen').name('steel, sheen');
+  R(lance, c, 'lanceLines', 0, 40, 1, 'absorption lines');
+  R(lance, c, 'lanceLineDark', 0, 1, 0.01, 'line darkness');
+  R(lance, c, 'lanceSegments', 1, 24, 1, 'segments');
+  R(lance, c, 'lanceBreakAt', 0, 3, 0.01, 'breaks up after (s)');
+  R(lance, c, 'lanceBreakTime', 0.05, 3, 0.01, 'break-up (s)');
+  R(lance, c, 'lanceBreak', 0, 1, 0.01, 'gaps');
+  R(lance, c, 'lanceDrift', 0, 0.5, 0.005, 'drift down the line');
+  R(lance, c, 'lanceSettle', 0, 2, 0.01, 'settles (m)');
+  R(lance, c, 'lanceExit', 0.1, 2, 0.01, 'exit (s)');
+  lance.addColor(c, 'colorLanceHot').name('violet, hot');
+  lance.addColor(c, 'colorLanceTint').name('violet, tint');
+  lance.addColor(c, 'colorLanceBody').name('violet, body');
+  lance.addColor(c, 'colorLanceDeep').name('violet, deep');
+  lance.addColor(c, 'colorRedHot').name('red, hot');
+  lance.addColor(c, 'colorRedTint').name('red, tint');
+  lance.addColor(c, 'colorRedBody').name('red, body');
+  lance.addColor(c, 'colorRedDeep').name('red, deep');
+  R(lance, c, 'lanceStream', 0, 400, 1, 'streaming light / s');
+  R(lance, c, 'lanceEmbers', 0, 300, 1, 'embers / s');
+  R(lance, c, 'plungeSparks', 0, 300, 1, 'plunge sparks');
+  R(lance, c, 'plungeChips', 0, 120, 1, 'plunge chips');
+  R(lance, c, 'plungeDust', 0, 120, 1, 'plunge dust');
+  R(lance, c, 'plungeCrack', 0, 4, 0.05, 'plunge crack (m)');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');
