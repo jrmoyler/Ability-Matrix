@@ -33,10 +33,10 @@ export default {
 
     /* --- light --- */
     lightColor: '#f25fb8',
-    lightIntensity: 8.8, // the glow riding the cast
+    lightIntensity: 3.5, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.6, // 0..1 how much it shimmers
-    impactLight: 12.1, // extra light on the beat, decays on its own
+    impactLight: 6, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template braid body; off — the mirrors are the body now
     edgeGlow: 1.27,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -65,7 +65,7 @@ export default {
     lensWarp: 1.4, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement
     colorVoiceA: '#f25fb8',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field (off: the mirror pool is the floor)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.25, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#3a1a34', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48)
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -108,7 +108,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the mirror rings replace the flat panels)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -156,19 +156,19 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.33, // camera punch on the beat
-    impactFlash: 0.18, // screen flash on the beat
+    impactFlash: 0.04, // screen flash on the beat (kept low)
     colorFlash: '#ffe0f4',
     burstRadius: 3.8, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
-    impactChips: 3, // fragments thrown up and out on the beat
-    impactDust: 3, // dust puffs rolled out along the floor on the beat
+    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 40, // fragments thrown up and out on the beat
+    impactDust: 16, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#f25fb8',
     colorBurstC: '#5c0a3c',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0.1, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f25fb8',
     colorShockB: '#ffffff',
 
@@ -195,6 +195,54 @@ export default {
     markRimGlow: 1.76, // rim light on a marked body
     colorMarkEdge: '#ffe0f4',
     markEdgeGlow: 2.86, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 12 · the mirrors (the cast's own hero) --- */
+    shardHeight: 1.7, // the shard in flight, metres tall
+    shardSpin: 14, // its spin on its long axis, radians/second
+    shardArc: 1.4, // lob of its flight, metres
+    centreHeight: 3.3, // the planted centre mirror, metres
+    centreWidth: 1.5,
+    ringPanels: 11, // mirrors per ring (three rings)
+    panelHeight: 2.7, // the true ring's mirrors, metres (inner 0.8×, outer 0.9×)
+    panelFill: 0.72, // a panel's width as a share of its arc while the rings disagree
+    lockFill: 1.12, // and once they agree (>1 overlaps into a closed wall)
+    ringSpread: 0.34, // how far the inner and outer rings disagree with the rim, × the circle
+    ringWobble: 0.07, // breathing in and out while they disagree, × the circle
+    ringWalk: 1.5, // how fast the rings walk the rim against each other, radians/second
+    riseTime: 0.22, // seconds a ring takes to rise, × global lifetime
+    riseStagger: 0.08, // seconds between the rings rising, × global lifetime
+    convergeFrom: 0.3, // impact progress (0..1) the rings start to agree at
+    convergeTo: 0.72, // and have agreed by — one wall on the true rim
+    leanIn: 0.1, // how far the mirrors lean their tops in, radians
+    lockSpin: 0.22, // the locked wall's slow turn, radians/second
+    lockPulse: 1.2, // frame and rim flare when the wall locks
+    lockShake: 0.12, // camera thud when it locks
+    lockLight: 5, // light punch when it locks
+    crackFrom: 0.85, // onFade clock (1 = fade start) the glass starts cracking at
+    fallFrom: 1.12, // onFade clock the first mirrors start to fall at
+    fallStagger: 0.45, // scatter of the fall across the panels, onFade clock
+    fallTime: 0.3, // how long one mirror takes to tip and sink, onFade clock
+    fallChips: 7, // lit glass chips a falling mirror sheds
+    mirrorRough: 0.16,
+    mirrorMetal: 0.85,
+    mirrorRim: 0.5, // fresnel rim in the spell hue
+    mirrorReflect: 0.95, // strength of the fake reflection
+    mirrorSweep: 0.35, // speed of the streak across the glass
+    mirrorStreak: 0.7, // brightness of the streak
+    mirrorFrame: 0.3, // glow of the cusped frame
+    crackGlow: 1.6, // glow of the cracks
+    colorMirror: '#121118', // the glass albedo (deep)
+    colorMirrorSky: '#6a7290', // what the glass reflects (tint)
+    colorMirrorFloor: '#141a2e', // what the glass reflects below the horizon (deep)
+    colorMirrorRim: '#8a90b0', // fresnel rim: cold glass, not the spell hue
+    colorCrack: '#ff4fb8', // white-hot crack core
+
+    /* --- 13 · the mirror pool --- */
+    poolReach: 1.42, // pool radius, × the circle
+    poolOpacity: 0.95,
+    poolGlow: 0.8, // brightness of its cracks
+    poolCracks: 12, // radial cracks
+    colorPoolDeep: '#0d030a' // the dark of the pool
   }
 };

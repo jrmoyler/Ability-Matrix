@@ -1,10 +1,14 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { ConeGeometry, Float32BufferAttribute, InstancedMesh, LatheGeometry, Matrix4, Mesh, PlaneGeometry, Quaternion, TorusGeometry, Vector2, Vector3 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
-import { createOrbitPendulumPieceGeometry, createOrbitPendulumHeroGeometry } from '../../assets/codex/OrbitPendulumGeometry.js';
+import {
+  createOrbitPendulumPieceGeometry,
+  createOrbitPendulumHeroGeometry
+} from '../../assets/codex/OrbitPendulumGeometry.js';
 import {
   createOrbitPendulumBodyMaterial,
   createOrbitPendulumLensMaterial,
@@ -12,7 +16,9 @@ import {
   createOrbitPendulumVoiceMaterial,
   createOrbitPendulumDetailMaterial,
   createOrbitPendulumTrailMaterial,
-  createOrbitPendulumScarMaterial
+  createOrbitPendulumScarMaterial,
+  createOrbitForgedMaterial,
+  createOrbitFloorMaterial
 } from '../../materials/codex/OrbitPendulumMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +52,107 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _hub = new Vector3();
+const _att = new Vector3();
+const _seg = new Vector3();
+const _axis = new Vector3();
+const _e1 = new Vector3();
+const _q = new Quaternion();
+const _q2 = new Quaternion();
+const _m = new Matrix4();
+const _sc = new Vector3();
+const _yAxis = new Vector3(0, 1, 0);
+const TAU = Math.PI * 2;
+/** Links in the tether, at most. */
+const MAX_LINKS = 24;
+/** Authored bob radius (body, without studs) at massScale 1. */
+const BOB_R = 0.75;
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the bob, its chain and the anchor                     */
+/* ------------------------------------------------------------------ */
+
+/** Flat-shaded lathe round Y with a per-vertex `aHeat` from `heatOf(r, y)`. */
+function heatLathe(profile, segments, heatOf) {
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), segments).toNonIndexed();
+  return withHeat(g, heatOf);
+}
+
+function withHeat(geometry, heatOf) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  const pos = g.getAttribute('position');
+  const heat = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) heat[i] = heatOf(Math.hypot(pos.getX(i), pos.getZ(i)), pos.getY(i));
+  g.setAttribute('aHeat', new Float32BufferAttribute(heat, 1));
+  if (g.getAttribute('uv')) g.deleteAttribute('uv');
+  if (g.getAttribute('normal')) g.deleteAttribute('normal');
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The bob: a heavy forged mass, an oblate 12-faceted body (1.5 m across at
+ * scale 1) with a raised equatorial belt split by a hot groove, eight studs
+ * round the belt and an eye on top for the chain. Centred on the origin, the
+ * eye on +Y.
+ */
+function createOrbitBobGeometry() {
+  const parts = [];
+  parts.push(heatLathe(
+    [[0, -0.56], [0.24, -0.53], [0.46, -0.4], [0.6, -0.2], [0.62, -0.09], [0.75, -0.07], [0.75, -0.025], [0.66, -0.012], [0.66, 0.012], [0.75, 0.025], [0.75, 0.07], [0.62, 0.09], [0.6, 0.2], [0.46, 0.4], [0.24, 0.53], [0, 0.56]],
+    12,
+    () => 0
+  ));
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const stud = new ConeGeometry(0.13, 0.36, 6, 1);
+    stud.rotateZ(-Math.PI / 2);
+    stud.translate(0.88, 0, 0);
+    stud.rotateY(a);
+    parts.push(withHeat(stud, (r) => (r > 0.98 ? 1 : 0)));
+  }
+  const eye = new TorusGeometry(0.16, 0.055, 6, 10);
+  eye.translate(0, 0.66, 0);
+  parts.push(withHeat(eye, () => 0.15));
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+/** One chain link, 0.5 m long along +Y, centred. */
+function createOrbitLinkGeometry() {
+  const link = new TorusGeometry(0.16, 0.05, 6, 12);
+  link.scale(1, 1.55, 1);
+  const g = withHeat(link, () => 0);
+  g.computeBoundingSphere();
+  return g;
+}
+
+/**
+ * The anchor the orbit turns on: a forged post with a flared, spurred foot,
+ * a banded shaft and a hot hub ring at the top. One unit tall (y 0..1); the
+ * ability stretches it to `anchorHeight`.
+ */
+function createOrbitAnchorGeometry() {
+  const parts = [];
+  parts.push(heatLathe(
+    [[0, 0], [0.42, 0], [0.36, 0.06], [0.2, 0.14], [0.13, 0.24], [0.11, 0.6], [0.15, 0.63], [0.15, 0.68], [0.11, 0.71], [0.1, 0.86], [0.2, 0.9], [0.22, 0.96], [0.12, 1.0], [0, 1.02]],
+    8,
+    (r, y) => (y > 0.89 ? 1 : y > 0.62 && y < 0.7 ? 0.5 : 0)
+  ));
+  for (let i = 0; i < 4; i++) {
+    const spur = new ConeGeometry(0.08, 0.5, 4, 1);
+    spur.rotateZ(-Math.PI / 2 - 0.5);
+    spur.translate(0.3, 0.08, 0);
+    spur.rotateY((i / 4) * Math.PI * 2);
+    parts.push(withHeat(spur, () => 0));
+  }
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -75,6 +182,37 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The mass (upgrade pass — the cast's own silhouette)
+ *
+ * The template rig, body, voice and floor rings are off by default; the
+ * spell's noun is now a real, sun-lit mass on a real tether:
+ *
+ *  - **travel** — a forged, studded bob (`createOrbitBobGeometry`, 1.5 m
+ *    body) whirls on a chain (`createOrbitLinkGeometry`, `chainLinks`) round
+ *    the front as it runs down the line (`flightTether`, `flightSpin`).
+ *  - **plant** — at the far end an anchor post (`createOrbitAnchorGeometry`)
+ *    punches up out of the floor under the pivot (`anchorHeight`), and the
+ *    chain pays out to the orbit radius — derived from the blow's reach,
+ *    `hitRadius × orbitReach`, so the mass sweeps exactly the bodies it hits.
+ *  - **orbit** — the bob accelerates round the post on a tilted plane
+ *    (`orbitTilt`), skimming the floor on the far side; the scored floor
+ *    disc (`createOrbitFloorMaterial`) opens under it, spiral gouges swept
+ *    round and a hot wake trailing the bob. The phase is solved backwards
+ *    from the release (`orbitTurns`), so whatever the timing the bob is
+ *    always on the near side heading away from the caster when it lets go.
+ *  - **release** — at the end of the impact phase the chain snaps: the bob
+ *    flies on, down the line (`releaseSpeed`, `releaseLift`), lands with a
+ *    crack and a dust ring, bounces (`bounce`) and rolls to a stop
+ *    (`rollFriction`), scoring the floor; the broken chain drops and
+ *    dangles from the hub.
+ *  - **exit** — the post sinks back into the floor and the bob cools and
+ *    sinks (`sinkFrom`, `sinkOut`); the disc breaks up from the rim.
+ *
+ * Hits are the template's, unchanged (`return`: at the far end, every frame
+ * of the impact and fade, within `hitRadius`). Everything here is
+ * presentation; the record is a seed, the release clock and the bob's
+ * integrated position, velocity and spin.
  *
  * Every metre, rate and colour is read from `settings.orbitpendulum` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +297,274 @@ export class OrbitPendulumAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The mass, its tether and its anchor — the cast's own hero.
+    this.bobGeometry = createOrbitBobGeometry();
+    this.linkGeometry = createOrbitLinkGeometry();
+    this.anchorGeometry = createOrbitAnchorGeometry();
+    this.bobMaterial = createOrbitForgedMaterial('bob');
+    this.chainMaterial = createOrbitForgedMaterial('chain');
+    this.anchorMaterial = createOrbitForgedMaterial('anchor');
+    this.bob = this._solid(new Mesh(this.bobGeometry, this.bobMaterial));
+    this.anchor = this._solid(new Mesh(this.anchorGeometry, this.anchorMaterial));
+    this.chain = this._solid(new InstancedMesh(this.linkGeometry, this.chainMaterial, MAX_LINKS));
+    this.floorGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.floorMaterial = createOrbitFloorMaterial();
+    this.floor = this._mesh(this.floorGeometry, this.floorMaterial, LAYER.VFX, 2);
+    this.floor.rotation.x = -Math.PI / 2;
+    this._bobPos = new Vector3();
+    this._bobVel = new Vector3();
+    this._bobQuat = new Quaternion();
+    this._released = -1;
+    this._plantAge = -1;
+    this._landings = 0;
+    this._rollMark = 0;
+    this._floorAng = 0;
+    this._floorDir = 1;
+    this.rollEmitter = new RateEmitter();
+  }
+
+  _solid(mesh) {
+    mesh.layers.set(LAYER.WORLD);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  /** Orbit radius, derived from the blow's reach so the sweep covers what it hits. */
+  _orbitRadius() {
+    const c = settings[ID];
+    return Math.max(0.8, c.hitRadius * c.orbitReach);
+  }
+
+  /**
+   * The mass this frame. In flight it whirls round the front; planted, it
+   * orbits the anchor on a phase solved back from the release; released, it
+   * flies, lands, bounces and rolls on its own integrated clock.
+   *
+   * @param {number} dt
+   * @param {number} fadeT 0 in flight; the onFade clock (0..2) after the plant
+   */
+  _mass(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const s = Math.max(0.05, c.massScale);
+    const rad = BOB_R * s;
+    let heat = c.massHeatSpin;
+    let anchorH = 0;
+    let chainFrom = null;
+    // The orbit frame: e1 along the aim tilted down on the far side, side across.
+    const tilt = c.orbitTilt;
+    _e1.copy(this.direction).multiplyScalar(Math.cos(tilt)).addScaledVector(_up, -Math.sin(tilt));
+    if (this._plantAge < 0) {
+      // Flight: whirl round the front.
+      this.pointAt(this.u, _hub).setY(c.flightHeight);
+      const phi = this.age * c.flightSpin * g.animationSpeed;
+      this._bobPos.copy(_hub).addScaledVector(_e1, Math.cos(phi) * c.flightTether).addScaledVector(this.side, Math.sin(phi) * c.flightTether);
+      chainFrom = _hub;
+      this._faceHub(_hub);
+    } else if (this._released < 0) {
+      this._plantAge += dt;
+      const t = saturate(fadeT);
+      const rise = Easing.outBack(saturate(this._plantAge / Math.max(0.02, c.anchorRise)));
+      anchorH = c.anchorHeight * rise;
+      this.pointAt(1, _hub).setY(Math.max(c.anchorHeight * Math.min(1, rise), lerp(c.flightHeight, c.anchorHeight, rise)));
+      const R = lerp(c.flightTether, this._orbitRadius(), Easing.outCubic(saturate(this._plantAge / 0.25)));
+      // Solved back from the release: at t = 1 the bob is on the near side (between caster and group).
+      const phi = Math.PI - c.orbitTurns * TAU * (1 - (t + t * t) * 0.5);
+      _att.copy(_hub).addScaledVector(_up, -c.orbitDrop * rise);
+      this._bobPos.copy(_att).addScaledVector(_e1, Math.cos(phi) * R).addScaledVector(this.side, Math.sin(phi) * R);
+      if (this._bobPos.y < rad) this._bobPos.y = rad;
+      // Velocity (for the release): the tangent times the angular speed.
+      const w = c.orbitTurns * TAU * (0.5 + t) / Math.max(0.05, this.impactDuration);
+      this._bobVel.copy(_e1).multiplyScalar(-Math.sin(phi) * R * w).addScaledVector(this.side, Math.cos(phi) * R * w);
+      chainFrom = _hub;
+      this._faceHub(_hub);
+      heat = c.massHeatSpin * (0.8 + 0.6 * t);
+      if (fadeT >= 1) this._release();
+    } else {
+      this._plantAge += dt;
+      this._released += dt;
+      this._roll(dt, rad);
+      anchorH = c.anchorHeight;
+      heat = c.massHeatSpin * 1.4 * Math.exp(-this._released / Math.max(0.05, c.massCool * g.lifetime));
+    }
+    // Exit: the post and the bob sink.
+    const sinkK = fadeT > c.sinkFrom ? Easing.inCubic(saturate((fadeT - c.sinkFrom) / Math.max(0.05, 2 - c.sinkFrom))) : 0;
+    const bobSink = sinkK * c.sinkOut;
+    // Bob.
+    _m.compose(_sc.copy(this._bobPos).setY(this._bobPos.y - bobSink), this._bobQuat, _seg.set(s, s, s));
+    this.bob.matrixAutoUpdate = false;
+    this.bob.matrix.copy(_m);
+    this.bob.matrixWorldNeedsUpdate = true;
+    this.bob.visible = c.massScale > 0.01 && bobSink < rad * 2.2;
+    this.bobMaterial.userData.sync(heat);
+    // Anchor.
+    const postH = Math.max(0, anchorH * (1 - sinkK));
+    this.anchor.visible = postH > 0.05;
+    if (this.anchor.visible) {
+      this.pointAt(1, this.anchor.position).setY(0);
+      this.anchor.scale.set(s * 1.25, postH, s * 1.25);
+      this.anchorMaterial.userData.sync(this._plantAge >= 0 ? Math.min(0.7, heat) : 0);
+    }
+    // Chain.
+    this._chain(dt, chainFrom, s, sinkK);
+    this.chainMaterial.userData.sync(heat * 0.8);
+    // Floor.
+    this._orbitFloor(fadeT, heat);
+  }
+
+  /** Turn the bob so its eye points at the hub (the tether pulls it round). */
+  _faceHub(hub) {
+    _seg.copy(hub).sub(this._bobPos);
+    if (_seg.lengthSq() < 1e-6) return;
+    this._bobQuat.setFromUnitVectors(_yAxis, _seg.normalize());
+  }
+
+  /** The chain snaps: the bob goes on along its tangent, the release beat. */
+  _release() {
+    const c = settings[ID];
+    const g = settings.global;
+    this._released = 0;
+    // Slung from the near side straight down the line, through the group and past it.
+    const v = this._bobVel;
+    v.copy(this.direction).multiplyScalar(c.releaseSpeed * g.speed).addScaledVector(_up, c.releaseLift);
+    this.lightBoost += c.impactLight * 0.5 * g.explosionIntensity;
+    this.ctx.shake.add(c.aftershockShake * 0.6 * g.cameraShake, 5, 16);
+    const sparks = Math.round(c.handSparks * g.particleCount);
+    if (sparks > 0) {
+      this._fillEmit(this._bobPos, 0.3, v, c.streakSpeed, 0.6, 0.08, c.streakLife, 2);
+      this.streaks.emit(sparks, _emit);
+    }
+  }
+
+  /** Free flight, landing, bounce and roll of the released bob. */
+  _roll(dt, rad) {
+    const c = settings[ID];
+    const g = settings.global;
+    const p = this._bobPos;
+    const v = this._bobVel;
+    v.y -= c.releaseGravity * dt;
+    p.addScaledVector(v, dt);
+    const flatSpeed = Math.hypot(v.x, v.z);
+    if (p.y <= rad) {
+      p.y = rad;
+      if (v.y < -1.2) {
+        // A landing: crack, dust ring and chips sized to the bob; it bounces.
+        const power = g.explosionIntensity * saturate(-v.y / 8);
+        _pos.copy(p).setY(0);
+        this.ctx.decals.spawn(DecalType.CRACK, _pos, { radius: rad * 2.2, life: c.groundLife * g.lifetime, width: 0.1, intensity: 0.8, colorA: getColor(c.colorFloorDeep), colorB: getColor(c.colorMassHot), height: 0.03 });
+        this.ctx.decals.spawn(DecalType.DUSTRING, _pos, { radius: rad * 3.2, life: 0.9, width: 0.2, intensity: 0.7, colorA: getColor(c.colorDustC), colorB: getColor(c.colorDustB), height: 0.04 });
+        const chips = Math.round(c.impactChips * 0.6 * g.particleCount);
+        if (chips > 0) {
+          this._fillEmit(_pos.setY(0.2), rad, _up, c.chipSpeed, 0.9, c.chipSize * 1.3, c.chipLife, 8);
+          this.chips.emit(chips, _emit);
+        }
+        this.ctx.shake.add(c.aftershockShake * power * g.cameraShake, 4, 14);
+        this.lightBoost += c.aftershockLight * power;
+        this._landings++;
+        v.y = -v.y * c.bounce;
+        if (v.y < 1) v.y = 0;
+      } else {
+        v.y = 0;
+      }
+      // Rolling: friction bleeds the speed; dust and scores trail it.
+      const k = Math.exp(-c.rollFriction * dt);
+      v.x *= k;
+      v.z *= k;
+      const n = Math.round(this.rollEmitter.tick(dt, c.rollDust * saturate(flatSpeed / 3)) * g.particleCount);
+      if (n > 0) {
+        _dir.set(-v.x, 0.4, -v.z).normalize();
+        this._fillEmit(_pos.copy(p).setY(0.15), rad * 0.5, _dir, c.dustSpeed * 0.6, 0.6, 0.5, c.dustLife, 0.4);
+        this.dust.emit(n, _emit);
+      }
+      this._rollMark += flatSpeed * dt;
+      if (this._rollMark > c.rollMarkSpacing && c.rollMarkSpacing > 0.05 && flatSpeed > 0.4) {
+        this._rollMark = 0;
+        this.ctx.decals.spawn(DecalType.SCORCH, _pos.copy(p).setY(0), { radius: rad * 1.1, life: c.groundLife * g.lifetime * 0.6, width: 0.6, intensity: 0.7, colorA: getColor(c.colorFloorDeep), colorB: getColor(c.colorA), height: 0.026 });
+      }
+    }
+    // Spin: rolling without slipping on the floor, tumbling slowly in the air.
+    if (flatSpeed > 1e-3) {
+      _axis.set(v.z, 0, -v.x).normalize();
+      _q.setFromAxisAngle(_axis, (flatSpeed / Math.max(0.05, rad)) * dt);
+      this._bobQuat.premultiply(_q);
+    }
+  }
+
+  /** Lay the links: along the tether while it holds, dangling from the hub once it has snapped. */
+  _chain(dt, from, s, sinkK) {
+    const c = settings[ID];
+    const n = Math.max(0, Math.min(MAX_LINKS, Math.round(c.chainLinks)));
+    const mesh = this.chain;
+    if (n === 0 || (this._released >= 0 && sinkK > 0.98)) {
+      mesh.visible = false;
+      return;
+    }
+    // Attachment on the bob (its eye) and the hub end.
+    _att.set(0, 0.66 * s, 0).applyQuaternion(this._bobQuat).add(this._bobPos);
+    if (this._released >= 0) {
+      // Snapped: the hub half drops and swings to hang straight down, then sinks with the post.
+      this.pointAt(1, _hub).setY(c.anchorHeight * (1 - sinkK));
+      const drop = Easing.outCubic(saturate(this._released / 0.45));
+      const sway = Math.sin(this._released * 7) * Math.exp(-this._released * 2.5) * 0.6;
+      const len = c.chainLength;
+      _seg.copy(this.direction).multiplyScalar(Math.cos(drop * Math.PI * 0.5) + sway).addScaledVector(_up, -Math.sin(drop * Math.PI * 0.5)).normalize();
+      _att.copy(_hub).addScaledVector(_seg, len);
+      if (_att.y < 0.05) _att.y = 0.05;
+    } else {
+      _hub.copy(from);
+    }
+    _seg.copy(_att).sub(_hub);
+    const L = _seg.length();
+    if (L < 1e-3) {
+      mesh.visible = false;
+      return;
+    }
+    _seg.multiplyScalar(1 / L);
+    _q.setFromUnitVectors(_yAxis, _seg);
+    const linkLen = L / n;
+    const ls = Math.min(s, linkLen / 0.5) * 1.15;
+    for (let i = 0; i < n; i++) {
+      _q2.setFromAxisAngle(_yAxis, (i % 2) * Math.PI * 0.5);
+      _q2.premultiply(_q);
+      _pos.copy(_hub).addScaledVector(_seg, (i + 0.5) * linkLen);
+      // A little sag under gravity while it whirls.
+      _pos.y -= Math.sin(((i + 0.5) / n) * Math.PI) * c.chainSag * (this._released >= 0 ? 0 : 1);
+      _m.compose(_pos, _q2, _sc.set(ls, ls, ls));
+      mesh.setMatrixAt(i, _m);
+    }
+    mesh.count = n;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.visible = true;
+  }
+
+  /** The scored disc under the anchor: opens on the plant, the wake trails the bob, breaks up at the end. */
+  _orbitFloor(fadeT, heat) {
+    const c = settings[ID];
+    if (this._plantAge < 0 || c.floorOpacity <= 0.01) {
+      this.floor.visible = false;
+      return;
+    }
+    const R = this._orbitRadius();
+    const disc = R * c.floorReach;
+    this.pointAt(1, this.floor.position).setY(0.034);
+    this.floor.scale.set(disc, disc, 1);
+    const dx = this._bobPos.x - this.floor.position.x;
+    const dz = this._bobPos.z - this.floor.position.z;
+    const ang = Math.atan2(-dz, dx);
+    let d = ang - this._floorAng;
+    d -= Math.round(d / TAU) * TAU;
+    if (Math.abs(d) > 1e-4 && this._released < 0) this._floorDir = d > 0 ? 1 : -1;
+    this._floorAng = ang;
+    const land = Easing.outCubic(saturate(this._plantAge / 0.3)) * 1.02;
+    const erode = fadeT > 1.5 ? saturate((fadeT - 1.5) / 0.5) : 0;
+    const wake = this._released < 0 ? 1 : Math.exp(-this._released * 2.5);
+    this.floorMaterial.userData.sync(this._seed, ang, R / disc, land, saturate(heat) * wake + 0.15, erode, this._floorDir);
+    this.floor.visible = erode < 0.99;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +640,19 @@ export class OrbitPendulumAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._released = -1;
+    this._plantAge = -1;
+    this._landings = 0;
+    this._rollMark = 0;
+    this._floorAng = 0;
+    this._floorDir = 1;
+    this._bobVel.set(0, 0, 0);
+    this._bobQuat.identity();
+    this.rollEmitter.reset();
+    this.bob.visible = false;
+    this.anchor.visible = false;
+    this.chain.visible = false;
+    this.floor.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -366,14 +785,14 @@ export class OrbitPendulumAbility extends Ability {
     this.heroMaterial.userData.sync(st);
     this.trailMaterial.userData.sync(st, this.trail, this._travelTime());
     this.scarMaterial.userData.sync(st, this.trail, this._travelTime());
-    this.trail.show(this.isActive);
+    this.trail.show(this.isActive && (c.trailOpacity > 0.01 || c.scarOpacity > 0.01));
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -789,6 +1208,7 @@ export class OrbitPendulumAbility extends Ability {
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
+    this._mass(dt, 0);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -796,6 +1216,7 @@ export class OrbitPendulumAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._plantAge = 0;
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -808,6 +1229,7 @@ export class OrbitPendulumAbility extends Ability {
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
+    this._mass(dt, t);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -832,9 +1254,22 @@ export class OrbitPendulumAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.bob.visible = false;
+    this.anchor.visible = false;
+    this.chain.visible = false;
+    this.floor.visible = false;
   }
 
   dispose() {
+    this.bobGeometry.dispose();
+    this.linkGeometry.dispose();
+    this.anchorGeometry.dispose();
+    this.bobMaterial.dispose();
+    this.chainMaterial.dispose();
+    this.anchorMaterial.dispose();
+    this.chain.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1041,6 +1476,48 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const mass = folder.addFolder('14 · The mass');
+  R(mass, c, 'massScale', 0, 3, 0.01, 'size (× 1.5 m)');
+  R(mass, c, 'flightTether', 0.2, 5, 0.05, 'tether in flight (m)');
+  R(mass, c, 'flightHeight', 0.3, 5, 0.05, 'flight height (m)');
+  R(mass, c, 'flightSpin', 0, 40, 0.5, 'whirl in flight (rad/s)');
+  R(mass, c, 'anchorHeight', 0.5, 6, 0.05, 'anchor (m)');
+  R(mass, c, 'anchorRise', 0.02, 1, 0.01, 'anchor rises in (s)');
+  R(mass, c, 'orbitReach', 0.5, 5, 0.05, 'orbit (× hit reach)');
+  R(mass, c, 'orbitTilt', -0.8, 0.8, 0.01, 'orbit tilt (rad)');
+  R(mass, c, 'orbitDrop', 0, 3, 0.05, 'orbit below hub (m)');
+  R(mass, c, 'orbitTurns', 0.5, 6, 0.05, 'turns before release');
+  R(mass, c, 'chainLinks', 0, 24, 1, 'links');
+  R(mass, c, 'chainSag', 0, 1.5, 0.01, 'sag (m)');
+  R(mass, c, 'chainLength', 0.3, 4, 0.05, 'broken length (m)');
+  R(mass, c, 'releaseSpeed', 0, 30, 0.1, 'release speed (m/s)');
+  R(mass, c, 'releaseLift', 0, 15, 0.1, 'release lift (m/s)');
+  R(mass, c, 'releaseGravity', 1, 40, 0.5, 'gravity');
+  R(mass, c, 'bounce', 0, 0.9, 0.01, 'bounce');
+  R(mass, c, 'rollFriction', 0, 8, 0.05, 'roll friction');
+  R(mass, c, 'rollDust', 0, 200, 1, 'roll dust / s');
+  R(mass, c, 'rollMarkSpacing', 0, 4, 0.05, 'roll scores every (m)');
+  R(mass, c, 'sinkFrom', 1, 1.95, 0.01, 'sinks from');
+  R(mass, c, 'sinkOut', 0, 4, 0.05, 'sinks (m)');
+  R(mass, c, 'massGlow', 0, 8, 0.05, 'seam glow');
+  R(mass, c, 'massRim', 0, 3, 0.01, 'rim');
+  R(mass, c, 'massRough', 0, 1, 0.01, 'roughness');
+  R(mass, c, 'massMetal', 0, 1, 0.01, 'metalness');
+  R(mass, c, 'massHeatSpin', 0, 1.5, 0.01, 'heat while whirling');
+  R(mass, c, 'massCool', 0.05, 4, 0.05, 'cools in (s)');
+  mass.addColor(c, 'colorMass').name('metal');
+  mass.addColor(c, 'colorChain').name('chain');
+  mass.addColor(c, 'colorMassHot').name('hot seam');
+  mass.addColor(c, 'colorMassRim').name('rim');
+
+  const orbitFloor = folder.addFolder('15 · Scored floor');
+  R(orbitFloor, c, 'floorReach', 0.5, 3, 0.01, 'disc (× orbit)');
+  R(orbitFloor, c, 'floorOpacity', 0, 1.5, 0.01, 'opacity');
+  R(orbitFloor, c, 'floorGlow', 0, 8, 0.05, 'wake glow');
+  R(orbitFloor, c, 'floorArms', 1, 12, 1, 'gouges');
+  orbitFloor.addColor(c, 'colorFloorDeep').name('deep');
+  orbitFloor.addColor(c, 'colorFloorScore').name('scored stone');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

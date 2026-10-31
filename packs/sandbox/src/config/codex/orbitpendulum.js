@@ -33,7 +33,7 @@ export default {
 
     /* --- light --- */
     lightColor: '#fa5238',
-    lightIntensity: 8, // the glow riding the cast
+    lightIntensity: 3.5, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.3, // 0..1 how much it shimmers
     impactLight: 8.8, // extra light on the beat, decays on its own
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template body; off — the mass is the body now
     edgeGlow: 2.1,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.32,
@@ -62,10 +62,10 @@ export default {
     colorA: '#fa5238',
     colorB: '#ffffff',
     colorC: '#5e1308',
-    lensWarp: 1.1, // strength of the distortion it writes
+    lensWarp: 0, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: it drew a frame-wide ring line)
     colorVoiceA: '#fa5238',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field (off: the scored disc and the scar carry the floor)
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.1, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#2a2a30', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48)
     detailSize: 0.5, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -109,7 +109,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the forged bob replaces the drum)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -160,19 +160,19 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.5, // camera punch on the beat
-    impactFlash: 0.13, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat
     colorFlash: '#ffd8bc',
     burstRadius: 2.6, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
-    impactChips: 24, // fragments thrown up and out on the beat
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 50, // fragments thrown up and out on the beat
     impactDust: 23, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#fa5238',
     colorBurstC: '#5e1308',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0.1, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#fa5238',
     colorShockB: '#ffffff',
 
@@ -204,19 +204,61 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.34, // ribbon width at the head, metres
     trailLife: 0.9, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.55, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon
     trailGlow: 1.1, // brightness of the ribbon
     trailCore: 0.4, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.6, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.85, // strength of the scar
+    scarOpacity: 0, // strength of the scar
     scarGlow: 1.6, // brightness of its hot seam
     colorScarA: '#fa5238',
     colorScarB: '#5e1308',
-    wakeSpacing: 1.8, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.7, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 2.8 // fragments thrown at each wake
+    wakeChips: 2.8, // fragments thrown at each wake
+
+    /* --- 13 · the mass (the cast's own hero) --- */
+    massScale: 1.45, // × the authored bob (1.5 m body, 2.1 m over the studs); 0 hides it
+    flightTether: 1.4, // chain length while it whirls down the line, metres
+    flightHeight: 1.7, // height of the pivot in flight, metres
+    flightSpin: 18, // whirl round the front in flight, radians/second
+    anchorHeight: 2.6, // height of the anchor post at the far end, metres
+    anchorRise: 0.16, // seconds the post takes to punch up
+    orbitReach: 2.6, // orbit radius as a multiple of hitRadius (the sweep covers what it hits)
+    orbitTilt: -0.25, // tilt of the orbit plane, radians: negative swings low on the near side, so the release slings it through the group
+    orbitDrop: 0.9, // how far below the hub the orbit centre sits, metres
+    orbitTurns: 2.25, // turns round the post before the release (solved back from it)
+    chainLinks: 12,
+    chainSag: 0.35, // sag of the whirling chain, metres
+    chainLength: 1.6, // length of the broken end left dangling, metres
+    releaseSpeed: 10, // speed the bob flies on at, metres/second
+    releaseLift: 1.5, // upward speed at release, metres/second
+    releaseGravity: 16,
+    bounce: 0.32, // share of the landing speed it bounces back with
+    rollFriction: 1.1, // how fast the roll bleeds off, 1/seconds
+    rollDust: 70, // dust puffs per second while it rolls fast
+    rollMarkSpacing: 0.9, // metres between score marks it leaves rolling
+    sinkFrom: 1.55, // fade clock (1 = fade start, 2 = end) the post and the bob start sinking at
+    sinkOut: 2, // how far the bob sinks by the end, metres
+    massGlow: 2, // brightness of the hot seams
+    massRim: 0.35, // fresnel rim in the body hue
+    massRough: 0.5,
+    massMetal: 0.6,
+    massHeatSpin: 0.9, // how hot the seams run while it whirls
+    massCool: 0.8, // seconds for it to cool by ~63 % after release, × global lifetime
+    colorMass: '#2a2624', // bronze-black albedo (deep)
+    colorChain: '#26221f',
+    colorMassRim: '#7a7570', // fresnel rim: cold iron, not the spell hue
+    colorMassHot: '#ff6436', // the hot seam tone
+
+    /* --- 14 · the scored floor --- */
+    floorReach: 1.3, // disc radius as a multiple of the orbit radius
+    floorOpacity: 0.95,
+    floorGlow: 2, // brightness of the wake
+    floorArms: 5, // spiral gouges
+    colorFloorScore: '#3a322e', // the paler scored stone in the gouges
+    colorFloorDeep: '#0c0a0a'
   }
 };

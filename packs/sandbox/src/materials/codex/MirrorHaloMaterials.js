@@ -1,9 +1,10 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
-import { sharedUniforms } from '../../core/FrameUniforms.js';
+import { frame, sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 
 const ID = 'mirrorhalo';
 
@@ -701,6 +702,242 @@ export function createMirrorHaloDetailMaterial(rig = false) {
     u.uColorA.value.copy(getColor(c['color' + K + 'A']));
     u.uColorB.value.copy(getColor(c['color' + K + 'B']));
     u.uColorC.value.copy(getColor(c['color' + K + 'C']));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: mirror glass and the mirror pool                      */
+/* ------------------------------------------------------------------ */
+
+const MIRROR_PARS = /* glsl */ `
+uniform float uTime; uniform float uRim; uniform float uReflect; uniform float uSweep; uniform float uStreak;
+uniform float uFrame; uniform float uCrackGlow; uniform float uPulse;
+uniform vec3 uSky; uniform vec3 uEdgeColor; uniform vec3 uRimColor; uniform vec3 uCrackColor; uniform vec3 uDeep;
+varying float vEdge; varying vec2 vPane; varying vec3 vMW; varying vec2 vInst;
+float mirHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// Cell edges of a jittered grid: the crack network across a pane.
+float mirCells(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  float d1 = 8.0; float d2 = 8.0;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 o = vec2(float(x), float(y));
+    vec2 r = o + vec2(mirHash(i + o), mirHash(i + o + 17.3)) - f;
+    float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+  }
+  return sqrt(d2) - sqrt(d1);
+}
+// Half width of the cusped outline at height y (matches the geometry).
+float mirHalf(float y) { return y < 0.6 ? mix(0.42, 0.5, y / 0.6) : 0.5 * pow(max(0.0, (1.0 - y) / 0.4), 0.8); }
+`;
+
+/**
+ * The mirror glass, one material for every panel (instanced) and the central
+ * shard: a MeshStandardMaterial — sun-lit, shadow-casting, near-black plum
+ * glass-metal — patched with this cast's own read of a mirror: a fresnel rim
+ * in the spell hue, a fake reflection (the reflected view ray's height mixes
+ * the deep tone into a pink sky), a bright streak that sweeps across the
+ * panes in world space, a glowing inner frame along the cusped outline, and a
+ * per-instance crack network (`aInst.y`) that glows as the ring breaks.
+ */
+export function createMirrorGlassMaterial() {
+  const material = new MeshStandardMaterial({ color: 0x1d0a18, roughness: 0.12, metalness: 0.9, side: DoubleSide });
+  const uniforms = {
+    uTime: frame.uTime,
+    uRim: { value: 1 },
+    uReflect: { value: 0.6 },
+    uSweep: { value: 0.35 },
+    uStreak: { value: 1 },
+    uFrame: { value: 2 },
+    uCrackGlow: { value: 3 },
+    uPulse: { value: 0 },
+    uSky: { value: new Color() },
+    uEdgeColor: { value: new Color() },
+    uRimColor: { value: new Color() },
+    uCrackColor: { value: new Color() },
+    uDeep: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aEdge;\nattribute vec2 aPane;\nattribute vec2 aInst;\nvarying float vEdge;\nvarying vec2 vPane;\nvarying vec3 vMW;\nvarying vec2 vInst;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+vEdge = aEdge; vPane = aPane; vInst = aInst;
+{
+  vec4 mw = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+  mw = instanceMatrix * mw;
+  #endif
+  vMW = (modelMatrix * mw).xyz;
+}`
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${MIRROR_PARS}`)
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+{
+  vec3 N = normalize(normal);
+  vec3 V = normalize(vViewPosition);
+  float ndv = abs(dot(N, V));
+  float fres = pow(1.0 - ndv, 3.0);
+  // Fake reflection: the reflected ray's height mixes deep floor into pink sky.
+  vec3 Rv = reflect(-V, N);
+  vec3 refl = mix(uDeep, uSky, smoothstep(-0.25, 0.65, Rv.y));
+  // A streak that sweeps across the glass in world space.
+  float band = fract((vMW.x * 0.31 + vMW.z * 0.27 + vMW.y * 0.55) * 0.6 - uTime * uSweep);
+  float streak = smoothstep(0.07, 0.0, abs(band - 0.5)) * (1.0 - vEdge);
+  // The inner frame along the outline, and the bevel walls.
+  float px = abs(vPane.x - 0.5);
+  float d = min(mirHalf(vPane.y) - px, vPane.y);
+  float frameLine = max(vEdge * 0.2, smoothstep(0.018, 0.005, d));
+  // Cracks, per instance.
+  float crack = vInst.y;
+  float cells = mirCells(vPane * vec2(4.0, 5.5) + vInst.x * 13.0);
+  float crackLine = smoothstep(0.09 * crack, 0.0, cells) * step(0.01, crack);
+  float pulse = 1.0 + uPulse;
+  totalEmissiveRadiance += refl * uReflect * (1.0 - vEdge * 0.7);
+  totalEmissiveRadiance += uRimColor * fres * uRim * pulse;
+  totalEmissiveRadiance += uSky * streak * uStreak;
+  totalEmissiveRadiance += uEdgeColor * frameLine * uFrame * pulse * (0.85 + 0.15 * sin(uTime * 6.0 + vMW.y * 3.0));
+  totalEmissiveRadiance += uCrackColor * crackLine * uCrackGlow * (0.6 + crack);
+}`
+        );
+    },
+    'codex-mirrorhalo-glass'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (pulse) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uRim.value = c.mirrorRim * g.fresnel;
+    uniforms.uReflect.value = c.mirrorReflect;
+    uniforms.uSweep.value = c.mirrorSweep * g.animationSpeed;
+    uniforms.uStreak.value = c.mirrorStreak * g.glow;
+    uniforms.uFrame.value = c.mirrorFrame * g.glow;
+    uniforms.uCrackGlow.value = c.crackGlow * g.glow;
+    uniforms.uPulse.value = pulse;
+    uniforms.uSky.value.copy(getColor(c.colorMirrorSky));
+    uniforms.uEdgeColor.value.copy(getColor(c.colorA));
+    uniforms.uCrackColor.value.copy(getColor(c.colorCrack));
+    uniforms.uRimColor.value.copy(getColor(c.colorMirrorRim));
+    uniforms.uDeep.value.copy(getColor(c.colorMirrorFloor));
+    material.color.copy(getColor(c.colorMirror));
+    material.roughness = c.mirrorRough;
+    material.metalness = c.mirrorMetal;
+  };
+  return material;
+}
+
+const POOL_VERTEX = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vP = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const POOL_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uLand;
+  uniform float uOpen;
+  uniform float uHeat;
+  uniform float uErode;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uCracks;
+  uniform float uRim;     // true rim radius / pool radius
+  uniform float uSweep;
+  uniform vec3 uSky;
+  uniform vec3 uBody;
+  uniform vec3 uCrack;
+  uniform vec3 uDeep;
+  varying vec2 vP;
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vP);
+    if (r > 1.0 || r > uLand) discard;
+    float a = atan(vP.y, vP.x);
+    float n = snoise(vec3(vP * 3.0, uSeed));
+    // A filled sheet of dark mirror: near-black plum, a cold sheen sliding across it.
+    float body = smoothstep(1.0, 0.86, r + n * 0.06);
+    float sheen = smoothstep(0.22, 0.0, abs(fract(vP.x * 0.35 + vP.y * 0.55 - uTime * uSweep) - 0.5)) * 0.5;
+    float under = exp(-pow((r - uRim) / 0.07, 2.0));   // the wall's foot, where the rim bites the floor
+    vec3 col = mix(uDeep, uSky * 0.18, 0.25 + 0.3 * n);
+    col += uSky * sheen * 0.35;
+    // Radial cracks running out from the centre with uOpen, branching with noise.
+    float wob = snoise(vec3(r * 5.0, a * 1.5, uSeed + 2.0)) * 0.18;
+    float spoke = abs(fract((a / 6.2831853) * uCracks + wob) - 0.5) * 2.0;
+    float crack = smoothstep(0.06, 0.0, spoke * (0.5 + r * 1.5)) * step(r, uOpen);
+    float ringCrack = smoothstep(0.03, 0.0, abs(r - uOpen * 0.55 - n * 0.04)) * step(0.05, uOpen) * 0.6;
+    float hot = (crack + ringCrack) * uHeat + under * 0.06 * uHeat;
+    col += mix(uBody, uCrack, smoothstep(0.4, 1.0, hot)) * hot * uGlow;
+    float alpha = body * uOpacity * 0.94;
+    float erode = smoothstep(uErode * 1.2 - 0.2, uErode * 1.2, 1.0 - r + n * 0.3);
+    alpha *= mix(1.0, erode, step(0.001, uErode));
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/**
+ * The mirror pool: a filled disc of near-black glass under the circle that
+ * lands on the beat, carries a cold sheen, cracks out from the centre as the
+ * ring commits and glows where the wall stands, then breaks up from the rim.
+ */
+export function createMirrorPoolMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSeed: { value: 0 },
+      uLand: { value: 0 },
+      uOpen: { value: 0 },
+      uHeat: { value: 1 },
+      uErode: { value: 0 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uCracks: { value: 12 },
+      uRim: { value: 0.7 },
+      uSweep: { value: 0.3 },
+      uSky: { value: new Color() },
+      uBody: { value: new Color() },
+      uCrack: { value: new Color() },
+      uDeep: { value: new Color() }
+    }),
+    vertexShader: POOL_VERTEX,
+    fragmentShader: POOL_FRAGMENT
+  });
+  material.userData.sync = (seed, land, open, heat, erode, rim) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSeed.value = seed;
+    u.uLand.value = land;
+    u.uOpen.value = open;
+    u.uHeat.value = heat;
+    u.uErode.value = erode;
+    u.uRim.value = rim;
+    u.uOpacity.value = c.poolOpacity * g.opacity;
+    u.uGlow.value = c.poolGlow * g.glow;
+    u.uCracks.value = Math.max(3, Math.round(c.poolCracks));
+    u.uSweep.value = c.mirrorSweep * 0.5 * g.animationSpeed;
+    u.uSky.value.copy(getColor(c.colorMirrorSky));
+    u.uBody.value.copy(getColor(c.colorA));
+    u.uCrack.value.copy(getColor(c.colorCrack));
+    u.uDeep.value.copy(getColor(c.colorPoolDeep));
   };
   return material;
 }
