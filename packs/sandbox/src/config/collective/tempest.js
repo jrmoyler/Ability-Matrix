@@ -64,6 +64,25 @@ export default {
     wobble: 0.14, // noise on the radius, fraction
     wobbleScale: 1.6, // features per metre in that noise
 
+    /* --- the visible funnel (presentation only) ---
+       The lift above (height, baseRadius, topRadius, flare) is the gameplay
+       profile the bodies are carried along; the shell drawn on screen has its
+       own, narrower silhouette: a rope-thin foot that tapers up into a column
+       and only opens toward the top, which is kept inside the 8 m frame. */
+    funnelHeight: 3.95, // metres the drawn column stands — top stays under 4.3 m
+    funnelFoot: 0.32, // radius where the drawn funnel touches the floor, metres
+    funnelTop: 2.7, // radius at its lip, metres
+    funnelFlare: 2.3, // >1 stays a narrow column low and opens late
+    spiralBands: 3, // helical cloud bands wrapping the column
+    spiralTurns: 0.7, // turns each band makes from foot to lip
+    spiralWidth: 0.5, // 0..1 how much of the wall a band covers
+    spiralContrast: 0.85, // 0..1 how hard the bands cut the body
+    spiralLight: 0.34, // how far up the ramp a band's sun side climbs
+    spiralBulge: 0.08, // how far a band rolls out of the wall, fraction of the radius
+    throatDark: 0.6, // 0..1 how dark the inside of the funnel (seen through the lip) goes
+    rimLight: 0.75, // backlit edge on the silhouette, so the dark column reads against the night sky
+    dustSoftFade: 0.35, // metres — how softly the dust meets the floor (smaller = it sits on the ground)
+
     /* --- the two shells --- */
     spin: 1.15, // turns/second of the outer dust shell
     innerSpin: -1.7, // turns/second of the inner wind shell (negative = counter)
@@ -75,8 +94,8 @@ export default {
     bandScale: 2.4, // around-the-column frequency of the noise
     streak: 0.16, // along-the-spiral stretch (smaller = longer filaments)
     bandFrequency: 0.75, // horizontal bands per metre of height
-    bandContrast: 0.75, // 0..1 how strongly the bands cut the body
-    bandBulge: 0.16, // how far each cloud band rolls out of the wall, fraction of the radius
+    bandContrast: 0.55, // 0..1 how strongly the bands cut the body
+    bandBulge: 0.05, // how far each cloud band rolls out of the wall, fraction of the radius
     filament: 0.5, // 0..1 how much the ridged filaments carve the shell
     filamentSharp: 2.6, // filament tightness
     rimPower: 1.4, // facing ratio exponent — shells are densest edge-on
@@ -84,7 +103,7 @@ export default {
 
     /* --- fades --- */
     floorFade: 0.35, // metres over which the funnel fades into the floor
-    topFade: 0.22, // fraction of the height that feathers out at the lip
+    topFade: 0.38, // fraction of the height that feathers out at the lip
     softFade: 0.6, // metres — soft intersection against scene geometry
     collapseTime: 1.1, // seconds the funnel takes to thin out from the bottom up
     collapseSoft: 0.22, // width of the dissolving edge, fraction of the height
@@ -93,17 +112,17 @@ export default {
     /* --- look --- */
     outerOpacity: 0.95,
     outerDensity: 2.6, // dust shell alpha multiplier: a tornado is mostly dirt and has weight
-    sunLift: 0.35, // how far the sun-side of each band roll climbs the ramp — form against the night sky
-    bodyFloor: 0.72, // 0..1 the least opacity anywhere on the dust shell — a column, not a veil
+    sunLift: 0.16, // how far the sun-side of each band roll climbs the ramp — form against the night sky
+    bodyFloor: 0.86, // 0..1 the least opacity anywhere on the dust shell — a column, not a veil
     innerOpacity: 0.08,
     innerGlow: 0.3, // emissive gain of the additive wind shell
     filamentGlow: 0.7, // how much brighter a filament is than the body
     colorFunnelBase: "#2e251b", // dust-dark where it scours the floor
-    colorFunnelMid: "#33434d", // the body — storm slate
-    colorFunnelTop: "#8499a4", // pale where it thins into cloud
-    colorFilament: "#c2d3da", // filament highlights
+    colorFunnelMid: "#2c363d", // the body — storm slate
+    colorFunnelTop: "#5c6a73", // pale where it thins into cloud
+    colorFilament: "#9fb1ba", // filament highlights
     colorWind: "#5f9fb3", // inner wind shell
-    colorFunnelDeep: "#05080b", // storm-dark deep stop between filaments and bands
+    colorFunnelDeep: "#06090c", // storm-dark deep stop between filaments and bands
     deepMix: 0.85, // 0..1 how far the gaps between filaments fall to it
     innerDeepMix: 0.5, // the same on the additive wind shell (darker = less glow)
     bandDark: 0.85, // 0..1 how dark the gaps between the cloud bands go
@@ -112,18 +131,23 @@ export default {
     /* 3 · THE DUST SKIRT                                                */
     /* ================================================================ */
     skirtRadius: 2.4, // metres the dust spreads at the base
-    skirtRate: 200, // puffs/second
-    skirtSize: 1.35,
+    skirtRate: 110, // puffs/second
+    skirtSize: 1.0,
     skirtSpeed: 2.6, // how hard it is thrown outward
     skirtLifetime: 1.7,
-    skirtOpacity: 0.8,
+    skirtOpacity: 0.7,
     skirtSwirl: 2.2, // rad/s it is wound round the base
     skirtExpand: 0.9, // how far the swirl spreads over a puff's life
-    skirtRise: 0.35, // m/s
+    skirtRise: 0.12, // m/s
     skirtTurbulence: 0.7,
     ringInterval: 0.32, // seconds between dust-ring decals at the base
     ringLife: 1.4,
     ringIntensity: 0.55,
+    /* --- the ground-contact cloud: a dark collar of dirt hugging the foot --- */
+    footCloudRate: 320, // puffs/second boiling round the foot
+    footCloudSize: 1.4, // puff size
+    footCloudHeight: 0.7, // metres it hugs the floor to
+    footCloudSpread: 3.2, // radius it is thrown to, × the drawn foot radius
 
     /* --- the scoured floor (a field shader, stays for the linger) --- */
     scourRadius: 1.45, // × skirtRadius
@@ -139,6 +163,7 @@ export default {
     telegraphScour: 0.35, // the floor at the circle is already raked this far as the devil arrives
     telegraphDust: 90, // dust/second drawn in and wound up at the circle during travel
     telegraphRadius: 0.9, // × skirtRadius
+    scourHold: 0.65, // 0..1 how much of the collapse the scoured floor survives before it fades
     colorScourDeep: "#0d0f12",
     colorScourBody: "#3b3226",
     colorScourTint: "#9c8b70",
@@ -153,20 +178,20 @@ export default {
     /* ================================================================ */
     /* 4 · DEBRIS                                                        */
     /* ================================================================ */
-    debrisRate: 210, // chips/second fed into the column
+    debrisRate: 260, // chips/second fed into the column
     debrisSize: 0.4,
-    debrisClimb: 5.5, // m/s the debris climbs
-    debrisDrag: 0.45, // how soon it stalls high in the column
+    debrisClimb: 4.2, // m/s the debris climbs
+    debrisDrag: 0.7, // how soon it stalls high in the column
     debrisSwirl: 3.4, // rad/s it orbits
     debrisExpand: 1.6, // how far the orbit opens as it climbs
     debrisLifetime: 2.2,
     debrisGravity: -0.6,
     debrisFling: 110, // chips thrown out when the column collapses
     debrisFlingSpeed: 11,
-    colorDebrisA: "#b09a7a",
-    colorDebrisB: "#8a775d",
-    colorDebrisC: "#5a5045",
-    colorDebrisD: "#3a352f",
+    colorDebrisA: "#8f7d63",
+    colorDebrisB: "#6c5d4a",
+    colorDebrisC: "#463e35",
+    colorDebrisD: "#2a2621",
 
     /* ================================================================ */
     /* 5 · WIND STREAKS                                                  */
