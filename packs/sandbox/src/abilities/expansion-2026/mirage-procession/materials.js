@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, FrontSide, NormalBlending, ShaderMaterial } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, MeshPhysicalMaterial, NormalBlending, ShaderMaterial } from 'three';
 import { noiseGLSL } from '../../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../../core/FrameUniforms.js';
@@ -9,11 +9,11 @@ import config from './config.js';
 /**
  * Mirage Procession — the bespoke shaders.
  *
- *  - **the mask** — holographic lacquer: a thin-film iridescence that turns
- *    with the viewing angle and a slow fbm, scan bands running up the face,
- *    and slice glitches that shear horizontal strips of the mask sideways in
- *    the vertex stage. It dissolves through a noise threshold with a burning
- *    edge as the procession breaks up.
+ *  - **the carved face** — lit dark lacquer (`MeshPhysicalMaterial` +
+ *    clearcoat, patched): a camera-side modelling key, a gilded border with
+ *    a magenta glow and a running scan band, magenta fire on the eye-hole
+ *    rims and in the mouth slit, slice glitches in the vertex stage, and a
+ *    noise dissolve with a white-hot edge for the appear and the burn-away.
  *  - **the engraving** — glints running along each filigree stroke (`aT`).
  *  - **the veil** — a silk ribbon fluttered, swayed and drooped in the
  *    vertex stage, iridescent at its edges and thinning toward the hem.
@@ -48,158 +48,229 @@ const FILM_GLSL = /* glsl */ `
 `;
 
 /* -------------------------------------------------------------------- */
-/* The mask                                                             */
+/* The carved face (the hero)                                           */
 /* -------------------------------------------------------------------- */
 
-const MASK_VERTEX = /* glsl */ `
-  uniform float uClock;
-  uniform float uGlitch;
-  varying vec3 vNormalW;
-  varying vec3 vViewDir;
-  varying vec3 vLocal;
-
-  ${noiseGLSL}
-
-  void main() {
-    vec3 q = position;
-    // A gentle ripple, then slice glitches: a horizontal strip of the face
-    // jumps sideways for a few frames at a time.
-    q.x += sin(uClock * 4.0 + position.y * 9.0) * 0.02;
-    float strip = floor(position.y * 14.0);
-    float tick = floor(uClock * 9.0);
-    float slice = step(0.93, hash11(strip * 7.13 + tick * 1.31));
-    q.x += slice * (hash11(strip + tick) - 0.5) * 0.12 * uGlitch;
-    vLocal = position;
-    vec4 world = modelMatrix * vec4(q, 1.0);
-    vNormalW = normalize(mat3(modelMatrix) * normal);
-    vViewDir = cameraPosition - world.xyz;
-    gl_Position = projectionMatrix * viewMatrix * world;
+/**
+ * The face is mirrored from `geometry.js` (`FACE_EYE`, `FACE_MOUTH`): the
+ * shader finds the eye holes and the mouth slit from the object-space
+ * position so the glow sits exactly on the cut rims.
+ */
+const FACE_HOLES_GLSL = /* glsl */ `
+  float mpEyeDist(vec2 p) {
+    vec2 e = vec2(abs(p.x) - 0.2, p.y - 0.1);
+    float cs = cos(0.2), sn = sin(0.2);
+    e = vec2(e.x * cs + e.y * sn, -e.x * sn + e.y * cs);
+    return (length(e / vec2(0.105, 0.05)) - 1.0) * 0.045;
   }
-`;
-
-const MASK_FRAGMENT = /* glsl */ `
-  uniform float uClock;
-  uniform float uFade;
-  uniform float uDissolve;
-  uniform float uEdgeWidth;
-  uniform float uGlow;
-  uniform float uOpacity;
-  uniform float uFilm;
-  uniform float uScan;
-  uniform float uFresnel;
-  uniform float uShade;
-  uniform float uSpecular;
-  uniform float uHeat;
-  uniform float uDeepBias;
-  uniform vec3  uCore;
-  uniform vec3  uColor;
-  uniform vec3  uEdge;
-  uniform vec3  uDeep;
-  uniform float uGlobalGlow;
-  uniform float uShaderIntensity;
-
-  varying vec3 vNormalW;
-  varying vec3 vViewDir;
-  varying vec3 vLocal;
-
-  ${noiseGLSL}
-  ${commonGLSL}
-  ${FILM_GLSL}
-
-  void main() {
-    float n = fbm3(vLocal * 3.0 + vec3(0.0, 0.0, uClock * 0.2));
-    vec2 dm = dissolveMask(n * 0.5 + 0.5 * snoise01(vLocal * 9.0), uDissolve, uEdgeWidth);
-    if (dm.x < 0.5 && dm.y < 0.01) discard;
-    vec3 N = normalize(vNormalW);
-    if (!gl_FrontFacing) N = -N;
-    vec3 V = normalize(vViewDir);
-    // A fixed key from above and to the side models the sculpt: the deep stop
-    // fills every hollow (eye sockets, under the brow, the jaw), the
-    // saturated lacquer takes the lit planes, the pale tint only the rim.
-    vec3 L = normalize(vec3(0.3, 0.9, -0.3));
-    float lam = max(0.0, dot(N, L));
-    float rim = fresnelTerm(V, N, 2.4, uFresnel);
-    float bands = pow(max(0.0, cos(vLocal.y * 22.0 - uClock * uScan)), 30.0) * uShaderIntensity;
-    // Ramp index (gradient4: 0 core, ~0.33 pale, ~0.5 body, 1 deep): the
-    // vertical face sits in the deep plum, planes turned to the key light
-    // come up to the saturated lacquer, only the grazing rim reaches pale.
-    float lower = smoothstep(0.3, -0.7, vLocal.y) * 0.08; // the jaw falls into shadow
-    float t = 0.99 - mix(0.2, lam, uShade) * 0.45 - min(rim, 1.0) * 0.12 - n * 0.06 + lower + uDeepBias;
-    vec3 col = gradient4(uCore, uEdge, uColor, uDeep, clamp(t, 0.5, 1.0));
-    // The pale tint is a thin grazing rim only.
-    col = mix(col, uEdge, smoothstep(0.7, 1.3, rim) * 0.75);
-    vec3 film = thinFilm(rim * 0.9 + n * 0.4 + uClock * 0.05) * uEdge;
-    col = mix(col, film, uFilm * smoothstep(0.4, 1.2, rim) * 0.6);
-    float spec = pow(max(0.0, dot(reflect(-V, N), L)), 48.0) * uSpecular;
-    // HDR only in the core: glints, scan bands, the burning edge.
-    col += uCore * (spec + bands * 0.08 + dm.y * 2.5);
-    col += uColor * uHeat;
-    float alpha = (0.92 + rim * 0.08) * uFade * uOpacity;
-    gl_FragColor = vec4(col * uGlow * uGlobalGlow, clamp(alpha, 0.0, 1.0));
+  float mpMouthDist(vec2 p) {
+    float u = p.x / 0.17;
+    float dy = p.y + 0.37 - 0.02 * u * u;
+    return (length(vec2(u, dy / 0.026)) - 1.0) * 0.024;
+  }
+  float mpHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+  float mpNoise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(mpHash(i), mpHash(i + vec3(1, 0, 0)), f.x), mix(mpHash(i + vec3(0, 1, 0)), mpHash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(mpHash(i + vec3(0, 0, 1)), mpHash(i + vec3(1, 0, 1)), f.x), mix(mpHash(i + vec3(0, 1, 1)), mpHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
   }
 `;
 
 /**
- * Holographic lacquer shared by all three masks: a solid, key-lit shell on the
- * cast's four-stop ramp (normal blend, writes depth) so the deep stop carries
- * the body against the dark floor; the core only lives in the glints.
+ * The carved theatrical face: lit lacquer (`MeshPhysicalMaterial`, clearcoat
+ * varnish, on `LAYER.WORLD`, casting shadows) patched with
+ *  - a camera-side key in the emissive so brow, nose bridge and cheekbones
+ *    model even on the night stage, the hollows staying near-black;
+ *  - gilding round the border (`aEdge`): metal, with a magenta emissive and
+ *    a scan band running round it;
+ *  - magenta fire on the eye-hole rims (HDR at the cut) and an ember in the
+ *    mouth slit — the only places the saturated body colour appears;
+ *  - a noise dissolve (appear and burn-away) with a white-hot edge;
+ *  - slice glitches in the vertex stage;
+ *  - `heat` for the true-strike copy: eyes and gilding blaze, a magenta
+ *    fresnel aura — the lacquer itself stays dark.
  */
-export function createMaskMaterial() {
-  const material = new ShaderMaterial({
-    transparent: true,
-    depthWrite: true,
-    depthTest: true,
-    blending: NormalBlending,
-    side: DoubleSide,
-    toneMapped: false,
-    uniforms: sharedUniforms({
-      // The cast's own clock (frozen under reduced motion, scaled by the
-      // global animation speed) — not the shared frame time.
-      uClock: { value: 0 },
-      uFade: { value: 1 },
-      uDissolve: { value: 0 },
-      uEdgeWidth: { value: 0.08 },
-      uGlitch: { value: 1 },
-      uGlow: { value: 1 },
-      uOpacity: { value: 1 },
-      uFilm: { value: 0.8 },
-      uScan: { value: 7 },
-      uFresnel: { value: 1 },
-      uShade: { value: 0.75 },
-      uSpecular: { value: 1.2 },
-      uHeat: { value: 0 },
-      uDeepBias: { value: 0 },
-      uCore: { value: new Color() },
-      uColor: { value: new Color() },
-      uEdge: { value: new Color() },
-      uDeep: { value: new Color() },
-    }),
-    vertexShader: MASK_VERTEX,
-    fragmentShader: MASK_FRAGMENT,
-  });
+export function createFaceMaterial() {
+  const material = new MeshPhysicalMaterial({ color: 0x3a1838, roughness: 0.34, metalness: 0.12, clearcoat: 1, clearcoatRoughness: 0.12, side: DoubleSide });
+  const u = {
+    uMpClock: { value: 0 },
+    uMpDissolve: { value: 0 },
+    uMpEdgeW: { value: 0.08 },
+    uMpGlitch: { value: 0 },
+    uMpKey: { value: 0.6 },
+    uMpRim: { value: 0.4 },
+    uMpSpec: { value: 0.8 },
+    uMpGild: { value: 1.3 },
+    uMpGildW: { value: 0.045 },
+    uMpGildMetal: { value: 0.85 },
+    uMpEye: { value: 3 },
+    uMpEyeSpread: { value: 0.045 },
+    uMpMouth: { value: 1 },
+    uMpHeat: { value: 0 },
+    uMpScan: { value: 7 },
+    uMpFilm: { value: 0.8 },
+    uMpGlow: { value: 1 },
+    uMpDeepBias: { value: 0 },
+    uMpCore: { value: new Color() },
+    uMpPale: { value: new Color() },
+    uMpBody: { value: new Color() },
+    uMpDeep: { value: new Color() },
+    uMpLacquer: { value: new Color() },
+  };
+  material.userData.uniforms = u;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float aEdge;
+        uniform float uMpClock;
+        uniform float uMpGlitch;
+        varying vec3 vMpLocal;
+        varying float vMpEdge;
+        float mpVHash(float p) { return fract(sin(p * 91.345) * 47453.5453); }`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vMpLocal = position;
+        vMpEdge = aEdge;
+        {
+          // Slice glitches: a horizontal strip of the face jumps sideways.
+          float strip = floor(position.y * 14.0);
+          float tick = floor(uMpClock * 9.0);
+          float slice = step(0.94, mpVHash(strip * 7.13 + tick * 1.31));
+          transformed.x += slice * (mpVHash(strip + tick) - 0.5) * 0.1 * uMpGlitch;
+        }`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vMpLocal;
+        varying float vMpEdge;
+        uniform float uMpClock;
+        uniform float uMpDissolve;
+        uniform float uMpEdgeW;
+        uniform float uMpKey;
+        uniform float uMpRim;
+        uniform float uMpSpec;
+        uniform float uMpGild;
+        uniform float uMpGildW;
+        uniform float uMpGildMetal;
+        uniform float uMpEye;
+        uniform float uMpEyeSpread;
+        uniform float uMpMouth;
+        uniform float uMpHeat;
+        uniform float uMpScan;
+        uniform float uMpFilm;
+        uniform float uMpGlow;
+        uniform float uMpDeepBias;
+        uniform vec3 uMpCore;
+        uniform vec3 uMpPale;
+        uniform vec3 uMpBody;
+        uniform vec3 uMpDeep;
+        uniform vec3 uMpLacquer;
+        ${FACE_HOLES_GLSL}`
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        // Dissolve (appear and burn-away): grain at two scales.
+        float mpN = mpNoise(vMpLocal * 7.0 + vec3(0.0, 0.0, uMpClock * 0.15)) * 0.65 + mpNoise(vMpLocal * 23.0) * 0.35;
+        float mpCut = mpN - uMpDissolve;
+        if (uMpDissolve > 0.001 && mpCut < 0.0) discard;
+        float mpBurn = uMpDissolve > 0.001 ? 1.0 - smoothstep(0.0, uMpEdgeW, mpCut) : 0.0;
+        float mpGild = 1.0 - smoothstep(uMpGildW * 0.6, uMpGildW, vMpEdge);
+        float mpEyeD = max(mpEyeDist(vMpLocal.xy), 0.0);
+        float mpEye = exp(-mpEyeD / max(0.002, uMpEyeSpread)) * (1.0 - smoothstep(uMpEyeSpread * 2.0, uMpEyeSpread * 4.0, mpEyeD));
+        float mpMouthD = max(mpMouthDist(vMpLocal.xy), 0.0);
+        float mpMouth = exp(-mpMouthD / max(0.002, uMpEyeSpread * 0.6)) * (1.0 - smoothstep(uMpEyeSpread * 1.2, uMpEyeSpread * 2.4, mpMouthD));`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        diffuseColor.rgb = mix(uMpLacquer, uMpDeep, clamp(uMpDeepBias * 2.0, 0.0, 1.0));
+        diffuseColor.rgb = mix(diffuseColor.rgb, uMpLacquer * 1.6, clamp(-uMpDeepBias * 2.0, 0.0, 1.0));
+        // Gilding: a pale-metal border; eye rims darken to soot round the fire.
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(uMpPale, uMpBody, 0.35) * 0.6, mpGild);
+        diffuseColor.rgb *= 1.0 - 0.6 * mpEye;`
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        `#include <metalnessmap_fragment>
+        metalnessFactor = mix(metalnessFactor, uMpGildMetal, mpGild);`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          vec3 mpN3 = normalize(normal);
+          vec3 mpV = normalize(vViewPosition);
+          // A key from above-right of the camera: lit planes come up to a
+          // mauve lacquer, hollows (sockets, under the brow, the cheeks) stay
+          // in the deep stop.
+          vec3 mpL = normalize(vec3(0.7, 0.55, 0.45));
+          float mpLam = max(0.0, dot(mpN3, mpL));
+          float mpFres = pow(1.0 - clamp(dot(mpN3, mpV), 0.0, 1.0), 3.0);
+          vec3 mpLit = uMpLacquer * 3.0 + vec3(0.1, 0.075, 0.1);
+          vec3 mpE = mix(uMpDeep * 0.3, mpLit, pow(mpLam, 1.6)) * uMpKey * (1.0 - mpGild * 0.5);
+          float mpGlint = pow(max(0.0, dot(reflect(-mpV, mpN3), mpL)), 60.0) * uMpSpec;
+          mpE += uMpCore * mpGlint * 0.6 * (1.0 - mpEye);
+          mpE += uMpPale * mpFres * uMpRim * 0.35;
+          // Gilding: magenta glow, a pale scan band running round it.
+          float mpBand = pow(max(0.0, cos(atan(vMpLocal.y, vMpLocal.x) * 3.0 - uMpClock * uMpScan * 0.4)), 16.0);
+          vec3 mpFilm = 0.5 + 0.5 * cos(6.2831853 * (vec3(0.0, 0.33, 0.67) + mpFres * 0.9 + uMpClock * 0.05));
+          vec3 mpGildCol = mix(uMpBody, uMpPale * mpFilm, uMpFilm * 0.35) * (0.55 + 0.6 * mpBand);
+          mpE += mpGildCol * mpGild * uMpGild;
+          // Eyes: magenta fire, white-hot right at the cut.
+          vec3 mpEyeCol = mix(uMpBody, uMpCore, mpEye * mpEye * mpEye * 0.35);
+          float mpFlick = 0.85 + 0.15 * sin(uMpClock * 11.0 + vMpLocal.x * 9.0);
+          mpE += mpEyeCol * mpEye * uMpEye * mpFlick;
+          mpE += uMpBody * mpMouth * uMpMouth;
+          // The true strike: eyes and gilding blaze, a magenta aura on the rim.
+          mpE += uMpBody * uMpHeat * (mpEye * 2.0 + mpGild * 1.5 + mpFres * 1.2);
+          mpE += uMpCore * mpBurn * 2.5;
+          totalEmissiveRadiance += mpE * uMpGlow;
+        }`
+      );
+  };
+  material.customProgramCacheKey = () => 'mirage-procession-face';
   /** @param {object} s { clock, fade, dissolve, calm, heat? } */
   material.userData.sync = (s) => {
     const c = settings[ID];
     const g = settings.global;
-    const u = material.uniforms;
-    u.uClock.value = s.clock;
-    u.uFade.value = s.fade;
-    u.uDissolve.value = s.dissolve;
-    u.uEdgeWidth.value = c.dissolveEdge;
-    u.uGlitch.value = s.calm ? 0 : c.glitch * g.randomness;
-    u.uGlow.value = c.maskGlow * g.glow;
-    u.uOpacity.value = c.maskOpacity * g.opacity;
-    u.uFilm.value = c.filmStrength;
-    u.uScan.value = s.calm ? 0 : c.scanSpeed * g.noiseSpeed;
-    u.uFresnel.value = g.fresnel;
-    u.uShade.value = c.maskShade;
-    u.uSpecular.value = c.maskSpecular;
-    u.uHeat.value = s.heat ?? 0;
-    u.uDeepBias.value = c.maskDeep;
-    u.uCore.value.copy(getColor(c.coreColor));
-    u.uColor.value.copy(getColor(c.maskColor));
-    u.uEdge.value.copy(getColor(c.edgeColor));
-    u.uDeep.value.copy(getColor(c.deepColor));
+    material.color.copy(getColor(c.maskLacquer));
+    material.roughness = c.maskRoughness;
+    material.metalness = c.maskMetalness;
+    material.clearcoat = c.maskClearcoat;
+    // Appear materialises through the same dissolve the burn-away uses.
+    const cover = Math.max(0, Math.min(1, s.fade * c.maskOpacity * g.opacity));
+    u.uMpDissolve.value = Math.max(s.dissolve, 1.02 * (1 - cover));
+    u.uMpClock.value = s.clock;
+    u.uMpEdgeW.value = c.dissolveEdge;
+    u.uMpGlitch.value = s.calm ? 0 : c.glitch * g.randomness;
+    u.uMpKey.value = c.maskKeyFill * c.maskShade;
+    u.uMpRim.value = c.maskRimLight * g.fresnel;
+    u.uMpSpec.value = c.maskSpecular;
+    u.uMpGild.value = c.gildGlow * g.shaderIntensity;
+    u.uMpGildW.value = c.gildWidth;
+    u.uMpGildMetal.value = c.gildMetal;
+    u.uMpEye.value = c.eyeGlow * g.shaderIntensity;
+    u.uMpEyeSpread.value = c.eyeSpread;
+    u.uMpMouth.value = c.mouthGlow * g.shaderIntensity;
+    u.uMpHeat.value = s.heat ?? 0;
+    u.uMpScan.value = s.calm ? 0 : c.scanSpeed * g.noiseSpeed;
+    u.uMpFilm.value = c.filmStrength;
+    u.uMpGlow.value = c.maskGlow * g.glow;
+    u.uMpDeepBias.value = c.maskDeep;
+    u.uMpCore.value.copy(getColor(c.coreColor));
+    u.uMpPale.value.copy(getColor(c.edgeColor));
+    u.uMpBody.value.copy(getColor(c.maskColor));
+    u.uMpDeep.value.copy(getColor(c.deepColor));
+    u.uMpLacquer.value.copy(getColor(c.maskLacquer));
   };
   return material;
 }

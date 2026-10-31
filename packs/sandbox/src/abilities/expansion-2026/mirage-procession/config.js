@@ -41,8 +41,8 @@ export default {
     spin: 2,
 
     /* --- light --- */
-    lightColor: '#ff9ad8',
-    lightIntensity: 5,
+    lightColor: '#d8a8cc', // a dusky tint: the faces stay dark lacquer, magenta lives in eyes and gilding
+    lightIntensity: 2.5,
     lightRadius: 9,
     finaleLight: 3, // light punch when the masks shatter (× explosion intensity)
     contactLight: 4, // light punch on a committed hit
@@ -59,7 +59,7 @@ export default {
     trailColor: '#7a2fc4', // wakes and veils (saturated violet)
 
     /* --- 1 · the masks --- */
-    maskSize: 1.6, // mask scale — a body-height hero that reads at 8 m
+    maskSize: 1.55, // mask scale — a body-height carved face (≈1.5 × 2.2 m) that reads at 8 m
     maskHeight: 1.45, // floats at (m)
     maskBob: 0.14, // bob height (m)
     maskSway: 0.16, // sway (rad)
@@ -70,6 +70,20 @@ export default {
     maskDeep: 0.0, // pushes the lacquer toward the deep stop (ramp units)
     maskHold: 0.55, // fraction of the linger the fallen masks hold before they burn away
     maskRear: 0.35, // the masks rear up before they fall (m)
+    /* the carved face: dark lit lacquer; magenta lives only in the eyes and the gilding */
+    maskLacquer: '#181116', // lacquer albedo (lit by the scene sun; dark plum-black)
+    maskRoughness: 0.55, // lacquer roughness
+    maskMetalness: 0.12, // lacquer metalness
+    maskClearcoat: 0.5, // the varnish coat over the lacquer (sharp sun glints)
+    maskKeyFill: 0.8, // camera-side key that models brow, nose and cheekbones on the night stage
+    maskRimLight: 0.35, // pale grazing rim that cuts the silhouette off the floor
+    maskTurn: 0.32, // outer masks turned three-quarter toward the centre (rad)
+    gildWidth: 0.045, // gilded border round the face (local units, × size)
+    gildGlow: 1.1, // emissive magenta in the gilding
+    gildMetal: 0.85, // metalness of the gilded border
+    eyeGlow: 3.2, // magenta fire in the eye holes (HDR at the inner rim)
+    eyeSpread: 0.018, // how far the eye glow bleeds onto the socket (local units)
+    mouthGlow: 1.0, // ember in the mouth slit
     maskRestHeight: 0.5, // fallen mask's centre rests at (m, × size)
     fallTilt: 0.6, // the fallen mask leans back this far (rad; π/2 lies flat)
     maskSink: 0.22, // fallen mask sinks into its pool over the linger (m, × size)
@@ -78,9 +92,9 @@ export default {
     fallTime: 0.45, // fraction of the impact beat the fall takes
     maskOpacity: 1,
     filmStrength: 0.8, // thin-film iridescence on the rims
-    glitch: 1, // slice glitches across the face
+    glitch: 0.5, // slice glitches across the face
     scanSpeed: 7, // holographic scan bands run at
-    engravingGlow: 1.4, // filigree brightness
+    engravingGlow: 0.9, // filigree brightness
     dissolveEdge: 0.08, // burn edge width of the dissolve
 
     /* --- 2 · the veils --- */

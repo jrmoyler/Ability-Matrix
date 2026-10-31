@@ -25,8 +25,8 @@ import {
 } from './geometry.js';
 import {
   createEngravingMaterial,
+  createFaceMaterial,
   createGlitterMaterial,
-  createMaskMaterial,
   createPoolMaterial,
   createShardMaterial,
   createShimmerMaterial,
@@ -92,10 +92,13 @@ const smooth = (a, b, x) => {
  *
  * ## Layers (each a folder in the editor)
  *
- *   1. **the masks** (`createMaskMaterial`) — a sculpted half-face (curved,
- *      with nose, brow and cheeks) in holographic lacquer: thin-film rims,
- *      scan bands, slice glitches, noise dissolve with a burning edge; the
- *      engraving (`createEngravingMaterial`) glints along its strokes.
+ *   1. **the masks** (`createFaceMaterial`) — a carved theatrical face
+ *      (domed brow, arched brow ridge, sunk sockets, eye holes cut through,
+ *      nose bridge to a proud tip, hard cheekbones, lips round a mouth slit,
+ *      chin) in lit dark lacquer on `LAYER.WORLD`, casting shadows; magenta
+ *      only in the eye fire, the mouth ember and the gilded border. Outer
+ *      masks stand three-quarter so the carving reads. The engraving
+ *      (`createEngravingMaterial`) glints along its strokes.
  *   2. **the veils** (`createVeilMaterial`) — silk ribbons fluttered and
  *      drooped in the vertex stage.
  *   3. **the wakes** (`createWakeMaterial`) — heat-shimmer bands down each
@@ -112,8 +115,8 @@ const smooth = (a, b, x) => {
  *   8. **the pools** (`createPoolMaterial`) — the linger: deep lacquer under
  *      each fallen mask, swirling veins, rolling ripple fronts, a pale lip.
  *   9. **the true strike** — at a committed hit the real mask lunges out of
- *      the struck body: a larger copy of the mask in hot saturated lacquer
- *      that drives down the line and burns away (pooled, four slots), with a
+ *      the struck body: a larger copy of the face whose eyes and gilding blaze
+ *      with a magenta aura, that drives down the line and burns away (pooled, four slots), with a
  *      shockwave, a body-coloured flash and a knock. It only ever answers a
  *      hit that landed, so it never betrays the lane before the strike.
  *
@@ -173,7 +176,7 @@ export class Ability extends BaseAbility {
     this.root = new Group();
     this.group.add(this.root);
 
-    this.maskMat = own(createMaskMaterial());
+    this.maskMat = own(createFaceMaterial());
     this.wakeMat = own(createWakeMaterial());
     this.engravingMat = own(createEngravingMaterial());
     this.veilMat = own(createVeilMaterial());
@@ -189,11 +192,13 @@ export class Ability extends BaseAbility {
       const m = new Mesh(mask, this.maskMat);
       m.add(new LineSegments(engraving, this.engravingMat));
       const v = new Mesh(veil, this.veilMat);
-      v.position.set(0, 0.52, -0.06); // hung from the crown, behind the face
+      v.position.set(0, 0.6, -0.16); // hung from the crown, behind the face
       v.rotation.y = Math.PI; // a plume streaming off the back of the head
       v.frustumCulled = false;
       m.add(v);
       m.position.y = 1.2;
+      m.castShadow = true;
+      m.receiveShadow = true;
       m.renderOrder = 6;
       this.root.add(m);
       this.masks.push(m);
@@ -239,7 +244,7 @@ export class Ability extends BaseAbility {
     this._strikeTimes = [];
     this._strikePos = [];
     for (let i = 0; i < MAX_STRIKES; i++) {
-      const strike = new Mesh(mask, own(createMaskMaterial()));
+      const strike = new Mesh(mask, own(createFaceMaterial()));
       strike.visible = false;
       strike.frustumCulled = false;
       strike.renderOrder = 9;
@@ -273,6 +278,9 @@ export class Ability extends BaseAbility {
     this._shimmerState = { clock: 0, strength: 0, span: 6 };
 
     routeExpansionTransparency(this.group);
+    // The carved faces are solid lit lacquer: world layer, shadows on.
+    for (const m of this.masks) m.layers.set(LAYER.WORLD);
+    for (const strike of this.strikes) strike.layers.set(LAYER.WORLD);
     this.shimmer.layers.set(LAYER.DISTORTION);
     this._disposed = false;
   }
@@ -630,7 +638,12 @@ export class Ability extends BaseAbility {
       // The masks walk the line looking back at the caster (yaw π); rearing
       // tips the face up, the fall drops it back onto its pool at
       // `fallTilt`, still presenting the face; there it turns and sinks.
-      m.rotation.set(0.3 * rear * (1 - drop) + c.fallTilt * drop, Math.PI + Math.sin(clock * 2 + i) * sway * (1 - fall), (this.phase === 'fade' ? c.maskLieSpin * fadeT : 0) * (i % 2 ? 1 : -1));
+      // Outer masks stand three-quarter, turned toward the centre (mirror-
+      // symmetric, so the pose never tells the true lane), so the carving —
+      // brow, nose, cheekbones — reads in relief.
+      const turn = -lane * (c.maskTurn ?? 0) * (1 - 0.5 * drop);
+      m.rotation.set(0.3 * rear * (1 - drop) + c.fallTilt * drop, Math.PI + turn + Math.sin(clock * 2 + i) * sway * (1 - fall), (this.phase === 'fade' ? c.maskLieSpin * fadeT : 0) * (i % 2 ? 1 : -1));
+      m.castShadow = ms.dissolve < 0.5 && appear > 0.5;
       m.scale.setScalar(size);
       w.position.set(lane * c.laneGap, 0.04, front * 0.5);
       w.scale.set(c.hitWidth * 2, Math.max(0.01, front), 1);
@@ -797,6 +810,19 @@ export function buildEditor(gui, c, Editor) {
   R(masks, c, 'maskSink', 0, 1.5, 0.01, 'sinks in its pool (× size)');
   R(masks, c, 'maskLieSpin', -3, 3, 0.01, 'turns in its pool (rad)');
   R(masks, c, 'maskOpacity', 0, 2, 0.01, 'opacity');
+  color(masks, c, 'maskLacquer', 'lacquer albedo');
+  R(masks, c, 'maskRoughness', 0, 1, 0.01, 'lacquer roughness');
+  R(masks, c, 'maskMetalness', 0, 1, 0.01, 'lacquer metalness');
+  R(masks, c, 'maskClearcoat', 0, 1, 0.01, 'varnish coat');
+  R(masks, c, 'maskKeyFill', 0, 3, 0.01, 'modelling key');
+  R(masks, c, 'maskRimLight', 0, 3, 0.01, 'rim light');
+  R(masks, c, 'maskTurn', -1, 1, 0.01, 'three-quarter turn (rad)');
+  R(masks, c, 'gildWidth', 0, 0.2, 0.001, 'gilded border width');
+  R(masks, c, 'gildGlow', 0, 6, 0.05, 'gilding glow');
+  R(masks, c, 'gildMetal', 0, 1, 0.01, 'gilding metalness');
+  R(masks, c, 'eyeGlow', 0, 12, 0.05, 'eye fire');
+  R(masks, c, 'eyeSpread', 0.005, 0.2, 0.001, 'eye glow spread');
+  R(masks, c, 'mouthGlow', 0, 6, 0.05, 'mouth ember');
   R(masks, c, 'filmStrength', 0, 1, 0.01, 'iridescence');
   R(masks, c, 'glitch', 0, 3, 0.01, 'slice glitch');
   R(masks, c, 'scanSpeed', 0, 20, 0.1, 'scan speed');
