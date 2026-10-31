@@ -1,15 +1,19 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Euler, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, SphereGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createImpulseWellPieceGeometry, createImpulseWellHeroGeometry } from '../../assets/codex/ImpulseWellGeometry.js';
+import { createImpulseFloorGeometry, createImpulseSlabGeometry } from '../../assets/codex/ImpulseWellSignatureGeometry.js';
 import {
   createImpulseWellBodyMaterial,
   createImpulseWellLensMaterial,
   createImpulseWellGroundMaterial,
   createImpulseWellVoiceMaterial,
-  createImpulseWellDetailMaterial
+  createImpulseWellDetailMaterial,
+  createImpulseWellFloorMaterial,
+  createImpulseWellSlabMaterial,
+  createImpulseWellOrbMaterial
 } from '../../materials/codex/ImpulseWellMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -43,6 +47,18 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _hub = new Vector3();
+const _hand = new Vector3();
+const _slabPos = new Vector3();
+const _scale = new Vector3();
+const _tangent = new Vector3();
+const _mat = new Matrix4();
+const _qTilt = new Quaternion();
+const _qSpin = new Quaternion();
+const _euler = new Euler();
+
+/** Most slabs one well tears up. */
+const MAX_SLABS = 32;
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +88,34 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The signature — the well (layers 12–15, this cast's own)
+ *
+ * The template sigil, voice, rig and pieces are turned down; the read is the
+ * floor itself, which inhales and then dumps:
+ *
+ *  12. **well floor** — a disc of broken basalt (`createImpulseFloorGeometry`,
+ *      `wellReach` × the circle) on LAYER.WORLD, sun-lit and shadowed. The
+ *      instant the cast leaves the hand it starts sinking into a funnel
+ *      (`wellDepth`, `wellFunnel`) whose cracks glow down to a hot eye: the
+ *      floor inhales. On the beat the funnel dumps: it springs back and a
+ *      heaved ring wave (`waveHeight`) runs out along the floor to the rim, its
+ *      crest's cracks glowing, then the floor settles in ripples. On the way
+ *      out it breaks up from the rim inward.
+ *  13. **slabs** — `slabCount` torn floor slabs (InstancedMesh of
+ *      `createImpulseSlabGeometry`), lit and shadow-casting, their torn
+ *      undersides hot. While the well inhales they are dragged in toward the
+ *      eye, tipping into the funnel. On the beat they are thrown up in a
+ *      twisting column (`slabLift`…`slabLiftMax`, `slabSwirl`), unspooling over
+ *      `slabStagger`, then fall back outward, land with a bounce, settle flat,
+ *      cool and sink.
+ *  14. **charge** — the impulse in flight: a lumpy dark lit mass with glowing
+ *      seams that skims from the hand to the eye and dives into it.
+ *  15. **trail** — streaks shed by the charge.
+ *
+ * Slab records are dice (angle, ring, size, lift, tumble, delay); every size
+ * is resolved from settings each frame (the disc from `zoneRadius`).
+ * Presentation only: hits are the template's commit blow.
  *
  * Every metre, rate and colour is read from `settings.impulse` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +195,218 @@ export class ImpulseWellAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this._buildWell();
+  }
+
+  /** The well floor, its slabs and the charge in flight. */
+  _buildWell() {
+    this.wellGeometry = createImpulseFloorGeometry();
+    this.wellMaterial = createImpulseWellFloorMaterial();
+    this.well = this._mesh(this.wellGeometry, this.wellMaterial, LAYER.WORLD, 1);
+    this.well.receiveShadow = true;
+    this.slabGeometry = createImpulseSlabGeometry(3);
+    this.slabMaterial = createImpulseWellSlabMaterial();
+    this.slabs = new InstancedMesh(this.slabGeometry, this.slabMaterial, MAX_SLABS);
+    this.slabs.layers.set(LAYER.WORLD);
+    this.slabs.castShadow = true;
+    this.slabs.receiveShadow = true;
+    this.slabs.frustumCulled = false;
+    this.slabs.renderOrder = 4;
+    this.slabs.visible = false;
+    this.group.add(this.slabs);
+    this.orbGeometry = new SphereGeometry(1, 40, 28);
+    this.orbMaterial = createImpulseWellOrbMaterial();
+    this.orb = this._mesh(this.orbGeometry, this.orbMaterial, LAYER.WORLD, 5);
+    this.orb.castShadow = true;
+    this._slabRecs = Array.from({ length: MAX_SLABS }, () => ({ a: 0, r: 0, s: 1, lift: 0, out: 0, delay: 0, tx: 0, ty: 0, tz: 0, rest: 0 }));
+    this._shape = { depth: 0, funnel: 0.6, waveR: 0, waveH: 0, waveW: 0.1, ripple: 0, ripplePhase: 0, pull: 0, crest: 0, ember: 0, core: 0, rim: 1 };
+    this._orbEmitter = new RateEmitter();
+    this._orbSpin = 0;
+  }
+
+  _resetWell() {
+    const n = MAX_SLABS;
+    for (let i = 0; i < n; i++) {
+      const rec = this._slabRecs[i];
+      rec.a = ((i + Math.random() * 0.7) / n) * Math.PI * 2;
+      rec.r = Math.random();
+      rec.s = 0.7 + 0.6 * Math.random();
+      rec.lift = Math.random();
+      rec.out = Math.random();
+      rec.delay = Math.random();
+      rec.tx = Math.random() * 2 - 1;
+      rec.ty = Math.random() * 2 - 1;
+      rec.tz = Math.random() * 2 - 1;
+      rec.rest = (Math.random() - 0.5) * 0.3;
+    }
+    this._orbEmitter.reset();
+    this._orbSpin = 0;
+    this.well.visible = false;
+    this.slabs.visible = false;
+    this.orb.visible = false;
+  }
+
+  /** Seconds since the beat, from the 0..2 impact + fade clock. */
+  _since(fadeT) {
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** The floor's height (metres) at `r` (× the disc), the same profile the shader draws. */
+  _wellH(r) {
+    const sh = this._shape;
+    const f = Math.max(0, 1 - r / Math.max(0.02, sh.funnel));
+    let h = -sh.depth * Math.pow(f, 1.6);
+    const d = (r - sh.waveR) / Math.max(0.01, sh.waveW);
+    h += sh.waveH * Math.exp(-d * d);
+    h += sh.ripple * Math.sin(r * settings[ID].rippleK - sh.ripplePhase) * (1 - r);
+    const edge = saturate((r - 0.86) / 0.14);
+    return h * (1 - edge * edge * (3 - 2 * edge));
+  }
+
+  /**
+   * Inhale, dump, heave, settle, close. `committed` false is the travel;
+   * `fadeT` the 0..2 clock after the beat.
+   */
+  _updateWell(dt, committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const sh = this._shape;
+    const R = Math.max(0.5, c.zoneRadius * c.wellReach);
+    this.pointAt(1, _hub);
+    const since = committed ? this._since(fadeT) : 0;
+    let inhale;
+    let heat;
+    if (!committed) {
+      inhale = c.wellInhaleFrom + (1 - c.wellInhaleFrom) * Easing.inOutQuad(saturate(this.u));
+      sh.depth = c.wellDepth * inhale;
+      sh.waveR = 0;
+      sh.waveH = 0;
+      sh.ripple = 0;
+      sh.pull = c.wellPull * inhale;
+      sh.crest = 0;
+      sh.ember = 0;
+      sh.core = c.wellCore * inhale;
+      sh.rim = 1;
+      heat = 0.35 + 0.4 * inhale;
+    } else {
+      inhale = 1;
+      sh.depth = c.wellDepth * (1 - Easing.outCubic(saturate(since / 0.12)));
+      sh.waveR = c.waveSpeed * since;
+      sh.waveH = c.waveHeight * Math.exp(-since * c.waveDecay) * (1 - saturate((sh.waveR - 0.95) / 0.15));
+      sh.ripple = c.rippleHeight * Math.exp(-since * c.rippleDecay) * saturate(since / 0.25);
+      sh.ripplePhase = c.rippleSpeed * since;
+      sh.pull = c.wellPull * Math.max(0, 1 - since * 6);
+      sh.crest = c.waveCrest * Math.exp(-since * c.waveDecay * 0.6);
+      sh.ember = c.wellEmber + 0.6 * Math.exp(-since * 1.4);
+      sh.core = c.wellCore * Math.exp(-since * 7);
+      sh.rim = 1 - Easing.inQuad(saturate((fadeT - 1.55) / 0.45));
+      heat = 1;
+    }
+    sh.funnel = c.wellFunnel;
+    sh.waveW = c.waveWidth;
+    this.well.visible = c.wellOpacity > 0.01 && sh.rim > 0.01;
+    this.well.position.set(_hub.x, 0.02, _hub.z);
+    this.well.scale.set(R, 1, R);
+    this.wellMaterial.userData.sync(sh, R, this._seed);
+    this._updateSlabs(dt, committed, fadeT, since, inhale, R);
+    this._updateOrb(dt, committed);
+    return heat;
+  }
+
+  /** Dragged in, thrown up in a twisting column, fallen back, settled, sunk. */
+  _updateSlabs(dt, committed, fadeT, since, inhale, R) {
+    const c = settings[ID];
+    const n = Math.max(0, Math.min(MAX_SLABS, Math.round(c.slabCount)));
+    this.slabs.count = n;
+    this.slabs.visible = n > 0 && c.slabOpacity > 0.01;
+    this.slabs.castShadow = c.slabShadow > 0.5;
+    if (!this.slabs.visible) return;
+    const grav = Math.max(1, c.slabGravity);
+    const sink = committed ? c.slabSink * Easing.inQuad(saturate((fadeT - c.slabSinkAt) / Math.max(0.05, 2 - c.slabSinkAt))) : 0;
+    const drag = committed ? c.slabDrag : c.slabDrag * inhale;
+    let flying = 0;
+    for (let i = 0; i < n; i++) {
+      const rec = this._slabRecs[i];
+      const size = c.slabSize * rec.s;
+      const r0 = (c.slabInner + (c.slabOuter - c.slabInner) * rec.r) * c.zoneRadius;
+      const rIn = r0 * (1 - drag);
+      const t = committed ? since - rec.delay * c.slabStagger : -1;
+      let r;
+      let a = rec.a;
+      let y;
+      if (t < 0) {
+        // On the floor, dragged toward the eye and tipped into the funnel.
+        r = rIn;
+        const ru = r / R;
+        const h = this._wellH(ru);
+        const slope = (this._wellH(ru + 0.01) - this._wellH(Math.max(0, ru - 0.01))) / (0.02 * R);
+        y = h + 0.12 * size;
+        _tangent.set(-Math.sin(a), 0, Math.cos(a));
+        _qTilt.setFromAxisAngle(_tangent, -Math.atan(slope));
+        _qSpin.setFromAxisAngle(_up, rec.ty * 3);
+        _qTilt.multiply(_qSpin);
+      } else {
+        const vy = c.slabLift + (c.slabLiftMax - c.slabLift) * rec.lift;
+        const y0 = 0.2;
+        const land = (vy + Math.sqrt(vy * vy + 2 * grav * y0)) / grav;
+        const tf = Math.min(t, land);
+        r = rIn + c.slabOut * (0.6 + 0.8 * rec.out) * tf;
+        a += (c.slabSwirl / Math.max(0.5, rIn + 0.5)) * tf;
+        const restY = 0.13 * size;
+        if (t < land) {
+          y = y0 + vy * t - 0.5 * grav * t * t;
+          flying++;
+        } else {
+          const b = t - land;
+          y = restY + c.slabBounce * size * Math.abs(Math.sin((b / 0.3) * Math.PI)) * Math.exp(-b * 6);
+        }
+        // Tumble in the air, then settle to the nearest flat side.
+        const spin = c.slabTumble * tf;
+        let rx = rec.tx * spin;
+        let rz = rec.tz * spin;
+        if (t >= land) {
+          const k = Easing.outCubic(saturate((t - land) / 0.3));
+          rx += (Math.round(rx / (2 * Math.PI)) * 2 * Math.PI + rec.rest - rx) * k;
+          rz += (Math.round(rz / (2 * Math.PI)) * 2 * Math.PI + rec.rest * 0.5 - rz) * k;
+        }
+        _euler.set(rx, a + rec.ty * spin, rz);
+        _qTilt.setFromEuler(_euler);
+      }
+      _slabPos.set(_hub.x + Math.cos(a) * r, y - sink, _hub.z + Math.sin(a) * r);
+      _scale.setScalar(size);
+      _mat.compose(_slabPos, _qTilt, _scale);
+      this.slabs.setMatrixAt(i, _mat);
+    }
+    this.slabs.instanceMatrix.needsUpdate = true;
+    // Hot as they tear and fly; cooling once the column has come down.
+    const meanLand = (c.slabLift + c.slabLiftMax) / grav;
+    const heat = !committed ? 0.35 * inhale : since < meanLand ? 1 : Math.exp(-(since - meanLand) * c.slabCool);
+    this.slabMaterial.userData.sync(Math.max(heat, flying > 0 ? 0.8 : 0), this._seed);
+  }
+
+  /** The compressed charge, skimming from the hand to the eye and diving in. */
+  _updateOrb(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    this.orb.visible = !committed && c.orbOpacity > 0.01;
+    if (!this.orb.visible) return;
+    const u = this.u;
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _slabPos.lerpVectors(_hand, _hub, u);
+    const dive = Easing.inQuad(saturate((u - 0.8) / 0.2));
+    _slabPos.y = c.handHeight + (c.orbHeight - c.handHeight) * Easing.outQuad(saturate(u * 3)) - (c.orbHeight + c.wellDepth * 0.6) * dive;
+    const size = c.orbSize * (c.orbStart + (1 - c.orbStart) * Easing.outCubic(saturate(u * 1.5)));
+    this._orbSpin += c.orbSpin * dt * g.animationSpeed;
+    this.orb.position.copy(_slabPos);
+    this.orb.scale.setScalar(size);
+    this.orb.rotation.set(this._orbSpin * 0.7, this._orbSpin, 0);
+    this.orbMaterial.userData.sync(this._orbSpin);
+    const n = Math.round(this._orbEmitter.tick(dt, c.orbTrail) * g.particleCount);
+    if (n > 0) {
+      _dir.copy(this.direction).negate().setY(0.15);
+      this._fillEmit(_slabPos, size * 0.7, _dir, c.streakSpeed * 0.5, 0.35, 0.07, c.streakLife, 2);
+      this.streaks.emit(n, _emit);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -225,6 +481,7 @@ export class ImpulseWellAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this._resetWell();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -745,6 +1002,7 @@ export class ImpulseWellAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._updateWell(dt, false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
@@ -763,6 +1021,7 @@ export class ImpulseWellAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._updateWell(dt, true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
@@ -788,9 +1047,19 @@ export class ImpulseWellAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.well.visible = false;
+    this.slabs.visible = false;
+    this.orb.visible = false;
   }
 
   dispose() {
+    this.slabs.dispose();
+    this.wellGeometry.dispose();
+    this.wellMaterial.dispose();
+    this.slabGeometry.dispose();
+    this.slabMaterial.dispose();
+    this.orbGeometry.dispose();
+    this.orbMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -977,6 +1246,63 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const well = folder.addFolder('14 · Well floor');
+  R(well, c, 'wellReach', 0.3, 2, 0.01, 'disc × circle');
+  R(well, c, 'wellDepth', 0, 4, 0.05, 'funnel depth (m)');
+  R(well, c, 'wellFunnel', 0.1, 1, 0.01, 'funnel × disc');
+  R(well, c, 'wellInhaleFrom', 0, 1, 0.01, 'sunk at the cast');
+  R(well, c, 'wellCell', 0.1, 3, 0.01, 'cells (m)');
+  R(well, c, 'wellGlow', 0, 6, 0.05, 'crack glow');
+  R(well, c, 'wellPull', 0, 4, 0.05, 'funnel glow');
+  R(well, c, 'wellCore', 0, 8, 0.05, 'eye glow');
+  R(well, c, 'wellEmber', 0, 1, 0.01, 'embers left');
+  R(well, c, 'wellOpacity', 0, 1, 1, 'show');
+  R(well, c, 'waveHeight', 0, 3, 0.01, 'wave (m)');
+  R(well, c, 'waveSpeed', 0.1, 6, 0.05, 'wave speed (discs/s)');
+  R(well, c, 'waveWidth', 0.02, 0.5, 0.005, 'wave width');
+  R(well, c, 'waveDecay', 0, 6, 0.05, 'wave decay');
+  R(well, c, 'waveCrest', 0, 6, 0.05, 'crest glow');
+  R(well, c, 'rippleHeight', 0, 1, 0.01, 'ripples (m)');
+  R(well, c, 'rippleK', 0, 80, 0.5, 'ripple count');
+  R(well, c, 'rippleSpeed', 0, 40, 0.1, 'ripple speed');
+  R(well, c, 'rippleDecay', 0, 6, 0.05, 'ripple decay');
+  well.addColor(c, 'colorWellDeep').name('basalt, deep');
+  well.addColor(c, 'colorWellBody').name('basalt, lit');
+  well.addColor(c, 'colorWellHot').name('force heat');
+  well.addColor(c, 'colorWellCore').name('eye');
+
+  const slab = folder.addFolder('15 · Slabs');
+  R(slab, c, 'slabCount', 0, 32, 1, 'count');
+  R(slab, c, 'slabSize', 0.1, 3, 0.01, 'size ×');
+  R(slab, c, 'slabInner', 0, 1.2, 0.01, 'nearest × circle');
+  R(slab, c, 'slabOuter', 0, 1.5, 0.01, 'farthest × circle');
+  R(slab, c, 'slabDrag', 0, 1, 0.01, 'dragged in');
+  R(slab, c, 'slabLift', 0, 20, 0.1, 'lift min (m/s)');
+  R(slab, c, 'slabLiftMax', 0, 25, 0.1, 'lift max (m/s)');
+  R(slab, c, 'slabOut', 0, 10, 0.05, 'thrown out (m/s)');
+  R(slab, c, 'slabSwirl', -10, 10, 0.05, 'twist (m/s)');
+  R(slab, c, 'slabStagger', 0, 1, 0.01, 'unspools (s)');
+  R(slab, c, 'slabGravity', 1, 40, 0.5, 'gravity');
+  R(slab, c, 'slabTumble', 0, 20, 0.1, 'tumble');
+  R(slab, c, 'slabBounce', 0, 1, 0.01, 'bounce (m)');
+  R(slab, c, 'slabHeat', 0, 6, 0.05, 'underside heat');
+  R(slab, c, 'slabCool', 0, 6, 0.05, 'cools / s');
+  R(slab, c, 'slabSink', 0, 2, 0.01, 'sinks (m)');
+  R(slab, c, 'slabSinkAt', 0, 2, 0.01, 'sinks from');
+  R(slab, c, 'slabOpacity', 0, 1, 1, 'show');
+  R(slab, c, 'slabShadow', 0, 1, 1, 'cast shadow');
+  slab.addColor(c, 'colorSlabBody').name('slab rock');
+
+  const orb = folder.addFolder('16 · Charge');
+  R(orb, c, 'orbSize', 0.1, 3, 0.01, 'radius (m)');
+  R(orb, c, 'orbStart', 0.05, 1, 0.01, 'size at the hand');
+  R(orb, c, 'orbHeight', 0, 4, 0.05, 'flight height (m)');
+  R(orb, c, 'orbLump', 0, 1, 0.01, 'lumps');
+  R(orb, c, 'orbSpin', -30, 30, 0.1, 'churn');
+  R(orb, c, 'orbGlow', 0, 8, 0.05, 'seam glow');
+  R(orb, c, 'orbTrail', 0, 600, 1, 'trail / s');
+  R(orb, c, 'orbOpacity', 0, 1, 1, 'show');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

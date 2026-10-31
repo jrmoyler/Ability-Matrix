@@ -33,10 +33,10 @@ export default {
 
     /* --- light --- */
     lightColor: '#25d7f4',
-    lightIntensity: 8.8, // the glow riding the cast
+    lightIntensity: 3, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.4, // 0..1 how much it shimmers
-    impactLight: 11, // extra light on the beat, decays on its own
+    impactLight: 6, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0.03, // the template sigil: a trace only, the turrets carry the read
     edgeGlow: 1.12,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#25d7f4',
     colorB: '#ffffff',
     colorC: '#043b44',
-    lensWarp: 0.68, // strength of the distortion it writes
+    lensWarp: 0.3, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#25d7f4',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0.2, // strength of the field (under the deck)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.08, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
@@ -85,7 +85,7 @@ export default {
     colorGroundStain: '#101820', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 16, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: the deck and turrets replace them
     detailSize: 0.45, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -111,7 +111,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the pale block ring read as a hologram
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -162,11 +162,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.44, // camera punch on the beat
-    impactFlash: 0.16, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat
     colorFlash: '#e4fcff',
     burstRadius: 3.5, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 34, // fragments thrown up and out on the beat
     impactDust: 13, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -174,7 +174,7 @@ export default {
     colorBurstC: '#043b44',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#25d7f4',
     colorShockB: '#ffffff',
 
@@ -201,6 +201,64 @@ export default {
     markRimGlow: 1.76, // rim light on a marked body
     colorMarkEdge: '#e4fcff',
     markEdgeGlow: 2.86, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 12 · the hardpoints (the signature) --- */
+    podCount: 8, // turrets in the halo (max 12)
+    podSize: 1.25, // turret scale, × authored (≈1 m across at 1)
+    podRing: 0.8, // radius of the ring they lock onto, × the circle
+    podFlyRadius: 0.7, // radius of the formation in flight, metres
+    podFlyHeight: 0.5, // height of the formation's arc in flight, metres
+    podFlySize: 0.45, // turret size as it leaves the hand, × full
+    podWalk: 2.6, // radians/second the formation turns in flight (the ring walks)
+    podLockAt: 0.78, // share of the travel at which the ring spreads and drops to lock
+    podDrop: 1.1, // metres above the floor they drop from as they lock
+    podTrack: 0.22, // radians each turret sweeps either side while it fires
+    podTrackRate: 3.2, // radians/second of that sweep
+    podSink: 1.3, // metres they sink into the floor on the way out
+    podSinkAt: 1.55, // clock (0..2: impact then fade) they power down and sink
+    podEyeGlow: 2.6, // the sensor slit
+    podSeamGlow: 0.6, // the plate seam
+    podRimGlow: 0.25, // a cyan limb
+    podRough: 0.42,
+    podMetal: 0.72,
+    podOpacity: 1, // 0 hides the turrets
+    podShadow: 1, // 1 = they cast shadows
+    colorPodDeep: '#0b1014', // deep: gunmetal in shadow
+    colorPodBody: '#34414a', // body: gunmetal in the sun
+    colorPodHot: '#25d7f4', // tint: power
+    colorPodCore: '#e4fcff', // core: muzzle white
+
+    /* --- 13 · the volleys --- */
+    volleyCount: 3, // volleys fired outward together (the first on the beat)
+    volleyGap: 0.42, // seconds between volleys
+    barrelRecoil: 0.32, // metres the barrels kick back
+    barrelStow: 1.1, // radians the barrels point up while stowed in flight
+    barrelDroop: 0.35, // radians they droop when powered down
+    barrelHeat: 1.6, // muzzle glow after a shot
+    barrelCool: 1.6, // how fast the muzzles cool, per second
+    tracerCount: 6, // tracers per muzzle per volley
+    tracerSpeed: 26, // metres/second
+    tracerSize: 0.07,
+    tracerLife: 0.32,
+    tracerStretch: 3,
+    muzzleFlash: 5, // flash puffs per muzzle per volley
+    muzzleSize: 0.22,
+    colorTracerA: '#ffffff',
+    colorTracerB: '#e4fcff',
+    colorTracerC: '#25d7f4',
+    colorTracerD: '#0a4a57',
+
+    /* --- 14 · the deck --- */
+    deckReach: 1, // plate radius, × the ring radius + a turret
+    deckOpacity: 0.96,
+    deckGlow: 1.2, // powered seams and conduits
+    deckHex: 0.62, // hex panel size, metres
+    deckLand: 0.25, // seconds the plate takes to open out from the hub
+    deckScorchLen: 3.2, // metres the muzzle scorch reaches past the ring
+    deckArc: 0, // strength of the template's arc-ring decal on the beat (0 = none)
+    colorDeckDeep: '#080d11',
+    colorDeckBody: '#1f2a31',
+    colorDeckBurn: '#06080a'
   }
 };
