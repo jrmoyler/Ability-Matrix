@@ -1,10 +1,11 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Mesh, Object3D, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
 import { createGimbalWhipPieceGeometry, createGimbalWhipHeroGeometry } from '../../assets/codex/GimbalWhipGeometry.js';
+import { createGimbalWhipYokeGeometry, createGimbalWhipCradleGeometry, createGimbalWhipBladeGeometry } from '../../assets/codex/GimbalWhipSignatureGeometry.js';
 import {
   createGimbalWhipBodyMaterial,
   createGimbalWhipLensMaterial,
@@ -12,7 +13,9 @@ import {
   createGimbalWhipVoiceMaterial,
   createGimbalWhipDetailMaterial,
   createGimbalWhipTrailMaterial,
-  createGimbalWhipScarMaterial
+  createGimbalWhipScarMaterial,
+  createGimbalWhipMetalMaterial,
+  createGimbalWhipKerfMaterial
 } from '../../materials/codex/GimbalWhipMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -50,6 +53,9 @@ const _up = new Vector3(0, 1, 0);
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
 
+const _head = new Vector3();
+const _mid = new Vector3();
+
 /**
  * GIMBAL WHIP — tech, line cast.
  *
@@ -75,6 +81,31 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The cutter (cast-local signature, `15 · Cutter` in the editor)
+ *
+ * The template layers above are switched off through their own keys (body,
+ * voice, lens, field, detail pieces, rig, ribbon, scar, wake discs, burst
+ * shell, shock ring); what carries the read is a machine:
+ *
+ *   - **the cutter** — a gimballed saw (`GimbalWhipSignatureGeometry.js`): a
+ *     flat-banded yoke ring stood broadside to the camera, a cradle ring
+ *     tumbling on the yoke's pivots, and a toothed saw disc spinning in the
+ *     cradle. Machined gunmetal lit by the sun; cyan only in the inset
+ *     channels and on the teeth.
+ *   - **the whip** — it leaves the hand and runs the line at body height,
+ *     snaking side to side (`whipAmp`, `whipWavelength`) and yawing into each
+ *     swing (`whipYaw`), throwing contact sparks off the floor.
+ *   - **the kerf** — behind it the floor is cut: a scorched bed with a
+ *     snaking groove in it, white-cyan just behind the blade, cooling through
+ *     cyan and deep teal to a dark scar (`kerf*`).
+ *   - **the bite** — at the end of the line it drops and bites into the floor
+ *     (`biteDepth`) in a fountain of sparks and a dark gouge with hot cracks.
+ *   - **the linger** — it keeps precessing on its gimbals, slowing; the
+ *     cradle folds flat into the yoke (`cutterFoldAt`), the blade spins down
+ *     and the edges cool.
+ *   - **the exit** — it is eaten behind a hot edge and sinks into its own
+ *     bite (`cutterSinkAt`); the kerf goes last.
  *
  * Every metre, rate and colour is read from `settings.gimbal` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +190,39 @@ export class GimbalWhipAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildCutter();
+  }
+
+  /** The cutter's own meshes (yoke > cradle > blade, a real gimbal hierarchy) and the kerf. */
+  _buildCutter() {
+    this.metalMaterial = createGimbalWhipMetalMaterial();
+    const part = (geometry, parent) => {
+      const mesh = new Mesh(geometry, this.metalMaterial);
+      mesh.layers.set(LAYER.SHAPED);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 14;
+      parent.add(mesh);
+      return mesh;
+    };
+    this.cutter = new Object3D();
+    this.cutter.visible = false;
+    this.group.add(this.cutter);
+    this.cutter.rotation.order = 'YXZ';
+    this.yoke = part(createGimbalWhipYokeGeometry(), this.cutter);
+    this.cradle = part(createGimbalWhipCradleGeometry(), this.yoke);
+    this.blade = part(createGimbalWhipBladeGeometry(), this.cradle);
+    this.kerfGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.kerfMaterial = createGimbalWhipKerfMaterial();
+    this.kerf = this._mesh(this.kerfGeometry, this.kerfMaterial, LAYER.VFX, 2);
+    this.kerf.rotation.order = 'YXZ';
+    this._cut = { yaw: 0, tumble: 0, spin: 0, precess: 0, phase: 0, bit: false, heat: 1, endLat: 0 };
+    this._metalSync = { power: 1, heat: 0, sink: 0, seed: 0 };
+    this._kerfSync = { origin: new Vector3(), dir: new Vector3(), side: new Vector3(), front: 0, length: 1, phase: 0, heat: 0, bite: 0, alpha: 0, seed: 0 };
+    this._cutDt = 0;
+    this._sparkEmitter = new RateEmitter();
+    this._smokeEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -241,6 +305,7 @@ export class GimbalWhipAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    this._resetCutter();
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -289,6 +354,7 @@ export class GimbalWhipAbility extends Ability {
   }
 
   _pose(committed, fadeT) {
+    this._cutterPose(committed, fadeT);
     const u = this.u;
     const rise = committed ? 1 : Easing.outCubic(saturate(u));
     
@@ -303,6 +369,169 @@ export class GimbalWhipAbility extends Ability {
     const phrase = committed ? (fadeT < 1 ? 1 : 2) : 0;
     this._groundPose(committed, fadeT);
     this._write(open, grow, along, dissolve, fade, phrase);
+  }
+
+
+  _resetCutter() {
+    const k = this._cut;
+    k.yaw = 0;
+    k.tumble = this._seed;
+    k.spin = 0;
+    k.precess = 0;
+    k.phase = this._seed > 5 ? Math.PI : 0;
+    k.bit = false;
+    k.heat = 1;
+    k.endLat = 0;
+    this._cutDt = 0;
+    this._sparkEmitter.reset();
+    this._smokeEmitter.reset();
+    this._hideCutter();
+  }
+
+  _hideCutter() {
+    this.cutter.visible = false;
+    this.kerf.visible = false;
+  }
+
+  /** Seconds since the beat (negative in flight). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** The whip's lateral offset at `s` metres down the line, and its slope. */
+  _lat(s) {
+    const c = settings[ID];
+    const w = (Math.PI * 2) / Math.max(0.5, c.whipWavelength);
+    const ramp = Math.max(0.05, c.whipRamp);
+    const env = s <= 0 ? 0 : s >= ramp ? 1 : (s / ramp) * (s / ramp) * (3 - 2 * (s / ramp));
+    return c.whipAmp * env * Math.sin(s * w + this._cut.phase);
+  }
+
+  /**
+   * The cutter, every frame. In flight it runs the line snaking and yawing
+   * into each swing, its cradle tumbling and blade spinning; at the end it
+   * bites; it precesses down, folds, and sinks into its bite. The kerf it cuts
+   * is drawn up to wherever it has reached.
+   */
+  _cutterPose(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const k = this._cut;
+    const dt = this._cutDt;
+    const since = this._since(committed, fadeT);
+    const length = Math.max(0.2, this.length);
+    const s = committed ? length : Math.max(0, this.front);
+    const size = Math.max(0.1, c.cutterSize);
+    const lat = this._lat(s);
+    _head.copy(this.origin).addScaledVector(this.direction, s).addScaledVector(this.side, lat);
+    const w = (Math.PI * 2) / Math.max(0.5, c.whipWavelength);
+    const grow = committed ? 1 : 0.35 + 0.65 * Easing.outCubic(saturate(this.age / 0.12));
+
+    let height = c.cutterHeight;
+    let power = 1;
+    let sink = 0;
+    let fold = 0;
+    if (!committed) {
+      // Yaw into the swing: the blade faces where it is whipping to.
+      k.yaw = c.whipYaw * Math.cos(s * w + k.phase) * saturate(s / Math.max(0.05, c.whipRamp));
+      k.tumble += dt * c.cradleSpin * g.animationSpeed;
+      k.spin += dt * c.bladeSpin * g.animationSpeed;
+      k.heat = 1;
+      k.endLat = lat;
+    } else {
+      if (!k.bit) {
+        k.bit = true;
+        this._cutterBite(_head);
+      }
+      const bite = Easing.outCubic(saturate(since / Math.max(0.02, c.biteTime)));
+      height -= c.biteDepth * bite;
+      const slow = Math.exp(-since / Math.max(0.05, c.precessDecay));
+      k.precess = c.precessSpin * (0.25 + 0.75 * slow);
+      k.yaw += dt * k.precess * g.animationSpeed;
+      fold = fadeT >= 1 ? Easing.inOutCubic(saturate((fadeT - c.cutterFoldAt) / Math.max(0.05, 0.35))) : 0;
+      k.tumble += dt * c.cradleSpin * slow * (1 - fold) * g.animationSpeed;
+      k.spin += dt * c.bladeSpin * (0.15 + 0.85 * slow) * (1 - fold) * g.animationSpeed;
+      k.heat = Math.exp(-since / Math.max(0.05, c.kerfHeatLife));
+      power = 1 - 0.75 * fold;
+      sink = fadeT >= 1 ? saturate((fadeT - c.cutterSinkAt) / Math.max(0.05, (2 - c.cutterSinkAt) * 0.85)) : 0;
+      height -= sink * size * 0.9;
+    }
+
+    this.cutter.position.copy(_head).setY(height);
+    this.cutter.rotation.set(0, Math.atan2(this.direction.x, this.direction.z) + k.yaw, 0);
+    this.cutter.scale.setScalar(size * grow);
+    // The cradle folds back into the yoke's plane: its tumble eases to the nearest flat.
+    const flat = Math.round(k.tumble / Math.PI) * Math.PI;
+    this.cradle.rotation.set(k.tumble + (flat - k.tumble) * fold, 0, 0);
+    this.blade.rotation.set(0, 0, k.spin);
+    this.cutter.visible = sink < 0.999;
+
+    const m = this._metalSync;
+    m.power = power;
+    m.heat = committed ? k.heat * 0.9 : 0.75 + 0.25 * Math.sin(this.age * 40);
+    m.sink = sink;
+    m.seed = this._seed;
+    this.metalMaterial.userData.sync(m);
+
+    this._cutterShed(dt, committed, since, height, size, sink);
+
+    // The kerf.
+    const p = this._kerfSync;
+    p.origin.copy(this.origin);
+    p.dir.copy(this.direction);
+    p.side.copy(this.side);
+    p.front = s;
+    p.length = length;
+    p.phase = k.phase;
+    p.heat = committed ? 0.3 + 0.7 * k.heat : 1;
+    p.bite = committed ? Easing.outCubic(saturate(since / 0.25)) : 0;
+    p.alpha = fadeT < 1 || !committed ? 1 : 1 - saturate((fadeT - c.kerfLetGo) / Math.max(0.05, 2 - c.kerfLetGo));
+    p.seed = this._seed;
+    this.kerfMaterial.userData.sync(p);
+    const width = 2 * (c.whipAmp + c.kerfBedWidth + c.biteRadius * 2.4);
+    _mid.copy(this.origin).addScaledVector(this.direction, length * 0.5);
+    this.kerf.position.set(_mid.x, 0.03, _mid.z);
+    this.kerf.rotation.set(-Math.PI / 2, Math.atan2(this.direction.x, this.direction.z), 0);
+    this.kerf.scale.set(width, length + c.biteRadius * 5, 1);
+    this.kerf.visible = p.alpha > 0.01 && c.kerfOpacity > 0.01;
+  }
+
+  /** The bite at the end of the line: a fountain of sparks and chips, a thud. */
+  _cutterBite(at) {
+    const c = settings[ID];
+    const g = settings.global;
+    this.ctx.shake.add(c.biteShake * g.cameraShake * g.explosionIntensity, 6, 22);
+    this.lightBoost += c.biteLight * g.explosionIntensity;
+    const chips = Math.round(c.biteChips * g.particleCount);
+    if (chips > 0) {
+      _pos.copy(at).setY(0.1);
+      this._fillEmit(_pos, 0.3, _up, c.chipSpeed * 1.3, 0.7, c.chipSize * 1.4, c.chipLife * 1.3, 8);
+      this.chips.emit(chips, _emit);
+    }
+  }
+
+  /** Contact sparks off the floor under the blade; a fountain at the bite; smoke off the kerf. */
+  _cutterShed(dt, committed, since, height, size, sink) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (sink >= 1) return;
+    const rate = committed ? c.biteSparks * Math.exp(-since / Math.max(0.05, c.precessDecay)) * (1 - sink) : c.cutSparks;
+    const n = Math.round(this._sparkEmitter.tick(dt, rate) * g.particleCount);
+    if (n > 0) {
+      _pos.copy(this.cutter.position).setY(Math.max(0.05, height - 0.66 * size));
+      if (committed) _dir.copy(_up).addScaledVector(this.direction, 0.25);
+      else _dir.copy(this.direction).multiplyScalar(-1).setY(0.55).addScaledVector(this.side, Math.cos(this._cut.yaw) * 0.3);
+      this._fillEmit(_pos, 0.15, _dir, c.streakSpeed * (committed ? 1.3 : 1), committed ? 0.55 : 0.35, 0.06, c.streakLife * 1.2, 2);
+      this.streaks.emit(n, _emit);
+    }
+    const sm = Math.round(this._smokeEmitter.tick(dt, c.kerfSmoke * (committed ? Math.max(0.2, this._cut.heat) : 0.6)) * g.particleCount);
+    for (let i = 0; i < sm; i++) {
+      const along = Math.random() * (committed ? this.length : this.front);
+      _pos.copy(this.origin).addScaledVector(this.direction, along).addScaledVector(this.side, this._lat(along)).setY(0.08);
+      this._fillEmit(_pos, 0.15, _up, c.dustSpeed * 0.25, 0.4, 0.45, c.dustLife * 1.6, 0.3);
+      this.dust.emit(1, _emit);
+    }
   }
 
   /**
@@ -367,13 +596,15 @@ export class GimbalWhipAbility extends Ability {
     this.trailMaterial.userData.sync(st, this.trail, this._travelTime());
     this.scarMaterial.userData.sync(st, this.trail, this._travelTime());
     this.trail.show(this.isActive);
+    this.trail.trailMesh.visible = this.trail.trailMesh.visible && c.trailOpacity > 0.01;
+    this.trail.scarMesh.visible = this.trail.scarMesh.visible && c.scarOpacity > 0.01;
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -774,6 +1005,7 @@ export class GimbalWhipAbility extends Ability {
   }
 
   onTravel(dt) {
+    this._cutDt = dt;
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
@@ -792,6 +1024,7 @@ export class GimbalWhipAbility extends Ability {
   }
 
   onFade(dt, t) {
+    this._cutDt = dt;
     const c = settings[ID];
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
@@ -824,9 +1057,16 @@ export class GimbalWhipAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hideCutter();
   }
 
   dispose() {
+    this.yoke.geometry.dispose();
+    this.cradle.geometry.dispose();
+    this.blade.geometry.dispose();
+    this.metalMaterial.dispose();
+    this.kerfGeometry.dispose();
+    this.kerfMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -856,6 +1096,7 @@ export function buildEditor(gui, c, Editor) {
   R(cast, c, 'cooldown', 0, 8, 0.05, 'cooldown');
   R(cast, c, 'impactTime', 0.05, 3, 0.01, 'impact (s)');
   R(cast, c, 'fadeTime', 0.05, 4, 0.01, 'fade (s)');
+  R(cast, c, 'zoneRadius', 0, 12, 0.05, 'circle (m, unused by a line)');
   
   Editor.castAnimation(cast, c);
 
@@ -1033,6 +1274,48 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const cutter = folder.addFolder('15 · Cutter');
+  R(cutter, c, 'cutterSize', 0.2, 3, 0.01, 'size (m)');
+  R(cutter, c, 'cutterHeight', 0.2, 3, 0.01, 'ride height (m)');
+  R(cutter, c, 'whipAmp', 0, 3, 0.01, 'whip (m)');
+  R(cutter, c, 'whipWavelength', 0.5, 20, 0.1, 'whip wavelength (m)');
+  R(cutter, c, 'whipRamp', 0.05, 6, 0.05, 'whip ramps in (m)');
+  R(cutter, c, 'whipYaw', 0, 1.6, 0.01, 'yaw into swing (rad)');
+  R(cutter, c, 'cradleSpin', -30, 30, 0.1, 'cradle tumble (rad/s)');
+  R(cutter, c, 'bladeSpin', -80, 80, 0.5, 'blade spin (rad/s)');
+  R(cutter, c, 'biteDepth', 0, 1.5, 0.01, 'bite depth (m)');
+  R(cutter, c, 'biteTime', 0.02, 1, 0.01, 'bite (s)');
+  R(cutter, c, 'precessSpin', -10, 10, 0.05, 'precession (rad/s)');
+  R(cutter, c, 'precessDecay', 0.05, 4, 0.05, 'spins down (s)');
+  R(cutter, c, 'cutterFoldAt', 1, 1.9, 0.01, 'folds at (fade)');
+  R(cutter, c, 'cutterSinkAt', 1, 1.95, 0.01, 'sinks at (fade)');
+  R(cutter, c, 'cutterSeamGlow', 0, 6, 0.05, 'channel glow');
+  R(cutter, c, 'cutterEdgeGlow', 0, 6, 0.05, 'edge glow');
+  R(cutter, c, 'cutterSpecular', 0, 4, 0.05, 'specular');
+  R(cutter, c, 'cutterRimGlow', 0, 4, 0.05, 'rim glow');
+  cutter.addColor(c, 'colorMetalDeep').name('gunmetal, deep');
+  cutter.addColor(c, 'colorMetal').name('gunmetal');
+  cutter.addColor(c, 'colorCutterSeam').name('channel / edge');
+  cutter.addColor(c, 'colorCutterHot').name('edge, hot');
+  R(cutter, c, 'cutSparks', 0, 600, 1, 'contact sparks / s');
+  R(cutter, c, 'biteSparks', 0, 800, 1, 'bite sparks / s');
+  R(cutter, c, 'biteChips', 0, 200, 1, 'bite chips');
+  R(cutter, c, 'biteShake', 0, 2, 0.01, 'bite punch');
+  R(cutter, c, 'biteLight', 0, 40, 0.5, 'bite light');
+
+  const kerf = folder.addFolder('16 · Kerf');
+  R(kerf, c, 'kerfOpacity', 0, 1.5, 0.01, 'opacity');
+  R(kerf, c, 'kerfGlow', 0, 6, 0.05, 'seam glow');
+  R(kerf, c, 'kerfWidth', 0.02, 1.5, 0.01, 'kerf width (m)');
+  R(kerf, c, 'kerfBedWidth', 0.1, 4, 0.01, 'scorch width (m)');
+  R(kerf, c, 'kerfCool', 0.1, 20, 0.1, 'cools over (m)');
+  R(kerf, c, 'kerfHeatLife', 0.05, 5, 0.05, 'heat life (s)');
+  R(kerf, c, 'kerfLetGo', 1, 1.95, 0.01, 'lets go at (fade)');
+  R(kerf, c, 'biteRadius', 0.1, 4, 0.01, 'bite (m)');
+  R(kerf, c, 'kerfSmoke', 0, 200, 1, 'smoke / s');
+  kerf.addColor(c, 'colorKerfDeep').name('scorch, deep');
+  kerf.addColor(c, 'colorKerf').name('scorch');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

@@ -765,3 +765,285 @@ export function createGeodeCageDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* The geode itself (cast-local signature layers)                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rock and amethyst, lit by the scene sun. One shader for the shell petals,
+ * the fired points and the thrown nodule (all instanced). `aKind` per vertex
+ * picks the surface: 0 the craggy rind (dark, matte), 1 the crystal bed
+ * (deep violet), 2 a split seam (glows when the geode seals and when the
+ * points fire), 3 amethyst (faceted, specular, its glow climbing to a pale
+ * tip). Per instance `aGeo` = (seed, heat, sink, inner): heat drives every
+ * glow, sink eats the piece behind a hot edge, inner lights the crystal from
+ * within.
+ */
+const GEO_VERTEX = /* glsl */ `
+  attribute vec4 aGeo;
+  attribute float aKind;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vGeo;
+  varying float vKind;
+  void main() {
+    mat4 m = modelMatrix * instanceMatrix;
+    vec4 world = m * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(m) * normal);
+    vLocal = position;
+    vGeo = aGeo;
+    vKind = aKind;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const GEO_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uRindDeep;
+  uniform vec3  uRind;
+  uniform vec3  uBed;
+  uniform vec3  uCrystal;
+  uniform vec3  uGlow;
+  uniform vec3  uHot;
+  uniform float uSeamGlow;
+  uniform float uCrystalGlow;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vGeo;
+  varying float vKind;
+  ${noiseGLSL}
+  void main() {
+    float n = snoise01(vec3(vLocal * 5.0 + vGeo.x * 3.1));
+    float cut = vGeo.z * 1.05;
+    if (n < cut) discard;
+    float burn = (1.0 - smoothstep(0.0, 0.05, n - cut)) * step(0.001, vGeo.z);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+    float heat = vGeo.y;
+
+    float rind = 1.0 - step(0.5, vKind);
+    float bed = step(0.5, vKind) * (1.0 - step(1.5, vKind));
+    float seam = step(1.5, vKind) * (1.0 - step(2.5, vKind));
+    float crystal = step(2.5, vKind);
+
+    float grit = snoise01(vec3(vWorld * 7.0));
+    float strata = snoise01(vec3(vWorld.xz * 1.2, vWorld.y * 6.0));
+    vec3 albedo = mix(uRindDeep, uRind, 0.25 + 0.5 * grit * strata) * rind
+      + uBed * (0.6 + 0.6 * grit) * bed
+      + mix(uRindDeep, uBed, 0.5) * seam
+      + mix(uBed, uCrystal, 0.35 + 0.4 * n) * crystal;
+    vec3 color = albedo * (0.2 + 1.15 * ndl);
+    color += albedo * 0.22 * (0.5 + 0.5 * N.y);
+    float spec = pow(max(dot(N, H), 0.0), mix(14.0, 70.0, crystal + bed * 0.5));
+    color += mix(vec3(0.25), mix(uCrystal, vec3(1.0), 0.25), crystal + bed * 0.4) * spec * uSpecular * (0.3 + 0.6 * (crystal + bed));
+    color += uGlow * pow(1.0 - ndv, 3.0) * uRimGlow * (crystal + 0.3 * bed) * uGlobalGlow;
+
+    // Glow lives only in the seams and the crystal, never in the rind.
+    float pulse = 0.8 + 0.2 * sin(uTime * 9.0 + vGeo.x * 4.0);
+    color += mix(uGlow, uHot, heat * 0.6) * seam * heat * uSeamGlow * pulse * uGlobalGlow * (0.6 + 0.6 * grit);
+    float tipward = clamp(length(vLocal) * 1.2, 0.0, 1.0);
+    float inner = vGeo.w;
+    color += mix(uGlow, uHot, tipward * heat) * crystal * (0.12 + inner * (0.3 + 0.9 * heat) * tipward) * uCrystalGlow * uGlobalGlow;
+    color += uGlow * bed * inner * 0.12 * heat * uCrystalGlow * uGlobalGlow;
+
+    color = mix(color, uHot * 2.0 * uGlobalGlow, burn);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createGeodeCageRockMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uRindDeep: { value: new Color() },
+      uRind: { value: new Color() },
+      uBed: { value: new Color() },
+      uCrystal: { value: new Color() },
+      uGlow: { value: new Color() },
+      uHot: { value: new Color() },
+      uSeamGlow: { value: 1 },
+      uCrystalGlow: { value: 1 },
+      uSpecular: { value: 1 },
+      uRimGlow: { value: 0.5 }
+    }),
+    vertexShader: GEO_VERTEX,
+    fragmentShader: GEO_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRindDeep.value.copy(getColor(c.colorRindDeep));
+    u.uRind.value.copy(getColor(c.colorRind));
+    u.uBed.value.copy(getColor(c.colorCrystalBed));
+    u.uCrystal.value.copy(getColor(c.colorCrystal));
+    u.uGlow.value.copy(getColor(c.colorCrystalGlow));
+    u.uHot.value.copy(getColor(c.colorCrystalHot));
+    u.uSeamGlow.value = c.geodeSeamGlow * g.shaderIntensity;
+    u.uCrystalGlow.value = c.geodeCrystalGlow * g.shaderIntensity;
+    u.uSpecular.value = c.geodeSpecular;
+    u.uRimGlow.value = c.geodeRimGlow * g.fresnel;
+  };
+  return material;
+}
+
+/**
+ * The geode floor: the circle filled with a dark violet-black stain cut into
+ * crystalline cells (voronoi), the cell cracks lit from below while the
+ * points fire and cooling after; a torn ring of rubble where the shell tore
+ * out of the ground; and a glow spilled round the centre once the geode
+ * cracks open.
+ */
+const GEO_FLOOR_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const GEO_FLOOR_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uCentre;
+  uniform float uOuter;
+  uniform float uRing;
+  uniform float uLand;
+  uniform float uHeat;
+  uniform float uSpill;
+  uniform float uGlowAmt;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform float uCell;
+  uniform vec3  uDeepC;
+  uniform vec3  uBodyC;
+  uniform vec3  uGlowC;
+  uniform vec3  uHotC;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  // Distance to the nearest cell edge (F2 - F1) and the cell's id.
+  vec2 geoCells(vec2 p) {
+    vec2 n = floor(p);
+    vec2 f = fract(p);
+    float d1 = 8.0;
+    float d2 = 8.0;
+    float id = 0.0;
+    for (int j = -1; j <= 1; j++) {
+      for (int i = -1; i <= 1; i++) {
+        vec2 g = vec2(float(i), float(j));
+        vec2 o = hash21(dot(n + g, vec2(7.13, 113.17)));
+        float d = length(g + o - f);
+        if (d < d1) { d2 = d1; d1 = d; id = hash11(dot(n + g, vec2(31.7, 57.1))); }
+        else if (d < d2) { d2 = d; }
+      }
+    }
+    return vec2(d2 - d1, id);
+  }
+  void main() {
+    vec2 q = vWorld.xz - uCentre.xz;
+    float r = length(q);
+    float x = r / max(uOuter, 0.1);
+    if (x > 1.0) discard;
+    float grain = snoise01(vec3(vWorld.xz * 2.4, uSeed));
+    float mott = snoise01(vec3(vWorld.xz * 0.6, uSeed + 5.0));
+    float landed = 1.0 - smoothstep(uLand - 0.1, uLand, x);
+
+    vec3 color = mix(uDeepC, uBodyC, 0.15 + 0.6 * mott) * (0.6 + 0.5 * grain);
+    float alpha = landed * (1.0 - smoothstep(0.8, 1.0, x + 0.12 * (grain - 0.5))) * (0.75 + 0.2 * mott);
+
+    // Crystalline cells; their cracks carry light from below.
+    vec2 cell = geoCells(vWorld.xz / max(uCell, 0.1) + uSeed);
+    float crack = 1.0 - smoothstep(0.0, 0.08, cell.x);
+    float inside = 1.0 - smoothstep(uRing * 0.85, uRing * 1.05, r);
+    color = mix(color, uDeepC * 0.4, crack * 0.6 * landed);
+    color += mix(uGlowC, uHotC, uHeat * 0.5) * crack * inside * uHeat * uGlowAmt * uGlobalGlow * (0.5 + cell.y);
+
+    // The torn ring where the shell came out of the ground.
+    float tear = 1.0 - smoothstep(0.0, 0.35 + 0.15 * grain, abs(r - uRing));
+    color = mix(color, uDeepC * 0.3, tear * 0.8 * landed);
+    float lip = (1.0 - smoothstep(0.0, 0.06, abs(abs(r - uRing) - 0.35))) * landed;
+    color += uBodyC * lip * (0.6 + max(dot(normalize(vec3(q.x, 1.3, q.y)), normalize(uLightDir)), 0.0));
+    alpha = max(alpha, tear * 0.9 * landed);
+
+    // The spill once it cracks open.
+    float spill = exp(-r / max(uRing * 0.45, 0.1)) * uSpill;
+    color += uGlowC * spill * (0.5 + 0.5 * grain) * uGlowAmt * uGlobalGlow * 0.8;
+
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uOpacity);
+  }
+`;
+
+export function createGeodeCageFloorMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    uniforms: sharedUniforms({
+      uCentre: { value: new Vector3() },
+      uOuter: { value: 1 },
+      uRing: { value: 1 },
+      uLand: { value: 0 },
+      uHeat: { value: 0 },
+      uSpill: { value: 0 },
+      uGlowAmt: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uCell: { value: 0.8 },
+      uDeepC: { value: new Color() },
+      uBodyC: { value: new Color() },
+      uGlowC: { value: new Color() },
+      uHotC: { value: new Color() }
+    }),
+    vertexShader: GEO_FLOOR_VERTEX,
+    fragmentShader: GEO_FLOOR_FRAGMENT
+  });
+  /** @param {object} p  centre, outer, ring, land, heat, spill, alpha, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCentre.value.copy(p.centre);
+    u.uOuter.value = p.outer;
+    u.uRing.value = p.ring;
+    u.uLand.value = p.land;
+    u.uHeat.value = p.heat;
+    u.uSpill.value = p.spill;
+    u.uGlowAmt.value = c.geodeFloorGlow * g.glow;
+    u.uOpacity.value = c.geodeFloorOpacity * g.opacity * p.alpha;
+    u.uSeed.value = p.seed;
+    u.uCell.value = c.geodeFloorCell;
+    u.uDeepC.value.copy(getColor(c.colorGeodeFloorDeep));
+    u.uBodyC.value.copy(getColor(c.colorGeodeFloor));
+    u.uGlowC.value.copy(getColor(c.colorCrystalGlow));
+    u.uHotC.value.copy(getColor(c.colorCrystalHot));
+  };
+  return material;
+}
