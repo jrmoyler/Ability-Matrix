@@ -33,7 +33,7 @@ export default {
 
     /* --- light --- */
     lightColor: '#f25faa',
-    lightIntensity: 8.8, // the glow riding the cast
+    lightIntensity: 5.5, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.6, // 0..1 how much it shimmers
     impactLight: 12.1, // extra light on the beat, decays on its own
@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.2,
+    bodyOpacity: 0, // the template body sheet (off: the cage carries the read)
     edgeGlow: 1.27,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f25faa',
     colorB: '#ffffff',
     colorC: '#5c0a34',
-    lensWarp: 1.4, // strength of the distortion it writes
+    lensWarp: 0, // off: the body shape it warps is gone
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the feint cage is the second voice)
     colorVoiceA: '#f25faa',
     colorVoiceB: '#ffffff',
 
@@ -73,19 +73,19 @@ export default {
     groundWidth: 9, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template field (off: the cage floor is the ground)
     groundLand: 0.32, // seconds the field takes to land out to the rim after the beat
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.25, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundTelegraph: 0.32, // how strongly the footprint shows before the beat
-    groundStain: 0.9, // strength of the residue decal left at the beat
+    groundStain: 0.55, // strength of the residue decal left at the beat
     groundStainReach: 1.05, // residue radius, × the circle (zone) or × the ground width (line)
-    colorGroundA: '#f25faa',
+    colorGroundA: '#4a1430',
     colorGroundB: '#5c0a34',
     colorGroundStain: '#3a1a34', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the bars are the pieces)
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -108,7 +108,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the template rig is (off: the cast-local cage is the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroFit: 0.72, // mass rigs grow to at least this share of the circle radius (heroSize is the floor)
@@ -117,7 +117,7 @@ export default {
     colorHeroC: '#5c0a34',
 
     /* --- 6 · shed --- */
-    dustRate: 32, // puffs per second
+    dustRate: 4, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -126,7 +126,7 @@ export default {
     colorDustB: '#f25faa',
     colorDustC: '#5c0a34',
     colorDustD: '#1a140e',
-    streakRate: 99, // sparks per second
+    streakRate: 0, // sparks per second (off: the feet throw their own)
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -135,7 +135,7 @@ export default {
     colorStreakB: '#ffc6e6',
     colorStreakC: '#f25faa',
     colorStreakD: '#f25faa',
-    chipRate: 10.8, // fragments per second
+    chipRate: 0, // fragments per second
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
@@ -145,7 +145,7 @@ export default {
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
-    moteRate: 26, // motes per second off the pieces
+    moteRate: 0, // motes per second off the pieces (none: no pieces)
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
@@ -156,21 +156,21 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.33, // camera punch on the beat
-    impactFlash: 0.18, // screen flash on the beat
+    impactFlash: 0.04, // screen flash on the beat (a tint, never a full-frame flash)
     colorFlash: '#ffc6e6',
     burstRadius: 3.8, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
-    impactChips: 3, // fragments thrown up and out on the beat
-    impactDust: 3, // dust puffs rolled out along the floor on the beat
+    burstOpacity: 0, // strength of the burst shell (off: the plant hits with dust and chips)
+    impactChips: 14, // fragments thrown up and out on the beat
+    impactDust: 8, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#f25faa',
     colorBurstC: '#5c0a34',
     shockRadius: 6.5, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
-    colorShockA: '#f25faa',
-    colorShockB: '#ffffff',
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
+    colorShockA: '#5c1a3a',
+    colorShockB: '#a0406e',
 
     /* --- 9 · the aftershock --- */
     aftershockAt: 1.06, // fade progress the aftershock lands at (1 = fade start)
@@ -195,6 +195,60 @@ export default {
     markRimGlow: 1.76, // rim light on a marked body
     colorMarkEdge: '#ffc6e6',
     markEdgeGlow: 2.86, // brightness of the marked edge
-    markEdgeWidth: 0.05 // width of the marked edge
+    markEdgeWidth: 0.05, // width of the marked edge
+
+    /* --- 14 · the cage (cast-local signature) --- */
+    cageCount: 9, // bars in each cage (max 14)
+    cageHeight: 3.3, // bar height, metres
+    cageWidth: 0.34, // bar thickness, metres (the spearhead is ~2.3x this)
+    cageFit: 0.8, // real cage ring, x the circle
+    feintFit: 1.02, // feint cage ring, x the circle
+    cageDrop: 1.5, // height the sheaves arrive at over the circle, metres
+    cageArc: 0.45, // extra height of the throw at mid-flight, metres
+    cageRoll: 7, // radians/second the sheaves tumble in flight
+    cageBundle: 1.3, // radius of a sheaf in flight, metres
+    cageFlightScale: 0.45, // bar length in flight, x cageHeight
+    cageFeintGap: 2.3, // the feint sheaf flies this far beside the real one, metres
+    cageOpen: 0.24, // seconds from the beat for the bars to burst out and stab in
+    cageDig: 0.15, // how deep a planted foot sits, metres
+    cageSpin: 1.4, // radians/second the real cage turns before the cut
+    feintSpin: 1.9, // radians/second the feint turns, the other way
+    cageCutAt: 0.62, // impact progress at which the real cage cuts
+    cageCutTime: 0.2, // seconds the clench takes
+    cageLean: 0.62, // radians each bar leans in when it cuts
+    cageGrind: 0.3, // radians/second the clenched cage keeps grinding round
+    cageCool: 0.7, // seconds for the blades to cool from white
+    cageSinkAt: 1.5, // fade progress at which the bars start to sink (1 = fade start)
+    feintDissolve: 0.35, // seconds the feint takes to glitch apart
+    cageSeamGlow: 1.1, // glow in the collars and twist groove
+    cageEdgeGlow: 1.0, // glow along the spearhead arrises
+    cageRimGlow: 0.12, // fresnel rim in the seam colour
+    cageSpecular: 0.5, // sun highlight on the lacquer
+    feintGlow: 0.6, // seam glow of the feint (its rim is stronger)
+    feintOpacity: 0.4, // how solid the feint afterimage is (translucent)
+    cageLit: 0.55, // how strongly the sun lights the lacquer
+    colorCageDeep: '#040102', // lacquer, deep
+    colorCageBody: '#12040b', // lacquer, lit
+    colorCageSeam: '#f25faa', // seams and blades
+    colorCageHot: '#ffd2ea', // the blades at the cut
+    colorFeintBody: '#140c24', // the feint's afterimage body (dim violet)
+    colorFeintSeam: '#8a6ad8', // the feint's seams, rim and floor dash (violet)
+    plantDust: 3, // dust puffs off each foot as it stabs in
+    plantChips: 4, // chips off each foot
+    plantShake: 0.3, // camera punch of the plant
+    plantLight: 6, // light punch of the plant
+    cutShake: 0.4, // camera punch of the cut
+    cutLight: 14, // light punch of the cut
+    cutSparks: 90, // sparks off the blades at the cut
+    feintMotes: 120, // motes the feint breaks into
+    footSparks: 70, // sparks per second off the ploughing feet
+    gashSmoke: 18, // smoke puffs per second off the gashes
+    floorOpacity: 0.95, // strength of the cage floor
+    floorGlow: 0.8, // glow of the groove and gashes
+    floorGroove: 0.5, // width of the plough groove, metres
+    floorReach: 1.12, // floor stain radius, x the circle
+    floorLetGo: 1.6, // fade progress at which the floor starts to go
+    colorFloorDeep: '#0a0306', // floor stain, deep
+    colorFloorBody: '#1c0814' // floor stain, lit
   }
 };
