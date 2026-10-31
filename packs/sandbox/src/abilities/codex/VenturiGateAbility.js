@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +9,9 @@ import {
   createVenturiGateLensMaterial,
   createVenturiGateGroundMaterial,
   createVenturiGateVoiceMaterial,
-  createVenturiGateDetailMaterial
+  createVenturiGateDetailMaterial,
+  createVenturiGateWallMaterial,
+  createVenturiGateScourMaterial
 } from '../../materials/codex/VenturiGateMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +48,10 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+const TAU = Math.PI * 2;
+const _q = new Quaternion();
+const _hand = new Vector3();
+const _yAxis = new Vector3(0, 1, 0);
 
 /**
  * VENTURI GATE — wind, zone cast.
@@ -72,6 +78,33 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The gate (the hero, cast-local — sections 14–16 of the editor)
+ *
+ * The shared template layers (body drum, voice, rig, pieces, template field)
+ * are switched off in the config through their own keys; the spell is
+ * carried by its own forms:
+ *
+ *   - **the gust** — a spindle of spinning air (`gust*`) is thrown from the
+ *     hand along the aim and dives into the circle as the front arrives,
+ *     shedding streaks. As it nears, the foot of the gate already whirls up.
+ *   - **the gate** — a venturi of dense, moving air (`gate*`): a lathe wall
+ *     with a wide foot on the circle, a pinched throat and a flared mouth,
+ *     fluted into air bars, helical bands streaming up it. Dark teal body,
+ *     sun-lit, pale crests only on the ridges. It slams up on the beat.
+ *   - **the squeeze** — through the impact phase the throat closes from
+ *     `gateThroatStart` to `gateThroatEnd` × the circle, accelerating, the
+ *     spin and the upward flow speeding with it; floor dust is drawn in
+ *     across the circle and streaks spiral up the wall.
+ *   - **the cough** — on the echo beat (the same frame the old second hit
+ *     lands) the mouth is blown open and up (`cough*`), the wall is torn
+ *     away from the top down, a ring of dust rolls out across the floor,
+ *     streaks fan out and the camera punches.
+ *   - **the scour** — a filled disc on the floor (`scour*`): spiral grooves
+ *     that wind tighter as the gate squeezes, then a fan of radial scour
+ *     from the cough; it stays through the linger and erodes on noise.
+ *
+ * All of it is presentation: hits still land on the echo beat exactly as before.
  *
  * Every metre, rate and colour is read from `settings.venturi` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -107,6 +140,7 @@ export class VenturiGateAbility extends Ability {
     this.voice = this._mesh(this.voiceGeometry, this.voiceMaterial, LAYER.VFX, 13);
     this.lens = this._mesh(this.bodyGeometry, this.lensMaterial, LAYER.DISTORTION, 0);
     this.ground = this._mesh(this.groundGeometry, this.groundMaterial, LAYER.VFX, 1);
+    this._buildGate();
     this._state = {
       center: new Vector3(),
       origin: new Vector3(),
@@ -151,6 +185,234 @@ export class VenturiGateAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+  }
+
+  /** The gate's own meshes: the air wall, the gust, the scoured floor. */
+  _buildGate() {
+    this.wallGeometry = new PlaneGeometry(1, 1, 144, 40);
+    this.wallMaterial = createVenturiGateWallMaterial();
+    this.wall = this._mesh(this.wallGeometry, this.wallMaterial, LAYER.VFX, 14);
+    this.gustMaterial = createVenturiGateWallMaterial();
+    this.gust = this._mesh(this.wallGeometry, this.gustMaterial, LAYER.VFX, 15);
+    this.scourGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.scourMaterial = createVenturiGateScourMaterial();
+    this.scour = this._mesh(this.scourGeometry, this.scourMaterial, LAYER.VFX, 2);
+    this.scour.rotation.x = -Math.PI / 2;
+    this._wallShape = { r0: 1, r1: 1, r2: 1, height: 1, rise: 0, spin: 0, flare: 0, seed: 0, opacity: 1, flow: 0, dissolve: 0 };
+    this._gustShape = { r0: 0.05, r1: 0.4, r2: 0.05, height: 1, rise: 1, spin: 0, flare: 0, seed: 0, opacity: 1, flow: 0, dissolve: 0 };
+    this._floor = { radius: 1, land: 0, twist: 0, cough: 0, erode: 0, heat: 0, seed: 0 };
+    this._gateSpin = 0;
+    this._gateFlow = 0;
+    this._gustSpin = 0;
+    this._squeeze = 0;
+    this._throat = 1;
+    this._coughed = false;
+    this._inEmitter = new RateEmitter();
+    this._riseEmitter = new RateEmitter();
+    this._gustEmitter = new RateEmitter();
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Seconds after the beat the cough lands — the same moment the echo hit fires (fade t = 1.08). */
+  get _coughAt() {
+    return this.impactDuration + 0.08 * this.fadeDuration;
+  }
+
+  /**
+   * Stand the gate for this frame: every dimension from settings, every moment
+   * from the travel (`u`) or the seconds since the beat.
+   */
+  _gate(committed, fadeT, dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    const coughAt = this._coughAt;
+    const R = Math.max(0.3, c.zoneRadius * c.gateFit);
+    this.pointAt(1, _end);
+
+    // The foot whirls up as the gust nears; the wall slams up on the beat.
+    let rise;
+    if (since < 0) rise = c.gateAnticipate * Easing.inQuad(saturate((this.u - 0.5) / 0.5));
+    else rise = c.gateAnticipate + (1 - c.gateAnticipate) * Easing.outBack(saturate(since / Math.max(0.03, c.gateRise * L)));
+    // The squeeze runs from the slam to the cough, accelerating.
+    const sq = since < 0 ? 0 : saturate((since - c.gateRise * L) / Math.max(0.1, coughAt - c.gateRise * L));
+    this._squeeze = Easing.inOutCubic(sq);
+    const flare = since < coughAt ? 0 : Easing.outCubic(saturate((since - coughAt) / Math.max(0.05, c.coughTime * L)));
+    const tear = since < coughAt ? 0 : saturate((since - coughAt - c.coughTime * 0.25 * L) / Math.max(0.05, c.coughTear * L));
+    this._throat = c.gateThroatStart + (c.gateThroatEnd - c.gateThroatStart) * this._squeeze;
+    const speed = 1 + c.gateSqueezeSpin * this._squeeze + c.coughSpin * flare * (1 - tear);
+    this._gateSpin += dt * c.gateSpin * speed * g.animationSpeed;
+    this._gateFlow += dt * c.gateFlow * (1 + 1.6 * this._squeeze + 2 * flare) * g.animationSpeed;
+
+    const w = this._wallShape;
+    w.r0 = R;
+    w.r1 = R * this._throat;
+    w.r2 = R * c.gateTop * (1 - 0.25 * this._squeeze);
+    w.height = Math.max(0.2, c.gateHeight) * (1 - 0.12 * this._squeeze);
+    w.rise = Math.max(0, rise);
+    w.spin = this._gateSpin;
+    w.flare = flare * c.coughFlare;
+    w.seed = this._seed;
+    w.flow = this._gateFlow;
+    w.opacity = c.gateOpacity * (0.75 + 0.25 * this._squeeze) * (1 - 0.35 * flare);
+    w.dissolve = tear;
+    const showWall = rise > 0.01 && tear < 0.999 && c.gateOpacity > 0.01;
+    this.wall.visible = showWall;
+    if (showWall) {
+      this.wall.position.set(_end.x, 0, _end.z);
+      this.wallMaterial.userData.sync(w);
+    }
+
+    // The gust, thrown from the hand and diving into the circle.
+    if (!committed && c.gustOpacity > 0.01) {
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _hand.y = c.handHeight;
+      const t = saturate(this.u);
+      _pos.lerpVectors(_hand, _end, t);
+      _pos.y = _hand.y * (1 - t) + 0.4 * t + c.gustArc * 4 * t * (1 - t);
+      // Lay it along its path: the tangent of the arc.
+      _dir.subVectors(_end, _hand).setY(0);
+      const flat = Math.max(0.01, _dir.length());
+      _dir.y = (0.4 - _hand.y) + c.gustArc * 4 * (1 - 2 * t);
+      _dir.normalize();
+      const len = Math.max(0.1, c.gustLength) * (0.4 + 0.6 * Easing.outCubic(saturate(this.age / 0.15)));
+      _q.setFromUnitVectors(_yAxis, _dir);
+      this.gust.quaternion.copy(_q);
+      this.gust.position.copy(_pos).addScaledVector(_dir, -len);
+      this._gustSpin += dt * c.gustSpin * g.animationSpeed;
+      const gs = this._gustShape;
+      gs.r0 = c.gustRadius * 0.15;
+      gs.r1 = c.gustRadius;
+      gs.r2 = c.gustRadius * 0.2;
+      gs.height = len;
+      gs.rise = 1;
+      gs.spin = this._gustSpin;
+      gs.flare = 0;
+      gs.seed = this._seed + 3;
+      gs.flow = this._gateFlow * 2 + this.age * 3;
+      gs.opacity = c.gustOpacity * (1 - Easing.inQuad(saturate((t - 0.85) / 0.15)));
+      gs.dissolve = 0;
+      this.gust.visible = true;
+      this.gustMaterial.userData.sync(gs);
+    } else this.gust.visible = false;
+
+    // The scoured floor.
+    const f = this._floor;
+    f.radius = Math.max(0.3, c.zoneRadius * c.scourFit);
+    f.land = since < 0 ? c.scourTelegraph * saturate((this.u - 0.4) / 0.6) : Math.max(c.scourTelegraph, 1.2 * Easing.outCubic(saturate(since / Math.max(0.03, c.scourLand * L))));
+    f.twist = -this._gateSpin * c.scourTwist;
+    f.cough = flare;
+    const erodeStart = total * c.scourErodeStart;
+    f.erode = since < 0 ? 0 : saturate((since - erodeStart) / Math.max(0.1, total - erodeStart));
+    f.heat = since < 0 ? 0.3 : Math.exp(-since * 2.2) + 0.4 * flare * (1 - tear);
+    f.seed = this._seed;
+    const showFloor = c.scourOpacity > 0.01 && f.land > 0.01 && f.erode < 0.999;
+    this.scour.visible = showFloor;
+    if (showFloor) {
+      const span = f.radius * 2.2;
+      this.scour.position.set(_end.x, 0.04, _end.z);
+      this.scour.scale.set(span, span, 1);
+      this.scourMaterial.userData.sync(f);
+    }
+  }
+
+  /** The gate's own particles: the gust's wake, dust drawn in across the floor, streaks spiralling up the wall. */
+  _gateShed(dt, committed) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (!committed) {
+      if (!this.gust.visible) return;
+      const n = Math.round(this._gustEmitter.tick(dt, c.gustTrail) * g.particleCount);
+      if (n > 0) {
+        _dir.set(0, 1, 0).applyQuaternion(this.gust.quaternion).multiplyScalar(-1);
+        this._fillEmit(this.gust.position, c.gustRadius * 0.6, _dir, c.streakSpeed * 0.5, 0.5, 0.06, c.streakLife, 2);
+        this.streaks.emit(n, _emit);
+      }
+      return;
+    }
+    if (this._coughed || !this.wall.visible) return;
+    const R = Math.max(0.3, c.zoneRadius * c.gateFit);
+    this.pointAt(1, _end);
+    const nIn = Math.round(this._inEmitter.tick(dt, c.squeezeDust * (0.3 + this._squeeze)) * g.particleCount);
+    for (let k = 0; k < nIn; k++) {
+      const ang = Math.random() * TAU;
+      const r = R * (0.95 + Math.random() * 0.25);
+      _pos.set(_end.x + Math.cos(ang) * r, 0.12 + Math.random() * 0.2, _end.z + Math.sin(ang) * r);
+      _dir.set(-Math.cos(ang) - Math.sin(ang) * 0.6, 0.08, -Math.sin(ang) + Math.cos(ang) * 0.6);
+      this._fillEmit(_pos, 0.15, _dir, c.dustSpeed * 1.3, 0.2, 0.5, c.dustLife * 1.2, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    const nUp = Math.round(this._riseEmitter.tick(dt, c.squeezeStreaks * (0.3 + this._squeeze)) * g.particleCount);
+    const H = c.gateHeight;
+    for (let k = 0; k < nUp; k++) {
+      const ang = Math.random() * TAU;
+      const v = Math.random();
+      const th = c.gateThroatAt;
+      const kk = v < th ? (th - v) / th : (v - th) / (1 - th);
+      const r = R * (v < th ? this._throat + (1 - this._throat) * kk * kk : this._throat + (c.gateTop - this._throat) * kk * kk);
+      _pos.set(_end.x + Math.cos(ang) * r * 1.03, v * H, _end.z + Math.sin(ang) * r * 1.03);
+      _dir.set(-Math.sin(ang), 0.9, Math.cos(ang));
+      this._fillEmit(_pos, 0.1, _dir, c.streakSpeed * 0.8, 0.15, 0.06, c.streakLife, 2);
+      this.streaks.emit(1, _emit);
+    }
+  }
+
+  /** The cough: dust rolled out across the floor, streaks fanned out from the throat, chips, a punch. */
+  _cough() {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    const R = Math.max(0.3, c.zoneRadius * c.gateFit);
+    this.pointAt(1, _end);
+    this.ctx.shake.add(c.coughShake * power * g.cameraShake, 5, 16);
+    this.lightBoost += c.coughLight * power;
+    const nd = Math.round(c.coughDust * g.particleCount);
+    for (let i = 0; i < nd; i++) {
+      const ang = (i / Math.max(1, nd)) * TAU + Math.random() * 0.2;
+      _pos.set(_end.x + Math.cos(ang) * R * this._throat, 0.2 + Math.random() * 0.4, _end.z + Math.sin(ang) * R * this._throat);
+      _dir.set(Math.cos(ang), 0.1, Math.sin(ang));
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed * c.coughDustSpeed, 0.15, 0.85, c.dustLife * 1.8, 0.5);
+      this.dust.emit(1, _emit);
+    }
+    const ns = Math.round(c.coughStreaks * g.particleCount);
+    for (let i = 0; i < ns; i++) {
+      const ang = Math.random() * TAU;
+      const y = c.gateHeight * (0.2 + 0.7 * Math.random());
+      _pos.set(_end.x + Math.cos(ang) * R * this._throat, y, _end.z + Math.sin(ang) * R * this._throat);
+      _dir.set(Math.cos(ang), 0.25 + 0.4 * Math.random(), Math.sin(ang));
+      this._fillEmit(_pos, 0.2, _dir, c.streakSpeed * 1.6, 0.12, 0.08, c.streakLife * 1.3, 2);
+      this.streaks.emit(1, _emit);
+    }
+    const nc = Math.round(c.coughChips * g.particleCount * power);
+    if (nc > 0) {
+      _pos.copy(_end).setY(0.2);
+      this._fillEmit(_pos, R * this._throat, _up, c.chipSpeed * 1.4, 0.9, c.chipSize * 1.4, c.chipLife * 1.3, 8);
+      this.chips.emit(nc, _emit);
+    }
+    if (c.coughRing > 0.01) {
+      this.ctx.decals.spawn(DecalType.DUSTRING, _end, {
+        radius: R * 1.35 * power,
+        life: c.shockLife * 1.4,
+        width: 0.12,
+        intensity: c.coughRing,
+        colorA: getColor(c.colorScourDeep),
+        colorB: getColor(c.colorGateBody),
+        height: 0.035
+      });
+    }
+  }
+
+  _hideGate() {
+    this.wall.visible = false;
+    this.gust.visible = false;
+    this.scour.visible = false;
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +493,16 @@ export class VenturiGateAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._gateSpin = Math.random() * TAU;
+    this._gateFlow = 0;
+    this._gustSpin = 0;
+    this._squeeze = 0;
+    this._throat = settings[ID].gateThroatStart;
+    this._coughed = false;
+    this._inEmitter.reset();
+    this._riseEmitter.reset();
+    this._gustEmitter.reset();
+    this._hideGate();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -745,8 +1017,10 @@ export class VenturiGateAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._gate(false, 0, dt);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._gateShed(dt, false);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -763,8 +1037,10 @@ export class VenturiGateAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._gate(true, t, dt);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._gateShed(dt, true);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -773,6 +1049,10 @@ export class VenturiGateAbility extends Ability {
     if (ECHO && !this._echoed && t > 1.08) {
       this._echoed = true;
       this._echo();
+    }
+    if (!this._coughed && t > 1.08) {
+      this._coughed = true;
+      this._cough();
     }
     this._drag(dt, fade);
     this._updateMarks(dt);
@@ -788,9 +1068,15 @@ export class VenturiGateAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this._hideGate();
   }
 
   dispose() {
+    this.wallGeometry.dispose();
+    this.wallMaterial.dispose();
+    this.gustMaterial.dispose();
+    this.scourGeometry.dispose();
+    this.scourMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -971,6 +1257,70 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const gate = folder.addFolder('14 · The gate');
+  R(gate, c, 'gateFit', 0.3, 1.5, 0.01, 'foot, × circle');
+  R(gate, c, 'gateHeight', 0.5, 8, 0.05, 'height (m)');
+  R(gate, c, 'gateThroatAt', 0.1, 0.9, 0.01, 'throat height');
+  R(gate, c, 'gateThroatStart', 0.1, 1.2, 0.01, 'throat, open');
+  R(gate, c, 'gateThroatEnd', 0.05, 1.2, 0.01, 'throat, squeezed');
+  R(gate, c, 'gateTop', 0.1, 1.5, 0.01, 'mouth, × circle');
+  R(gate, c, 'gateAnticipate', 0, 1, 0.01, 'whirls up before the beat');
+  R(gate, c, 'gateRise', 0.03, 1, 0.01, 'slams up in (s)');
+  R(gate, c, 'gateFlutes', 0, 24, 1, 'air bars');
+  R(gate, c, 'gateFluteDepth', 0, 0.4, 0.005, 'bar depth');
+  R(gate, c, 'gateTwist', -4, 4, 0.05, 'twist (rad)');
+  R(gate, c, 'gateBands', 1, 20, 1, 'bands');
+  R(gate, c, 'gateBandTwist', -6, 6, 0.05, 'band twist');
+  R(gate, c, 'gateFlow', 0, 6, 0.05, 'flow');
+  R(gate, c, 'gateSpin', -8, 8, 0.05, 'spin (rad/s)');
+  R(gate, c, 'gateSqueezeSpin', 0, 8, 0.05, 'spin-up in the squeeze');
+  R(gate, c, 'gateOpacity', 0, 1.5, 0.01, 'opacity');
+  R(gate, c, 'gateLight', 0, 3, 0.01, 'sun light');
+  R(gate, c, 'gateCrest', 0, 4, 0.05, 'crest glow');
+  gate.addColor(c, 'colorGateDeep').name('air, deep');
+  gate.addColor(c, 'colorGateBody').name('air, body');
+  gate.addColor(c, 'colorGateCrest').name('crest');
+  R(gate, c, 'squeezeDust', 0, 300, 1, 'dust drawn in / s');
+  R(gate, c, 'squeezeStreaks', 0, 400, 1, 'streaks up / s');
+
+  const cough = folder.addFolder('15 · The cough');
+  R(cough, c, 'coughFlare', 0, 3, 0.01, 'mouth blown open');
+  R(cough, c, 'coughLift', 0, 6, 0.05, 'lift (m)');
+  R(cough, c, 'coughTime', 0.05, 2, 0.01, 'blow (s)');
+  R(cough, c, 'coughTear', 0.05, 3, 0.01, 'torn away in (s)');
+  R(cough, c, 'coughSpin', 0, 8, 0.05, 'spin burst');
+  R(cough, c, 'coughDust', 0, 400, 1, 'dust roll');
+  R(cough, c, 'coughDustSpeed', 0, 8, 0.05, 'dust roll speed');
+  R(cough, c, 'coughStreaks', 0, 600, 1, 'streaks');
+  R(cough, c, 'coughChips', 0, 200, 1, 'chips');
+  R(cough, c, 'coughShake', 0, 2, 0.01, 'camera punch');
+  R(cough, c, 'coughLight', 0, 40, 0.5, 'light punch');
+  R(cough, c, 'coughRing', 0, 1.5, 0.01, 'dust ring decal');
+
+  const scour = folder.addFolder('16 · The scour');
+  R(scour, c, 'scourFit', 0.3, 2, 0.01, 'reach, × circle');
+  R(scour, c, 'scourArms', 1, 16, 1, 'spiral grooves');
+  R(scour, c, 'scourWind', 0, 6, 0.05, 'winding');
+  R(scour, c, 'scourTwist', 0, 3, 0.01, 'winds with the gate');
+  R(scour, c, 'scourRays', 4, 160, 1, 'cough streaks');
+  R(scour, c, 'scourRayAmount', 0, 1.5, 0.01, 'cough scour');
+  R(scour, c, 'scourRidge', 0, 1.5, 0.01, 'ridges');
+  R(scour, c, 'scourOpacity', 0, 1.5, 0.01, 'opacity');
+  R(scour, c, 'scourHeat', 0, 3, 0.01, 'fresh glow');
+  R(scour, c, 'scourLand', 0.03, 2, 0.01, 'lands in (s)');
+  R(scour, c, 'scourTelegraph', 0, 1, 0.01, 'footprint before the beat');
+  R(scour, c, 'scourErodeStart', 0, 1, 0.01, 'erodes from, share of life');
+  scour.addColor(c, 'colorScourDeep').name('bed');
+  scour.addColor(c, 'colorScourRidge').name('ridge');
+
+  const gust = folder.addFolder('17 · The gust');
+  R(gust, c, 'gustLength', 0.1, 6, 0.05, 'length (m)');
+  R(gust, c, 'gustRadius', 0.05, 2, 0.01, 'girth (m)');
+  R(gust, c, 'gustSpin', -40, 40, 0.5, 'spin (rad/s)');
+  R(gust, c, 'gustArc', 0, 4, 0.05, 'arc (m)');
+  R(gust, c, 'gustOpacity', 0, 1.5, 0.01, 'opacity');
+  R(gust, c, 'gustTrail', 0, 400, 1, 'wake streaks / s');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');
