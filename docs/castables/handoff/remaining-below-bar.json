@@ -1007,8 +1007,8 @@
    ],
    "onScreen": "A train of lavender pressure-ring shells travels from the caster to the dummies laying ripple discs on the floor, then ends in a pale smoke puff.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "collective/tempest",
@@ -1032,8 +1032,8 @@
    ],
    "onScreen": "A wisp leaves the caster's hand, a small funnel forms at the cluster and grows into a tall pale white tornado inside a thin ring that lifts dummies up out of frame.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/faultwake-bastion",
@@ -1099,8 +1099,8 @@
    ],
    "onScreen": "Three pale pink masks process down three wavy violet floor lanes, turn into pink bubbles at the dummies, then vanish leaving the lanes glowing.",
    "captureError": null,
-   "status": "upgraded-7",
-   "newScore": 7
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/vector-breakwater",
@@ -1165,7 +1165,8 @@
    ],
    "onScreen": "Large spectral swords form overhead and stab down one after another onto a chain of glowing blue rune circles from the caster to the dummies, leaving thin blades upright.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-new/emberveil",
@@ -1207,7 +1208,8 @@
    ],
    "onScreen": "A lime gem spike spins in green rings at the caster, drills a bubbling lime trench with a dark edge to the group, raises a translucent green dome there and leaves a lime spiral and trench at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/miasma",
@@ -1224,7 +1226,8 @@
    ],
    "onScreen": "A wobbling lime bile glob arcs from the hand, lands in a sludge splash with a ring among the dummies, and leaves a lime pool with spatter and faint fumes.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "collective/spore",
@@ -1244,7 +1247,8 @@
    ],
    "onScreen": "A small green pod drops among the dummies, a ring and mycelium cracks spread at 1.3 s, and by 2.3 s a cluster of pale glowing mushrooms fills the zone over a green cracked floor.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/fulminant-relay",
@@ -1262,7 +1266,8 @@
    ],
    "onScreen": "A big faceted blue crystal seed in a glassy bubble rides a violet trail to the dummies, bursts among them, and by 2.3 s sits over knocked-down targets with a dark scorch line back to the caster.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-expansion/overtone-spiral",
@@ -1281,7 +1286,8 @@
    ],
    "onScreen": "A small ring at f8, then a green dome round the centre dummy, then a wide lobed teal resonance disc with a small white fork at its middle that knocks dummies out and lingers with purple flecks at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "matrix-new/umbra",
@@ -1298,7 +1304,8 @@
    ],
    "onScreen": "A violet burst at the hand, a dark puff moves out, a dark-centred violet shadow pool spreads under the dummies with a clawed hand rising, and at 2.3 s the pool holds a sinking target.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   }
  ],
  "rig": [
@@ -1326,7 +1333,8 @@
    ],
    "onScreen": "Red arc lines and a red floor grid with concentric rings span the line, small pink cog sprites fly along it, an orange sunburst flashes at the group and a faint red smear remains at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/afterimage",
@@ -1351,7 +1359,8 @@
    ],
    "onScreen": "A fan of flat pink faceted blades sweeps round the caster under a frame-wide red arc line, a pink cone of light points at the group, and a single pink blade remains at the caster at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/crosscut",
@@ -1377,7 +1386,8 @@
    ],
    "onScreen": "Pale teal ribbon blades and long thin arcs sweep around the caster, a ring stack forms down the line toward the dummies, and by 2.3 s only a faint teal wake strip and a small swirl at the caster remain.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/eventcage",
@@ -1400,7 +1410,8 @@
    ],
    "onScreen": "A thin blue wire dome over the dummies spreads into a speckled blue pool, flares into a small ring structure and leaves a dark blue stain.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/filament",
@@ -1424,7 +1435,8 @@
    ],
    "onScreen": "A giant white picket-fence curtain stands over the caster, breaks up, and leaves a flat gold radial beam on the floor with a thin gold squiggle at the dummies.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/glissando",
@@ -1449,7 +1461,8 @@
    ],
    "onScreen": "Flat pale-green piano-key slats and ladders scatter along and around the line over a green ripple stripe, then fade to the stripe and a small flicker at the dummies.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/hollowvolley",
@@ -1472,7 +1485,8 @@
    ],
    "onScreen": "Blue grid-faceted pods, white arcs and a wire dome rise along the line near the caster, then sink into a blue smear by 2.33 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/kinethalo",
@@ -1497,7 +1511,8 @@
    ],
    "onScreen": "A red sigil disc appears under the dummies, a faint dome flashes and throws them, and the disc fades into a dark-red stain with scattered fragments.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/masslance",
@@ -1520,7 +1535,8 @@
    ],
    "onScreen": "Cream faceted stone spheres crowd around the caster and down the line to a large sphere at the dummies over a warm floor stripe, then scatter to small debris.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/mirrorhalo",
@@ -1545,7 +1561,8 @@
    ],
    "onScreen": "A wall of flat bright-pink panels rings the target zone from the first frame, cracks and shatters into pink fragments, and leaves a magenta stain with a few shards.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/moment",
@@ -1569,7 +1586,8 @@
    ],
    "onScreen": "A giant flat peach low-poly hammer on a long rod swings at the caster's feet under a frame-wide red arc line, a red glow column hangs near the caster, and only a red smear and broken pieces remain at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/orbitpendulum",
@@ -1592,7 +1610,8 @@
    ],
    "onScreen": "A translucent pink drum on a rod orbits the caster under a frame-wide pink ring line, red concentric rings stand on the floor, and only a red streak remains toward the group at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/perigee",
@@ -1618,7 +1637,8 @@
    ],
    "onScreen": "Thin white orbit rings with small beads circle the dummies, then a brown stain with faint rings spreads and remains.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/presscage",
@@ -1642,7 +1662,8 @@
    ],
    "onScreen": "Red slab bars inside a translucent drum squeeze the group, flatten into a ring of red bars and rings on the floor, and leave a dark-red stain with dummies flung outward at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/redshift",
@@ -1666,7 +1687,8 @@
    ],
    "onScreen": "A violet wire capsule at the target fires a beam of violet spots back down the line flanked by small violet streaks, a faint dome pops, and it fades to a dim violet smear.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/riftpendulum",
@@ -1689,7 +1711,8 @@
    ],
    "onScreen": "A giant violet grid-lined pod-blade swings around the caster in the foreground while a blue haze stripe and a pale dome appear at the dummies.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/servopylon",
@@ -1712,7 +1735,8 @@
    ],
    "onScreen": "A tall cyan pylon stamps into a ring of thin glowing rods inside a striped translucent hex wall, flings the dummies, and fades to a faint cyan floor glow at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/vectorhalo",
@@ -1735,7 +1759,8 @@
    ],
    "onScreen": "A flat orange ring lies under the group, bursts into a red-orange field of jagged shards that flings the dummies, and fades to a red floor stain at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/venturi",
@@ -1760,7 +1785,8 @@
    ],
    "onScreen": "A wireframe drum of thin teal bars stands round the group from f8, squeezes in and sinks into a teal floor glow by 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/absence",
@@ -1782,7 +1808,8 @@
    ],
    "onScreen": "A short violet shard strikes the dummy group under a pale dome flash while a violet stripe and scattered glyph slivers mark the line, fading by 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/aureole",
@@ -1804,7 +1831,8 @@
    ],
    "onScreen": "A thin gold spiked ring lies on the target circle, brightens and tightens with short spikes as dummies are flung, and leaves a soft gold floor stain.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/cadence",
@@ -1827,7 +1855,8 @@
    ],
    "onScreen": "White translucent arches spray over the caster as lime capsules line a green ripple strip to the target, then a green ripple strip remains.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/clangor",
@@ -1851,7 +1880,8 @@
    ],
    "onScreen": "A ring of flat neon-green scribble bars stands round the dummies, sinks into a pale splash, and leaves a green ripple pool.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/doppel",
@@ -1874,7 +1904,8 @@
    ],
    "onScreen": "A pink fan cone and drifting pink crystal shards spread from the caster toward the dummies where a thin pink lance strikes, leaving a wavy pink floor trail.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/duskspire",
@@ -1896,7 +1927,8 @@
    ],
    "onScreen": "A violet grid-lined spire stands in the circle over a speckled violet pool, sprouts spikes at 1.3 s, and shrinks to a small spire in a dark pool.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/facetvolley",
@@ -1918,7 +1950,8 @@
    ],
    "onScreen": "A violet curtain rises along the line while small white crystal cones drop beside it onto a violet strip, then the strip remains.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/falsefloor",
@@ -1942,7 +1975,8 @@
    ],
    "onScreen": "A glowing pink tile disc lies under the group, a translucent dome rises, the dummies drop, and a pink clump and magenta stain remain at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/feintcage",
@@ -1965,7 +1999,8 @@
    ],
    "onScreen": "A ring of pink translucent slabs encloses the group, folds into a starburst of pink spikes under a thin halo, and leaves a magenta floor stain at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/geodecage",
@@ -1988,7 +2023,8 @@
    ],
    "onScreen": "Lavender panelled shell pieces close round the dummies, collapse into a pale lavender splash at 1.3 s, and leave a pale disc with small debris.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/gimbal",
@@ -2011,7 +2047,8 @@
    ],
    "onScreen": "A white helix ribbon and cyan floor stripes run from the caster to the target among cyan hex disc icons, a dome pops and dummies fly, then it fades to a faint cyan strip.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/glamour",
@@ -2032,7 +2069,8 @@
    ],
    "onScreen": "A pink veil floats at the dummies while a pink fan cone with petal wisps runs from the caster, then targets fall and a wavy pink trail stays on the floor.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/hardpoint",
@@ -2058,7 +2096,8 @@
    ],
    "onScreen": "A knee-high ring of pale-cyan lit blocks stands on the target circle, dummies are flung outward, and by 2.3 s only a faint cyan ripple patch remains.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/impulse",
@@ -2080,7 +2119,8 @@
    ],
    "onScreen": "Orange flecks flutter into a pink ring round the group, an orange floor field spreads and flings the dummies, a thin wireframe funnel rises at the centre and an orange glow remains at 2.3 s.",
    "captureError": null,
-   "status": "not-started"
+   "status": "passed-8",
+   "newScore": 8
   },
   {
    "uid": "codex/katabatic",

@@ -1,4 +1,4 @@
-import { Color, Mesh, Points, Vector3 } from 'three';
+import { Color, Mesh, Points, Quaternion, Vector3 } from 'three';
 import { Ability, AbilityPhase } from '../../Ability.js';
 import { LAYER } from '../../../core/Layers.js';
 import { frame } from '../../../core/FrameUniforms.js';
@@ -16,6 +16,7 @@ import {
   forkStemGeometry,
   overtoneHelixGeometry,
   carrierGeometry,
+  carrierWakeGeometry,
   plateGeometry,
   noteCloudGeometry
 } from './OvertoneSpiralGeometry.js';
@@ -23,6 +24,7 @@ import {
   createFrontMaterial,
   createResonatorMaterial,
   createCarrierMaterial,
+  createWakeMaterial,
   createPlateMaterial,
   createHelixMaterial,
   createNoteMaterial,
@@ -50,11 +52,16 @@ const NOTE_COUNT = 96;
 const MAX_FRONT_EMITS = 8;
 
 const _emit = {};
-const _burst = { radius: 0.2, endRadius: 1.6, life: 0.45, intensity: 0.5, opacity: 0.45, colorA: null, colorB: null, colorC: null };
+const _burst = { radius: 0.2, endRadius: 1.6, life: 0.45, intensity: 0.5, opacity: 0.28, colorA: null, colorB: null, colorC: null };
 const _decal = { radius: 3, life: 0.6, intensity: 0.6, width: 0.05, colorA: null, colorB: null };
 const _pos = new Vector3();
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _fwd = new Vector3(0, 0, 1);
+const _start = new Vector3();
+const _head = new Vector3();
+const _q = new Quaternion();
+const _qSpin = new Quaternion();
 
 /**
  * OVERTONE SPIRAL — Sound, zone cast.
@@ -73,12 +80,21 @@ const _up = new Vector3(0, 1, 0);
  *
  * ## Layers (each a folder in the editor)
  *
- *   1. **the carrier** (`carrierGeometry`, `createCarrierMaterial`) and the
- *      motes it trails.
+ *   1. **the carrier** (`carrierGeometry`, `createCarrierMaterial`) — a
+ *      ringing bead at hand height, facing the way it flies — the motes it
+ *      trails, and **the wake** (`carrierWakeGeometry`, `createWakeMaterial`
+ *      ×2, crossed): a ribbon of sound strung from the caster's hand to the
+ *      bead, swinging in a standing wave, dark-edged with a hot core. On
+ *      impact the wake stays strung from the hand to the fork for `wakeHold`
+ *      and then reels into it, so the path reads in the first frames even
+ *      though the bead itself crosses the range in a few hundredths.
  *   2. **the resonator** (`forkTineGeometry` ×3, `forkStemGeometry`,
- *      `createResonatorMaterial`) — brushed steel with a fresnel rim; the
- *      tines bend in their first mode on the strike and their nodal bands
- *      glow in the fundamental's tone.
+ *      `createResonatorMaterial`) — the standing silhouette, scaled by
+ *      `forkScale` to ~3 m so it towers over the bodies it knocks down. Dark
+ *      green-steel on a four-stop ramp (`metalDeep` shadow → `metalColor`
+ *      lit faces → pale sheen → white-hot nodal bands) with a teal fresnel
+ *      rim; the tines bend in their first mode on the strike and their nodal
+ *      bands blaze in the fundamental's tone.
  *   3. **the fronts** (`harmonicFrontGeometry`, `createFrontMaterial` ×3) —
  *      pressure ridges displaced in the vertex stage: radius, width, crest
  *      and lobes are all uniforms, so no vertex is rewritten on the CPU.
@@ -174,8 +190,21 @@ export class OvertoneSpiralAbility extends Ability {
     this.carrierMaterial = createCarrierMaterial(new Color(0x7af5bd), 2);
     this.carrier = new Mesh(this.carrierGeometry, this.carrierMaterial);
     this.carrier.layers.set(LAYER.VFX);
-    this.carrier.rotation.x = -Math.PI / 2;
     this.group.add(this.carrier);
+
+    // The wake: two crossed ribbons sharing one strip.
+    this.wakeGeometry = carrierWakeGeometry();
+    this.wakeMaterials = [createWakeMaterial(0), createWakeMaterial(1)];
+    this.wakes = this.wakeMaterials.map((material) => {
+      const wake = new Mesh(this.wakeGeometry, material);
+      wake.layers.set(LAYER.VFX);
+      wake.frustumCulled = false; // laid out in the vertex stage
+      wake.renderOrder = 9;
+      wake.visible = false;
+      this.group.add(wake);
+      return wake;
+    });
+    this._impactAge = -1;
 
     /* ---- 2 · the resonator gives the fronts a physical source ---- */
     this.forkGeometry = forkTineGeometry();
@@ -265,6 +294,8 @@ export class OvertoneSpiralAbility extends Ability {
     this.noteMaterial.uniforms.uFade.value = 0; // ramped on through the impact (see onFade)
     this.carrier.visible = true;
     this.carrierMaterial.uniforms.uFade.value = 1;
+    this._impactAge = -1;
+    for (const wake of this.wakes) wake.visible = true;
     this._drawCarrier();
     this.notes.position.copy(this.centre);
     this.noteMaterial.uniforms.uRadius.value = this.config.radius;
@@ -292,12 +323,70 @@ export class OvertoneSpiralAbility extends Ability {
     const time = this._clock;
     this._syncColors();
     this.pointAt(this.u, this.carrier.position);
-    this.carrier.position.y = c.carrierHeight ?? 0.28;
+    this.carrier.position.y = c.carrierHeight ?? 1.2;
     // The bead throbs as it flies, a carrier tone made visible.
-    const size = (c.carrierSize ?? 0.35) * (1 + 0.28 * Math.sin(time * 12));
+    const size = (c.carrierSize ?? 0.75) * (1 + 0.28 * Math.sin(time * 12));
     this.carrier.scale.setScalar(size);
-    this.carrier.rotation.z = time * (c.carrierSpin ?? 2);
+    // It faces the way it flies (so the caster's camera sees its face) and spins.
+    _q.setFromUnitVectors(_fwd, this.direction);
+    _qSpin.setFromAxisAngle(_fwd, time * (c.carrierSpin ?? 2));
+    this.carrier.quaternion.copy(_q).multiply(_qSpin);
     this.carrierMaterial.uniforms.uTime.value = time;
+    this._drawWake();
+  }
+
+  /** The resonator's size factor, live from the slider. */
+  get _forkScale() {
+    return Math.max(0.2, this.config.forkScale ?? 1);
+  }
+
+  /**
+   * The wake, from the caster's hand to the bead in flight, then to the
+   * fork's tines; after `wakeHold` it reels in toward the fork and is gone.
+   */
+  _drawWake() {
+    const c = this.config;
+    const gl = settings.global;
+    let tail = 0;
+    let fade = 1;
+    _start.copy(this.origin).addScaledVector(this.direction, c.wakeStartOffset ?? 0.5);
+    if (this._impactAge < 0) {
+      _head.copy(this.carrier.position);
+    } else {
+      _head.copy(this.centre);
+      _head.y = (c.forkHeight ?? 1) * this._forkScale;
+      const life = Math.max(0.1, gl.lifetime);
+      const since = this.age - this._impactAge;
+      const hold = (c.wakeHold ?? 0.55) * life;
+      const reel = Math.max(0.02, (c.wakeReel ?? 0.35) * life);
+      tail = clamp01((since - hold) / reel);
+      tail = tail * tail * (3 - 2 * tail);
+      fade = 1 - clamp01((since - hold - reel * 0.6) / (reel * 0.4));
+    }
+    const dx = _head.x - _start.x;
+    const dz = _head.z - _start.z;
+    const length = Math.max(0.01, Math.hypot(dx, dz));
+    _dir.set(dx / length, 0, dz / length);
+    _q.setFromUnitVectors(_fwd, _dir);
+    const time = this._clock;
+    const show = fade > 0.001 && tail < 0.999;
+    for (let i = 0; i < this.wakes.length; i++) {
+      const wake = this.wakes[i];
+      const material = this.wakeMaterials[i];
+      wake.visible = show;
+      if (!show) continue;
+      wake.position.set(_start.x, 0, _start.z);
+      wake.quaternion.copy(_q);
+      material.userData.sync(c);
+      const u = material.uniforms;
+      u.uTime.value = time + i * 0.37;
+      u.uLength.value = length;
+      u.uStartY.value = c.wakeStartHeight ?? 1.3;
+      u.uEndY.value = _head.y;
+      u.uDraw.value = 1;
+      u.uTail.value = tail;
+      u.uFade.value = fade * gl.opacity;
+    }
   }
 
   /** Tones and gains → every material, every frame, so a drag lands mid-cast. */
@@ -318,7 +407,8 @@ export class OvertoneSpiralAbility extends Ability {
   _syncParticles(c) {
     const gl = settings.global;
     if (this.soundRings) {
-      this.soundRings.setGradient(getColor(c.toneA), getColor(c.toneB), getColor(c.toneC), getColor(c.toneC));
+      // Rings start in the fundamental and die into the deep stop, not to a pale wash.
+      this.soundRings.setGradient(getColor(c.toneA), getColor(c.toneB), getColor(c.toneB), getColor(c.colorDeep ?? '#07302b'));
       const u = this.soundRings.uniforms;
       u.uEndSize.value = c.ringGrowth ?? 6;
       u.uGravity.value.set(0, 0, 0);
@@ -393,6 +483,7 @@ export class OvertoneSpiralAbility extends Ability {
     const gl = settings.global;
     this.position.copy(this.centre);
     this.carrier.visible = false;
+    this._impactAge = this.age;
     // The note cloud eases on with the plate (onFade ramps uFade) instead of
     // popping in at full strength on the impact frame.
     this.noteMaterial.uniforms.uFade.value = 0;
@@ -424,15 +515,23 @@ export class OvertoneSpiralAbility extends Ability {
     }
     this.mat.uniforms.uStrike.value = beat;
     beat *= c.resonance;
-    this.stem.position.set(this.centre.x, 0.32, this.centre.z);
-    this.stem.scale.set(envelope * (1 + beat * 0.12), envelope, envelope * (1 + beat * 0.12));
-    const spread = c.forkSpread ?? 0.25;
+    // Everything below is × forkScale, so the fork stands over a body; the
+    // envelope grows it up out of the floor (the foot stays on the floor).
+    const s = this._forkScale;
+    const girth = s * Math.max(0.2, c.forkThickness ?? 1);
+    this.stem.position.set(this.centre.x, 0.325 * s * envelope, this.centre.z);
+    this.stem.scale.set(envelope * girth * (1 + beat * 0.12), envelope * s, envelope * girth * (1 + beat * 0.12));
+    const spread = (c.forkSpread ?? 0.25) * s;
     for (let i = 0; i < this.forks.length; i++) {
       const fork = this.forks[i];
       const a = time * (c.forkTurn ?? 0.25) + (i * TAU) / TINES;
-      fork.position.set(this.centre.x + Math.cos(a) * spread, (c.forkHeight ?? 1) + shimmer + beat * 0.15, this.centre.z + Math.sin(a) * spread);
+      fork.position.set(
+        this.centre.x + Math.cos(a) * spread,
+        ((c.forkHeight ?? 1) + shimmer + beat * 0.15) * s * envelope,
+        this.centre.z + Math.sin(a) * spread
+      );
       fork.rotation.set(shimmer * (i + 1), a, shimmer + beat * 0.12);
-      fork.scale.set(envelope, envelope * (1 + i * 0.16) * (1 + beat * 0.2), envelope);
+      fork.scale.set(envelope * girth, envelope * s * (1 + i * 0.16) * (1 + beat * 0.2), envelope * girth);
     }
     this.mat.uniforms.uTime.value = time;
 
@@ -443,7 +542,7 @@ export class OvertoneSpiralAbility extends Ability {
     helix.uDraw.value = (lit / HARMONICS) * (HELIX_TURNS + 0.4);
     helix.uTime.value = time;
     const hr = c.helixRadius ?? 0.55;
-    this.helix.scale.set(hr * envelope, (c.helixHeight ?? 1.6) * envelope, hr * envelope);
+    this.helix.scale.set(hr * s * envelope, (c.helixHeight ?? 1.6) * s * envelope, hr * s * envelope);
     this.helix.rotation.y = this._helixSpin;
 
     // The plate rings into a new figure with each harmonic.
@@ -495,7 +594,9 @@ export class OvertoneSpiralAbility extends Ability {
       this.ctx.flash?.trigger?.(getColor(c.flashColor ?? c.toneA), (c.strikeFlash ?? 0.08) * gl.explosionIntensity);
       _pos.copy(this.centre).setY(0.9);
       _burst.endRadius = 1.6 * gl.explosionIntensity;
-      _burst.colorA = _burst.colorB = _burst.colorC = tone;
+      _burst.colorA = tone;
+      _burst.colorB = getColor(c.toneB);
+      _burst.colorC = getColor(c.colorDeep ?? '#07302b');
       this.ctx.bursts?.spawn(BurstMode.AIR, _pos, _burst);
     }
     if ((c.strikeDecal ?? 0.6) > 0) {
@@ -506,7 +607,7 @@ export class OvertoneSpiralAbility extends Ability {
     if (this.soundRings) {
       const n = Math.min(12, Math.round((c.ringBurst ?? 3) * gl.particleCount));
       if (n > 0) {
-        _pos.copy(this.centre).setY((c.forkHeight ?? 1) + 0.2);
+        _pos.copy(this.centre).setY(((c.forkHeight ?? 1) + 0.2) * this._forkScale);
         this.soundRings.emit(n, this._emitRecord(_pos, _up, 0.05, 0.2, c.ringSize ?? 0.5, c.ringLifetime ?? 0.6, 0));
       }
     }
@@ -540,6 +641,7 @@ export class OvertoneSpiralAbility extends Ability {
     const time = this._clock;
     this._syncColors();
     this._syncParticles(c);
+    this._drawWake();
     if (!this.reduceMotion) {
       this._plateSpin += (c.plateSpin ?? 0.15) * dt;
       this._helixSpin += (c.helixSpin ?? 0.6) * dt;
@@ -609,6 +711,7 @@ export class OvertoneSpiralAbility extends Ability {
 
   onDestroy() {
     this.carrier.visible = false;
+    for (const wake of this.wakes) wake.visible = false;
     for (const r of this.rings) r.visible = false;
     for (const s of this.hit) s.clear();
     for (const fork of this.forks) fork.visible = false;
@@ -628,6 +731,8 @@ export class OvertoneSpiralAbility extends Ability {
     this.noteMaterial.dispose();
     this.carrierGeometry.dispose();
     this.carrierMaterial.dispose();
+    this.wakeGeometry.dispose();
+    for (const material of this.wakeMaterials) material.dispose();
     this.plateGeometry.dispose();
     this.plateMaterial.dispose();
     this.warpMaterial.dispose();
@@ -691,16 +796,28 @@ export function buildEditor(gui, c, Editor) {
   R(carrier, c, 'carrierSpin', 0, 12, 0.1, 'spin (rad/s)');
   R(carrier, c, 'carrierGlow', 0, 4, 0.05, 'glow');
   R(carrier, c, 'carrierTrail', 0, 200, 1, 'trail motes/second');
+  R(carrier, c, 'wakeWidth', 0.02, 1.5, 0.01, 'wake half-width (m)');
+  R(carrier, c, 'wakeSwing', 0, 1.5, 0.01, 'wake swing (m)');
+  R(carrier, c, 'wakeWaves', 0.5, 12, 0.1, 'wake wavelengths');
+  R(carrier, c, 'wakeGlow', 0, 4, 0.05, 'wake glow');
+  R(carrier, c, 'wakeStartHeight', 0, 3, 0.01, 'wake starts at height (m)');
+  R(carrier, c, 'wakeStartOffset', 0, 3, 0.01, 'wake starts ahead of caster (m)');
+  R(carrier, c, 'wakeHold', 0, 2, 0.01, 'wake holds after impact (s)');
+  R(carrier, c, 'wakeReel', 0.02, 2, 0.01, 'wake reels in over (s)');
 
   const fork = sub(f, '2 · Resonator');
   R(fork, c, 'resonance', 0, 2, 0.05, 'strike motion');
   R(fork, c, 'strikeDecay', 0.02, 1, 0.01, 'strike settles over (s)');
-  R(fork, c, 'forkHeight', 0.5, 3, 0.05, 'tine height (m)');
+  R(fork, c, 'forkScale', 0.3, 4, 0.01, 'resonator scale');
+  R(fork, c, 'forkThickness', 0.3, 4, 0.01, 'girth');
+  R(fork, c, 'forkHeight', 0.5, 3, 0.05, 'tine height (× scale)');
   R(fork, c, 'forkSpread', 0.05, 1, 0.01, 'tine spread (m)');
   R(fork, c, 'forkTurn', 0, 3, 0.05, 'tine turn (rad/s)');
   R(fork, c, 'forkBuzz', 0, 0.1, 0.002, 'buzz (m)');
   R(fork, c, 'resonatorGlow', 0, 4, 0.05, 'nodal glow');
   C(fork, c, 'metalColor', 'steel');
+  C(fork, c, 'metalDeep', 'steel deep');
+  C(fork, c, 'colorDeep', 'cast deep stop');
 
   const fronts = sub(f, '3 · Fronts');
   R(fronts, c, 'frontWidth', 0.02, 0.6, 0.01, 'ridge half-width (m)');

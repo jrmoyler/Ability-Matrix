@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template's white arches (off: the forks carry the read)
     edgeGlow: 1.85,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.32,
@@ -62,10 +62,10 @@ export default {
     colorA: '#a7e33b',
     colorB: '#ffffff',
     colorC: '#2c4007',
-    lensWarp: 1.11, // strength of the distortion it writes
+    lensWarp: 0, // strength of the distortion it writes (off: the arches it warps are gone)
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: the forks carry the read)
     colorVoiceA: '#a7e33b',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the template strip (off: the beat pools replace it)
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.2, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#2c3420', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the forks are the pieces)
     detailSize: 0.65, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local forks are the hero)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -115,16 +115,16 @@ export default {
     colorHeroC: '#2c4007',
 
     /* --- 6 · shed --- */
-    dustRate: 48, // puffs per second
+    dustRate: 10, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
     dustOpacity: 0.55,
-    colorDustA: '#eaffc8',
-    colorDustB: '#a7e33b',
-    colorDustC: '#2c4007',
+    colorDustA: '#5d6a44',
+    colorDustB: '#3a4626',
+    colorDustC: '#1c2410',
     colorDustD: '#1a140e',
-    streakRate: 108, // sparks per second
+    streakRate: 24, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -133,7 +133,7 @@ export default {
     colorStreakB: '#eaffc8',
     colorStreakC: '#a7e33b',
     colorStreakD: '#a7e33b',
-    chipRate: 10.8, // fragments per second
+    chipRate: 3, // fragments per second
     chipSize: 0.08,
     chipSpeed: 6,
     chipLife: 0.7,
@@ -143,7 +143,7 @@ export default {
     colorChipD: '#2a241c',
 
     /* --- 7 · motes --- */
-    moteRate: 26, // motes per second off the pieces
+    moteRate: 0, // motes per second off the pieces (none: the pieces are off)
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
@@ -154,11 +154,11 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.5, // camera punch on the beat
-    impactFlash: 0.13, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat
     colorFlash: '#eaffc8',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 5, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -166,7 +166,7 @@ export default {
     colorBurstC: '#2c4007',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#a7e33b',
     colorShockB: '#ffffff',
 
@@ -198,19 +198,72 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.22, // ribbon width at the head, metres
     trailLife: 1.1, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon (off: the forks' own arcs are the travel)
     trailGlow: 1.1, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.35, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
+    scarOpacity: 0, // strength of the scar (off: the beat pools mark the floor)
     scarGlow: 1.6, // brightness of its hot seam
     colorScarA: '#a7e33b',
     colorScarB: '#2c4007',
-    wakeSpacing: 2.5, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.6, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.2 // fragments thrown at each wake
+    wakeChips: 1.2, // fragments thrown at each wake
+
+    /* --- 15 · the forks (cast-local hero) --- */
+    forkSize: 2.3, // height of the last (biggest) fork, metres
+    forkSizeFirst: 0.62, // the first fork's height, × the last
+    forkBeatFirst: 0.45, // the first landing's punch, × the last
+    forkFlight: 0.42, // seconds a fork is in the air (the far ones; near ones less)
+    forkArc: 2.4, // apex of the far forks' arc, metres
+    forkSpin: 9, // radians/second a fork rolls about its length in flight
+    forkPlant: 0.1, // how far the stem is driven into the floor, × height
+    forkTilt: 0.12, // radians a planted fork leans at rest
+    forkWobble: 0.22, // radians it rocks on the landing
+    forkSpread: 0.07, // how far the tines swing while it rings, × height
+    forkRingRate: 30, // radians/second the tines swing at
+    forkRingDecay: 1.5, // how fast the hum dies, per second
+    forkCool: 5, // how fast the strike flash cools, per second
+    forkHum: 0.8, // lime hum up the ringing tines
+    forkStrikeGlow: 2.2, // white-hot flash at the yoke on a strike
+    forkSpecular: 1.2, // sun glint on the steel
+    forkRimGlow: 0.3, // rim light on the steel
+    colorForkDeep: '#080c04', // steel, deep
+    colorForkBody: '#323a26', // olive steel
+    colorForkTint: '#c4dc86', // steel rim
+    colorForkGlow: '#a7e33b', // the hum
+    colorForkHot: '#f4ffe0', // white-hot strike
+    landShake: 0.16, // camera punch of the last (hardest) landing
+    landLight: 3, // light punch of the last landing
+    landBurst: 0, // strength of the low burst at each landing
+    landChips: 12, // chips thrown at the last landing
+    landPuffs: 8, // dust puffs rolled out at each landing
+    landDust: 1.1, // dust ring at each landing, × fork height
+    humMotes: 40, // motes per second off the ringing tines
+    downbeatAt: 0.42, // seconds after the last fork the bar rings together, × global lifetime
+    downRing: 1, // how hard every fork rings on the downbeat
+    downShake: 0.3, // camera punch of the downbeat
+    downFlash: 0.05, // screen flash of the downbeat
+    downLight: 7, // light punch of the downbeat
+    downSparks: 10, // sparks off each fork's tines on the downbeat
+    toppleStart: 0.6, // forks start to topple at this share of the life after the beat
+    toppleStagger: 0.06, // seconds between one fork toppling and the next, × global lifetime
+    toppleTime: 0.32, // seconds a fork takes to fall, × global lifetime
+    crumbleTime: 0.35, // seconds it takes to crumble once down, × global lifetime
+
+    /* --- 16 · the beat pools --- */
+    poolOpacity: 0.92, // strength of the pools
+    poolRadius: 0.5, // pan radius, × the fork's height
+    poolGrow: 9, // how fast a pan opens, per second
+    poolWaveLength: 0.75, // metres between pressure crests
+    poolWaveSpeed: 1.6, // metres/second the crests run out
+    poolWaveDecay: 0.9, // how fast they die, per second
+    poolGlow: 0.2, // lime on the crests
+    poolErodeStart: 0.72, // pools fray out from this share of the life after the beat
+    colorPoolDeep: '#050803', // pan
+    colorPoolBody: '#2c3c12' // crest
   }
 };

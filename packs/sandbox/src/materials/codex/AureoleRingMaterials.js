@@ -694,3 +694,252 @@ export function createAureoleRingDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The aureole itself — cast-local hero shaders                          */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The rays and the sun-star: lit gilt metal. A dark bronze deep, a gold body
+ * with hammered grain, a hard sun glint and a pale fresnel rim — a solid on
+ * the floor, not a glow. Light lives only along the edges and in the flare:
+ * a band of white-gold that runs base → tip on the beat, then the heat cools
+ * back to bronze. Per piece `aRay` = (seed, heat 0..1, flare band position,
+ * unused); geometry `aAxis` runs 0 base .. 1 tip and `aEdge` marks the edges.
+ * Opaque, on LAYER.SHAPED so it casts the sun's shadow.
+ */
+const GILT_VERTEX = /* glsl */ `
+  attribute vec4 aRay;
+  attribute float aAxis;
+  attribute float aEdge;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vRay;
+  varying float vAxis;
+  varying float vEdge;
+  void main() {
+    #ifdef USE_INSTANCING
+      mat4 m = modelMatrix * instanceMatrix;
+    #else
+      mat4 m = modelMatrix;
+    #endif
+    vec4 world = m * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(m) * normal);
+    vLocal = position;
+    vRay = aRay;
+    vAxis = aAxis;
+    vEdge = aEdge;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const GILT_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uPale;
+  uniform vec3  uHot;
+  uniform float uRimGlow;
+  uniform float uSpecular;
+  uniform float uEdgeGlow;
+  uniform float uFlareGlow;
+  uniform float uHeatGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec4 vRay;
+  varying float vAxis;
+  varying float vEdge;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    float grain = snoise01(vec3(vLocal * 9.0 + vRay.x * 7.0));
+    float hammer = snoise01(vec3(vLocal * 3.0 + vRay.x * 3.0));
+    // Bronze at the foot and in the hollows, gold up the faces.
+    float lift = 0.35 + 0.65 * smoothstep(0.0, 0.5, vAxis);
+    vec3 albedo = mix(uDeep, uBody, clamp(lift * (0.55 + 0.45 * hammer), 0.0, 1.0));
+    vec3 color = albedo * (0.16 + 1.05 * ndl);
+    color += albedo * 0.22 * (0.5 + 0.5 * N.y);
+    color += mix(uBody, uPale, 0.6) * pow(max(dot(N, H), 0.0), 48.0) * uSpecular * (0.7 + 0.6 * grain);
+    color += uPale * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow * 0.6;
+
+    // Heat: light lives along the edges, and in the flare band that runs up the ray.
+    float heat = vRay.y;
+    float edge = vEdge * (0.4 + 0.6 * vAxis);
+    color += mix(uBody, uHot, 0.5) * edge * uEdgeGlow * (0.25 + heat) * uGlobalGlow;
+    float band = exp(-pow((vAxis - vRay.z) / 0.09, 2.0));
+    color += uHot * band * uFlareGlow * heat * uGlobalGlow;
+    color += uBody * heat * uHeatGlow * 0.35 * (0.6 + 0.4 * sin(uTime * 6.0 + vRay.x * 9.0)) * uGlobalGlow;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createAureoleRingGiltMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uPale: { value: new Color() },
+      uHot: { value: new Color() },
+      uRimGlow: { value: 1 },
+      uSpecular: { value: 1 },
+      uEdgeGlow: { value: 1 },
+      uFlareGlow: { value: 1 },
+      uHeatGlow: { value: 1 }
+    }),
+    vertexShader: GILT_VERTEX,
+    fragmentShader: GILT_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorGiltDeep));
+    u.uBody.value.copy(getColor(c.colorGiltBody));
+    u.uPale.value.copy(getColor(c.colorGiltPale));
+    u.uHot.value.copy(getColor(c.colorGiltHot));
+    u.uRimGlow.value = c.giltRimGlow * g.fresnel;
+    u.uSpecular.value = c.giltSpecular;
+    u.uEdgeGlow.value = c.giltEdgeGlow * g.shaderIntensity;
+    u.uFlareGlow.value = c.giltFlareGlow * g.shaderIntensity;
+    u.uHeatGlow.value = c.giltHeatGlow;
+  };
+  return material;
+}
+
+/**
+ * The sunburst burned into the floor: a filled disc, not a ring. Long and
+ * short ray wedges alternate round a gilt boss on a dark umber bed; it lands
+ * out from the centre on the beat, glows hot and cools to bronze through the
+ * linger, and erodes on noise at the end.
+ */
+const SUN_VERTEX = /* glsl */ `
+  uniform float uSpan;
+  varying vec2 vXY;
+  void main() {
+    vXY = position.xy * uSpan;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SUN_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uRadius;
+  uniform float uLand;
+  uniform float uRays;
+  uniform float uSpin;
+  uniform float uFeet;     // radius of the blade feet, × uRadius
+  uniform float uHeat;
+  uniform float uOpacity;
+  uniform float uErode;
+  uniform float uSeed;
+  uniform vec3  uBed;
+  uniform vec3  uRay;
+  uniform vec3  uHot;
+  varying vec2 vXY;
+
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vXY) / max(uRadius, 0.01);
+    float a = atan(vXY.y, vXY.x) - uSpin;
+    float n = fbm3(vec3(vXY * 0.8, uSeed));
+    float fine = snoise01(vec3(vXY * 5.0, uSeed + 2.0));
+
+    float sector = a * uRays / 6.2831853;
+    float k = fract(sector);
+    float idx = floor(sector);
+    float longRay = mod(idx, 2.0);
+    float reach = mix(0.68, 1.0, longRay);
+    float w = 0.4 * (1.0 - r / reach) + 0.05;
+    float wedge = 1.0 - smoothstep(w - 0.05, w, abs(k - 0.5));
+    wedge *= 1.0 - smoothstep(reach - 0.05, reach, r);
+    float boss = 1.0 - smoothstep(0.14, 0.2, r);
+    float feet = exp(-pow((r - uFeet) / 0.05, 2.0));
+
+    float edge = 1.0 - smoothstep(0.9, 1.05, r + (n - 0.5) * 0.15);
+    float landed = 1.0 - smoothstep(uLand - 0.08, uLand + 0.01, r);
+    float erode = smoothstep(uErode * 1.2 - 0.15, uErode * 1.2 + 0.05, n * 0.75 + fine * 0.25);
+    float mask = edge * landed * erode;
+    if (mask < 0.003) discard;
+
+    float gilt = clamp(wedge + boss, 0.0, 1.0);
+    vec3 color = mix(uBed, uRay, gilt * (0.65 + 0.35 * fine));
+    color += uHot * (gilt * 0.5 + feet * 0.9 + boss * 0.4) * uHeat * uGlobalGlow;
+    float lip = exp(-pow((r - uLand) / 0.05, 2.0)) * step(uLand, 1.05);
+    color += uHot * lip * 0.8 * uGlobalGlow;
+    float alpha = uOpacity * mask * (0.7 + 0.3 * gilt);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+export function createAureoleRingSunMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uSpan: { value: 1 },
+      uRadius: { value: 4 },
+      uLand: { value: 0 },
+      uRays: { value: 28 },
+      uSpin: { value: 0 },
+      uFeet: { value: 0.9 },
+      uHeat: { value: 0 },
+      uOpacity: { value: 1 },
+      uErode: { value: 0 },
+      uSeed: { value: 0 },
+      uBed: { value: new Color() },
+      uRay: { value: new Color() },
+      uHot: { value: new Color() }
+    }),
+    vertexShader: SUN_VERTEX,
+    fragmentShader: SUN_FRAGMENT
+  });
+  material.userData.sync = (floor) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRadius.value = floor.radius;
+    u.uSpan.value = floor.radius * 2.2;
+    u.uLand.value = floor.land;
+    u.uRays.value = Math.max(2, Math.round(c.rayCount) * 2);
+    u.uSpin.value = floor.spin;
+    u.uFeet.value = floor.feet;
+    u.uHeat.value = floor.heat * c.sunHeat * g.glow;
+    u.uOpacity.value = c.sunOpacity * g.opacity;
+    u.uErode.value = floor.erode;
+    u.uSeed.value = floor.seed;
+    u.uBed.value.copy(getColor(c.colorSunBed));
+    u.uRay.value.copy(getColor(c.colorSunRay));
+    u.uHot.value.copy(getColor(c.colorGiltHot));
+  };
+  return material;
+}

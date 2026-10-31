@@ -1,4 +1,5 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, FrontSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
@@ -994,6 +995,323 @@ export function createHollowVolleyScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* ==================================================================== */
+/* The signature — hollow seeds, their implosion, and the wells          */
+/* ==================================================================== */
+/*
+ * Four more shaders, written for this cast:
+ *   seed    — a lit obsidian husk (MeshStandardMaterial, patched): five lobes,
+ *             the valleys split open into glowing slits as it heats, the inside
+ *             of the hollow lit violet through the mouth.
+ *   lip     — the ragged ring of floor a landing throws up: lit dark stone,
+ *             violet cracks along its crest while the well is hot.
+ *   implode — the shell of the world pulled in: a dark sphere with a violet
+ *             fresnel limb, contracting onto the seed.
+ *   well    — the hole left behind: a filled disc, black at its heart, spiral
+ *             arms of violet drawn down into it, a hot band at its rim.
+ * Each instance owns its material (same program), so every seed can be at its
+ * own point of its life.
+ */
+
+const SEED_VERTEX_PARS = /* glsl */ `
+  varying vec3 vSeedLocal;
+`;
+const SEED_FRAGMENT_PARS = /* glsl */ `
+  uniform float uHeat;
+  uniform float uSeamGlow;
+  uniform float uRimGlow;
+  uniform float uSlit;
+  uniform vec3  uColorShell;
+  uniform vec3  uColorLit;
+  uniform vec3  uColorSeam;
+  uniform vec3  uColorCore;
+  varying vec3  vSeedLocal;
+  ${noiseGLSL}
+  float gSeedSeam;
+  float gSeedLobe;
+`;
+const SEED_COLOR = /* glsl */ `
+  {
+    float a = atan(vSeedLocal.z, vSeedLocal.x);
+    float y = vSeedLocal.y;
+    gSeedLobe = cos(5.0 * (a + y * 0.6));
+    // The slits: the lobe valleys split open as the seed heats.
+    float slit = -1.0 + 0.025 + uSlit * (0.04 + 0.16 * uHeat);
+    if (gSeedLobe < slit && abs(y) < 0.34) discard;
+    gSeedSeam = smoothstep(slit + 0.22, slit, gSeedLobe) * (1.0 - smoothstep(0.3, 0.46, abs(y)));
+    float grain = snoise(vSeedLocal * 9.0) * 0.5 + 0.5;
+    vec3 shell = mix(uColorShell, uColorLit, smoothstep(-0.2, 1.0, gSeedLobe) * 0.75 + 0.15 * grain);
+    diffuseColor.rgb = shell;
+  }
+`;
+const SEED_EMISSIVE = /* glsl */ `
+  {
+    vec3 nV = normalize(normal);
+    float ndv = abs(dot(nV, normalize(vViewPosition)));
+    float rim = pow(1.0 - ndv, 3.0);
+    vec3 seamCol = mix(uColorSeam, uColorCore, clamp(uHeat * uHeat, 0.0, 1.0));
+    totalEmissiveRadiance += seamCol * gSeedSeam * uSeamGlow * (0.6 + 1.4 * uHeat);
+    // Inside the hollow: lit from within, brighter toward the mouth.
+    if (!gl_FrontFacing) totalEmissiveRadiance += seamCol * uSeamGlow * (0.35 + 0.9 * smoothstep(-0.2, 0.46, vSeedLocal.y)) * (0.5 + uHeat);
+    totalEmissiveRadiance += uColorSeam * rim * uRimGlow;
+  }
+`;
+
+/** The husk of one hollow seed. Opaque, lit, shadow-casting; glows only at its slits, its hollow and its limb. */
+export function createHollowVolleySeedMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.25, side: DoubleSide });
+  const uniforms = {
+    uHeat: { value: 0 },
+    uSeamGlow: { value: 1 },
+    uRimGlow: { value: 1 },
+    uSlit: { value: 1 },
+    uColorShell: { value: new Color() },
+    uColorLit: { value: new Color() },
+    uColorSeam: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${SEED_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vSeedLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${SEED_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${SEED_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${SEED_EMISSIVE}`);
+    },
+    'hollowvolley-seed'
+  );
+  material.userData.uniforms = uniforms;
+  /** @param {number} heat 0..1 how far into its implosion this seed is */
+  material.userData.sync = (heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uSeamGlow.value = c.seedGlow * g.glow;
+    uniforms.uRimGlow.value = c.seedRim * g.fresnel * g.glow;
+    uniforms.uSlit.value = c.seedSlit;
+    uniforms.uColorShell.value.copy(getColor(c.colorSeedShell));
+    uniforms.uColorLit.value.copy(getColor(c.colorSeedLit));
+    uniforms.uColorSeam.value.copy(getColor(c.colorSeedSeam));
+    uniforms.uColorCore.value.copy(getColor(c.colorSeedCore));
+    material.roughness = c.seedRough;
+    material.metalness = c.seedMetal;
+  };
+  return material;
+}
+
+const LIP_FRAGMENT_PARS = /* glsl */ `
+  uniform float uHeat;
+  uniform float uCrackGlow;
+  uniform vec3  uColorStone;
+  uniform vec3  uColorSeam;
+  varying vec3  vLipLocal;
+  ${noiseGLSL}
+`;
+
+/** The thrown-up lip of a well: flat-shaded dark stone with violet cracks along the crest while it is hot. Shared by every lip. */
+export function createHollowVolleyLipMaterial() {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0, flatShading: true });
+  const uniforms = {
+    uHeat: { value: 0 },
+    uCrackGlow: { value: 1 },
+    uColorStone: { value: new Color() },
+    uColorSeam: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n  varying vec3 vLipLocal;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLipLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${LIP_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb = uColorStone * (0.7 + 0.5 * (snoise(vLipLocal * 7.0) * 0.5 + 0.5));`)
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  {
+    float crack = 1.0 - smoothstep(0.0, 0.12, abs(snoise(vec3(atan(vLipLocal.z, vLipLocal.x) * 3.0, vLipLocal.y * 9.0, 1.7))));
+    float crest = smoothstep(0.04, 0.16, vLipLocal.y);
+    totalEmissiveRadiance += uColorSeam * crack * crest * uHeat * uCrackGlow;
+  }`
+        );
+    },
+    'hollowvolley-lip'
+  );
+  material.userData.uniforms = uniforms;
+  material.userData.sync = (heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uCrackGlow.value = c.wellLipGlow * g.glow;
+    uniforms.uColorStone.value.copy(getColor(c.colorWellStone));
+    uniforms.uColorSeam.value.copy(getColor(c.colorSeedSeam));
+  };
+  return material;
+}
+
+const IMPLODE_VERTEX = /* glsl */ `
+  uniform float uTime;
+  uniform float uRipple;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  varying vec3 vLocal;
+  ${noiseGLSL}
+  void main() {
+    vLocal = position;
+    float n = snoise(position * 2.2 + vec3(0.0, uTime * 1.5, 0.0));
+    vec3 p = position * (1.0 + uRipple * 0.12 * n);
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+const IMPLODE_FRAGMENT = /* glsl */ `
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uPull;
+  uniform float uTime;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorArm;
+  uniform vec3  uColorCore;
+  varying vec3 vNormalW;
+  varying vec3 vWorld;
+  varying vec3 vLocal;
+  ${noiseGLSL}
+  void main() {
+    vec3 V = normalize(cameraPosition - vWorld);
+    float ndv = abs(dot(normalize(vNormalW), V));
+    float rim = pow(1.0 - ndv, 2.2);
+    // Streaks drawn in toward the centre, on the limb.
+    float streak = snoise(vec3(atan(vLocal.z, vLocal.x) * 4.0, vLocal.y * 4.0, uTime * 3.0)) * 0.5 + 0.5;
+    vec3 col = mix(uColorDeep, uColorArm * uGlow, rim * (0.6 + 0.6 * streak));
+    col += uColorCore * pow(rim, 5.0) * uGlow * uPull;
+    float alpha = uOpacity * (0.55 * (1.0 - rim) + rim) ;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The implosion: a dark shell of the world pulled in onto a seed. One per seed. */
+export function createHollowVolleyImplodeMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: FrontSide,
+    blending: NormalBlending,
+    uniforms: sharedUniforms({
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uPull: { value: 0 },
+      uRipple: { value: 1 },
+      uColorDeep: { value: new Color() },
+      uColorArm: { value: new Color() },
+      uColorCore: { value: new Color() }
+    }),
+    vertexShader: IMPLODE_VERTEX,
+    fragmentShader: IMPLODE_FRAGMENT
+  });
+  /** @param {number} opacity  @param {number} pull 0..1 how far it has closed */
+  material.userData.sync = (opacity, pull) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpacity.value = opacity * c.implodeOpacity * g.opacity;
+    u.uGlow.value = c.implodeGlow * g.glow;
+    u.uPull.value = pull;
+    u.uRipple.value = g.turbulence;
+    u.uColorDeep.value.copy(getColor(c.colorWellDeep));
+    u.uColorArm.value.copy(getColor(c.colorWellArm));
+    u.uColorCore.value.copy(getColor(c.colorSeedCore));
+  };
+  return material;
+}
+
+const WELL_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const WELL_FRAGMENT = /* glsl */ `
+  uniform float uPhase;
+  uniform float uArms;
+  uniform float uTwist;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uHeat;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorArm;
+  uniform vec3  uColorRim;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+    float a = atan(p.y, p.x);
+    // Spiral arms drawn down into the hole: they wind tighter toward the heart.
+    float wind = uArms * a + uTwist * log(max(r, 0.03)) * 3.0 + uPhase;
+    float n = snoise(vec3(p * 3.0, uSeed + uPhase * 0.15));
+    float arm = smoothstep(0.55, 0.97, sin(wind + n * 1.2) * 0.5 + 0.5);
+    arm *= smoothstep(0.08, 0.35, r) * (1.0 - smoothstep(0.88, 1.0, r));
+    float hole = 1.0 - smoothstep(0.15, 0.8, r);
+    vec3 col = uColorDeep;
+    col = mix(col, uColorArm * uGlow * (0.6 + 0.8 * uHeat), arm * (0.35 + 0.65 * smoothstep(0.2, 0.7, r)));
+    float band = smoothstep(0.7, 0.9, r) * (1.0 - smoothstep(0.9, 1.0, r));
+    col += uColorRim * band * uGlow * 0.12 * uHeat * (0.5 + 0.5 * n);
+    col *= 1.0 - 0.6 * hole * (1.0 - arm);
+    float alpha = uOpacity * (1.0 - smoothstep(0.9, 1.0, r)) * clamp(0.85 + hole + arm * 0.3, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/** The well a seed leaves: a filled void disc with spiral arms and a hot rim band. One per seed. */
+export function createHollowVolleyWellMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    uniforms: sharedUniforms({
+      uPhase: { value: 0 },
+      uArms: { value: 3 },
+      uTwist: { value: 1 },
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uHeat: { value: 1 },
+      uSeed: { value: 0 },
+      uColorDeep: { value: new Color() },
+      uColorArm: { value: new Color() },
+      uColorRim: { value: new Color() }
+    }),
+    vertexShader: WELL_VERTEX,
+    fragmentShader: WELL_FRAGMENT
+  });
+  material.userData.sync = (phase, opacity, heat, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uPhase.value = phase;
+    u.uArms.value = Math.max(1, Math.round(c.wellArms));
+    u.uTwist.value = c.wellTwist;
+    u.uOpacity.value = opacity * c.wellOpacity * g.opacity;
+    u.uGlow.value = c.wellGlow * g.glow;
+    u.uHeat.value = heat;
+    u.uSeed.value = seed;
+    u.uColorDeep.value.copy(getColor(c.colorWellDeep));
+    u.uColorArm.value.copy(getColor(c.colorWellArm));
+    u.uColorRim.value.copy(getColor(c.colorWellRim));
   };
   return material;
 }

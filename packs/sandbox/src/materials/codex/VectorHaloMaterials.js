@@ -756,3 +756,282 @@ export function createVectorHaloDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ======================================================================== */
+/* The vectors (cast-local hero, sections 14–15 of the editor)              */
+/* ======================================================================== */
+
+/**
+ * Forged vector iron for the arrows. Opaque and sun-lit, a four-stop ramp —
+ * white-hot core → pale ember tint → saturated orange body → near-black
+ * iron deep. The iron is the mass; the ember lives in the head (`aEdge`,
+ * hotter toward the tip) and in the whole blade while it is charged
+ * (`aVec.y`), cooling to dark iron after it lands (`aVec.w`). Shatters along
+ * voronoi cells on the exit (`aVec.z`). Instanced; `LAYER.WORLD`, shadows.
+ */
+const VEC_VERTEX = /* glsl */ `
+  attribute vec4 aVec;     // seed, charge heat 0..1, dissolve 0..1, cooled 0..1
+  attribute float aEdge;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying vec4  vVec;
+  varying float vEdge;
+  varying vec3  vNormalL;
+  void main() {
+    vNormalL = normal;
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 w = model * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vLocal = position;
+    vVec = aVec;
+    vEdge = aEdge;
+    vNormalW = normalize(mat3(model) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const VEC_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uSpecular;
+  uniform float uFresnel;
+  uniform float uAmbient;
+  uniform float uEdgeGlow;
+  uniform float uChargeGlow;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorIron;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying vec4  vVec;
+  varying float vEdge;
+  varying vec3  vNormalL;
+
+  ${noiseGLSL}
+
+  void main() {
+    float dissolve = vVec.z;
+    vec2 cell = voronoi2(vLocal.xy * 9.0 + vVec.x);
+    float dn = cell.y * 0.75 + snoise01(vLocal * 5.0 + vVec.x) * 0.25;
+    float thr = 1.0 - dissolve * 1.1;
+    if (dissolve > 0.0 && dn > thr) discard;
+    float bite = dissolve > 0.0 ? 1.0 - smoothstep(0.0, 0.07, thr - dn) : 0.0;
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    if (dot(N, V) < 0.0) N = -N;
+    // Hammered/brushed micro-relief: a flat face must not mirror the sun as one sheet.
+    N = normalize(N + 0.3 * vec3(snoise(vLocal * 11.0), snoise(vLocal * 11.0 + 3.1), snoise(vLocal * 11.0 + 7.3)));
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 40.0) * uSpecular;
+    float fres = pow(1.0 - abs(dot(N, V)), 2.6) * uFresnel;
+
+    float heat = vVec.y;
+    float cool = vVec.w;
+    // Hammered iron: dark, mottled, hot in the cracks of the hammering.
+    float ham = voronoi2(vLocal.xy * 14.0 + vVec.x * 3.0).x;
+    float mott = snoise01(vLocal * 6.0 + vVec.x);
+    vec3 albedo = mix(uColorDeep, uColorIron, 0.4 + 0.45 * mott);
+    vec3 col = albedo * (uAmbient + ndl * 1.1) * (0.85 + 0.15 * ham);
+    col += mix(uColorIron, uColorTint, 0.3) * spec;
+    col += uColorBody * fres * 0.15 * (1.0 - cool * 0.7);
+    // Heat lives only at the tip and along the cutting edges of the head (the
+    // extrusion's side walls and bevels); the flats stay dark forged iron.
+    float tip = smoothstep(0.82, 1.0, vEdge);
+    float rim = smoothstep(0.55, 0.95, 1.0 - abs(normalize(vNormalL).z));
+    float head = smoothstep(0.45, 0.8, vEdge);
+    float edgeHeat = max(tip, rim * head);
+    float crack = (1.0 - smoothstep(0.0, 0.05, ham)) * heat * head;
+    vec3 ember = mix(uColorBody, uColorCore, clamp(tip * heat, 0.0, 1.0) * 0.8);
+    float glow = edgeHeat * (uEdgeGlow * (1.0 - cool * 0.9) + heat * uChargeGlow) + rim * heat * uChargeGlow * 0.25 + crack * 0.6;
+    col += ember * min(glow, 1.2) * uShaderIntensity;
+    col += uColorCore * bite * 2.2;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+export function createVectorHaloArrowMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSpecular: { value: 1 },
+      uFresnel: { value: 0.6 },
+      uAmbient: { value: 0.3 },
+      uEdgeGlow: { value: 1 },
+      uChargeGlow: { value: 1 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uColorIron: { value: new Color() }
+    }),
+    vertexShader: VEC_VERTEX,
+    fragmentShader: VEC_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSpecular.value = c.arrowSpecular;
+    u.uFresnel.value = c.arrowFresnel * g.fresnel;
+    u.uAmbient.value = c.arrowAmbient;
+    u.uEdgeGlow.value = c.arrowEdgeGlow * g.glow;
+    u.uChargeGlow.value = c.arrowChargeGlow * g.glow;
+    u.uColorCore.value.copy(getColor(c.colorArrowCore));
+    u.uColorTint.value.copy(getColor(c.colorArrowTint));
+    u.uColorBody.value.copy(getColor(c.colorArrowBody));
+    u.uColorDeep.value.copy(getColor(c.colorArrowDeep));
+    u.uColorIron.value.copy(getColor(c.colorArrowIron));
+  };
+  return material;
+}
+
+/**
+ * The pinwheel the release tears into the floor: a filled disc of scoured
+ * ground under the circle, dark ember-brown, with curved tangent gouges
+ * swept out from the rim along every arrow's flight (`uCount` of them,
+ * starting at `uSpin`), hot when fresh and cooling to char. Normal
+ * blending; it covers the floor.
+ */
+const SWEEP_VERTEX = /* glsl */ `
+  varying vec2 vXZ;
+  void main() {
+    vXZ = position.xy;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SWEEP_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uOuter;     // metres the quad spans from the centre
+  uniform float uRing;      // the ring radius the gouges start from, metres
+  uniform float uReach;     // how far along the tangent they run, metres
+  uniform float uCount;
+  uniform float uSpin;
+  uniform float uCut;       // 0..1 how far the gouges have been cut along their run
+  uniform float uHeat;      // 0..1 fresh
+  uniform float uFill;      // 0..1 the scoured disc
+  uniform float uWidth;     // gouge half-width, metres
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uSeed;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorChar;
+  varying vec2 vXZ;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vec2(vXZ.x, -vXZ.y) * uOuter;   // world (x, z) offset from the centre
+    float r = length(p);
+    float n = max(3.0, uCount);
+    // Distance to the nearest gouge: each a straight run along the tangent from its rim point.
+    float best = 1e3;
+    float along = 0.0;
+    for (int i = 0; i < 16; i++) {
+      if (float(i) >= n) break;
+      float a = uSpin + 6.28318 * float(i) / n;
+      vec2 P = vec2(cos(a), sin(a)) * uRing;
+      vec2 T = vec2(-sin(a), cos(a));
+      float t = clamp(dot(p - P, T), 0.0, uReach * uCut);
+      float d = length(p - (P + T * t));
+      if (d < best) { best = d; along = t / max(0.01, uReach); }
+    }
+    float jag = snoise(vec3(p * 2.5, uSeed)) * 0.08;
+    float w = uWidth * (1.0 - along * 0.55);
+    float gouge = 1.0 - smoothstep(w * 0.55, w + jag, best);
+    float lip = (1.0 - smoothstep(0.0, 0.05, abs(best - w * 0.7))) * gouge;
+    // The scoured disc inside the ring.
+    float disc = (1.0 - smoothstep(uRing * 0.85, uRing * 1.08, r + jag * 3.0)) * uFill;
+    float grain = snoise01(vec3(p * 3.0, uSeed + 1.0));
+    vec3 col = mix(uColorChar, uColorDeep, grain * 0.6);
+    float mask = max(disc * 0.85, gouge);
+    // Fresh gouges glow ember in their beds, cooling to char.
+    float bed = gouge * (1.0 - along * 0.6);
+    float seam = 1.0 - smoothstep(0.0, w * 0.35, best);
+    col += uColorBody * seam * gouge * (1.0 - along * 0.5) * 0.9 * uHeat * uGlow * uShaderIntensity;
+    col = mix(col, uColorChar * 0.6, gouge * (1.0 - uHeat) * 0.5);
+    // Tangent streaks across the disc: the ring's walk scoured into it.
+    float ang = atan(p.y, p.x);
+    float streak = smoothstep(0.55, 0.95, snoise(vec3(ang * 6.0 - r * 1.2, r * 0.6, uSeed)));
+    col += uColorBody * streak * disc * 0.08 * uHeat * uGlow;
+    float alpha = mask * uOpacity * (0.75 + 0.25 * grain);
+    if (alpha < 0.01) discard;
+    gl_FragColor = vec4(col * uGlobalGlow, alpha);
+  }
+`;
+
+export function createVectorHaloSweepMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uOuter: { value: 6 },
+      uRing: { value: 4 },
+      uReach: { value: 4 },
+      uCount: { value: 12 },
+      uSpin: { value: 0 },
+      uCut: { value: 0 },
+      uHeat: { value: 1 },
+      uFill: { value: 1 },
+      uWidth: { value: 0.3 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uSeed: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uColorChar: { value: new Color() }
+    }),
+    vertexShader: SWEEP_VERTEX,
+    fragmentShader: SWEEP_FRAGMENT
+  });
+  material.userData.sync = (outer, ring, reach, count, spin, cut, heat, fill, opacity, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOuter.value = outer;
+    u.uRing.value = ring;
+    u.uReach.value = reach;
+    u.uCount.value = count;
+    u.uSpin.value = spin;
+    u.uCut.value = cut;
+    u.uHeat.value = heat;
+    u.uFill.value = fill;
+    u.uWidth.value = c.gougeWidth;
+    u.uOpacity.value = opacity * g.opacity;
+    u.uGlow.value = c.gougeGlow * g.glow;
+    u.uSeed.value = seed;
+    u.uColorCore.value.copy(getColor(c.colorArrowCore));
+    u.uColorBody.value.copy(getColor(c.colorArrowBody));
+    u.uColorDeep.value.copy(getColor(c.colorArrowDeep));
+    u.uColorChar.value.copy(getColor(c.colorGougeChar));
+  };
+  return material;
+}

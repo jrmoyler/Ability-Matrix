@@ -1,15 +1,18 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { InstancedBufferAttribute, InstancedMesh, Mesh, Object3D, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createFalseFloorPieceGeometry, createFalseFloorHeroGeometry } from '../../assets/codex/FalseFloorGeometry.js';
+import { createFalseFloorTileGeometry } from '../../assets/codex/FalseFloorSignatureGeometry.js';
 import {
   createFalseFloorBodyMaterial,
   createFalseFloorLensMaterial,
   createFalseFloorGroundMaterial,
   createFalseFloorVoiceMaterial,
-  createFalseFloorDetailMaterial
+  createFalseFloorDetailMaterial,
+  createFalseFloorTileMaterial,
+  createFalseFloorPitMaterial
 } from '../../materials/codex/FalseFloorMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -43,6 +46,21 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _o = new Object3D();
+const _q = new Quaternion();
+const _axis = new Vector3();
+const TAU = Math.PI * 2;
+
+/** Flagstones the false floor can lay (a 6.5 m circle of 0.9 m tiles). */
+const MAX_TILES = 170;
+/** Flagstones in the wave that runs along the floor from the hand. */
+const MAX_PATH = 40;
+
+/** Stable 0..1 dice from a seed and two indices. */
+function dice(seed, i, k) {
+  const h = Math.sin(seed * 91.7 + i * 12.9898 + k * 78.233) * 43758.5453;
+  return h - Math.floor(h);
+}
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +90,30 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The false floor (upgrade pass — the cast's own silhouette)
+ *
+ * The template body (a dome), voice, rig, pieces, field and lens are off by
+ * default (their opacity / count keys are 0). The spell's noun is now a floor
+ * of real flagstones (`createFalseFloorTileGeometry`, lit slate, `LAYER.WORLD`,
+ * shadows; only their seams glow) over a pit with depth:
+ *
+ *  - **travel** — a wave of flagstones heaves up out of the floor and sinks
+ *    back behind the front, running from the hand to the circle (`path*`);
+ *    as it arrives the circle paves itself, near edge to far edge, with
+ *    slabs that look like the floor (`tile*`). Their seams flicker harder as
+ *    the front closes (`tileStrain`): the floor *agrees* to be solid.
+ *  - **impact — the drop** — on the commit every slab falls straight down
+ *    (`dropKick`, `dropGravity`), tumbling, centre first (`dropStagger`),
+ *    and the pit (`createFalseFloorPitMaterial`) is under them: an
+ *    interior-mapped shaft `pitDepth` deep, stone courses darkening into a
+ *    violet-black bottom, its wall sliding upward (`pitFall`) so the fall
+ *    does not end. The rim tears (crack decal), chips fly.
+ *  - **linger** — haze motes rise out of the shaft; the wall keeps sliding.
+ *  - **exit — the lie reasserts** — from `reformFrom` the slabs fly back up
+ *    out of the pit, rim first, and settle flush; the pit closes behind
+ *    them from the rim in; then the slabs sink into the real floor and the
+ *    seams go out. The residue decal stays.
  *
  * Every metre, rate and colour is read from `settings.falsefloor` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +193,205 @@ export class FalseFloorAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+
+    // The flagstones and the pit — the cast's own hero (see the class comment).
+    this.tileGeometry = createFalseFloorTileGeometry();
+    this.pathGeometry = createFalseFloorTileGeometry();
+    this.tileState = new InstancedBufferAttribute(new Float32Array(MAX_TILES), 1);
+    this.pathState = new InstancedBufferAttribute(new Float32Array(MAX_PATH), 1);
+    this.tileGeometry.setAttribute('aState', this.tileState);
+    this.pathGeometry.setAttribute('aState', this.pathState);
+    this.tileMaterial = createFalseFloorTileMaterial();
+    this.tiles = new InstancedMesh(this.tileGeometry, this.tileMaterial, MAX_TILES);
+    this.path = new InstancedMesh(this.pathGeometry, this.tileMaterial, MAX_PATH);
+    for (const m of [this.tiles, this.path]) {
+      m.count = 0;
+      m.layers.set(LAYER.WORLD);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.frustumCulled = false;
+      m.visible = false;
+      this.group.add(m);
+    }
+    this.pitGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.pitMaterial = createFalseFloorPitMaterial();
+    // Drawn after the ground decals (order 6/8), so the residue and cracks never paint over the shaft.
+    this.pit = this._mesh(this.pitGeometry, this.pitMaterial, LAYER.VFX, 12);
+    this.pit.rotation.x = -Math.PI / 2;
+    this._since = -1;
+    this._dropped = false;
+    this.pitEmitter = new RateEmitter();
+  }
+
+  /**
+   * Lay, drop and re-lay the flagstones; open and close the pit; run the
+   * travelling wave. Presentation only: the template's commit is the hit.
+   *
+   * @param {number} dt
+   * @param {number} fadeT -1 in travel; the onFade clock (0..2) after the beat
+   */
+  _floor(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const R = Math.max(0.3, c.zoneRadius);
+    const ts = Math.max(0.3, c.tileSize);
+    this.pointAt(1, _focus);
+    const committed = fadeT >= 0;
+    if (committed) this._since += dt;
+    const since = Math.max(0, this._since);
+    const raise = c.tileRaise;
+    const settle = committed && fadeT > c.settleFrom ? Easing.inCubic(saturate((fadeT - c.settleFrom) / Math.max(0.05, 2 - c.settleFrom))) : 0;
+    const reformAt = (r01) => (committed && fadeT > c.reformFrom ? saturate((fadeT - c.reformFrom - (1 - r01) * c.reformStagger) / Math.max(0.02, c.reformTime)) : 0);
+
+    // The circle of flagstones, laid on a grid in the cast's own frame.
+    const m = Math.ceil(R / ts);
+    let k = 0;
+    let drawn = 0;
+    for (let iz = -m; iz <= m && k < MAX_TILES; iz++) {
+      for (let ix = -m; ix <= m && k < MAX_TILES; ix++) {
+        const lx = ix * ts;
+        const lz = iz * ts;
+        const d = Math.hypot(lx, lz);
+        if (d + ts * 0.3 > R) continue;
+        const idx = k++;
+        const r01 = d / R;
+        let y;
+        let tumble = 0;
+        let state;
+        let inward = 0;
+        if (!committed) {
+          const near = (lz + R) / (2 * R);
+          const appear = saturate((this.u - c.tileAssembleFrom - near * c.tileAssembleSweep) / Math.max(0.02, c.tileAssembleTime));
+          if (appear <= 0) continue;
+          y = raise - (0.3 + raise) * (1 - Easing.outBack(appear));
+          state = (1 - appear) * 0.8;
+        } else {
+          const local = since - c.dropDelay - r01 * c.dropStagger;
+          const p = reformAt(r01);
+          if (local < 0) {
+            y = raise;
+            state = 0.25;
+          } else {
+            const fall = c.dropKick * local + 0.5 * c.dropGravity * g.explosionIntensity * local * local;
+            y = raise - fall;
+            tumble = (0.6 + dice(this._seed, idx, 1)) * c.dropTumble * local;
+            inward = Math.min(c.dropInward * local, d * 0.6);
+            state = Math.min(1, local * 5);
+            if (p > 0) {
+              y = -c.reformDepth + (c.reformDepth + raise) * Easing.outBack(p);
+              tumble = (0.6 + dice(this._seed, idx, 1)) * c.dropTumble * 0.35 * (1 - p);
+              inward = 0;
+              state = (1 - p) * 0.6;
+            } else if (y < -c.reformDepth) continue;
+          }
+          y -= settle * (raise + 0.3);
+          state *= 1 - settle;
+        }
+        const a = dice(this._seed, idx, 2) * TAU;
+        _axis.set(Math.cos(a), 0, Math.sin(a));
+        _o.position.copy(_focus).addScaledVector(this.side, lx * (1 - inward / Math.max(0.01, d))).addScaledVector(this.direction, lz * (1 - inward / Math.max(0.01, d)));
+        _o.position.y = y;
+        _o.quaternion.setFromAxisAngle(_axis, tumble);
+        _q.setFromAxisAngle(_up, Math.atan2(this.direction.x, this.direction.z) + (dice(this._seed, idx, 3) - 0.5) * 0.06);
+        _o.quaternion.multiply(_q);
+        const w = ts * c.tileFill;
+        _o.scale.set(w, 1, w);
+        _o.updateMatrix();
+        this.tiles.setMatrixAt(drawn, _o.matrix);
+        this.tileState.array[drawn] = state;
+        drawn++;
+      }
+    }
+    this.tiles.count = drawn;
+    this.tiles.instanceMatrix.needsUpdate = true;
+    this.tileState.needsUpdate = true;
+    this.tiles.visible = drawn > 0 && c.tileFill > 0.01 && settle < 0.999;
+    const strain = committed ? 0 : c.tileStrain * saturate((this.u - 0.6) / 0.4);
+    this.tileMaterial.userData.sync(c.tileSeam * (1 - settle), strain);
+
+    // The pit: opens centre-out on the drop, closes rim-in as the floor reforms.
+    if (committed) {
+      const open = Easing.outCubic(saturate((since - c.dropDelay) / Math.max(0.02, c.dropStagger + 0.12)));
+      const close = fadeT > c.reformFrom ? saturate((fadeT - c.reformFrom - 0.7 * c.reformTime) / Math.max(0.02, c.reformStagger)) : 0;
+      this.pit.position.copy(_focus).setY(0.045);
+      this.pit.scale.set(R, R, 1);
+      this.pitMaterial.userData.sync(_focus, R, open, close, since * c.pitFall * g.animationSpeed, this._seed);
+      this.pit.visible = c.pitOpacity > 0.01 && open > 0.01 && close < 0.999;
+      // Haze rising out of the shaft.
+      const n = Math.round(this.pitEmitter.tick(dt, c.pitMotes * open * (1 - close)) * g.particleCount);
+      for (let i = 0; i < n; i++) {
+        const rr = Math.sqrt(Math.random()) * R * 0.9 * open;
+        const aa = Math.random() * TAU;
+        _pos.copy(_focus);
+        _pos.x += Math.cos(aa) * rr;
+        _pos.z += Math.sin(aa) * rr;
+        _pos.y = 0.05;
+        this._fillEmit(_pos, 0.2, _up, c.moteSpeed, 0.3, 0.12, c.moteLife * 1.4, 1);
+        this.motes.emit(1, _emit);
+      }
+    } else {
+      this.pit.visible = false;
+    }
+
+    // The wave of flagstones running along the floor from the hand to the circle.
+    let pn = 0;
+    if (!committed && c.pathTile > 0.01) {
+      const start = c.handForward + c.pathStart;
+      const end = Math.max(start, this.length - R);
+      const count = Math.min(MAX_PATH, Math.floor((end - start) / Math.max(0.2, c.pathSpacing)));
+      for (let j = 0; j < count; j++) {
+        const sm = start + (j + 0.5) * c.pathSpacing;
+        const x = (this.front - sm) / Math.max(0.2, c.pathWave);
+        if (x <= 0 || x >= 1) continue;
+        const bump = Math.sin(Math.PI * x);
+        this.pointAt(sm / Math.max(0.1, this.length), _o.position).addScaledVector(this.side, (dice(this._seed, j, 4) - 0.5) * 0.3);
+        _o.position.y = -0.3 + (0.3 + c.pathLift) * bump;
+        _axis.copy(this.side);
+        _o.quaternion.setFromAxisAngle(_axis, -0.25 * Math.cos(Math.PI * x));
+        _q.setFromAxisAngle(_up, Math.atan2(this.direction.x, this.direction.z) + (dice(this._seed, j, 5) - 0.5) * 0.3);
+        _o.quaternion.multiply(_q);
+        _o.scale.set(c.pathTile, 1, c.pathTile);
+        _o.updateMatrix();
+        this.path.setMatrixAt(pn, _o.matrix);
+        this.pathState.array[pn] = bump * 0.25;
+        pn++;
+      }
+    }
+    this.path.count = pn;
+    this.path.instanceMatrix.needsUpdate = true;
+    this.pathState.needsUpdate = true;
+    this.path.visible = pn > 0;
+  }
+
+  /** The drop lands: the rim tears and stone chips fly off the falling slabs. */
+  _drop() {
+    const c = settings[ID];
+    const g = settings.global;
+    const R = Math.max(0.3, c.zoneRadius);
+    this.pointAt(1, _focus);
+    // The floor tears round the rim (not across the shaft): short cracks on the edge.
+    const tears = Math.max(0, Math.round(c.rimTears));
+    for (let i = 0; i < tears; i++) {
+      const a = (i / Math.max(1, tears)) * TAU + this._seed;
+      _pos.copy(_focus);
+      _pos.x += Math.cos(a) * R * 1.02;
+      _pos.z += Math.sin(a) * R * 1.02;
+      this.ctx.decals.spawn(DecalType.CRACK, _pos, {
+        radius: c.rimCrack,
+        life: c.groundLife * g.lifetime,
+        width: 0.07,
+        intensity: 0.5,
+        colorA: getColor(c.colorPitDeep),
+        colorB: getColor(c.colorPitSeam),
+        height: 0.034
+      });
+    }
+    const chips = Math.round(c.dropChips * g.particleCount * g.explosionIntensity);
+    if (chips > 0) {
+      _pos.copy(_focus).setY(0.1);
+      this._fillEmit(_pos, R * 0.75, _up, c.chipSpeed * 0.8, 0.6, c.chipSize * 1.5, c.chipLife * 1.3, 8);
+      this.chips.emit(chips, _emit);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -231,6 +472,14 @@ export class FalseFloorAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._since = -1;
+    this._dropped = false;
+    this.pitEmitter.reset();
+    this.tiles.count = 0;
+    this.path.count = 0;
+    this.tiles.visible = false;
+    this.path.visible = false;
+    this.pit.visible = false;
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -360,10 +609,10 @@ export class FalseFloorAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -751,6 +1000,7 @@ export class FalseFloorAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._floor(dt, -1);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -758,6 +1008,11 @@ export class FalseFloorAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._since = 0;
+    if (!this._dropped) {
+      this._dropped = true;
+      this._drop();
+    }
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -769,6 +1024,7 @@ export class FalseFloorAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._floor(dt, t);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -792,9 +1048,19 @@ export class FalseFloorAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.tiles.visible = false;
+    this.path.visible = false;
+    this.pit.visible = false;
   }
 
   dispose() {
+    this.tiles.dispose();
+    this.path.dispose();
+    this.tileGeometry.dispose();
+    this.pathGeometry.dispose();
+    this.tileMaterial.dispose();
+    this.pitGeometry.dispose();
+    this.pitMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -975,6 +1241,51 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const tiles = folder.addFolder('14 · The false floor');
+  R(tiles, c, 'tileSize', 0.3, 3, 0.01, 'flagstone (m)');
+  R(tiles, c, 'tileFill', 0, 1.2, 0.01, 'fill (gap)');
+  R(tiles, c, 'tileRaise', -0.1, 0.4, 0.005, 'stands proud (m)');
+  R(tiles, c, 'tileAssembleFrom', 0, 1, 0.01, 'paves from (travel)');
+  R(tiles, c, 'tileAssembleSweep', 0, 1, 0.01, 'near → far sweep');
+  R(tiles, c, 'tileAssembleTime', 0.02, 1, 0.01, 'each lays in');
+  R(tiles, c, 'tileStrain', 0, 1, 0.01, 'seam flicker before');
+  R(tiles, c, 'tileSeam', 0, 2, 0.01, 'seam light');
+  R(tiles, c, 'tileGlow', 0, 8, 0.05, 'glow');
+  R(tiles, c, 'tileSheen', 0, 2, 0.01, 'sheen');
+  R(tiles, c, 'tileRough', 0, 1, 0.01, 'roughness');
+  tiles.addColor(c, 'colorTile').name('slate');
+  R(tiles, c, 'dropDelay', 0, 0.5, 0.01, 'drop delay (s)');
+  R(tiles, c, 'dropStagger', 0, 0.6, 0.01, 'centre → rim (s)');
+  R(tiles, c, 'dropKick', 0, 8, 0.05, 'drop kick (m/s)');
+  R(tiles, c, 'dropGravity', 0, 40, 0.5, 'gravity (m/s²)');
+  R(tiles, c, 'dropTumble', 0, 12, 0.1, 'tumble (rad/s)');
+  R(tiles, c, 'dropInward', 0, 4, 0.05, 'draw in (m/s)');
+  R(tiles, c, 'dropChips', 0, 200, 1, 'chips');
+  R(tiles, c, 'rimCrack', 0, 4, 0.01, 'rim crack (m)');
+  R(tiles, c, 'rimTears', 0, 16, 1, 'rim cracks');
+  R(tiles, c, 'reformFrom', 1, 1.95, 0.01, 'reforms from');
+  R(tiles, c, 'reformStagger', 0, 0.6, 0.01, 'rim → centre');
+  R(tiles, c, 'reformTime', 0.02, 0.6, 0.01, 'each rises in');
+  R(tiles, c, 'reformDepth', 0.2, 5, 0.05, 'rises from (m)');
+  R(tiles, c, 'settleFrom', 1, 1.99, 0.01, 'sinks away from');
+
+  const pit = folder.addFolder('15 · The pit');
+  R(pit, c, 'pitDepth', 0.5, 12, 0.1, 'depth (m)');
+  R(pit, c, 'pitOpacity', 0, 1.5, 0.01, 'opacity');
+  R(pit, c, 'pitGlow', 0, 6, 0.05, 'seam glow');
+  R(pit, c, 'pitFall', 0, 10, 0.05, 'endless fall (m/s)');
+  R(pit, c, 'pitMotes', 0, 200, 1, 'haze motes / s');
+  pit.addColor(c, 'colorPitDeep').name('deep');
+  pit.addColor(c, 'colorPitSeam').name('seams');
+  pit.addColor(c, 'colorPitHaze').name('haze');
+
+  const wave = folder.addFolder('16 · The wave');
+  R(wave, c, 'pathTile', 0, 2, 0.01, 'flagstone (m)');
+  R(wave, c, 'pathStart', 0, 5, 0.05, 'starts past the hand (m)');
+  R(wave, c, 'pathSpacing', 0.2, 3, 0.01, 'spacing (m)');
+  R(wave, c, 'pathWave', 0.2, 8, 0.05, 'wave length (m)');
+  R(wave, c, 'pathLift', 0, 1.5, 0.01, 'heave (m)');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

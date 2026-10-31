@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferGeometry, DynamicDrawUsage, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,11 @@ import {
   createAfterimageSwingVoiceMaterial,
   createAfterimageSwingDetailMaterial,
   createAfterimageSwingTrailMaterial,
-  createAfterimageSwingScarMaterial
+  createAfterimageSwingScarMaterial,
+  createAfterimageBladeMaterial,
+  createAfterimageGhostMaterial,
+  createAfterimageCutMaterial,
+  createAfterimageFloorMaterial
 } from '../../materials/codex/AfterimageSwingMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +53,99 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+/** Afterimages one swing can leave down the line (plus the decoy itself). */
+const MAX_GHOSTS = 8;
+
+const _bp = new Vector3();
+const _pivot = new Vector3();
+const _radial = new Vector3();
+const _scale = new Vector3();
+const _m = new Matrix4();
+const _q = new Quaternion();
+const _qa = new Quaternion();
+const _axisX = new Vector3(1, 0, 0);
+const _axisZ = new Vector3(0, 0, 1);
+const TAU = Math.PI * 2;
+const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+/* ------------------------------------------------------------------ */
+/* Cast-local geometry for the upgrade. It lives here, not in the      */
+/* generated `AfterimageSwingGeometry.js`, which must stay byte-identical to   */
+/* its rig recipe (tests/pure-rigs.test.mjs).                         */
+/* ------------------------------------------------------------------ */
+/**
+ * The blade — hero of the upgraded cast. A crescent war-glaive lying in the
+ * XZ plane, its convex side the cutting edge facing +X: the centre line is an
+ * arc of radius 1 about the origin swept over ±`span` radians, the blade's
+ * width tapers to needle points at both tips (sin^0.7), and the cross-section
+ * is a five-sided lens — thick, flat spine on the inside, a raised ridge, a
+ * knife edge outside — lofted with flat normals so the facets glint. A short
+ * wrapped grip sits on the spine at the middle.
+ *
+ * Attributes: `aEdge` (0 spine .. 1 cutting edge), `aAlong` (0..1 tip to
+ * tip). The blade is shifted so its origin sits at its centre of mass, so a
+ * yaw spins it like a thrown glaive.
+ */
+export function createAfterimageBladeGeometry({ span = 1.25, width = 0.34, thick = 0.07, segs = 48 } = {}) {
+  const pos = [];
+  const edge = [];
+  const along = [];
+  // Cross-section, as (radial offset from the inner rim in units of width, height in units of thick, edge weight).
+  const ring = [
+    [0, 0.5, 0],
+    [0.38, 1, 0.35],
+    [1, 0, 1],
+    [0.38, -1, 0.35],
+    [0, -0.5, 0]
+  ];
+  const slice = (t) => {
+    const a = -span + 2 * span * t;
+    const w = width * Math.pow(Math.max(0, Math.sin(Math.PI * t)), 0.7) + 0.004;
+    const h = thick * (0.35 + 0.65 * Math.pow(Math.max(0, Math.sin(Math.PI * t)), 0.5));
+    const ri = 1 - w * 0.5;
+    return ring.map(([r, y, e]) => [Math.cos(a) * (ri + r * w), y * h, Math.sin(a) * (ri + r * w), e]);
+  };
+  const push = (p, t) => {
+    pos.push(p[0], p[1], p[2]);
+    edge.push(p[3]);
+    along.push(t);
+  };
+  for (let i = 0; i < segs; i++) {
+    const t0 = i / segs;
+    const t1 = (i + 1) / segs;
+    const A = slice(t0);
+    const B = slice(t1);
+    for (let k = 0; k < ring.length; k++) {
+      const k1 = (k + 1) % ring.length;
+      push(A[k], t0); push(B[k], t1); push(B[k1], t1);
+      push(A[k], t0); push(B[k1], t1); push(A[k1], t0);
+    }
+  }
+  // The grip: a short wrapped box on the spine at the middle, pointing inward.
+  const gx0 = 1 - width * 0.5 - 0.22;
+  const gx1 = 1 - width * 0.5 + 0.02;
+  const gy = thick * 0.9;
+  const gz = 0.06;
+  const box = [
+    [[gx0, -gy, -gz], [gx1, -gy, -gz], [gx1, gy, -gz], [gx0, gy, -gz]],
+    [[gx0, -gy, gz], [gx0, gy, gz], [gx1, gy, gz], [gx1, -gy, gz]],
+    [[gx0, gy, -gz], [gx1, gy, -gz], [gx1, gy, gz], [gx0, gy, gz]],
+    [[gx0, -gy, -gz], [gx0, -gy, gz], [gx1, -gy, gz], [gx1, -gy, -gz]],
+    [[gx0, -gy, -gz], [gx0, gy, -gz], [gx0, gy, gz], [gx0, -gy, gz]]
+  ];
+  for (const q of box) {
+    for (const idx of [0, 1, 2, 0, 2, 3]) push([...q[idx], -0.4], 0.5);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  g.setAttribute('aAlong', new Float32BufferAttribute(along, 1));
+  // Spin about the blade's own mass, not the circle it was drawn on.
+  g.translate(-0.78, 0, 0);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
 
 /**
  * AFTERIMAGE SWING — illusion, line cast.
@@ -76,8 +173,37 @@ const MAX_MARKS = 12;
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
  *
+ * ## The upgrade — the decoy and the blade
+ *
+ * The template layers above (body fan, voice, floor grid, rig, pieces, trail)
+ * are off by default (their opacity/count sliders still work). The cast now
+ * reads through its own layers:
+ *
+ *  11. **the decoy and its afterimages** (`createAfterimageBladeGeometry`,
+ *      `createAfterimageGhostMaterial`, instanced, additive) — on the throw a
+ *      crescent war-glaive *image* (scanlines, stutter, chromatic split)
+ *      spins out down the line on a weaving arc. Every `1/(ghostCount+1)` of
+ *      the line it leaves a frozen copy of itself where it was: a strobe of
+ *      afterimages standing in the air between the caster and the group.
+ *      The decoy kills nothing (the hit rule is unchanged: `return`).
+ *  12. **the blade** (`createAfterimageBladeMaterial`, `LAYER.WORLD`, shadows)
+ *      — on the beat the decoy winks out at the group and the *real* blade
+ *      forms out of glass panes behind them: dark-plum faceted glass with a
+ *      white-hot edge and an oil-on-glass sheen, `bladeSize` metres of crescent.
+ *      It sweeps through the group on an arc (`gashRadius`, `gashSpan`) —
+ *      that is the kill — then comes *back* up the line (`bladeStop`),
+ *      shattering each afterimage it passes into glass. Through the fade it
+ *      hangs there turning and bobbing, then breaks apart along its facets.
+ *  13. **the cut** (`createAfterimageCutMaterial`) — the swept arc of light
+ *      behind the blade as it crosses the group, brightest at its edge.
+ *  14. **the floor** (`createAfterimageFloorMaterial`) — a mirror-dark pool
+ *      under every afterimage, and the gash: a filled crescent cut into the
+ *      floor along the blade's arc, a hot seam that cools and an iridescent
+ *      lip; it holds through the linger and erodes on the exit.
+ *
  * Every metre, rate and colour is read from `settings.afterimage` each frame.
- * A cast only captures a seed and an integrated spin.
+ * A cast only captures a seed, an integrated spin and event times (when each
+ * afterimage was left and when the blade broke it).
  */
 export class AfterimageSwingAbility extends Ability {
   constructor(ctx) {
@@ -159,6 +285,48 @@ export class AfterimageSwingAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+
+    // The upgrade's own layers: the real blade, the afterimages, the cut, the floor.
+    this.bladeGeometry = createAfterimageBladeGeometry({ width: 0.46, thick: 0.09 });
+    this.bladeMaterial = createAfterimageBladeMaterial();
+    this.blade = new Mesh(this.bladeGeometry, this.bladeMaterial);
+    this.blade.layers.set(LAYER.WORLD);
+    this.blade.castShadow = true;
+    this.blade.frustumCulled = false;
+    this.blade.visible = false;
+    this.group.add(this.blade);
+
+    this.ghostGeometry = createAfterimageBladeGeometry({ width: 0.46, thick: 0.09 });
+    this._ghostState = new Float32Array((MAX_GHOSTS + 1) * 4);
+    this._ghostAttr = new InstancedBufferAttribute(this._ghostState, 4).setUsage(DynamicDrawUsage);
+    this.ghostGeometry.setAttribute('aGhost', this._ghostAttr);
+    this.ghostMaterial = createAfterimageGhostMaterial();
+    this.ghosts = new InstancedMesh(this.ghostGeometry, this.ghostMaterial, MAX_GHOSTS + 1);
+    this.ghosts.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.ghosts.layers.set(LAYER.VFX);
+    this.ghosts.renderOrder = 15;
+    this.ghosts.frustumCulled = false;
+    this.ghosts.visible = false;
+    this.ghosts.count = 0;
+    this.group.add(this.ghosts);
+
+    this.cutGeometry = new PlaneGeometry(2, 2, 1, 1).rotateX(-Math.PI / 2);
+    this.cutMaterial = createAfterimageCutMaterial();
+    this.cut = this._mesh(this.cutGeometry, this.cutMaterial, LAYER.VFX, 16);
+
+    this.floorGeometry = new PlaneGeometry(1, 1, 1, 1).rotateX(-Math.PI / 2);
+    this.floorMaterial = createAfterimageFloorMaterial();
+    this.floor = this._mesh(this.floorGeometry, this.floorMaterial, LAYER.VFX, 2);
+
+    this._left = new Float32Array(MAX_GHOSTS).fill(-1);
+    this._broke = new Float32Array(MAX_GHOSTS).fill(-1);
+    this._bladeYaw = 0;
+    this._bladeAlong = 1;
+    this._cutAt = -1;
+    this._cutLead = 0;
+    this._shattered = false;
+    this._fadeT = 0;
+    this._decoyEmitter = new RateEmitter();
   }
 
   _mesh(geometry, material, layer, order) {
@@ -241,6 +409,19 @@ export class AfterimageSwingAbility extends Ability {
     this.lens.visible = false;
     this.ground.visible = false;
     this._releaseMarks();
+    this._left.fill(-1);
+    this._broke.fill(-1);
+    this._bladeYaw = this._seed;
+    this._bladeAlong = 1;
+    this._cutAt = -1;
+    this._shattered = false;
+    this._fadeT = 0;
+    this._decoyEmitter.reset();
+    this.blade.visible = false;
+    this.ghosts.visible = false;
+    this.ghosts.count = 0;
+    this.cut.visible = false;
+    this.floor.visible = false;
     this._palette();
     this._hand();
     if (ZONE) this._telegraph();
@@ -370,10 +551,11 @@ export class AfterimageSwingAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    if (c.trailOpacity <= 0.01 && c.scarOpacity <= 0.01) this.trail.show(false);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -776,11 +958,13 @@ export class AfterimageSwingAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
+    this._fadeT = 0;
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
+    this._swing(dt);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
   }
@@ -795,11 +979,14 @@ export class AfterimageSwingAbility extends Ability {
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
+    this._fadeT = t;
+    if (this._cutAt < 0) this._cutAt = this.age;
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
     if (WHEN === 'return') this._strike(false);
+    this._swing(dt);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
       this._aftershock();
@@ -823,9 +1010,234 @@ export class AfterimageSwingAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this.blade.visible = false;
+    this.ghosts.visible = false;
+    this.ghosts.count = 0;
+    this.cut.visible = false;
+    this.floor.visible = false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The upgrade: the decoy, its afterimages, the blade, the cut, floor  */
+  /* ------------------------------------------------------------------ */
+
+  /** Where along the line (0..1) afterimage `k` of `n` is left: spread from `ghostStart` to the group. */
+  _station(k, n) {
+    const a = saturate(settings[ID].ghostStart);
+    return a + (1 - a) * (k + 1) / (n + 1);
+  }
+
+  /** Lateral weave of the decoy's path at `s` along the line, metres. */
+  _weave(s) {
+    const c = settings[ID];
+    return c.decoyWeave * c.sweep * Math.sin(s * Math.PI);
+  }
+
+  /** Place a blade-space pose into `_m`: position, yaw (local +X), bank, size. */
+  _bladeMatrix(at, yaw, bank, size) {
+    _q.setFromAxisAngle(_up, yaw);
+    _qa.setFromAxisAngle(_axisX, bank);
+    _q.multiply(_qa);
+    _scale.setScalar(size);
+    _m.compose(at, _q, _scale);
+  }
+
+  /** Yaw that points the blade's cutting edge (local +X) along `v` (flat). */
+  _yawOf(v) {
+    return Math.atan2(-v.z, v.x);
+  }
+
+  _swing(dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const life = Math.max(0.05, g.lifetime);
+    const size = Math.max(0.1, c.bladeSize);
+    const committed = this._cutAt >= 0;
+    const n = Math.max(0, Math.min(MAX_GHOSTS, Math.round(c.ghostCount)));
+    const spin = c.bladeSpin * g.animationSpeed;
+    const tau = committed ? this.age - this._cutAt : 0;
+    const cutTime = Math.max(0.05, c.cutTime);
+    const impactDur = this.impactDuration;
+    const R = Math.max(0.3, c.gashRadius);
+    const span = c.gashSpan;
+    this.pointAt(1, _end);
+    _pivot.copy(_end).addScaledVector(this.direction, -R);
+
+    // --- the real blade ---
+    let bladeAlong = 1;
+    if (committed) {
+      let dissolve;
+      let heat;
+      if (tau < cutTime) {
+        // The cut: an arc round the pivot through the group.
+        const k = tau / cutTime;
+        const th = -span + 2 * span * (k * k * (3 - 2 * k));
+        _radial.copy(this.direction).multiplyScalar(Math.cos(th)).addScaledVector(this.side, Math.sin(th));
+        _bp.copy(_pivot).addScaledVector(_radial, R);
+        _bp.y = c.bladeHeight * 0.7;
+        this._bladeYaw = this._yawOf(_radial);
+        this._bladeMatrix(_bp, this._bladeYaw, c.bladeBank * 0.35, size);
+        dissolve = 1 - saturate(tau / Math.max(0.02, c.bladeForm));
+        heat = 1;
+        this._cutLead = th;
+      } else {
+        // The way back: up the line toward `bladeStop`, spinning down, then hanging there.
+        const back = saturate((tau - cutTime) / Math.max(0.1, impactDur - cutTime));
+        bladeAlong = 1 + (c.bladeStop - 1) * (back * back * (3 - 2 * back));
+        const slow = Math.exp(-(tau - cutTime) / Math.max(0.1, c.bladeSpinDown * life));
+        this._bladeYaw += dt * spin * (0.15 + 0.85 * slow);
+        this.pointAt(bladeAlong, _bp);
+        // It comes back like a boomerang: out wide on one side, settling off the line.
+        _bp.addScaledVector(this.side, c.returnArc * Math.sin(Math.PI * Math.min(1, back * 0.75 + 0.0)) + c.returnSide * back);
+        const bob = this._fadeT >= 1 ? Math.sin(this.age * c.bladeBobRate) * c.bladeBob : 0;
+        _bp.y = c.bladeHeight * (0.7 + 0.3 * easeOutCubic(back)) + bob;
+        const bank = c.bladeBank * (0.35 + 0.65 * back) * (1 + 0.25 * Math.sin(this.age * 2.1));
+        this._bladeMatrix(_bp, this._bladeYaw, bank, size);
+        dissolve = saturate((this._fadeT - c.bladeExitAt) / Math.max(0.05, 1.95 - c.bladeExitAt));
+        heat = 0.25 + 0.75 * slow;
+        this._cutLead = span;
+        if (dissolve > 0 && !this._shattered) {
+          this._shattered = true;
+          this._glass(_bp, c.bladeShards, size);
+        }
+      }
+      this.blade.matrixAutoUpdate = false;
+      this.blade.matrix.copy(_m);
+      this.blade.matrixWorldNeedsUpdate = true;
+      this.blade.visible = dissolve < 0.99;
+      this.blade.castShadow = c.bladeShadow >= 0.5;
+      this.bladeMaterial.userData.sync(dissolve, heat);
+      this._bladeAlong = bladeAlong;
+    } else {
+      this.blade.visible = false;
+    }
+
+    // --- the decoy and the afterimages ---
+    let drawn = 0;
+    const echo = this.floorMaterial.uniforms.uEcho.value;
+    for (let k = 0; k < MAX_GHOSTS; k++) echo[k].z = 0;
+    if (!committed) {
+      this._bladeYaw += dt * spin;
+      const u = this.u;
+      this.pointAt(u, _bp).addScaledVector(this.side, this._weave(u));
+      _bp.y = c.bladeHeight;
+      this._bladeMatrix(_bp, this._bladeYaw, c.bladeBank, size);
+      this.ghosts.setMatrixAt(drawn, _m);
+      this._ghostState[0] = c.decoyOpacity;
+      this._ghostState[1] = this._seed;
+      this._ghostState[2] = 0.5;
+      this._ghostState[3] = 0;
+      drawn++;
+      // Leave an afterimage at every station the decoy has crossed.
+      for (let k = 0; k < n; k++) if (this._left[k] < 0 && u >= this._station(k, n)) this._left[k] = this.age;
+      // The decoy streams streaks behind it.
+      const sn = Math.round(this._decoyEmitter.tick(dt, c.decoyStreaks) * g.particleCount);
+      if (sn > 0) {
+        _dir.copy(this.direction).multiplyScalar(-1).setY(0.1);
+        this._fillEmit(_bp, size * 0.6, _dir, c.streakSpeed * 0.6, 0.5, 0.08, c.streakLife, 2);
+        this.streaks.emit(sn, _emit);
+      }
+    }
+    const ghostLife = Math.max(0.05, c.ghostLife * life);
+    for (let k = 0; k < n; k++) {
+      const left = this._left[k];
+      if (left < 0) continue;
+      const s = this._station(k, n);
+      // Broken by the blade as it passes; whatever it did not reach collapses one by one once it stops.
+      const collapse = this._fadeT >= 1 && this.age - this._cutAt - this.impactDuration > c.ghostCollapse + (n - 1 - k) * c.ghostStagger;
+      if (committed && this._broke[k] < 0 && (this._bladeAlong <= s + 0.02 || collapse)) {
+        this._broke[k] = this.age;
+        this.pointAt(s, _pos).addScaledVector(this.side, this._weave(s));
+        _pos.y = c.bladeHeight;
+        this._glass(_pos, c.ghostShards, size * 0.8);
+      }
+      const shatter = this._broke[k] >= 0 ? saturate((this.age - this._broke[k]) / Math.max(0.02, c.ghostBreak)) : 0;
+      if (shatter >= 1) continue;
+      const age = this.age - left;
+      const alpha = (0.35 + 0.65 * Math.exp(-age / ghostLife)) * (1 - shatter * 0.6);
+      this.pointAt(s, _bp).addScaledVector(this.side, this._weave(s));
+      _bp.y = c.bladeHeight + shatter * 0.3;
+      this._bladeMatrix(_bp, this._seed + left * spin, c.bladeBank, size * (1 + shatter * 0.25));
+      this.ghosts.setMatrixAt(drawn, _m);
+      const j = drawn * 4;
+      this._ghostState[j] = alpha;
+      this._ghostState[j + 1] = k * 1.7 + this._seed;
+      this._ghostState[j + 2] = (k % 2) ? 0.2 : 0.8;
+      this._ghostState[j + 3] = shatter;
+      drawn++;
+      // Its pool on the floor.
+      echo[k].set(_bp.x, _bp.z, alpha * (1 - shatter) * c.floorEcho, size * c.echoSize);
+    }
+    // A broken afterimage's pool stays, dimmer, until the exit.
+    for (let k = 0; k < n; k++) {
+      if (this._broke[k] >= 0 && echo[k].z === 0) {
+        const s = this._station(k, n);
+        this.pointAt(s, _bp).addScaledVector(this.side, this._weave(s));
+        echo[k].set(_bp.x, _bp.z, 0.45 * c.floorEcho, size * c.echoSize);
+      }
+    }
+    this.ghosts.count = drawn;
+    this.ghosts.visible = drawn > 0 && c.ghostOpacity > 0.01;
+    this.ghosts.instanceMatrix.needsUpdate = true;
+    this._ghostAttr.needsUpdate = true;
+    this.ghostMaterial.userData.sync();
+
+    // --- the cut ---
+    const cutAlpha = committed ? Math.exp(-Math.max(0, tau - cutTime) / Math.max(0.02, c.cutLife)) : 0;
+    if (cutAlpha > 0.01 && c.cutOpacity > 0.01) {
+      const toA = (th) => Math.atan2(-Math.cos(th), -Math.sin(th));
+      this.cut.position.copy(_pivot).setY(c.bladeHeight * 0.7);
+      this.cut.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), 0);
+      const r = R + size * 0.3;
+      this.cut.scale.set(r, 1, r);
+      this.cutMaterial.userData.sync(toA(-span), toA(this._cutLead), cutAlpha);
+      this.cut.visible = true;
+    } else {
+      this.cut.visible = false;
+    }
+
+    // --- the floor ---
+    const erode = saturate((this._fadeT - c.floorErodeAt) / Math.max(0.05, 2 - c.floorErodeAt));
+    if (c.floorOpacity > 0.01 && erode < 0.99 && (drawn > 0 || committed)) {
+      const u = this.floorMaterial.uniforms;
+      u.uCut.value.set(_end.x, _end.z, committed ? tau : -1);
+      u.uDir.value.set(this.direction.x, this.direction.z, 0);
+      this.floor.position.copy(this.origin).addScaledVector(this.direction, this.length * 0.5);
+      this.floor.position.y = 0.02;
+      this.floor.rotation.set(0, Math.atan2(this.direction.x, this.direction.z), 0);
+      this.floor.scale.set(2 * (R + c.gashWidth + c.sweep), 1, this.length + 2 * (R + c.gashWidth));
+      this.floorMaterial.userData.sync(erode, committed ? this._cutLead : -10);
+      this.floor.visible = true;
+    } else {
+      this.floor.visible = false;
+    }
+  }
+
+  /** Glass panes thrown off a breaking blade or afterimage. */
+  _glass(at, count, size) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.round(count * g.particleCount);
+    if (n <= 0) return;
+    this._fillEmit(at, size * 0.6, _up, c.chipSpeed * 0.8, 0.9, c.chipSize * 1.4, c.chipLife * 1.4, 7);
+    this.chips.emit(n, _emit);
+    const m = Math.round(n * 0.6);
+    if (m > 0) {
+      this._fillEmit(at, size * 0.5, _up, c.moteSpeed * 1.5, 1, 0.08, c.moteLife, 1);
+      this.motes.emit(m, _emit);
+    }
   }
 
   dispose() {
+    this.bladeGeometry.dispose();
+    this.bladeMaterial.dispose();
+    this.ghostGeometry.dispose();
+    this.ghostMaterial.dispose();
+    this.ghosts.dispose();
+    this.cutGeometry.dispose();
+    this.cutMaterial.dispose();
+    this.floorGeometry.dispose();
+    this.floorMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1026,6 +1438,61 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const decoy = folder.addFolder('15 · Decoy & afterimages');
+  R(decoy, c, 'decoyOpacity', 0, 3, 0.01, 'decoy strength');
+  R(decoy, c, 'decoyWeave', 0, 3, 0.01, 'weave, × reach');
+  R(decoy, c, 'decoyStreaks', 0, 300, 1, 'streaks / s');
+  R(decoy, c, 'ghostCount', 0, 8, 1, 'afterimages');
+  R(decoy, c, 'ghostStart', 0, 0.8, 0.01, 'first one at (× line)');
+  R(decoy, c, 'ghostOpacity', 0, 3, 0.01, 'afterimage strength');
+  R(decoy, c, 'ghostLife', 0.05, 6, 0.05, 'dims over (s)');
+  R(decoy, c, 'ghostScan', 0, 120, 1, 'scanlines');
+  R(decoy, c, 'ghostBreak', 0.02, 1.5, 0.01, 'breaks over (s)');
+  R(decoy, c, 'ghostShards', 0, 80, 1, 'shards each');
+  R(decoy, c, 'ghostCollapse', 0, 2, 0.01, 'rest collapse after (s)');
+  R(decoy, c, 'ghostStagger', 0, 0.6, 0.01, 'collapse stagger (s)');
+
+  const blade = folder.addFolder('16 · The blade');
+  R(blade, c, 'bladeSize', 0.2, 4, 0.01, 'size (m)');
+  R(blade, c, 'bladeHeight', 0.2, 4, 0.01, 'height (m)');
+  R(blade, c, 'bladeBank', -1.5, 1.5, 0.01, 'bank (rad)');
+  R(blade, c, 'bladeSpin', 0, 60, 0.5, 'spin (rad/s)');
+  R(blade, c, 'bladeSpinDown', 0.1, 6, 0.05, 'spins down over (s)');
+  R(blade, c, 'bladeStop', 0.1, 1, 0.01, 'comes back to (× line)');
+  R(blade, c, 'returnArc', -4, 4, 0.05, 'return arc (m)');
+  R(blade, c, 'returnSide', -4, 4, 0.05, 'hangs off the line (m)');
+  R(blade, c, 'bladeBob', 0, 1, 0.01, 'bob (m)');
+  R(blade, c, 'bladeBobRate', 0, 10, 0.05, 'bob rate');
+  R(blade, c, 'bladeForm', 0.02, 0.6, 0.01, 'forms over (s)');
+  R(blade, c, 'bladeExitAt', 1, 1.95, 0.01, 'shatters from');
+  R(blade, c, 'bladeShards', 0, 120, 1, 'shards');
+  R(blade, c, 'bladeSpecular', 0, 4, 0.01, 'specular');
+  R(blade, c, 'bladeFresnel', 0, 3, 0.01, 'rim');
+  R(blade, c, 'bladeAmbient', 0, 1.5, 0.01, 'ambient');
+  R(blade, c, 'bladeEdgeGlow', 0, 6, 0.05, 'edge glow');
+  R(blade, c, 'bladeSheen', 0, 3, 0.01, 'sheen');
+  R(blade, c, 'bladeShadow', 0, 1, 1, 'cast shadow');
+  blade.addColor(c, 'colorBladeCore').name('core');
+  blade.addColor(c, 'colorBladeTint').name('tint');
+  blade.addColor(c, 'colorBladeBody').name('body');
+  blade.addColor(c, 'colorBladeDeep').name('deep');
+
+  const cut = folder.addFolder('17 · The cut');
+  R(cut, c, 'gashRadius', 0.3, 6, 0.05, 'arc radius (m)');
+  R(cut, c, 'gashSpan', 0.1, 1.5, 0.01, 'half-arc (rad)');
+  R(cut, c, 'gashWidth', 0.05, 2, 0.01, 'gash width (m)');
+  R(cut, c, 'cutTime', 0.05, 1, 0.01, 'sweep (s)');
+  R(cut, c, 'cutLife', 0.02, 2, 0.01, 'light fades over (s)');
+  R(cut, c, 'cutOpacity', 0, 3, 0.01, 'light strength');
+  R(cut, c, 'cutInner', 0, 0.95, 0.01, 'light inner radius');
+
+  const pools = folder.addFolder('18 · Floor');
+  R(pools, c, 'floorOpacity', 0, 1.5, 0.01, 'opacity');
+  R(pools, c, 'floorGlow', 0, 5, 0.05, 'glow');
+  R(pools, c, 'floorEcho', 0, 1.5, 0.01, 'afterimage pools');
+  R(pools, c, 'echoSize', 0.1, 3, 0.01, 'pool size, × blade');
+  R(pools, c, 'floorErodeAt', 1, 1.95, 0.01, 'erodes from');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

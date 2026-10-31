@@ -1,10 +1,14 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { IcosahedronGeometry, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { LineTrail } from './LineTrail.js';
-import { createHollowVolleyPieceGeometry, createHollowVolleyHeroGeometry } from '../../assets/codex/HollowVolleyGeometry.js';
+import {
+  createHollowVolleyPieceGeometry,
+  createHollowVolleyHeroGeometry
+} from '../../assets/codex/HollowVolleyGeometry.js';
+import { createHollowVolleySeedGeometry, createHollowVolleyLipGeometry } from '../../assets/codex/HollowVolleySignatureGeometry.js';
 import {
   createHollowVolleyBodyMaterial,
   createHollowVolleyLensMaterial,
@@ -12,7 +16,11 @@ import {
   createHollowVolleyVoiceMaterial,
   createHollowVolleyDetailMaterial,
   createHollowVolleyTrailMaterial,
-  createHollowVolleyScarMaterial
+  createHollowVolleyScarMaterial,
+  createHollowVolleySeedMaterial,
+  createHollowVolleyLipMaterial,
+  createHollowVolleyImplodeMaterial,
+  createHollowVolleyWellMaterial
 } from '../../materials/codex/HollowVolleyMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -46,6 +54,11 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _hand = new Vector3();
+const _land = new Vector3();
+
+/** Seeds one cast can throw (the `count` slider is clamped to this, as the hits are). */
+const MAX_SEEDS = 12;
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -75,6 +88,30 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The signature — hollow seeds (layers 11–14, this cast's own)
+ *
+ * The template layers above are turned down to a floor strip, a trail and the
+ * shed; what the player reads is the volley itself:
+ *
+ *  11. **seeds** — `count` lit obsidian husks (`createHollowVolleySeedGeometry`,
+ *      five lobes, open at the crown) leave the hand one after another and fly
+ *      ballistic arcs `seedArc` high to the same staggered points the hits
+ *      land on (`_partPoint`), so each seed lands exactly as its part strikes.
+ *      Their lobe valleys glow violet and split open as they heat.
+ *  12. **implosion** — on landing a dark shell `implodeRadius` across forms
+ *      round the seed and contracts onto it while the husk crumples in,
+ *      spinning faster as it goes: the world is pulled in, nothing is thrown out.
+ *  13. **well** — where the seed was, a filled void disc `wellRadius` across
+ *      opens: black at its heart, spiral arms of violet winding down into it,
+ *      a hot band at its rim, and motes drawn in from round it. It turns for
+ *      the whole linger (`wellSwirl`) and folds shut over the fade
+ *      (`wellCloseAt`): the exit is the holes closing.
+ *  14. **lip** — a ragged ring of floor thrown up round each well, lit dark
+ *      stone with violet cracks on its crest; it sinks as the well closes.
+ *
+ * Seed records store dice and the age they landed at; every metre is read from
+ * settings each frame. Presentation only: the hits are the template's, as before.
  *
  * Every metre, rate and colour is read from `settings.hollowvolley` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +196,203 @@ export class HollowVolleyAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildSeeds();
+  }
+
+  /** The signature pools: a husk, an implosion shell, a well and a lip per seed. */
+  _buildSeeds() {
+    this.seedGeometry = createHollowVolleySeedGeometry();
+    this.lipGeometry = createHollowVolleyLipGeometry();
+    this.implodeGeometry = new IcosahedronGeometry(1, 3);
+    this.wellGeometry = new PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    this.coreGeometry = new IcosahedronGeometry(0.15, 1);
+    this.lipMaterial = createHollowVolleyLipMaterial();
+    this.coreMaterial = new MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+    this._seedRecs = [];
+    for (let i = 0; i < MAX_SEEDS; i++) {
+      const seed = new Mesh(this.seedGeometry, createHollowVolleySeedMaterial());
+      seed.layers.set(LAYER.WORLD);
+      seed.castShadow = true;
+      seed.receiveShadow = true;
+      seed.frustumCulled = false;
+      seed.visible = false;
+      seed.renderOrder = 4;
+      const core = new Mesh(this.coreGeometry, this.coreMaterial);
+      core.layers.set(LAYER.VFX);
+      core.frustumCulled = false;
+      seed.add(core);
+      this.group.add(seed);
+      const implode = this._mesh(this.implodeGeometry, createHollowVolleyImplodeMaterial(), LAYER.VFX, 15);
+      const well = this._mesh(this.wellGeometry, createHollowVolleyWellMaterial(), LAYER.VFX, 3);
+      const lip = new Mesh(this.lipGeometry, this.lipMaterial);
+      lip.layers.set(LAYER.WORLD);
+      lip.castShadow = true;
+      lip.receiveShadow = true;
+      lip.frustumCulled = false;
+      lip.visible = false;
+      this.group.add(lip);
+      this._seedRecs.push({ seed, core, implode, well, lip, landAge: -1, dice: 0, tilt: 0 });
+    }
+  }
+
+  _resetSeeds() {
+    for (let i = 0; i < this._seedRecs.length; i++) {
+      const r = this._seedRecs[i];
+      r.landAge = -1;
+      r.dice = Math.random() * 10;
+      r.tilt = (Math.random() - 0.5) * 0.6;
+      r.seed.visible = false;
+      r.implode.visible = false;
+      r.well.visible = false;
+      r.lip.visible = false;
+    }
+  }
+
+  /**
+   * Fly, land, implode, open, close. `committed` is false in travel; `fadeT`
+   * is the 0..2 clock of impact + fade. A seed lands when the head passes its
+   * part (`u ≥ (i + 1) / n`), the same moment `_strikeParts` hits there.
+   */
+  _updateSeeds(committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const n = Math.max(1, Math.min(MAX_SEEDS, Math.round(c.count)));
+    _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+    _hand.y = c.handHeight;
+    const size = Math.max(0.05, c.seedSize);
+    const restY = size * c.seedHeight;
+    const life = Math.max(0.05, g.lifetime);
+    const implodeDelay = c.implodeDelay * life;
+    const implodeTime = Math.max(0.02, c.implodeTime * life);
+    const close = committed ? Easing.inOutCubic(saturate((fadeT - c.wellCloseAt) / Math.max(0.05, 2 - c.wellCloseAt))) : 0;
+    let lipHeat = 0;
+    for (let i = 0; i < MAX_SEEDS; i++) {
+      const r = this._seedRecs[i];
+      if (i >= n) {
+        r.seed.visible = r.implode.visible = r.well.visible = r.lip.visible = false;
+        continue;
+      }
+      const landU = (i + 1) / n;
+      const launchU = (i / n) * c.seedLaunch;
+      const p = committed ? 1 : saturate((this.u - launchU) / Math.max(0.02, landU - launchU));
+      this._partPoint(i, n, _land);
+      if (p >= 1 && r.landAge < 0) {
+        r.landAge = this.age;
+        this._seedLanded(_land);
+      }
+      if (r.landAge < 0) {
+        // In flight: a ballistic arc from the hand to its part, tumbling.
+        r.implode.visible = r.well.visible = r.lip.visible = false;
+        if (p <= 0) {
+          r.seed.visible = false;
+          continue;
+        }
+        r.seed.visible = true;
+        r.seed.position.lerpVectors(_hand, _land, p);
+        r.seed.position.y = _hand.y + (restY - _hand.y) * p + 4 * p * (1 - p) * c.seedArc;
+        const tumble = this.age * c.seedSpin * g.animationSpeed + r.dice;
+        r.seed.rotation.set(tumble, r.dice, tumble * 0.4 + r.tilt);
+        r.seed.scale.setScalar(size * (0.55 + 0.45 * Easing.outCubic(saturate(p * 3))));
+        r.seed.material.userData.sync(0.15);
+        this.coreMaterial.color.copy(getColor(c.colorSeedSeam)).multiplyScalar(2 * g.glow);
+        continue;
+      }
+      const k = this.age - r.landAge;
+      // The husk sits, flares, then crumples in on itself, spinning faster.
+      const crumple = saturate((k - implodeDelay) / implodeTime);
+      const squash = 1 + 0.22 * Math.sin(saturate(k / 0.12) * Math.PI);
+      const shrink = 1 - Easing.inCubic(crumple);
+      r.seed.visible = shrink > 0.01;
+      if (r.seed.visible) {
+        r.seed.position.set(_land.x, restY * shrink, _land.z);
+        const whirl = r.dice + k * c.seedSpin * (1 + 5 * crumple * crumple) * g.animationSpeed;
+        r.seed.rotation.set(r.tilt * (1 - crumple), whirl, 0);
+        r.seed.scale.set(size * shrink / squash, size * shrink * squash * (1 - 0.3 * crumple), size * shrink / squash);
+        r.seed.material.userData.sync(0.3 + 0.7 * crumple);
+      }
+      // The world pulled in: a dark shell contracting onto the seed.
+      const shellT = saturate(k / Math.max(0.02, implodeDelay + implodeTime));
+      const shellR = c.implodeRadius * (1 - Easing.inQuad(shellT));
+      r.implode.visible = shellT < 1 && shellR > 0.03 && c.implodeOpacity > 0.01;
+      if (r.implode.visible) {
+        r.implode.position.set(_land.x, restY, _land.z);
+        r.implode.scale.set(shellR, shellR * 0.85, shellR);
+        r.implode.material.userData.sync(Math.sin(shellT * Math.PI) * 0.6 + 0.4 * (1 - shellT), shellT);
+      }
+      // The well opens as the husk goes, turns for the linger, folds shut in the fade.
+      const open = Easing.outCubic(saturate((k - implodeDelay - implodeTime * 0.55) / Math.max(0.02, c.wellOpen * life)));
+      const radius = c.wellRadius * open * (1 - close);
+      const heat = 1 - saturate((k - implodeDelay - implodeTime) / (1.6 * life)) * 0.7;
+      r.well.visible = radius > 0.02 && c.wellOpacity > 0.01;
+      if (r.well.visible) {
+        r.well.position.set(_land.x, 0.035 + i * 0.002, _land.z);
+        r.well.scale.setScalar(radius);
+        r.well.material.userData.sync(r.dice - k * c.wellSwirl * g.animationSpeed, 1 - close * close, heat, r.dice);
+        this._pullMotes(_land, radius, open * (1 - close));
+      }
+      r.lip.visible = radius > 0.05 && c.wellLip > 0.01;
+      if (r.lip.visible) {
+        r.lip.position.set(_land.x, 0, _land.z);
+        r.lip.rotation.y = r.dice;
+        const rise = Easing.outBack(saturate(open * 1.1));
+        // The lip mesh is ~0.18 tall at its crest: scale it to `wellLip` × the well radius.
+        r.lip.scale.set(radius, (c.wellLip * c.wellRadius * rise * (1 - 0.85 * close)) / 0.18, radius);
+        lipHeat = Math.max(lipHeat, heat * (1 - close));
+      }
+    }
+    this.lipMaterial.userData.sync(lipHeat);
+    this.coreMaterial.color.copy(getColor(c.colorSeedCore)).multiplyScalar(1.5 * g.glow);
+  }
+
+  /** A seed lands: a thud, a light punch, chips and dust rolled out low. */
+  _seedLanded(at) {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this.ctx.shake.add(c.seedLandShake * power * g.cameraShake, 3, 20);
+    this.lightBoost += c.seedLandLight * power;
+    _pos.copy(at).setY(0.15);
+    const chips = Math.round(c.seedLandChips * g.particleCount * power);
+    if (chips > 0) {
+      this._fillEmit(_pos, 0.3, _up, c.chipSpeed, 0.7, c.chipSize * 1.3, c.chipLife, 6);
+      this.chips.emit(chips, _emit);
+    }
+    const dust = Math.round(c.seedLandDust * g.particleCount);
+    for (let i = 0; i < dust; i++) {
+      const ang = (i / Math.max(1, dust)) * Math.PI * 2 + this._spin;
+      _dir.set(Math.cos(ang), 0.1, Math.sin(ang));
+      this._fillEmit(_pos, 0.3, _dir, c.dustSpeed * 1.2, 0.3, 0.5, c.dustLife, 0.4);
+      this.dust.emit(1, _emit);
+    }
+    this.ctx.decals.spawn(DecalType.SCORCH, at, {
+      radius: c.wellRadius * 1.35,
+      life: c.groundLife * g.lifetime,
+      width: 0.8,
+      intensity: c.groundStain,
+      colorA: getColor(c.colorGroundStain),
+      colorB: getColor(c.colorWellDeep),
+      height: 0.02
+    });
+  }
+
+  /** Motes drawn in from round an open well, toward its heart. */
+  _pullMotes(at, radius, strength) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (strength <= 0.01 || c.wellPullRate <= 0) return;
+    const want = c.wellPullRate * strength * this._dt;
+    let n = Math.floor(want);
+    if (Math.random() < want - n) n++;
+    n = Math.round(n * g.particleCount);
+    for (let k = 0; k < n; k++) {
+      const ang = Math.random() * Math.PI * 2;
+      const rr = radius * (1.05 + Math.random() * 0.5);
+      _pos.set(at.x + Math.cos(ang) * rr, 0.08 + Math.random() * 0.5, at.z + Math.sin(ang) * rr);
+      // Inward and a little round: drawn down the spiral.
+      _dir.set(-Math.cos(ang) + Math.sin(ang) * 0.5, -0.15, -Math.sin(ang) - Math.cos(ang) * 0.5);
+      this._fillEmit(_pos, 0.05, _dir, c.wellPullSpeed, 0.1, 0.07, Math.min(c.moteLife, rr / Math.max(0.2, c.wellPullSpeed)), 1);
+      this.motes.emit(1, _emit);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -234,6 +468,8 @@ export class HollowVolleyAbility extends Ability {
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
     this.trail.reset();
+    this._resetSeeds();
+    this._dt = 0;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -783,8 +1019,10 @@ export class HollowVolleyAbility extends Ability {
   onTravel(dt) {
     const c = settings[ID];
     const g = settings.global;
+    this._dt = dt;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._updateSeeds(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
@@ -802,8 +1040,10 @@ export class HollowVolleyAbility extends Ability {
     const c = settings[ID];
     const g = settings.global;
     const fade = t < 1 ? 1 : 1 - (t - 1);
+    this._dt = dt;
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._updateSeeds(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
@@ -831,9 +1071,23 @@ export class HollowVolleyAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._resetSeeds();
   }
 
   dispose() {
+    for (let i = 0; i < this._seedRecs.length; i++) {
+      const r = this._seedRecs[i];
+      r.seed.material.dispose();
+      r.implode.material.dispose();
+      r.well.material.dispose();
+    }
+    this.seedGeometry.dispose();
+    this.lipGeometry.dispose();
+    this.implodeGeometry.dispose();
+    this.wellGeometry.dispose();
+    this.coreGeometry.dispose();
+    this.lipMaterial.dispose();
+    this.coreMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1034,6 +1288,51 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const seeds = folder.addFolder('15 · Hollow seeds');
+  R(seeds, c, 'seedSize', 0.1, 3, 0.01, 'size (m)');
+  R(seeds, c, 'seedHeight', 0, 1.5, 0.01, 'rest height (× size)');
+  R(seeds, c, 'seedArc', 0, 8, 0.05, 'arc height (m)');
+  R(seeds, c, 'seedLaunch', 0, 1, 0.01, 'launch stagger');
+  R(seeds, c, 'seedSpin', 0, 30, 0.1, 'tumble (rad/s)');
+  R(seeds, c, 'seedGlow', 0, 8, 0.05, 'seam glow');
+  R(seeds, c, 'seedRim', 0, 4, 0.05, 'limb glow');
+  R(seeds, c, 'seedSlit', 0, 3, 0.01, 'slits open');
+  R(seeds, c, 'seedRough', 0, 1, 0.01, 'roughness');
+  R(seeds, c, 'seedMetal', 0, 1, 0.01, 'metalness');
+  seeds.addColor(c, 'colorSeedShell').name('shell, deep');
+  seeds.addColor(c, 'colorSeedLit').name('shell, lit');
+  seeds.addColor(c, 'colorSeedSeam').name('seam');
+  seeds.addColor(c, 'colorSeedCore').name('core');
+  R(seeds, c, 'seedLandShake', 0, 2, 0.01, 'landing punch');
+  R(seeds, c, 'seedLandLight', 0, 20, 0.1, 'landing light');
+  R(seeds, c, 'seedLandChips', 0, 60, 1, 'landing chips');
+  R(seeds, c, 'seedLandDust', 0, 40, 1, 'landing dust');
+
+  const implode = folder.addFolder('16 · Implosion');
+  R(implode, c, 'implodeDelay', 0, 1, 0.01, 'sits for (s)');
+  R(implode, c, 'implodeTime', 0.02, 2, 0.01, 'collapses in (s)');
+  R(implode, c, 'implodeRadius', 0, 6, 0.05, 'shell (m)');
+  R(implode, c, 'implodeOpacity', 0, 1.5, 0.01, 'shell opacity');
+  R(implode, c, 'implodeGlow', 0, 6, 0.05, 'limb glow');
+
+  const well = folder.addFolder('17 · Wells');
+  R(well, c, 'wellRadius', 0.1, 5, 0.01, 'radius (m)');
+  R(well, c, 'wellOpen', 0.02, 2, 0.01, 'opens in (s)');
+  R(well, c, 'wellCloseAt', 1, 1.95, 0.01, 'closes from');
+  R(well, c, 'wellArms', 1, 8, 1, 'arms');
+  R(well, c, 'wellTwist', 0, 4, 0.01, 'twist');
+  R(well, c, 'wellSwirl', -10, 10, 0.05, 'swirl (rad/s)');
+  R(well, c, 'wellOpacity', 0, 1.5, 0.01, 'opacity');
+  R(well, c, 'wellGlow', 0, 6, 0.05, 'glow');
+  R(well, c, 'wellLip', 0, 3, 0.01, 'lip height');
+  R(well, c, 'wellLipGlow', 0, 8, 0.05, 'lip cracks');
+  R(well, c, 'wellPullRate', 0, 200, 1, 'motes drawn in / s');
+  R(well, c, 'wellPullSpeed', 0, 10, 0.05, 'draw speed');
+  well.addColor(c, 'colorWellDeep').name('heart');
+  well.addColor(c, 'colorWellArm').name('arms');
+  well.addColor(c, 'colorWellRim').name('rim');
+  well.addColor(c, 'colorWellStone').name('lip stone');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

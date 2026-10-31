@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0,
     edgeGlow: 2.04,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f25fad',
     colorB: '#ffffff',
     colorC: '#5c0a36',
-    lensWarp: 1.19, // strength of the distortion it writes
+    lensWarp: 0.4, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement
     colorVoiceA: '#f25fad',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.25, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#3a1a34', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48)
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -115,7 +115,7 @@ export default {
     colorHeroC: '#5c0a36',
 
     /* --- 6 · shed --- */
-    dustRate: 32, // puffs per second
+    dustRate: 12, // puffs per second
     dustSize: 0.22,
     dustSpeed: 3.5,
     dustLife: 0.8,
@@ -124,7 +124,7 @@ export default {
     colorDustB: '#f25fad',
     colorDustC: '#5c0a36',
     colorDustD: '#1a140e',
-    streakRate: 99, // sparks per second
+    streakRate: 30, // sparks per second
     streakSize: 0.045,
     streakSpeed: 8,
     streakLife: 0.35,
@@ -158,7 +158,7 @@ export default {
     colorFlash: '#ffd4ee',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 3, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -166,7 +166,7 @@ export default {
     colorBurstC: '#5c0a36',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f25fad',
     colorShockB: '#ffffff',
 
@@ -198,19 +198,74 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.3, // ribbon width at the head, metres
     trailLife: 0.9, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.55, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon
     trailGlow: 1.21, // brightness of the ribbon
     trailCore: 0.4, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.6, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
+    scarOpacity: 0, // strength of the scar
     scarGlow: 1.76, // brightness of its hot seam
     colorScarA: '#f25fad',
     colorScarB: '#5c0a36',
-    wakeSpacing: 1.8, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.7, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.2 // fragments thrown at each wake
+    wakeChips: 1.2, // fragments thrown at each wake
+
+    /* --- 15 · the decoy and its afterimages (upgrade) --- */
+    decoyOpacity: 1.2, // strength of the decoy image flying out
+    decoyWeave: 0.9, // how far the decoy swings off the line, × reach (sweep)
+    decoyStreaks: 90, // streaks per second off the decoy
+    ghostCount: 4, // afterimages left down the line (max 8)
+    ghostStart: 0.2, // the first is left this far along the line (× length), clear of the caster
+    ghostOpacity: 0.85, // strength of the afterimages
+    ghostLife: 0.9, // seconds an afterimage takes to dim to a third, × global lifetime
+    ghostScan: 34, // scanlines per metre through the images
+    ghostBreak: 0.22, // seconds an afterimage takes to break when the blade passes
+    ghostShards: 16, // glass shards each broken afterimage throws
+    ghostCollapse: 0.15, // seconds after the blade stops that the afterimages it did not reach start to collapse
+    ghostStagger: 0.14, // seconds between those collapses
+
+    /* --- 16 · the blade (upgrade) --- */
+    bladeSize: 1.55, // crescent radius, metres (tip to tip ≈ 1.9 ×)
+    bladeHeight: 1.35, // metres off the floor it flies at
+    bladeBank: 0.85, // radians the crescent is tipped off flat
+    bladeSpin: 16, // radians/second it spins
+    bladeSpinDown: 0.8, // seconds its spin decays over on the way back, × global lifetime
+    bladeStop: 0.32, // where it comes back to, × the line (0 = the caster)
+    returnArc: 2.6, // metres the way back bows out to the side, like a boomerang
+    returnSide: 1.6, // metres off the line it hangs once back (clear of the caster)
+    bladeBob: 0.12, // metres it bobs while it hangs there
+    bladeBobRate: 3.2, // bob rate (radians/second)
+    bladeForm: 0.08, // seconds it takes to form out of panes on the beat
+    bladeExitAt: 1.5, // fade progress it starts to shatter at (1 = fade start, 2 = end)
+    bladeShards: 40, // glass shards it throws when it breaks
+    bladeSpecular: 1.5, // sun glint off its facets
+    bladeFresnel: 0.6, // magenta rim
+    bladeAmbient: 0.32, // shadow-side light
+    bladeEdgeGlow: 2, // brightness of the cutting edge
+    bladeSheen: 0.45, // oil-on-glass sheen at grazing angles
+    bladeShadow: 1, // 1 = the blade casts a shadow
+    colorBladeCore: '#fff3fa', // white-hot edge
+    colorBladeTint: '#ffb3dc', // pale pink sheen
+    colorBladeBody: '#9c1460', // saturated magenta glass
+    colorBladeDeep: '#16020f', // near-black plum spine
+
+    /* --- 17 · the cut (upgrade) --- */
+    gashRadius: 2.2, // radius of the arc the blade cuts through the group, metres
+    gashSpan: 0.85, // half-angle of that arc, radians
+    gashWidth: 0.6, // width of the gash it leaves in the floor, metres
+    cutTime: 0.3, // seconds the sweep through the group takes
+    cutLife: 0.45, // seconds the light of the cut takes to fade after the sweep
+    cutOpacity: 2.2, // strength of the swept light
+    cutInner: 0.72, // inner radius of the swept light, × arc radius
+
+    /* --- 18 · the floor (upgrade) --- */
+    floorOpacity: 1, // strength of the gash and the pools
+    floorGlow: 1.2, // glow of the gash's seam and the pools' fringe
+    floorEcho: 0.5, // strength of the mirror pool under each afterimage
+    echoSize: 0.75, // pool radius, × blade size
+    floorErodeAt: 1.55 // fade progress the floor starts to break up at
   }
 };

@@ -240,3 +240,35 @@ export function noteCloudGeometry(count = 96) {
   g.setAttribute('phase', new BufferAttribute(phase, 1));
   return g;
 }
+
+/**
+ * The carrier's wake: the line of sound from the caster's hand to the fork.
+ * A strip along +Z, 0..1 (`uv.x` along, `uv.y` across, −1..1 in X). The wake
+ * shader lays it out in metres — its length, its rise from hand height to the
+ * carrier, the standing wave that swings it from side to side and the
+ * envelope that pinches it at both ends — so one geometry serves any range.
+ * Drawn twice, crossed, so it has a body from any side.
+ */
+export function carrierWakeGeometry(segments = 120, rows = 4) {
+  const p = [];
+  const uv = [];
+  const ix = [];
+  for (let i = 0; i <= segments; i++) {
+    const s = i / segments;
+    for (let j = 0; j <= rows; j++) {
+      const v = j / rows;
+      p.push(v * 2 - 1, 0, s);
+      uv.push(s, v);
+    }
+  }
+  for (let i = 0; i < segments; i++) {
+    for (let j = 0; j < rows; j++) {
+      const a = i * (rows + 1) + j;
+      const b = a + rows + 1;
+      ix.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const g = build(p, uv, ix);
+  g.computeBoundingSphere();
+  return g;
+}

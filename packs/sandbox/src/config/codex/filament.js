@@ -53,7 +53,7 @@ export default {
     height: 3.5, // how tall the body stands, metres
     sweep: 1.8, // lateral reach, metres
     lean: 0.85, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template sheet (off: the stitch carries the read)
     edgeGlow: 3.15,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.48,
@@ -62,10 +62,10 @@ export default {
     colorA: '#ffcd3d',
     colorB: '#ffffff',
     colorC: '#957004',
-    lensWarp: 0.8, // strength of the distortion it writes
+    lensWarp: 0, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#ffcd3d',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // off: its lane rays fought the stitch // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.42, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#3a3020', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 12, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48; off: the barbs are the pieces)
     detailSize: 0.45, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.65, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the cast-local stitch is the hero)
     heroDeep: 0.5, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -129,7 +129,7 @@ export default {
     streakSpeed: 8,
     streakLife: 0.35,
     streakStretch: 1.4,
-    colorStreakA: '#ffffff',
+    colorStreakA: '#ffe08a',
     colorStreakB: '#fff8dc',
     colorStreakC: '#ffcd3d',
     colorStreakD: '#ffcd3d',
@@ -147,7 +147,7 @@ export default {
     moteSize: 0.06,
     moteSpeed: 1.6, // metres/second they drift at
     moteLife: 1.1,
-    colorMoteA: '#ffffff',
+    colorMoteA: '#ffe08a',
     colorMoteB: '#fff8dc',
     colorMoteC: '#ffcd3d',
     colorMoteD: '#ffcd3d',
@@ -158,7 +158,7 @@ export default {
     colorFlash: '#fff8dc',
     burstRadius: 2.6, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.15, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 3, // fragments thrown up and out on the beat
     impactDust: 3, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -198,19 +198,69 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.26, // ribbon width at the head, metres
     trailLife: 1.1, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // the template ribbon arched the whole line into a curtain; the stitch is the wake now // strength of the ribbon
     trailGlow: 1.65, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.35, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
+    scarOpacity: 0, // off: the template scar drew thin lane lines; the barb scorches and seam mark the floor // strength of the scar
     scarGlow: 2.4, // brightness of its hot seam
     colorScarA: '#ffcd3d',
     colorScarB: '#957004',
     wakeSpacing: 2.5, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.6, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.2 // fragments thrown at each wake
+    wakeChips: 1.2, // fragments thrown at each wake
+
+    /* --- 15 · the filaments (cast-local hero) --- */
+    filStrands: 3, // strands braided into one bolt
+    filRadius: 0.05, // radius of one strand, metres
+    filBraid: 0.1, // how far the strands wind round the arc, metres
+    filBraidTurns: 3.5, // turns of the braid along one arc
+    filArc: 1, // arc height multiplier
+    filArcMin: 0.55, // arc height for a zero span, metres
+    filArcPerMetre: 0.4, // extra arc height per metre of span
+    filGlow: 1, // overall brightness
+    filCore: 1.7, // HDR gain of the white-hot core
+    filHeadGlow: 2.6, // the bolt head while it is drawn
+    filTwang: 0.14, // sideways twang, metres
+    filTwangFreq: 24, // twang rate, radians/second
+    filTwangDecay: 2.2, // how fast the twang dies after the beat
+    colorFilCore: '#ffffff', // white-hot core
+    colorFilTint: '#ffd36a', // pale tint
+    colorFilBody: '#c9800a', // saturated body
+    colorFilDeep: '#1e0f02', // dark deep at the silhouette
+    seamRadius: 0.035, // radius of the seam pulled along the floor between barbs (0 = none)
+    stitchTime: 0.45, // seconds the arcs take to cinch tight after the beat, × global lifetime
+    stitchCinch: 0.5, // how much of their height they lose cinching
+    pulseSpeed: 7, // stitches per second the current runs down the chain
+    pulseWidth: 0.45, // width of the current, in stitches
+    pulseGlow: 1.4, // brightness of the current
+    pulseMotes: 40, // motes per second off the stitched barbs
+    headSparks: 160, // sparks per second off the bolt head in flight
+    unravelStart: 1.2, // seconds after the beat the stitch starts to unravel, × global lifetime
+    unravelStagger: 0.08, // seconds between one stitch and the next unravelling, × global lifetime
+    unravelTime: 0.4, // seconds one stitch takes to burn away, × global lifetime
+
+    /* --- 16 · the barbs --- */
+    barbLength: 1.5, // metres
+    barbWidth: 0.24, // metres
+    barbBury: 0.3, // share of the barb driven under the floor
+    barbLean: 0.38, // radians it leans back toward where its bolt came from
+    barbDrive: 0.08, // seconds it takes to drive in
+    barbDriveHeight: 1.4, // metres above its rest it is driven from
+    barbCool: 0.8, // seconds its strike heat takes to cool, × global lifetime
+    barbSink: 0.4, // seconds it takes to sink away at the end, × global lifetime
+    barbGlow: 1, // brightness of its heat
+    barbSpecular: 1.1, // sun glint on the gilt
+    colorBarbGold: '#b88412', // gilt
+    colorBarbDeep: '#1c1003', // bronze in the grooves
+    colorBarbHot: '#ff9a1a', // heat
+    barbScorch: 0.7, // scorch under each barb, metres
+    barbSparks: 16, // sparks off each landing
+    barbChips: 4, // chips off each landing
+    barbShake: 0.07, // camera punch of each landing
+    barbLight: 2.5 // light punch of each landing
   }
 };

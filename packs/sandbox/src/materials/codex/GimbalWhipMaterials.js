@@ -1050,3 +1050,292 @@ export function createGimbalWhipScarMaterial() {
   };
   return material;
 }
+
+/* ------------------------------------------------------------------ */
+/* The cutter itself (cast-local signature layers)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Machined gunmetal lit by the scene sun, for the yoke, the cradle and the
+ * blade. `aKind` per vertex: 0 metal (deep → body albedo, tight specular,
+ * brushed along the band), 1 an inset channel that glows cyan with power,
+ * 2 a cutting edge that runs from cyan to white with heat. `uSink` eats the
+ * part behind a hot edge as it powers down into the cut.
+ */
+const METAL_VERTEX = /* glsl */ `
+  attribute float aKind;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vKind;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vLocal = position;
+    vKind = aKind;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const METAL_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uSeam;
+  uniform vec3  uHot;
+  uniform float uPower;
+  uniform float uHeat;
+  uniform float uSink;
+  uniform float uSeamGlow;
+  uniform float uEdgeGlow;
+  uniform float uSpecular;
+  uniform float uRimGlow;
+  uniform float uSeed;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying float vKind;
+  ${noiseGLSL}
+  void main() {
+    float n = snoise01(vec3(vLocal * 6.0 + uSeed));
+    if (n < uSink * 1.05) discard;
+    float burn = (1.0 - smoothstep(0.0, 0.05, n - uSink * 1.05)) * step(0.001, uSink);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    float metal = 1.0 - step(0.5, vKind);
+    float seam = step(0.5, vKind) * (1.0 - step(1.5, vKind));
+    float edge = step(1.5, vKind);
+
+    float brush = snoise01(vec3(atan(vLocal.y, vLocal.x) * 18.0, length(vLocal.xy) * 40.0, vLocal.z * 3.0));
+    vec3 albedo = mix(uDeep, uBody, 0.3 + 0.45 * brush);
+    vec3 color = albedo * (0.2 + 1.1 * ndl);
+    color += albedo * 0.3 * (0.5 + 0.5 * N.y);
+    color += mix(uBody, vec3(1.0), 0.6) * pow(max(dot(N, H), 0.0), 64.0) * uSpecular;
+    color += mix(uBody, vec3(1.0), 0.3) * pow(max(dot(N, H), 0.0), 12.0) * uSpecular * 0.15;
+    color += uSeam * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow * 0.6;
+
+    float flick = 0.85 + 0.15 * sin(uTime * 31.0 + vLocal.x * 9.0);
+    color = mix(color, uDeep * 0.6 + uSeam * uSeamGlow * uPower * flick * uGlobalGlow, seam * clamp(uPower, 0.0, 1.0));
+    color += mix(uSeam, uHot, uHeat) * edge * (0.25 + 1.2 * uHeat) * uEdgeGlow * uGlobalGlow;
+
+    color = mix(color, uHot * 2.0 * uGlobalGlow, burn);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createGimbalWhipMetalMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uSeam: { value: new Color() },
+      uHot: { value: new Color() },
+      uPower: { value: 1 },
+      uHeat: { value: 0 },
+      uSink: { value: 0 },
+      uSeamGlow: { value: 1 },
+      uEdgeGlow: { value: 1 },
+      uSpecular: { value: 1 },
+      uRimGlow: { value: 0.5 },
+      uSeed: { value: 0 }
+    }),
+    vertexShader: METAL_VERTEX,
+    fragmentShader: METAL_FRAGMENT
+  });
+  /** @param {object} p  power, heat, sink, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorMetalDeep));
+    u.uBody.value.copy(getColor(c.colorMetal));
+    u.uSeam.value.copy(getColor(c.colorCutterSeam));
+    u.uHot.value.copy(getColor(c.colorCutterHot));
+    u.uPower.value = p.power;
+    u.uHeat.value = p.heat;
+    u.uSink.value = p.sink;
+    u.uSeamGlow.value = c.cutterSeamGlow * g.shaderIntensity;
+    u.uEdgeGlow.value = c.cutterEdgeGlow * g.shaderIntensity;
+    u.uSpecular.value = c.cutterSpecular;
+    u.uRimGlow.value = c.cutterRimGlow * g.fresnel;
+    u.uSeed.value = p.seed;
+  };
+  return material;
+}
+
+/**
+ * The cut on the floor: a scorched bed along the line up to where the cutter
+ * has reached, and in it the kerf the whipping blade leaves — a snaking
+ * groove (the cutter's lateral path, `uAmp` × sin) with dark walls, its seam
+ * white-cyan just behind the cutter and cooling through cyan to deep teal to
+ * a dark scar behind. At the end of the line, the bite: a dark gouge with hot
+ * cracks running out of it.
+ */
+const KERF_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const KERF_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uOrigin;
+  uniform vec3  uDir;
+  uniform vec3  uSide;
+  uniform float uFront;
+  uniform float uLength;
+  uniform float uAmp;
+  uniform float uWave;
+  uniform float uPhase;
+  uniform float uRamp;
+  uniform float uBedWidth;
+  uniform float uKerfWidth;
+  uniform float uCool;
+  uniform float uHeat;
+  uniform float uBite;
+  uniform float uBiteR;
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uDeepC;
+  uniform vec3  uBodyC;
+  uniform vec3  uSeamC;
+  uniform vec3  uHotC;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  void main() {
+    vec2 d = vWorld.xz - uOrigin.xz;
+    float s = dot(d, uDir.xz);
+    float l = dot(d, uSide.xz);
+    if (s < -0.5 || s > uFront + 0.6) discard;
+    float grain = snoise01(vec3(vWorld.xz * 2.2, uSeed));
+    float mott = snoise01(vec3(vWorld.xz * 0.5, uSeed + 2.0));
+
+    float env = smoothstep(0.0, uRamp, s);
+    float path = uAmp * env * sin(s * uWave + uPhase);
+    float lat = l - path;
+    float tail = smoothstep(uFront + 0.5, uFront - 0.2, s) * smoothstep(-0.5, 0.3, s);
+
+    // The scorched bed, ragged at its edges.
+    float bedW = uBedWidth * (0.5 + 0.18 * (grain - 0.5) + 0.12 * mott);
+    float bed = (1.0 - smoothstep(bedW * 0.6, bedW, abs(lat))) * tail;
+    vec3 color = mix(uDeepC, uBodyC, 0.25 + 0.5 * mott) * (0.5 + 0.5 * grain);
+    float alpha = bed * (0.7 + 0.25 * mott);
+
+    // The kerf: a groove with dark walls and a seam that cools behind the cutter.
+    float k = abs(lat) / max(uKerfWidth, 0.02);
+    float groove = (1.0 - smoothstep(0.7, 1.0, k)) * tail;
+    float wall = (1.0 - smoothstep(0.0, 0.25, abs(k - 0.85))) * tail;
+    float age = max(uFront - s, 0.0);
+    float fresh = exp(-age / max(uCool, 0.05));
+    float heat = clamp(fresh, 0.0, 1.0) * uHeat;
+    color = mix(color, uDeepC * 0.2, groove * 0.9);
+    color += uBodyC * wall * 0.6 * (0.5 + max(dot(normalize(vec3(uSide.x * sign(lat), 1.2, uSide.z * sign(lat))), normalize(uLightDir)), 0.0));
+    float seam = (1.0 - smoothstep(0.0, 0.45, k)) * groove;
+    vec3 seamCol = mix(uBodyC * 1.6, mix(uSeamC, uHotC, fresh), clamp(heat * 1.4, 0.0, 1.0));
+    color += seamCol * seam * (0.12 + 1.6 * heat) * uGlow * uGlobalGlow * (0.6 + 0.6 * grain);
+    alpha = max(alpha, groove * 0.95);
+
+    // The bite at the end of the line.
+    vec2 e = d - uDir.xz * uLength;
+    float er = length(e) / max(uBiteR, 0.05);
+    float dent = (1.0 - smoothstep(0.55, 1.0, er)) * uBite;
+    float crack = (1.0 - smoothstep(0.0, 0.08, abs(snoise(vec3(atan(e.y, e.x) * 2.0, length(e) * 0.8, uSeed))))) * (1.0 - smoothstep(0.5, 2.4, er)) * uBite;
+    color = mix(color, uDeepC * 0.15, dent * 0.9);
+    color += mix(uSeamC, uHotC, uHeat * 0.6) * crack * (0.4 + 1.2 * uHeat) * uGlow * uGlobalGlow;
+    alpha = max(alpha, max(dent * 0.95, crack * 0.7));
+
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uOpacity);
+  }
+`;
+
+export function createGimbalWhipKerfMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    uniforms: sharedUniforms({
+      uOrigin: { value: new Vector3() },
+      uDir: { value: new Vector3(0, 0, 1) },
+      uSide: { value: new Vector3(1, 0, 0) },
+      uFront: { value: 0 },
+      uLength: { value: 1 },
+      uAmp: { value: 0.8 },
+      uWave: { value: 1 },
+      uPhase: { value: 0 },
+      uRamp: { value: 1.5 },
+      uBedWidth: { value: 1.6 },
+      uKerfWidth: { value: 0.2 },
+      uCool: { value: 3 },
+      uHeat: { value: 1 },
+      uBite: { value: 0 },
+      uBiteR: { value: 1 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uDeepC: { value: new Color() },
+      uBodyC: { value: new Color() },
+      uSeamC: { value: new Color() },
+      uHotC: { value: new Color() }
+    }),
+    vertexShader: KERF_VERTEX,
+    fragmentShader: KERF_FRAGMENT
+  });
+  /** @param {object} p  origin, dir, side, front, length, phase, heat, bite, alpha, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOrigin.value.copy(p.origin);
+    u.uDir.value.copy(p.dir);
+    u.uSide.value.copy(p.side);
+    u.uFront.value = p.front;
+    u.uLength.value = p.length;
+    u.uAmp.value = c.whipAmp;
+    u.uWave.value = (Math.PI * 2) / Math.max(0.5, c.whipWavelength);
+    u.uPhase.value = p.phase;
+    u.uRamp.value = c.whipRamp;
+    u.uBedWidth.value = c.kerfBedWidth;
+    u.uKerfWidth.value = c.kerfWidth;
+    u.uCool.value = c.kerfCool;
+    u.uHeat.value = p.heat;
+    u.uBite.value = p.bite;
+    u.uBiteR.value = c.biteRadius;
+    u.uGlow.value = c.kerfGlow * g.glow;
+    u.uOpacity.value = c.kerfOpacity * g.opacity * p.alpha;
+    u.uSeed.value = p.seed;
+    u.uDeepC.value.copy(getColor(c.colorKerfDeep));
+    u.uBodyC.value.copy(getColor(c.colorKerf));
+    u.uSeamC.value.copy(getColor(c.colorCutterSeam));
+    u.uHotC.value.copy(getColor(c.colorCutterHot));
+  };
+  return material;
+}

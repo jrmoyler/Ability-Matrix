@@ -33,10 +33,10 @@ export default {
 
     /* --- light --- */
     lightColor: '#f25fb0',
-    lightIntensity: 8.8, // the glow riding the cast
+    lightIntensity: 3.2, // the glow riding the cast
     lightRadius: 11,
     lightFlicker: 0.6, // 0..1 how much it shimmers
-    impactLight: 12.1, // extra light on the beat, decays on its own
+    impactLight: 5, // extra light on the beat, decays on its own
 
     /* --- 0 · the hand --- */
     handForward: 0.55, // metres in front of the caster the hand is
@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0.06, // the template sheet: a trace only, the blade carries the read
     edgeGlow: 2.04,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.35,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f25fb0',
     colorB: '#ffffff',
     colorC: '#5c0a37',
-    lensWarp: 1.19, // strength of the distortion it writes
+    lensWarp: 0.45, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off)
     colorVoiceA: '#f25fb0',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field
     groundHeat: 1.5, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.25, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#3a1a34', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48) — off: the petal pieces read as noise
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -106,7 +106,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.21, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 0.9, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is — off: the blade is the hero now
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -154,19 +154,19 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.33, // camera punch on the beat
-    impactFlash: 0.18, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat
     colorFlash: '#ffe8f6',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.3, // strength of the burst shell; matter keeps it low and hits with debris instead
-    impactChips: 3, // fragments thrown up and out on the beat
-    impactDust: 3, // dust puffs rolled out along the floor on the beat
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 26, // fragments thrown up and out on the beat
+    impactDust: 10, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#f25fb0',
     colorBurstC: '#5c0a37',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f25fb0',
     colorShockB: '#ffffff',
 
@@ -198,19 +198,74 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.64, // ribbon width at the head, metres
     trailLife: 1.3, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.85, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon
     trailGlow: 1.21, // brightness of the ribbon
     trailCore: 0.8, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 1.4, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.7, // strength of the scar
-    scarGlow: 1.76, // brightness of its hot seam
+    scarOpacity: 0.45, // strength of the scar
+    scarGlow: 0.5, // brightness of its hot seam
     colorScarA: '#f25fb0',
     colorScarB: '#5c0a37',
     wakeSpacing: 2, // metres between wake decals along the path (0 = none)
-    wakeRadius: 1, // size of each wake decal, metres
+    wakeRadius: 0.55, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 1.2 // fragments thrown at each wake
+    wakeChips: 1.2, // fragments thrown at each wake
+
+    /* --- 13 · the glamour blade (the signature) --- */
+    bladeHeight: 3.7, // tip-to-heel height of the blade, metres
+    bladeWidth: 2.3, // how broad the crescent is, × its authored width
+    bladeThick: 1.6, // spine thickness, × authored
+    bladeStart: 0.3, // its size as it leaves the hand, × full
+    bladeHover: 0.25, // heel height above the floor in flight, metres
+    bladeShear: 1, // how far it draws back sideways in flight, × the cut reach
+    bladeLean: 0.32, // radians it leans into its sideways motion
+    bladeCutReach: 1.45, // half-width of the swing across the line, × sweep
+    bladeCutFrom: 0.72, // share of the travel at which the swing across begins
+    bladeCutYaw: 0.3, // radians the blade turns through the swing
+    bladeEmbed: 0.2, // metres the tip bites into the floor after the cut
+    bladeEmbedTilt: 0.8, // radians it leans over once it has bitten
+    bladeOvershoot: 0.18, // the swing's carry past its end, × the reach
+    bladeDrag: 0.8, // metres it keeps ploughing sideways through the floor after it bites
+    bladeDragTime: 1.5, // seconds that plough takes
+    bladeSparks: 90, // sparks per second off the heel while it ploughs
+    bladeSway: 0.05, // radians it rocks while it stands in the floor
+    bladeSwayRate: 4.2, // radians/second of the rocking
+    bladePeelAt: 1.05, // clock (0..2: impact then fade) the glamour starts peeling
+    bladePeelEnd: 1.97, // clock it is gone by
+    bladeEdgeGlow: 2.8, // the cutting edge
+    bladeSeamGlow: 0.14, // the engraved filigree
+    bladeRimGlow: 1.1, // a cold steel limb that lifts the edge off the night floor
+    colorBladeRim: '#9db3d4', // the limb colour
+    bladeLandScale: 1.55, // size once it bites, × full
+    bladeRough: 0.34,
+    bladeMetal: 0.4,
+    bladeOpacity: 1, // 0 hides the blade
+    bladeShadow: 1, // 1 = the blade casts shadows
+    colorBladeDeep: '#12060e', // deep: lacquer in shadow
+    colorBladeBody: '#3e1a38', // body: lacquer in the sun
+    colorBladeHot: '#f25fb0', // tint: the glamour
+    colorBladeCore: '#ffe8f6', // core: the edge's white line
+
+    /* --- 14 · the false copies (the glamour shown early) --- */
+    ghostCount: 2, // 0..2: the copy that runs ahead and the afterimage behind
+    ghostLead: 0.38, // how far ahead of the blade the false copy runs, share of the travel
+    ghostLag: 0.14, // how far behind the afterimage trails, share of the travel
+    ghostHoles: 0.52, // 0..1 how eaten-through a copy is
+    ghostGlow: 0.3, // edge glow of a copy, × the blade's
+    ghostScale: 0.8, // size of a copy, × the blade's
+    ghostBreak: 0.18, // seconds the false copy takes to burn away when the blade lands in it
+    ghostOffset: 0.6, // metres the false copy stands off the blade's path
+
+    /* --- 15 · the cut --- */
+    cutWidth: 5, // width of the slash on the floor, metres
+    cutLength: 1.15, // length of the slash, × the swing
+    cutOpacity: 0.95,
+    cutGlow: 2.2, // the hot seam
+    cutShear: 1, // shear marks along it
+    cutPre: 0.5, // how strongly the false copy pre-draws it
+    colorCutDeep: '#14040d',
+    peelMotes: 140 // motes per second off the peeling front
   }
 };

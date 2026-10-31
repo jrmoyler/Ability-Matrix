@@ -757,3 +757,262 @@ export function createHardpointHaloDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ==================================================================== */
+/* The signature — the hardpoint turrets and the deck they lock onto     */
+/* ==================================================================== */
+/*
+ * Two more shaders, written for this cast:
+ *   armour — dark gunmetal (MeshStandardMaterial, patched, instanced): sun-lit,
+ *            shadow-casting, with panel grooves; only the sensor slit, the
+ *            plate seam and the muzzles glow — the slit with power, the
+ *            muzzles with the heat of the volley.
+ *   deck   — the floor: a filled hex-plated disc the turrets bolt onto, its
+ *            seams lit while powered, a conduit from the hub to each
+ *            hardpoint that charges before the volley, and a burnt wedge
+ *            thrown out ahead of every muzzle.
+ */
+
+const ARMOUR_VERTEX_PARS = /* glsl */ `
+  attribute float aGlow;
+  varying float vGlow;
+  varying vec3 vArmourLocal;
+`;
+const ARMOUR_FRAGMENT_PARS = /* glsl */ `
+  uniform float uKind;
+  uniform float uEye;
+  uniform float uSeam;
+  uniform float uHeat;
+  uniform float uRim;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying float vGlow;
+  varying vec3  vArmourLocal;
+  ${noiseGLSL}
+`;
+const ARMOUR_COLOR = /* glsl */ `
+  {
+    vec3 p = vArmourLocal * 4.0;
+    // Panel grooves: thin dark lines on a grid, broken by a little noise.
+    vec3 f = abs(fract(p) - 0.5);
+    float groove = 1.0 - smoothstep(0.43, 0.48, max(max(f.x, f.y), f.z));
+    float grime = snoise(vArmourLocal * 6.0) * 0.5 + 0.5;
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.55 + 0.35 * grime) * (0.55 + 0.45 * groove);
+  }
+`;
+const ARMOUR_EMISSIVE = /* glsl */ `
+  {
+    if (uKind < 0.5) {
+      float eye = smoothstep(0.85, 1.0, vGlow);
+      float seam = smoothstep(0.4, 0.7, vGlow) * (1.0 - eye);
+      totalEmissiveRadiance += mix(uColorHot, uColorCore, 0.35) * eye * uEye;
+      totalEmissiveRadiance += uColorHot * seam * uSeam;
+    } else {
+      float m = vGlow;
+      totalEmissiveRadiance += mix(uColorHot, uColorCore, m * uHeat) * m * m * uHeat * 3.0;
+    }
+    vec3 nV = normalize(normal);
+    float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
+    totalEmissiveRadiance += uColorHot * rim * uRim;
+  }
+`;
+
+/** Gunmetal armour for a hardpoint's `pod` (kind 0) or its `barrel` (kind 1). */
+export function createHardpointHaloArmourMaterial(kind = 0) {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.7 });
+  const uniforms = {
+    uKind: { value: kind },
+    uEye: { value: 1 },
+    uSeam: { value: 1 },
+    uHeat: { value: 0 },
+    uRim: { value: 0.2 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${ARMOUR_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGlow = aGlow;\n  vArmourLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${ARMOUR_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${ARMOUR_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${ARMOUR_EMISSIVE}`);
+    },
+    'hardpoint-armour'
+  );
+  material.userData.uniforms = uniforms;
+  /** @param {number} power 0..1 the slit and seams @param {number} heat 0..1 the muzzles */
+  material.userData.sync = (power, heat) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uEye.value = power * c.podEyeGlow * g.glow;
+    uniforms.uSeam.value = power * c.podSeamGlow * g.glow;
+    uniforms.uHeat.value = heat * c.barrelHeat * g.glow;
+    uniforms.uRim.value = c.podRimGlow * g.fresnel * g.glow * (0.3 + 0.7 * power);
+    uniforms.uColorDeep.value.copy(getColor(c.colorPodDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorPodBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorPodHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorPodCore));
+    material.roughness = c.podRough;
+    material.metalness = c.podMetal;
+  };
+  return material;
+}
+
+const DECK_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const DECK_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uExtent;
+  uniform float uPlate;
+  uniform float uRing;
+  uniform float uScorchLen;
+  uniform float uPods;
+  uniform float uPhase;
+  uniform float uOpen;
+  uniform float uPower;
+  uniform float uCharge;
+  uniform float uScorch;
+  uniform float uHeat;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uHex;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorBurn;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  float hexDist(vec2 p) {
+    p = abs(p);
+    return max(dot(p, vec2(0.5, 0.8660254)), p.x);
+  }
+  float hexEdge(vec2 p) {
+    const vec2 s = vec2(1.0, 1.7320508);
+    vec4 hC = floor(vec4(p, p - vec2(0.5, 1.0)) / s.xyxy) + 0.5;
+    vec4 h = vec4(p - hC.xy * s, p - (hC.zw + 0.5) * s);
+    vec2 q = dot(h.xy, h.xy) < dot(h.zw, h.zw) ? h.xy : h.zw;
+    return 0.5 - hexDist(q);
+  }
+  void main() {
+    vec2 p = (vUv * 2.0 - 1.0) * uExtent;
+    float r = length(p);
+    float a = atan(p.y, p.x) - uPhase;
+    float sector = 6.2831853 / max(1.0, uPods);
+    float k = mod(a + sector * 0.5, sector) - sector * 0.5;
+    float lateral = abs(k) * r;
+    vec3 col = vec3(0.0);
+    float alpha = 0.0;
+    // The plate: filled hex armour out to the plate radius, opened from the hub.
+    float open = 1.0 - smoothstep(uOpen * uPlate - 0.4, uOpen * uPlate, r);
+    float onPlate = (1.0 - smoothstep(uPlate - 0.06, uPlate, r)) * open;
+    if (onPlate > 0.0) {
+      float e = hexEdge(p / max(0.2, uHex));
+      float grime = snoise(vec3(p * 0.7, uSeed)) * 0.5 + 0.5;
+      vec3 plate = mix(uColorDeep, uColorBody, 0.35 + 0.35 * grime + 0.3 * smoothstep(0.02, 0.12, e));
+      float seam = 1.0 - smoothstep(0.0, 0.035, e);
+      float lip = smoothstep(uPlate - 0.35, uPlate - 0.06, r);
+      plate = mix(plate, uColorBody * 1.3, lip * 0.5);
+      plate += uColorHot * seam * uPower * (0.25 + 0.2 * sin(r * 3.0 - uTime * 4.0)) * uGlow;
+      // Conduits from the hub out to each hardpoint, charging before the volley.
+      float conduit = (1.0 - smoothstep(0.05, 0.14, lateral)) * step(r, uRing);
+      float pulse = fract(r / max(0.5, uRing) - uTime * 1.6);
+      plate += mix(uColorHot, uColorCore, pulse * uCharge) * conduit * (0.4 * uPower + 1.6 * uCharge * pulse) * uGlow;
+      col = plate;
+      alpha = onPlate;
+    }
+    // A burnt wedge thrown out ahead of each muzzle.
+    float beyond = r - uRing;
+    if (beyond > 0.0 && beyond < uScorchLen && uScorch > 0.0) {
+      float n = snoise(vec3(p * 1.4, uSeed + 2.0)) * 0.5 + 0.5;
+      float width = 0.35 + 0.18 * beyond + 0.15 * n;
+      float wedge = 1.0 - smoothstep(width * 0.6, width, lateral);
+      float along = 1.0 - smoothstep(uScorchLen * 0.55, uScorchLen, beyond + n * 0.6);
+      float w = wedge * along * uScorch;
+      vec3 burn = uColorBurn + uColorHot * (1.0 - smoothstep(0.0, 0.15, abs(lateral - width * 0.6))) * uHeat * wedge * 1.2 * uGlow;
+      burn += mix(uColorHot, uColorCore, 0.5) * (1.0 - smoothstep(0.0, 0.12, lateral)) * uHeat * along * 1.4 * uGlow;
+      col = mix(col, burn, w * (1.0 - alpha * 0.4));
+      alpha = max(alpha, w * 0.92);
+    }
+    if (alpha < 0.003) discard;
+    gl_FragColor = vec4(col, alpha * uOpacity);
+  }
+`;
+
+/** The deck: a filled hex-plated disc with powered seams, charging conduits and muzzle scorch. */
+export function createHardpointHaloDeckMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uExtent: { value: 1 },
+      uPlate: { value: 1 },
+      uRing: { value: 1 },
+      uScorchLen: { value: 2 },
+      uPods: { value: 8 },
+      uPhase: { value: 0 },
+      uOpen: { value: 0 },
+      uPower: { value: 0 },
+      uCharge: { value: 0 },
+      uScorch: { value: 0 },
+      uHeat: { value: 0 },
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uHex: { value: 0.6 },
+      uSeed: { value: 0 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorHot: { value: new Color() },
+      uColorCore: { value: new Color() },
+      uColorBurn: { value: new Color() }
+    }),
+    vertexShader: DECK_VERTEX,
+    fragmentShader: DECK_FRAGMENT
+  });
+  material.userData.sync = (extent, plate, ring, scorchLen, pods, phase, open, power, charge, scorch, heat, opacity, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uExtent.value = extent;
+    u.uPlate.value = plate;
+    u.uRing.value = ring;
+    u.uScorchLen.value = scorchLen;
+    u.uPods.value = pods;
+    u.uPhase.value = phase;
+    u.uOpen.value = open;
+    u.uPower.value = power;
+    u.uCharge.value = charge;
+    u.uScorch.value = scorch;
+    u.uHeat.value = heat;
+    u.uOpacity.value = opacity * c.deckOpacity * g.opacity;
+    u.uGlow.value = c.deckGlow * g.glow;
+    u.uHex.value = c.deckHex;
+    u.uSeed.value = seed;
+    u.uColorDeep.value.copy(getColor(c.colorDeckDeep));
+    u.uColorBody.value.copy(getColor(c.colorDeckBody));
+    u.uColorHot.value.copy(getColor(c.colorPodHot));
+    u.uColorCore.value.copy(getColor(c.colorPodCore));
+    u.uColorBurn.value.copy(getColor(c.colorDeckBurn));
+  };
+  return material;
+}

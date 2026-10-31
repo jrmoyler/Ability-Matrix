@@ -101,33 +101,39 @@ test('chain: a leader that finds nobody grounds and leaves a larger fulgurite', 
   assert.ok(grounded);
 });
 
-test('sonic: filled shells travel, then domes, hum and a Chladni plate linger and clear', () => {
+test('sonic: a travelling shock body carries the train, then a dark burst, crater and Chladni plate linger and clear', () => {
   const ctx = mockCtx(mockDummies([]));
   const a = new ResonancePulseAbility(ctx);
   a.spawn(new Vector3(), new Vector3(0, 0, 1), 12);
-  let sawRing = false;
-  let sawDome = false;
-  let humFrames = 0;
+  let hullFrames = 0;
+  let maxHullLength = 0;
+  let craterFrames = 0;
   let plateFrames = 0;
   let laneFrames = 0;
   let steps = 0;
   while (a.isActive && steps < 600) {
     a.update(1 / 30);
     steps++;
-    if (a.rings.some((r) => r.mesh.visible)) sawRing = true;
-    if (a.domes[0].mesh.visible) sawDome = true;
-    if (a.domes[2].mesh.visible) humFrames++;
+    if (a.hull.visible) {
+      hullFrames++;
+      maxHullLength = Math.max(maxHullLength, a._hullState.front - a._hullState.back);
+    }
+    if (a.crater.visible) craterFrames++;
     if (a.plate.visible) plateFrames++;
     if (a.lane.visible) laneFrames++;
   }
   assert.ok(!a.isActive, 'finishes');
-  assert.ok(sawRing && sawDome);
-  assert.ok(humFrames > 20, 'the hum stands through the linger');
+  assert.ok(hullFrames > 10, 'the shock body travels');
+  assert.ok(maxHullLength > 3, 'the shock body has length along the line');
+  assert.ok(ctx.log.bursts >= 1 && ctx.log.decals >= 2, 'the boom bursts and marks the floor');
+  assert.ok(craterFrames > 30, 'the crater stays through the linger');
   assert.ok(plateFrames > 30, 'the plate stays');
   assert.ok(laneFrames > 30, 'the lane stays');
   a.destroy();
   assert.equal(a.plate.visible, false);
   assert.equal(a.lane.visible, false);
+  assert.equal(a.hull.visible, false);
+  assert.equal(a.crater.visible, false);
   assert.ok(a.domes.every((d) => !d.mesh.visible));
   a.dispose();
 });

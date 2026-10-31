@@ -1,9 +1,10 @@
-import { AdditiveBlending, Color, DoubleSide, NormalBlending, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshStandardMaterial, NormalBlending, ShaderMaterial, Vector3 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { sharedUniforms } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
+import { patchOnBeforeCompile } from '../../utils/shaderPatch.js';
 
 const ID = 'glamour';
 
@@ -988,6 +989,250 @@ export function createGlamourSweepScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* ==================================================================== */
+/* The signature — the glamour blade, its false copies and the cut       */
+/* ==================================================================== */
+/*
+ * Two more shaders, written for this cast:
+ *   blade — black-plum lacquered steel (MeshStandardMaterial, patched): sun-lit
+ *           and shadow-casting; only the cutting edge and the engraved
+ *           filigree glow pink. A false copy (`ghost` > 0) is the same blade
+ *           eaten through with shifting holes whose lips burn pink: the
+ *           glamour shown early. On the exit the glamour peels from the tip
+ *           down behind a burning front.
+ *   cut   — the floor: a long filled slash across the line, a dark stained bed
+ *           with a hot seam down its middle and shear marks, opening along the
+ *           swing and cooling through the linger.
+ */
+
+const BLADE_VERTEX_PARS = /* glsl */ `
+  attribute vec3 aBlade;
+  varying vec3 vBlade;
+  varying vec3 vBladeLocal;
+`;
+const BLADE_FRAGMENT_PARS = /* glsl */ `
+  uniform float uGhost;
+  uniform float uHoles;
+  uniform float uPeel;
+  uniform float uEdgeGlow;
+  uniform float uSeamGlow;
+  uniform float uRimGlow;
+  uniform vec3  uColorRim;
+  uniform float uHeat;
+  uniform float uSeed;
+  uniform float uClock;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec3  vBlade;
+  varying vec3  vBladeLocal;
+  ${noiseGLSL}
+  float bladeSeam(vec3 b) {
+    // Engraved filigree: S-curved bands across the flat, kept off the edge and spine.
+    float band = abs(fract(b.x * 7.0 + 0.35 * sin(b.y * 5.0 + b.x * 9.0)) - 0.5);
+    float scroll = 1.0 - smoothstep(0.012, 0.05, band);
+    return scroll * smoothstep(0.12, 0.22, b.y) * (1.0 - smoothstep(0.66, 0.78, b.y));
+  }
+  float bladeCut(vec3 b, vec3 p, out float lip) {
+    // > 0 keeps the fragment; lip is 1 right at a burning edge.
+    float n = snoise(vec3(p.xy * 9.0, uSeed + uClock * 0.6)) * 0.5 + 0.5;
+    // The peel: the tip (t = 1) goes first, the front runs down to the heel.
+    float peel = (1.0 - b.x) * 0.8 + n * 0.2 - uPeel * 0.82;
+    // The ghost's holes.
+    float holes = n - uHoles;
+    float keep = min(peel, holes);
+    lip = 1.0 - smoothstep(0.0, 0.05, keep);
+    return keep;
+  }
+`;
+const BLADE_COLOR = /* glsl */ `
+  {
+    float lipCut;
+    if (bladeCut(vBlade, vBladeLocal, lipCut) < 0.0) discard;
+    float grain = snoise(vec3(vBlade.x * 30.0, vBlade.y * 4.0, uSeed)) * 0.5 + 0.5;
+    // Lacquer: the deep tone over the flat, the lit body toward the thick spine.
+    float spine = 1.0 - smoothstep(0.0, 0.5, vBlade.y);
+    diffuseColor.rgb = mix(uColorDeep, uColorBody, 0.35 + 0.45 * spine + 0.2 * grain);
+    diffuseColor.rgb *= 1.0 - 0.6 * bladeSeam(vBlade);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uColorDeep * 0.6, uGhost * 0.5);
+  }
+`;
+const BLADE_EMISSIVE = /* glsl */ `
+  {
+    float lip;
+    bladeCut(vBlade, vBladeLocal, lip);
+    float edge = smoothstep(0.68, 1.0, vBlade.y);
+    float wire = smoothstep(0.96, 1.0, vBlade.y);
+    vec3 hot = mix(uColorHot, uColorCore, wire * 0.6);
+    totalEmissiveRadiance += hot * edge * edge * uEdgeGlow * uHeat;
+    float shimmer = 0.6 + 0.4 * sin(uClock * 7.0 + vBlade.x * 18.0);
+    totalEmissiveRadiance += uColorHot * bladeSeam(vBlade) * uSeamGlow * uHeat * shimmer;
+    totalEmissiveRadiance += mix(uColorHot, uColorCore, lip * 0.4) * lip * (1.2 + uGhost) * uEdgeGlow * 0.6;
+    vec3 nV = normalize(normal);
+    float rim = pow(1.0 - abs(dot(nV, normalize(vViewPosition))), 3.0);
+    // A cold steel limb separates the real blade from the night floor; a copy's limb stays dim glamour.
+    totalEmissiveRadiance += mix(uColorRim, uColorHot * 0.5, uGhost) * rim * uRimGlow;
+  }
+`;
+
+/**
+ * The glamour blade: opaque, lit, shadow-casting lacquered steel. `ghost` 0 is
+ * the real blade; 1 is a false copy, holed and edged in burning glamour.
+ */
+export function createGlamourSweepBladeMaterial(ghost = 0) {
+  const material = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.55, side: DoubleSide });
+  const uniforms = {
+    uGhost: { value: ghost },
+    uHoles: { value: 0 },
+    uPeel: { value: 0 },
+    uEdgeGlow: { value: 1 },
+    uSeamGlow: { value: 1 },
+    uRimGlow: { value: 0.5 },
+    uColorRim: { value: new Color() },
+    uHeat: { value: 1 },
+    uSeed: { value: 0 },
+    uClock: { value: 0 },
+    uColorDeep: { value: new Color() },
+    uColorBody: { value: new Color() },
+    uColorHot: { value: new Color() },
+    uColorCore: { value: new Color() }
+  };
+  patchOnBeforeCompile(
+    material,
+    (shader) => {
+      Object.assign(shader.uniforms, uniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${BLADE_VERTEX_PARS}`)
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vBlade = aBlade;\n  vBladeLocal = position;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${BLADE_FRAGMENT_PARS}`)
+        .replace('#include <color_fragment>', `#include <color_fragment>\n${BLADE_COLOR}`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${BLADE_EMISSIVE}`);
+    },
+    'glamour-blade'
+  );
+  material.userData.uniforms = uniforms;
+  /** @param {number} heat 0..1 @param {number} holes 0..1 ghost erosion @param {number} peel 0..1 exit */
+  material.userData.sync = (heat, holes, peel, seed, clock) => {
+    const c = settings[ID];
+    const g = settings.global;
+    uniforms.uHeat.value = heat;
+    uniforms.uHoles.value = holes;
+    uniforms.uPeel.value = peel;
+    uniforms.uSeed.value = seed;
+    uniforms.uClock.value = clock;
+    uniforms.uEdgeGlow.value = c.bladeEdgeGlow * g.glow * (1 + uniforms.uGhost.value * (c.ghostGlow - 1));
+    uniforms.uSeamGlow.value = c.bladeSeamGlow * g.glow;
+    uniforms.uRimGlow.value = c.bladeRimGlow * g.fresnel * g.glow * (1 - 0.7 * uniforms.uGhost.value);
+    uniforms.uColorRim.value.copy(getColor(c.colorBladeRim));
+    uniforms.uColorDeep.value.copy(getColor(c.colorBladeDeep));
+    uniforms.uColorBody.value.copy(getColor(c.colorBladeBody));
+    uniforms.uColorHot.value.copy(getColor(c.colorBladeHot));
+    uniforms.uColorCore.value.copy(getColor(c.colorBladeCore));
+    material.roughness = c.bladeRough;
+    material.metalness = c.bladeMetal;
+  };
+  return material;
+}
+
+const CUT_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CUT_FRAGMENT = /* glsl */ `
+  uniform float uOpen;
+  uniform float uPre;
+  uniform float uPreGlow;
+  uniform float uHeat;
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uShear;
+  uniform float uSeed;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorHot;
+  uniform vec3  uColorCore;
+  varying vec2 vUv;
+  ${noiseGLSL}
+  void main() {
+    // x runs along the swing (0 where it starts), y across it.
+    float x = vUv.x;
+    float y = vUv.y * 2.0 - 1.0;
+    // A slash: widest in the middle, tapering to points at both ends.
+    float taper = pow(sin(3.14159 * clamp(x, 0.0, 1.0)), 0.6);
+    float wob = snoise(vec3(x * 6.0, uSeed, 0.0)) * 0.12;
+    float d = abs(y - wob) / max(0.02, taper);
+    if (d > 1.0) discard;
+    float reveal = smoothstep(uOpen - 0.06, uOpen, x);
+    float pre = smoothstep(uPre - 0.06, uPre, x);
+    float open = 1.0 - reveal;
+    float hint = (1.0 - pre) * (1.0 - smoothstep(0.0, 0.08, d)) * (1.0 - open);
+    float stain = snoise(vec3(vUv * vec2(10.0, 3.0), uSeed)) * 0.5 + 0.5;
+    // Shear marks: thin streaks along the swing.
+    float shear = smoothstep(0.55, 0.95, snoise(vec3(x * 2.0, y * 14.0, uSeed + 3.0))) * uShear;
+    vec3 col = mix(uColorDeep, uColorBody, 0.25 * stain + 0.4 * shear);
+    float seam = 1.0 - smoothstep(0.0, 0.26, d);
+    float wire = 1.0 - smoothstep(0.0, 0.08, d);
+    col += mix(uColorHot, uColorCore, wire * uHeat * 0.7) * (seam * 1.6 + shear * 0.4) * uHeat * uGlow * open;
+    hint *= uPreGlow;
+    col += uColorHot * hint * uGlow * 0.8;
+    float alpha = uOpacity * (open * (0.85 - 0.5 * d * d) + hint * 0.6);
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+  }
+`;
+
+/** The cut on the floor: a dark slash with a hot seam, opened by the swing, cooling through the linger. */
+export function createGlamourSweepCutMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: NormalBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+    uniforms: sharedUniforms({
+      uOpen: { value: 0 },
+      uPre: { value: 0 },
+      uPreGlow: { value: 1 },
+      uHeat: { value: 1 },
+      uOpacity: { value: 0 },
+      uGlow: { value: 1 },
+      uShear: { value: 1 },
+      uSeed: { value: 0 },
+      uColorDeep: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorHot: { value: new Color() },
+      uColorCore: { value: new Color() }
+    }),
+    vertexShader: CUT_VERTEX,
+    fragmentShader: CUT_FRAGMENT
+  });
+  material.userData.sync = (open, pre, heat, opacity, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpen.value = open;
+    u.uPre.value = pre;
+    u.uHeat.value = heat;
+    u.uOpacity.value = opacity * c.cutOpacity * g.opacity;
+    u.uGlow.value = c.cutGlow * g.glow;
+    u.uShear.value = c.cutShear;
+    u.uPreGlow.value = c.cutPre;
+    u.uSeed.value = seed;
+    u.uColorDeep.value.copy(getColor(c.colorCutDeep));
+    u.uColorBody.value.copy(getColor(c.colorBladeBody));
+    u.uColorHot.value.copy(getColor(c.colorBladeHot));
+    u.uColorCore.value.copy(getColor(c.colorBladeCore));
   };
   return material;
 }

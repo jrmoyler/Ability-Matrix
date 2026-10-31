@@ -56,22 +56,36 @@ export default {
     /* ================================================================ */
     /* 1 · THE CARRIER — the bead of sound in flight                     */
     /* ================================================================ */
-    carrierSize: 0.35, // metres
-    carrierHeight: 0.28, // metres off the floor
+    carrierSize: 0.75, // metres — big enough to read at 8 m
+    carrierHeight: 1.2, // metres off the floor (hand height, so the wake runs level)
     carrierSpin: 2, // radians/second
     carrierGlow: 1, // emissive gain
-    carrierTrail: 40, // motes/second shed behind it
+    carrierTrail: 60, // motes/second shed behind it
+
+    /* --- the wake: a ribbon of sound from the caster's hand to the fork --- */
+    wakeWidth: 0.3, // half-width at the belly, metres
+    wakeSwing: 0.35, // standing-wave swing, metres
+    wakeWaves: 3, // wavelengths along the wake
+    wakeGlow: 1, // emissive gain of its core
+    wakeStartHeight: 1.3, // metres — the caster's hand
+    wakeStartOffset: 0.5, // metres in front of the caster it starts
+    wakeHold: 0.55, // seconds it stays strung to the fork after impact
+    wakeReel: 0.35, // seconds it takes to reel into the fork after that
 
     /* ================================================================ */
     /* 2 · THE RESONATOR — fork and stem                                 */
     /* ================================================================ */
-    forkHeight: 1, // metres off the floor the tines centre at
-    forkSpread: 0.25, // metres the three tines stand from the axis
+    forkScale: 1.9, // the whole resonator, × — 1.9 stands it ~3 m, over a body
+    forkThickness: 2.1, // tine and stem girth, × (on top of forkScale)
+    forkHeight: 1, // metres off the floor the tines centre at (× forkScale)
+    forkSpread: 0.25, // metres the three tines stand from the axis (× forkScale)
     forkTurn: 0.25, // radians/second the tines slowly turn
     forkBuzz: 0.02, // metres the tines vibrate when struck
     strikeDecay: 0.18, // seconds a strike's jump takes to settle
     resonatorGlow: 1, // nodal-band and rim glow
-    metalColor: '#c9d6c2', // brushed steel
+    metalColor: '#3d5a54', // brushed steel, the lit body tone (deep green-steel)
+    metalDeep: '#050f0e', // the steel's deep stop: shadow side and foot
+    colorDeep: '#07302b', // the cast's deep stop (wake edges, ring ends, burst shell)
 
     /* ================================================================ */
     /* 3 · THE FRONTS — the visible pressure ridges                      */
@@ -94,8 +108,8 @@ export default {
     /* ================================================================ */
     /* 5 · THE HELIX — the overtone series climbing the fork             */
     /* ================================================================ */
-    helixHeight: 1.6, // metres
-    helixRadius: 0.55, // metres at the base
+    helixHeight: 1.6, // metres (× forkScale)
+    helixRadius: 0.55, // metres at the base (× forkScale)
     helixSpin: 0.6, // radians/second
     helixGlow: 1, // emissive gain
 
@@ -107,8 +121,8 @@ export default {
     noteSwirl: 2, // radians a note spirals as it rises
     noteSpeed: 0.4, // note lives per second
     ringBurst: 3, // sound rings thrown off the fork per strike
-    ringSize: 0.5, // metres at birth
-    ringGrowth: 6, // how much a ring grows over its life
+    ringSize: 0.35, // metres at birth
+    ringGrowth: 4, // how much a ring grows over its life
     ringLifetime: 0.6, // seconds
     moteRate: 60, // motes/second shed along the travelling fronts
     moteSize: 0.06, // metres

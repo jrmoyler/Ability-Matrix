@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { ExtrudeGeometry, Float32BufferAttribute, LatheGeometry, Matrix4, Mesh, PlaneGeometry, Shape, SphereGeometry, Vector2, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -12,7 +12,10 @@ import {
   createRiftPendulumVoiceMaterial,
   createRiftPendulumDetailMaterial,
   createRiftPendulumTrailMaterial,
-  createRiftPendulumScarMaterial
+  createRiftPendulumScarMaterial,
+  createRiftPendulumBladeMaterial,
+  createRiftPendulumTearMaterial,
+  createRiftPendulumKnotMaterial
 } from '../../materials/codex/RiftPendulumMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -49,6 +52,83 @@ const _up = new Vector3(0, 1, 0);
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
+const TAU = Math.PI * 2;
+const _m4 = new Matrix4();
+const _bx = new Vector3();
+const _by = new Vector3();
+const _bz = new Vector3();
+const _hand = new Vector3();
+const _pivot = new Vector3();
+const _tip = new Vector3();
+const _vel = new Vector3();
+
+/* Crescent outline, in authored units: an outer arc of radius 1 from horn to
+ * horn under its centre, a blade `BLADE_W` deep at the belly tapering to the
+ * horns. The socket the arm drives into is the middle of the concave edge. */
+const BLADE_R = 1;
+const BLADE_T0 = 0.3;
+const BLADE_W = 0.42;
+const BLADE_SOCKET = BLADE_R - BLADE_W - 0.012;
+const BLADE_SPAN = 2 * Math.cos(BLADE_T0) * BLADE_R;
+
+function bladeDepth(f) {
+  return BLADE_W * Math.pow(Math.sin(f * Math.PI), 0.75) + 0.012;
+}
+
+/**
+ * The pendulum blade: a crescent of void-iron, horns up, its convex belly the
+ * cutting edge — the classic pit-and-pendulum blade, extruded with a bevel so
+ * the sun catches its arrises. `aEdge` runs 0 on the concave spine to 1 on
+ * the cutting edge (the shader's hot rim). Authored so the span is one unit
+ * after `BLADE_SPAN` scaling, the socket on the origin, the belly down −Y.
+ */
+export function createPendulumBladeGeometry() {
+  const N = 44;
+  const outer = [];
+  const inner = [];
+  for (let i = 0; i <= N; i++) {
+    const f = i / N;
+    const phi = BLADE_T0 + f * (Math.PI - 2 * BLADE_T0);
+    const w = bladeDepth(f);
+    outer.push(new Vector2(BLADE_R * Math.cos(phi), -BLADE_R * Math.sin(phi)));
+    inner.push(new Vector2((BLADE_R - w) * Math.cos(phi), -(BLADE_R - w) * Math.sin(phi)));
+  }
+  const shape = new Shape(outer.concat(inner.reverse()));
+  const g = new ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.028, bevelSegments: 2, curveSegments: 1, steps: 1 });
+  g.translate(0, 0, -0.025);
+  const pos = g.getAttribute('position');
+  const edge = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    const phi = Math.atan2(-y, x);
+    const f = Math.min(1, Math.max(0, (phi - BLADE_T0) / (Math.PI - 2 * BLADE_T0)));
+    const w = bladeDepth(f);
+    edge[i] = Math.min(1, Math.max(0, (r - (BLADE_R - w)) / w));
+  }
+  g.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  g.translate(0, BLADE_SOCKET, 0);
+  g.scale(1 / BLADE_SPAN, 1 / BLADE_SPAN, 1 / BLADE_SPAN);
+  g.computeBoundingSphere();
+  return g;
+}
+
+/**
+ * The arm: a forged rod hung from the pivot, one unit long down −Y, with a
+ * hanger cap, a mid collar and a socket collar where it drives into the
+ * blade. Radius 1 is the rod; the ability scales x/z by `armWidth`.
+ */
+export function createPendulumArmGeometry() {
+  const profile = [
+    [0.001, 0.04], [1.7, 0.04], [1.7, -0.02], [1.0, -0.04], [1.0, -0.47], [1.6, -0.49], [1.6, -0.53],
+    [1.0, -0.55], [1.0, -0.9], [1.9, -0.93], [2.1, -0.97], [1.4, -1.0], [0.001, -1.0]
+  ];
+  const g = new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), 10).toNonIndexed();
+  g.computeVertexNormals();
+  g.setAttribute('aEdge', new Float32BufferAttribute(new Float32Array(g.getAttribute('position').count).fill(0.12), 1));
+  return g;
+}
 
 /**
  * RIFT PENDULUM — void, line cast.
@@ -75,6 +155,32 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The pendulum (the hero, cast-local — sections 15–16 of the editor)
+ *
+ * The shared template layers (body sheet, voice, rig, pieces, lens and the
+ * haze strip of the ground field) are switched off in the config; the spell
+ * is carried by its own forms:
+ *
+ *   - **the blade** — a crescent of lit void-iron, horns up, its convex belly
+ *     the cutting edge (`createPendulumBladeGeometry`, extruded and bevelled,
+ *     `LAYER.WORLD`, shadows). It leaves the hand spinning in its own plane
+ *     and flies down the line, growing as it goes.
+ *   - **the knot** — a spiked knot of void gathers over the target while the
+ *     blade flies (`pivot*`); on the beat the blade catches on a forged arm
+ *     hung from it and swings across the cast line in a damped arc
+ *     (θ = A·sin(2πs/T)·e^(−ks)), its edge hot while it moves fast. Each sweep
+ *     back through the bottom is a cut you feel: a camera tick, a light tick,
+ *     dust thrown sideways (`pass*`), sparks off the edge.
+ *   - **the rift** — on the beat a tall tear opens in the air behind the
+ *     blade: black inside, draining, with a burning violet-to-white lip. It
+ *     hangs open (`riftHold`), drawing motes in, then zips shut from both
+ *     ends. A wound torn across the floor under it outlives it (`wound*`).
+ *   - **the exit** — the blade and arm shatter along voronoi cells and the
+ *     knot collapses; the scar, wake and residue stay on the floor.
+ *
+ * All of it is presentation: hits still land through `_strike` on the return,
+ * exactly as before.
  *
  * Every metre, rate and colour is read from `settings.riftpendulum` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -159,6 +265,230 @@ export class RiftPendulumAbility extends Ability {
     this.trail = new LineTrail(TWIST, this.trailMaterial, this.scarMaterial);
     this.trail.onWake = (point, lane, s) => this._wake(point, lane, s);
     this.group.add(this.trail.scarMesh, this.trail.trailMesh);
+    this._buildPendulum();
+  }
+
+  /** The cast-local hero: the blade, its arm, the pivot knot, the air tear and the floor wound. */
+  _buildPendulum() {
+    this.bladeGeometry = createPendulumBladeGeometry();
+    this.armGeometry = createPendulumArmGeometry();
+    this.bladeMaterial = createRiftPendulumBladeMaterial();
+    this.armMaterial = createRiftPendulumBladeMaterial();
+    const solid = (geometry, material) => {
+      const mesh = new Mesh(geometry, material);
+      mesh.layers.set(LAYER.WORLD);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.blade = solid(this.bladeGeometry, this.bladeMaterial);
+    this.arm = solid(this.armGeometry, this.armMaterial);
+    this.knotGeometry = new SphereGeometry(1, 36, 24);
+    this.knotMaterial = createRiftPendulumKnotMaterial();
+    this.knot = this._mesh(this.knotGeometry, this.knotMaterial, LAYER.VFX, 15);
+    this.tearGeometry = new PlaneGeometry(1, 1, 1, 1);
+    this.tearMaterial = createRiftPendulumTearMaterial();
+    this.tear = this._mesh(this.tearGeometry, this.tearMaterial, LAYER.VFX, 11);
+    this.woundMaterial = createRiftPendulumTearMaterial();
+    this.wound = this._mesh(this.tearGeometry, this.woundMaterial, LAYER.VFX, 4);
+    this._theta = 0;
+    this._omega = 0;
+    this._passes = 0;
+    this._riftOpen = 0;
+    this._bladeDissolve = 0;
+    this._sparkEmitter = new RateEmitter();
+    this._pullEmitter = new RateEmitter();
+  }
+
+  _hidePendulum() {
+    this.blade.visible = false;
+    this.arm.visible = false;
+    this.knot.visible = false;
+    this.tear.visible = false;
+    this.wound.visible = false;
+  }
+
+  /** Seconds since the beat (−1 before it). */
+  _since(committed, fadeT) {
+    if (!committed) return -1;
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /** Orient `mesh` with its local X along `x`, Y along `y` (Z completes the frame). */
+  _orient(mesh, x, y) {
+    _bz.crossVectors(x, y).normalize();
+    _m4.makeBasis(x, y, _bz);
+    mesh.quaternion.setFromRotationMatrix(_m4);
+  }
+
+  /**
+   * Stand the pendulum for this frame. Before the beat the blade is thrown
+   * from the hand, spinning in its own plane, and the knot gathers over the
+   * target. On the beat the blade catches on the knot's arm at the bottom of
+   * its arc and swings across the cast line in a damped arc
+   * (θ = A·sin(2πs/T)·e^(−ks)); the tear behind it opens, hangs, and zips
+   * shut; the floor wound under it stays a while longer; the blade shatters
+   * and the knot collapses on the exit. Every dimension is read from
+   * settings each frame; the cast holds only its seed and the clock.
+   */
+  _pendulum(committed, fadeT, dt) {
+    const c = settings[ID];
+    const g = settings.global;
+    const L = g.lifetime;
+    const since = this._since(committed, fadeT);
+    const total = this.impactDuration + this.fadeDuration;
+    this.pointAt(1, _end);
+    const span = Math.max(0.2, c.bladeSpan);
+    const pivotY = Math.max(0.5, c.pendPivotHeight);
+    const arm = Math.min(pivotY - 0.2, Math.max(0.2, c.pendArm));
+    _pivot.copy(_end).setY(pivotY);
+    const exitAt = total - Math.max(0.05, c.pendExit * L);
+    const dissolve = since < 0 ? 0 : saturate((since - exitAt) / Math.max(0.05, c.pendExit * L));
+    this._bladeDissolve = dissolve;
+
+    // The knot: gathers over the target while the blade flies, collapses on the exit.
+    const gather = committed ? 1 : Easing.outCubic(saturate(this.u * 1.15));
+    const knotS = c.pivotSize * (0.25 + 0.75 * gather) * (1 - Easing.inQuad(dissolve)) * (1 + 0.08 * Math.sin(this.age * 9));
+    this.knot.visible = knotS > 0.01;
+    this.knot.position.copy(_pivot);
+    this.knot.scale.setScalar(Math.max(0.001, knotS));
+    this.knotMaterial.userData.sync(this._seed);
+
+    let theta = 0;
+    let omega = 0;
+    if (!committed) {
+      // Thrown: from the hand to the bottom of the arc, spinning in its plane.
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _hand.y = c.handHeight;
+      const t = saturate(this.u);
+      this.blade.position.lerpVectors(_hand, _end, t);
+      this.blade.position.y = lerp(_hand.y, pivotY - arm, t) + c.bladeArc * 4 * t * (1 - t);
+      const s = span * lerp(c.bladeTravelScale, 1, Easing.inQuad(saturate((t - 0.55) / 0.45)));
+      this.blade.scale.setScalar(s);
+      _bx.copy(this.side);
+      _by.set(0, 1, 0);
+      this._orient(this.blade, _bx, _by);
+      this.blade.rotateZ(-this.age * c.bladeSpin);
+      this.blade.visible = c.bladeSpan > 0.01;
+      this.arm.visible = false;
+    } else {
+      const A = c.pendAmplitude;
+      const T = Math.max(0.2, c.pendPeriod * L);
+      const k = c.pendDamping / L;
+      const w = TAU / T;
+      const env = Math.exp(-k * since);
+      theta = A * Math.sin(w * since) * env;
+      omega = A * env * (w * Math.cos(w * since) - k * Math.sin(w * since));
+      _bx.copy(this.side);
+      _by.set(0, 1, 0);
+      // Blade on the arc in the side–up plane.
+      this.blade.position.copy(_pivot).addScaledVector(this.side, arm * Math.sin(theta));
+      this.blade.position.y = pivotY - arm * Math.cos(theta);
+      this.blade.scale.setScalar(span * (1 + 0.1 * Math.exp(-since * 10)));
+      this._orient(this.blade, _bx, _by);
+      this.blade.rotateZ(theta);
+      this.blade.visible = c.bladeSpan > 0.01 && dissolve < 0.995;
+      // Arm: from the pivot down to the socket, retracting a little on the exit.
+      const len = arm * (1 - 0.35 * Easing.inQuad(dissolve));
+      this.arm.position.copy(_pivot);
+      this._orient(this.arm, _bx, _by);
+      this.arm.rotateZ(theta);
+      this.arm.scale.set(c.armWidth, len, c.armWidth);
+      this.arm.visible = c.armWidth > 0.002 && dissolve < 0.995;
+    }
+    const heat = since < 0 ? 0.6 : 0.35 + 0.65 * saturate(Math.abs(omega) / Math.max(0.1, c.pendAmplitude * TAU / Math.max(0.2, c.pendPeriod * L)));
+    this.bladeMaterial.userData.sync(dissolve, heat, 1);
+    this.armMaterial.userData.sync(dissolve, 0.2, 0.3);
+
+    // Pass ticks: each time the blade sweeps back through the bottom.
+    if (committed && since > 0.12 && Math.sign(theta) !== Math.sign(this._theta) && Math.abs(omega) > 0.4 && dissolve <= 0) this._pass(omega);
+    this._theta = theta;
+    this._omega = omega;
+
+    // The air tear, behind the blade: opens on the beat, hangs, zips shut.
+    const open = since < 0 ? 0 : Easing.outCubic(saturate(since / Math.max(0.02, c.riftOpenTime * L)));
+    const zip = since < 0 ? 0 : Easing.inQuad(saturate((since - c.riftHold * L) / Math.max(0.05, c.riftCloseTime * L)));
+    this._riftOpen = open * (1 - zip);
+    const RH = Math.max(0.2, c.riftHeight);
+    const RW = Math.max(0.1, c.riftWidth);
+    if (open > 0.001 && zip < 0.999 && c.riftHeight > 0.01) {
+      this.tear.visible = true;
+      this.tear.position.copy(_end).addScaledVector(this.direction, c.riftDepth);
+      this.tear.position.y = 0.05 + RH * 0.5;
+      _bx.copy(this.side);
+      _by.set(0, 1, 0);
+      this._orient(this.tear, _bx, _by);
+      // The quad is wider than the tear so its smoky skirt has room.
+      this.tear.scale.set(RW * 2 * 1.7, RH, 1);
+      this.tearMaterial.userData.sync((open * (0.85 + 0.15 * Math.sin(this.age * 5.3))) / 1.7, zip, RW * 2 * 1.7, RH, c.riftLip, c.riftGlow, this._seed);
+    } else this.tear.visible = false;
+
+    // The floor wound across the line: it opens with the tear and outlives it.
+    const FL = Math.max(0.2, c.woundLength);
+    const FW = Math.max(0.05, c.woundWidth);
+    const wOpen = since < 0 ? 0 : Easing.outCubic(saturate((since - 0.04) / Math.max(0.02, c.riftOpenTime * L * 1.5)));
+    const wZip = since < 0 ? 0 : Easing.inQuad(saturate((since - (total - c.woundClose * L)) / Math.max(0.05, c.woundClose * L)));
+    if (wOpen > 0.001 && wZip < 0.999 && c.woundLength > 0.01) {
+      this.wound.visible = true;
+      this.wound.position.copy(_end).setY(0.035);
+      _bx.copy(this.direction);
+      _by.copy(this.side);
+      this._orient(this.wound, _bx, _by);
+      this.wound.scale.set(FW * 2 * 1.7, FL, 1);
+      this.woundMaterial.userData.sync((wOpen * (0.9 + 0.1 * Math.sin(this.age * 3.1))) / 1.7, wZip, FW * 2 * 1.7, FL, c.riftLip * 0.8, c.woundGlow, this._seed + 3.1);
+    } else this.wound.visible = false;
+
+    this._pendulumShed(dt, committed, since, omega, dissolve);
+  }
+
+  /** The blade sweeps back through the bottom of its arc: a cut you feel. */
+  _pass(omega) {
+    const c = settings[ID];
+    const g = settings.global;
+    this._passes++;
+    const w = saturate(Math.abs(omega) / Math.max(0.1, c.pendAmplitude * 5));
+    this.ctx.shake.add(c.passShake * w * g.cameraShake * g.explosionIntensity, 4, 16);
+    this.lightBoost += c.passLight * w * g.explosionIntensity;
+    _pos.copy(this.blade.position).setY(0.1);
+    const dust = Math.round(c.passDust * w * g.particleCount);
+    for (let i = 0; i < dust; i++) {
+      const s = i % 2 ? 1 : -1;
+      _dir.copy(this.side).multiplyScalar(s * Math.sign(omega)).addScaledVector(this.direction, (Math.random() - 0.5) * 0.6).setY(0.15);
+      this._fillEmit(_pos, 0.4, _dir, c.dustSpeed * 1.4, 0.3, 0.55, c.dustLife * 1.2, 0.4);
+      this.dust.emit(1, _emit);
+    }
+  }
+
+  /** Sparks off the cutting edge while it swings fast; motes dragged into the tear while it hangs open. */
+  _pendulumShed(dt, committed, since, omega, dissolve) {
+    const c = settings[ID];
+    const g = settings.global;
+    if (committed && this.blade.visible) {
+      const speed = Math.abs(omega) * c.pendArm;
+      const n = Math.round(this._sparkEmitter.tick(dt, c.swingSparks * saturate(speed / 6)) * g.particleCount);
+      if (n > 0) {
+        // The belly of the blade, a little below the socket.
+        _tip.set(0, -0.35, 0).applyQuaternion(this.blade.quaternion).multiplyScalar(this.blade.scale.x).add(this.blade.position);
+        _vel.copy(this.side).multiplyScalar(Math.sign(omega)).setY(0.25);
+        this._fillEmit(_tip, 0.25, _vel, c.streakSpeed * 0.8, 0.35, 0.07, c.streakLife, 2);
+        this.streaks.emit(n, _emit);
+      }
+    }
+    if (this._riftOpen > 0.05) {
+      const n = Math.round(this._pullEmitter.tick(dt, c.riftMotes * this._riftOpen) * g.particleCount);
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * TAU;
+        const r = 1.2 + Math.random() * 1.4;
+        _pos.copy(_end).addScaledVector(this.side, Math.cos(a) * r).addScaledVector(this.direction, c.riftDepth);
+        _pos.y = Math.max(0.15, c.riftHeight * 0.5 + Math.sin(a) * r);
+        _dir.copy(_end).addScaledVector(this.direction, c.riftDepth).setY(c.riftHeight * 0.5).sub(_pos).normalize();
+        this._fillEmit(_pos, 0.1, _dir, c.moteSpeed * 1.6, 0.1, 0.08, c.moteLife * 0.8, 1);
+        this.motes.emit(1, _emit);
+      }
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -240,6 +570,14 @@ export class RiftPendulumAbility extends Ability {
     this.voice.visible = false;
     this.lens.visible = false;
     this.ground.visible = false;
+    this._theta = 0;
+    this._omega = 0;
+    this._passes = 0;
+    this._riftOpen = 0;
+    this._bladeDissolve = 0;
+    this._sparkEmitter.reset();
+    this._pullEmitter.reset();
+    this._hidePendulum();
     this._releaseMarks();
     this._palette();
     this._hand();
@@ -786,6 +1124,7 @@ export class RiftPendulumAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._pendulum(false, 0, dt);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     this.trail.tick(dt, this._state.along, this._state, c.wakeSpacing);
@@ -805,6 +1144,7 @@ export class RiftPendulumAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._pendulum(true, t, dt);
     this._palette();
     this._shed(dt, fade * 0.7);
     this.trail.tick(dt, 1, this._state, c.wakeSpacing);
@@ -832,9 +1172,19 @@ export class RiftPendulumAbility extends Ability {
     this.detail.hide();
     this.rig.hide();
     this.trail.hide();
+    this._hidePendulum();
   }
 
   dispose() {
+    this.bladeGeometry.dispose();
+    this.armGeometry.dispose();
+    this.knotGeometry.dispose();
+    this.tearGeometry.dispose();
+    this.bladeMaterial.dispose();
+    this.armMaterial.dispose();
+    this.knotMaterial.dispose();
+    this.tearMaterial.dispose();
+    this.woundMaterial.dispose();
     this.trail.dispose();
     this.trailMaterial.dispose();
     this.scarMaterial.dispose();
@@ -1035,6 +1385,54 @@ export function buildEditor(gui, c, Editor) {
   R(trail, c, 'wakeRadius', 0, 4, 0.01, 'wake decal (m)');
   R(trail, c, 'wakeLife', 0.05, 6, 0.05, 'wake life (s)');
   R(trail, c, 'wakeChips', 0, 40, 1, 'wake chips');
+
+  const pend = folder.addFolder('15 · The pendulum (hero)');
+  R(pend, c, 'bladeSpan', 0, 5, 0.01, 'blade span (m)');
+  R(pend, c, 'pendPivotHeight', 0.5, 8, 0.05, 'pivot height (m)');
+  R(pend, c, 'pendArm', 0.2, 7, 0.05, 'arm length (m)');
+  R(pend, c, 'armWidth', 0, 0.3, 0.005, 'arm radius (m)');
+  R(pend, c, 'pendAmplitude', 0, 1.5, 0.01, 'swing (rad)');
+  R(pend, c, 'pendPeriod', 0.2, 4, 0.01, 'period (s)');
+  R(pend, c, 'pendDamping', 0, 4, 0.01, 'damping');
+  R(pend, c, 'pendExit', 0.05, 2, 0.01, 'shatter (s)');
+  R(pend, c, 'bladeTravelScale', 0.1, 1.5, 0.01, 'thrown size');
+  R(pend, c, 'bladeSpin', -40, 40, 0.5, 'thrown spin (rad/s)');
+  R(pend, c, 'bladeArc', 0, 4, 0.05, 'throw arc (m)');
+  R(pend, c, 'bladeSpecular', 0, 4, 0.01, 'specular');
+  R(pend, c, 'bladeFresnel', 0, 4, 0.01, 'fresnel');
+  R(pend, c, 'bladeAmbient', 0, 1, 0.01, 'ambient');
+  R(pend, c, 'bladeEdgeGlow', 0, 6, 0.05, 'edge glow');
+  R(pend, c, 'bladeVeins', 0, 3, 0.01, 'rift veins');
+  pend.addColor(c, 'colorBladeCore').name('core');
+  pend.addColor(c, 'colorBladeTint').name('tint');
+  pend.addColor(c, 'colorBladeBody').name('body');
+  pend.addColor(c, 'colorBladeDeep').name('deep');
+  R(pend, c, 'pivotSize', 0, 1.5, 0.01, 'knot size (m)');
+  R(pend, c, 'pivotSpikes', 0, 1, 0.01, 'knot spikes');
+  R(pend, c, 'pivotGlow', 0, 4, 0.01, 'knot glow');
+  R(pend, c, 'passShake', 0, 1, 0.01, 'pass punch');
+  R(pend, c, 'passLight', 0, 20, 0.1, 'pass light');
+  R(pend, c, 'passDust', 0, 40, 1, 'pass dust');
+  R(pend, c, 'swingSparks', 0, 300, 1, 'edge sparks / s');
+
+  const rift = folder.addFolder('16 · The rift');
+  R(rift, c, 'riftHeight', 0, 6, 0.05, 'tear height (m)');
+  R(rift, c, 'riftWidth', 0.1, 3, 0.01, 'tear half-width (m)');
+  R(rift, c, 'riftDepth', -1, 2, 0.01, 'tear behind blade (m)');
+  R(rift, c, 'riftOpenTime', 0.02, 1, 0.01, 'opens in (s)');
+  R(rift, c, 'riftHold', 0, 3, 0.01, 'hangs open (s)');
+  R(rift, c, 'riftCloseTime', 0.05, 2, 0.01, 'zips shut in (s)');
+  R(rift, c, 'riftLip', 0.01, 0.5, 0.005, 'lip (m)');
+  R(rift, c, 'riftJag', 0, 2, 0.01, 'jag');
+  R(rift, c, 'riftSwirl', 0, 4, 0.01, 'drain');
+  R(rift, c, 'riftGlow', 0, 4, 0.01, 'lip glow');
+  R(rift, c, 'riftMotes', 0, 200, 1, 'motes drawn in / s');
+  rift.addColor(c, 'colorRiftDeep').name('inside');
+  rift.addColor(c, 'colorRiftLip').name('lip');
+  R(rift, c, 'woundLength', 0, 10, 0.05, 'floor wound length (m)');
+  R(rift, c, 'woundWidth', 0.05, 2, 0.01, 'floor wound half-width (m)');
+  R(rift, c, 'woundGlow', 0, 4, 0.01, 'floor wound glow');
+  R(rift, c, 'woundClose', 0.05, 2, 0.01, 'floor wound closes in (s)');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

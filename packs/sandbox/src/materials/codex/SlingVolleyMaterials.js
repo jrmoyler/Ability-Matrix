@@ -1,4 +1,4 @@
-import { AdditiveBlending, Color, DoubleSide, MeshDepthMaterial, MeshStandardMaterial, NormalBlending, RGBADepthPacking, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, DoubleSide, MeshDepthMaterial, MeshStandardMaterial, NormalBlending, RGBADepthPacking, ShaderMaterial, Vector3, Vector4 } from 'three';
 import { noiseGLSL } from '../../shaders/lib/noise.glsl.js';
 import { commonGLSL } from '../../shaders/lib/common.glsl.js';
 import { frame, sharedUniforms } from '../../core/FrameUniforms.js';
@@ -1054,6 +1054,383 @@ export function createSlingVolleyScarMaterial() {
     writeTrail(u, st, trail, travel, c.scarLife * g.lifetime, c.scarWidth, c.scarOpacity * g.opacity, c.scarGlow * g.glow);
     u.uColorA.value.copy(getColor(c.colorScarA));
     u.uColorB.value.copy(getColor(c.colorScarB));
+  };
+  return material;
+}
+
+/* ------------------------------------------------------------------ */
+/* The upgrade: lit sling stones, their spin blur, the crater floor.   */
+/* ------------------------------------------------------------------ */
+
+const STONE_VERTEX = /* glsl */ `
+  attribute float aGrain;
+  attribute vec4  aState;   // heat 0..1, dissolve 0..1, seed, spin blur 0..1
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vGrain;
+  varying vec4  vState;
+  void main() {
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 w = model * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vLocal = position;
+    vGrain = aGrain;
+    vState = aState;
+    vNormalW = normalize(mat3(model) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const STONE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uAmbient;
+  uniform float uSpecular;
+  uniform float uFresnel;
+  uniform float uCrackScale;
+  uniform float uCrackGlow;
+  uniform vec3  uColorCore;   // white-hot
+  uniform vec3  uColorTint;   // pale ochre
+  uniform vec3  uColorBody;   // rust-red stone
+  uniform vec3  uColorDeep;   // near-black basalt
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying float vGrain;
+  varying vec4  vState;
+
+  ${noiseGLSL}
+
+  void main() {
+    float heat = vState.x;
+    float dissolve = vState.y;
+    float seed = vState.z;
+    // Crumble on the exit: noise eats the stone, a hot rim on the bite.
+    float dn = snoise(vLocal * 2.6 + seed) * 0.5 + 0.5;
+    float thr = 1.0 - dissolve * 1.1;
+    if (dissolve > 0.0 && dn > thr) discard;
+    float bite = dissolve > 0.0 ? 1.0 - smoothstep(0.0, 0.07, thr - dn) : 0.0;
+
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 28.0) * uSpecular;
+    float fres = pow(1.0 - abs(dot(N, V)), 3.0) * uFresnel;
+
+    // Stone: basalt crust over rust-red, grain and pitting from noise.
+    float crust = fbm3(vLocal * 3.2 + seed) * 0.5 + 0.5;
+    float pit = smoothstep(0.55, 0.8, snoise(vLocal * 9.0 + seed * 3.0) * 0.5 + 0.5);
+    float depthT = clamp(crust * 0.75 + vGrain * 0.35 + pit * 0.25, 0.0, 1.0);
+    vec3 albedo = mix(uColorBody, uColorDeep, depthT);
+    // Hot cracks: voronoi seams that glow while the stone is fresh from the throw.
+    // Meandering hairline cracks (zero-crossings of noise), not cells.
+    float cn = snoise(vLocal * uCrackScale + seed * 1.7);
+    float seam = 1.0 - smoothstep(0.0, 0.07, abs(cn));
+    seam *= smoothstep(-0.2, 0.4, snoise(vLocal * 1.3 + seed * 2.3));
+    vec2 vo = vec2(cn, seed);
+    // The leading edge (spin): friction heat on the pointed tips.
+    float tip = smoothstep(0.62, 1.0, abs(vLocal.x));
+
+    vec3 col = albedo * (uAmbient + ndl * 1.05);
+    col += uColorTint * spec * (0.4 + 0.6 * (1.0 - depthT));
+    col += uColorBody * fres * 0.8;
+    float flicker = 0.75 + 0.25 * sin(uTime * 9.0 + vo.y * 20.0);
+    vec3 hot = mix(uColorBody * 1.6, uColorCore * 1.4, heat * heat);
+    col += hot * seam * heat * uCrackGlow * flicker * uShaderIntensity;
+    col += mix(uColorTint, uColorCore, heat) * tip * heat * 0.9 * uShaderIntensity;
+    col += uColorTint * bite * 2.4;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+/**
+ * Lit, opaque sling stones (instanced). Sun diffuse + specular, a body rim,
+ * four-stop ramp (white-hot core in the cracks → pale ochre → rust-red body →
+ * basalt deep); cracks and pointed tips glow while the throw's heat is in them
+ * (`aState.x`) and cool as the stone spins down; `aState.y` crumbles it on the
+ * exit. Sits on `LAYER.WORLD` and casts shadows.
+ */
+export function createSlingStoneMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uAmbient: { value: 0.3 },
+      uSpecular: { value: 0.6 },
+      uFresnel: { value: 0.6 },
+      uCrackScale: { value: 3 },
+      uCrackGlow: { value: 1.5 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: STONE_VERTEX,
+    fragmentShader: STONE_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uAmbient.value = c.stoneAmbient;
+    u.uSpecular.value = c.stoneSpecular;
+    u.uFresnel.value = c.stoneFresnel * g.fresnel;
+    u.uCrackScale.value = c.stoneCrackScale * g.noiseFrequency;
+    u.uCrackGlow.value = c.stoneCrackGlow * g.glow;
+    u.uColorCore.value.copy(getColor(c.colorStoneCore));
+    u.uColorTint.value.copy(getColor(c.colorStoneTint));
+    u.uColorBody.value.copy(getColor(c.colorStoneBody));
+    u.uColorDeep.value.copy(getColor(c.colorStoneDeep));
+  };
+  return material;
+}
+
+const BLUR_VERTEX = /* glsl */ `
+  attribute vec4 aBlur;     // alpha, leading angle (rad), inner radius 0..1, arms (1 or 2)
+  varying vec2 vUv;
+  varying vec4 vBlur;
+  void main() {
+    vUv = uv * 2.0 - 1.0;
+    vBlur = aBlur;
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    gl_Position = projectionMatrix * viewMatrix * model * vec4(position, 1.0);
+  }
+`;
+
+const BLUR_FRAGMENT = /* glsl */ `
+  uniform float uGlobalGlow;
+  uniform float uOpacity;
+  uniform float uTrail;       // radians of smear behind the leading edge
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec2 vUv;
+  varying vec4 vBlur;
+
+  ${noiseGLSL}
+
+  void main() {
+    float r = length(vUv);
+    if (r > 1.0 || vBlur.x < 0.002) discard;
+    float a = atan(vUv.y, vUv.x);
+    float arms = max(1.0, vBlur.w);
+    float period = 6.2831853 / arms;
+    // Angular distance behind the leading edge, wrapped per arm.
+    float behind = mod(vBlur.y - a, period);
+    float smear = exp(-behind / max(0.05, uTrail));
+    // Strongest out at the tips' radius: the smear of the points, not a ring.
+    float band = smoothstep(vBlur.z, vBlur.z + 0.35, r) * (1.0 - smoothstep(0.78, 1.0, r)) * smoothstep(0.0, 0.9, r);
+    // Combed into fine streaks by radius: the grain of a fast whirl.
+    float comb = 0.6 + 0.4 * snoise(vec3(r * 22.0, behind * 1.5, vBlur.y * 0.1));
+    float k = smear * band * comb;
+    vec3 col = gradient4(uColorDeep, uColorBody, uColorTint, uColorCore, clamp(k * 1.25, 0.0, 1.0));
+    gl_FragColor = vec4(col * k * uOpacity * vBlur.x * uGlobalGlow, 1.0);
+  }
+`;
+
+/**
+ * The spin blur: a horizontal disc round each spinning stone (and the whirling
+ * sling at the fist) — a comet-tailed smear behind each pointed tip, combed by
+ * radius, ramped deep → body → tint → core at the leading edge. Additive, on
+ * the VFX layer; `aBlur.x` is the spin it shows, so it fades as a stone slows.
+ */
+export function createSlingBlurMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uOpacity: { value: 1 },
+      uTrail: { value: 1.2 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: BLUR_VERTEX,
+    fragmentShader: /* glsl */ `${commonGLSL}\n${BLUR_FRAGMENT}`
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uOpacity.value = c.blurOpacity * g.opacity;
+    u.uTrail.value = c.blurTrail;
+    u.uColorCore.value.copy(getColor(c.colorStoneCore));
+    u.uColorTint.value.copy(getColor(c.colorStoneTint));
+    u.uColorBody.value.copy(getColor(c.colorA));
+    u.uColorDeep.value.copy(getColor(c.colorStoneDeep));
+  };
+  return material;
+}
+
+const CRATER_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const CRATER_FRAGMENT = /* glsl */ `
+  #define MAX_STONES 12
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform vec4  uRest[MAX_STONES];   // rest x, z, seconds since landing (<0 = in the air), stone half-length
+  uniform vec4  uTouch[MAX_STONES];  // touchdown x, z, heat 0..1, spin 0..1
+  uniform float uCount;
+  uniform float uCrater;     // crater radius, × stone half-length
+  uniform float uCracks;     // crack reach, × crater radius
+  uniform float uGouge;      // gouge width, × stone half-length
+  uniform float uOpacity;
+  uniform float uGlow;
+  uniform float uErode;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  varying vec3 vWorld;
+
+  ${noiseGLSL}
+
+  float segDist(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    float t = clamp(dot(p - a, ab) / max(1e-4, dot(ab, ab)), 0.0, 1.0);
+    return length(p - a - ab * t);
+  }
+
+  void main() {
+    vec2 p = vWorld.xz;
+    float dark = 0.0;     // how far the floor is pressed toward the deep tone
+    float rim = 0.0;      // heaped, sun-catching dust
+    float hot = 0.0;      // glowing seams
+    float cover = 0.0;
+    for (int i = 0; i < MAX_STONES; i++) {
+      if (float(i) >= uCount) break;
+      vec4 R = uRest[i];
+      if (R.z < 0.0) continue;
+      vec4 T = uTouch[i];
+      float s = R.w;
+      float grow = 1.0 - exp(-R.z * 14.0);
+      vec2 d = p - R.xy;
+      float dist = length(d);
+      float cr = s * uCrater * grow;
+      // The crater: a filled bowl, deepest in the middle, a heaped lip.
+      float bowl = 1.0 - smoothstep(cr * 0.15, cr, dist);
+      float lip = exp(-pow((dist - cr * 1.05) / max(0.02, cr * 0.22), 2.0));
+      // The spin scuff: the pointed tips scribe a filled, finely grained disc.
+      float scuffR = s * 1.05;
+      float scuff = (1.0 - smoothstep(scuffR * 0.85, scuffR, dist)) * (0.55 + 0.45 * snoise(vec3(dist * 30.0, atan(d.y, d.x) * 0.5, R.w)));
+      // The gouge it skidded along before it stopped.
+      float g = segDist(p, T.xy, R.xy);
+      float gw = s * uGouge;
+      float gouge = (1.0 - smoothstep(gw * 0.3, gw, g)) * (0.6 + 0.4 * snoise(vec3(p * 6.0, 1.0)));
+      float gougeLip = exp(-pow((g - gw) / max(0.02, gw * 0.35), 2.0)) * 0.6;
+      // Radial cracks out of the crater, glowing while the stone is hot.
+      float ang = atan(d.y, d.x);
+      float crackN = abs(snoise(vec3(ang * 3.2 + float(i) * 5.0, dist * 0.6, float(i))));
+      float reach = cr * uCracks;
+      float crack = (1.0 - smoothstep(0.0, 0.05, crackN)) * smoothstep(cr * 0.5, cr, dist) * (1.0 - smoothstep(reach * 0.6, reach, dist)) * grow;
+      dark = max(dark, max(bowl, gouge * 0.85));
+      dark = max(dark, scuff * 0.55);
+      dark = max(dark, crack * 0.9);
+      rim = max(rim, max(lip, gougeLip));
+      hot = max(hot, (1.0 - smoothstep(0.0, 0.02, crackN)) * crack * T.z);
+      cover = max(cover, max(max(bowl, lip), max(max(gouge, gougeLip), max(scuff * 0.8, crack))));
+    }
+    if (cover < 0.01) discard;
+    // Exit: the field breaks up raggedly into the floor.
+    float er = snoise(vec3(p * 1.4, 3.0)) * 0.5 + 0.5;
+    if (uErode > 0.0 && er < uErode) discard;
+    float grain = fbm3(vec3(p * 3.0, 0.0)) * 0.5 + 0.5;
+    // Scorched rock: near-black, a little brown in the grain — never a glowing disc.
+    vec3 col = mix(uColorDeep * 2.2 + vec3(0.03), uColorDeep * 0.6, clamp(dark * 0.95 + grain * 0.25, 0.0, 1.0));
+    float sun = 0.55 + 0.45 * max(uLightDir.y, 0.0);
+    // The heaped lip: lighter dust, not a glowing ring.
+    col = mix(col, mix(uColorDeep, uColorTint, 0.12) * sun, rim * (1.0 - dark) * 0.5);
+    float flick = 0.8 + 0.2 * sin(uTime * 7.0 + p.x * 3.0 + p.y * 2.0);
+    col += mix(uColorBody, uColorTint, hot * hot) * hot * uGlow * flick * uShaderIntensity;
+    float alpha = clamp(cover * uOpacity, 0.0, 1.0);
+    gl_FragColor = vec4(col * uGlobalGlow, alpha);
+  }
+`;
+
+/**
+ * The crater floor: one plane over the strip the volley covers, carrying up to
+ * twelve landings (rest point, touchdown point, age, heat). Each is a filled,
+ * dark bowl with a heaped sun-lit lip, the gouge the stone skidded along, the
+ * finely scored disc its spinning tips scuffed, and radial cracks that glow
+ * while the stone is hot and go dark as it cools. Normal blending; erodes on
+ * the exit.
+ */
+export function createSlingCraterMaterial() {
+  const rest = Array.from({ length: 12 }, () => new Vector4(0, 0, -1, 0));
+  const touch = Array.from({ length: 12 }, () => new Vector4());
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uRest: { value: rest },
+      uTouch: { value: touch },
+      uCount: { value: 0 },
+      uCrater: { value: 1.6 },
+      uCracks: { value: 2.4 },
+      uGouge: { value: 0.5 },
+      uOpacity: { value: 1 },
+      uGlow: { value: 1 },
+      uErode: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() }
+    }),
+    vertexShader: CRATER_VERTEX,
+    fragmentShader: CRATER_FRAGMENT
+  });
+  material.userData.sync = (count, erode) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCount.value = count;
+    u.uCrater.value = c.craterSize;
+    u.uCracks.value = c.craterCracks;
+    u.uGouge.value = c.craterGouge;
+    u.uOpacity.value = c.craterOpacity * g.opacity;
+    u.uGlow.value = c.craterGlow * g.glow;
+    u.uErode.value = erode;
+    u.uColorCore.value.copy(getColor(c.colorStoneCore));
+    u.uColorTint.value.copy(getColor(c.colorStoneTint));
+    u.uColorBody.value.copy(getColor(c.colorA));
+    u.uColorDeep.value.copy(getColor(c.colorStoneDeep));
   };
   return material;
 }

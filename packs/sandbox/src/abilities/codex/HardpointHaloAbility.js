@@ -1,15 +1,18 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
 import { createSpellBodyGeometry } from './PureBodyGeometries.js';
 import { createHardpointHaloPieceGeometry, createHardpointHaloHeroGeometry } from '../../assets/codex/HardpointHaloGeometry.js';
+import { createHardpointPodGeometry, createHardpointBarrelGeometry } from '../../assets/codex/HardpointHaloSignatureGeometry.js';
 import {
   createHardpointHaloBodyMaterial,
   createHardpointHaloLensMaterial,
   createHardpointHaloGroundMaterial,
   createHardpointHaloVoiceMaterial,
-  createHardpointHaloDetailMaterial
+  createHardpointHaloDetailMaterial,
+  createHardpointHaloArmourMaterial,
+  createHardpointHaloDeckMaterial
 } from '../../materials/codex/HardpointHaloMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -43,6 +46,29 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _hub = new Vector3();
+const _hand = new Vector3();
+const _centre = new Vector3();
+const _podPos = new Vector3();
+const _barrelPos = new Vector3();
+const _scale = new Vector3();
+const _muzzle = new Vector3();
+const _fwd = new Vector3();
+const _mat = new Matrix4();
+const _qPod = new Quaternion();
+const _qBarrel = new Quaternion();
+const _qPitch = new Quaternion();
+const _axisX = new Vector3(1, 0, 0);
+const _axisY = new Vector3(0, 1, 0);
+
+/** Most hardpoints one halo can stand. */
+const MAX_PODS = 12;
+/** Most volleys one cast fires. */
+const MAX_VOLLEYS = 6;
+/** Where the barrels pivot on a turret, and how long they are, at scale 1 (metres). */
+const TRUNNION_Y = 0.74;
+const TRUNNION_Z = 0.36;
+const MUZZLE = 1.34;
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +98,35 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The signature — the hardpoints (layers 12–15, this cast's own)
+ *
+ * The template sigil, voice, rig and pieces are turned down; the read is a
+ * ring of real gun turrets:
+ *
+ *  12. **turrets** — `podCount` dark gunmetal hardpoints (InstancedMesh of
+ *      `createHardpointPodGeometry` + `createHardpointBarrelGeometry`), sun-lit
+ *      and shadow-casting on LAYER.WORLD, a cyan sensor slit the only thing
+ *      lit while powered. They leave the hand small, in a tight formation
+ *      that turns as it flies (the ring walks: `podWalk`) on a high arc
+ *      (`podFlyHeight`), barrels stowed upright. From `podLockAt` the
+ *      formation spreads to the ring (`podRing` × the circle), drops and
+ *      levels its barrels, and slams down onto the deck on the beat.
+ *  13. **volleys** — on the beat every turret fires outward at once: the
+ *      barrels kick back (`barrelRecoil`), muzzles flash and glow hot, tracers
+ *      and spent casings fly. `volleyCount` volleys, `volleyGap` apart, while
+ *      the turrets track (`podTrack`). The first is the hit; the rest are
+ *      presentation. Then they power down: slits go dark, barrels droop, and
+ *      from `podSinkAt` they sink into the deck — the exit.
+ *  14. **deck** — the floor: a filled hex-plated disc that opens out from the
+ *      hub as the ring drops onto it, conduits charging to each hardpoint
+ *      before the volley, a burnt wedge thrown out ahead of each muzzle. It
+ *      stays to the end.
+ *  15. **tracers / flash** — STREAK and SOFT particle systems of their own.
+ *
+ * Records are the formation's integrated turn, the muzzle heat and which
+ * volleys have fired; every size is read from settings each frame (the ring
+ * from `zoneRadius`). Presentation only: hits are the template's commit ring.
  *
  * Every metre, rate and colour is read from `settings.hardpoint` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +206,196 @@ export class HardpointHaloAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+    this._buildPods();
+  }
+
+  /** The turrets (pods and barrels) and the deck they bolt onto. */
+  _buildPods() {
+    this.podGeometry = createHardpointPodGeometry();
+    this.barrelGeometry = createHardpointBarrelGeometry();
+    this.podMaterial = createHardpointHaloArmourMaterial(0);
+    this.barrelMaterial = createHardpointHaloArmourMaterial(1);
+    const instanced = (geometry, material) => {
+      const mesh = new InstancedMesh(geometry, material, MAX_PODS);
+      mesh.layers.set(LAYER.WORLD);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 4;
+      mesh.visible = false;
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.pods = instanced(this.podGeometry, this.podMaterial);
+    this.barrels = instanced(this.barrelGeometry, this.barrelMaterial);
+    this.deckGeometry = new PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    this.deckMaterial = createHardpointHaloDeckMaterial();
+    this.deck = this._mesh(this.deckGeometry, this.deckMaterial, LAYER.VFX, 2);
+    this._walk = 0;
+    this._heat = 0;
+    this._fired = 0;
+    this._firstShot = -1;
+  }
+
+  _resetPods() {
+    this._walk = Math.random() * Math.PI * 2;
+    this._heat = 0;
+    this._fired = 0;
+    this._firstShot = -1;
+    this.pods.visible = false;
+    this.barrels.visible = false;
+    this.deck.visible = false;
+  }
+
+  /** Seconds since the beat, from the 0..2 impact + fade clock. */
+  _since(fadeT) {
+    return fadeT < 1 ? fadeT * this.impactDuration : this.impactDuration + (fadeT - 1) * this.fadeDuration;
+  }
+
+  /**
+   * Fly in formation, spread, drop, lock, fire, track, power down, sink.
+   * `committed` false is the travel; `fadeT` the 0..2 clock after the beat.
+   */
+  _updatePods(dt, committed, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const anim = g.animationSpeed;
+    const n = Math.max(1, Math.min(MAX_PODS, Math.round(c.podCount)));
+    const ring = Math.max(0.5, c.zoneRadius * c.podRing);
+    this.pointAt(1, _hub);
+    let radius;
+    let size;
+    let y;
+    let pitch;
+    let power;
+    let track = 0;
+    let sink = 0;
+    let recoil = 0;
+    let open;
+    let charge;
+    let scorch = 0;
+    let gone = 1;
+    if (!committed) {
+      const u = this.u;
+      const lockAt = Math.min(0.95, Math.max(0.05, c.podLockAt));
+      const lock = Easing.inOutQuad(saturate((u - lockAt) / (1 - lockAt)));
+      const fly = saturate(u / lockAt);
+      _hand.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide);
+      _centre.lerpVectors(_hand, _hub, Easing.inOutQuad(saturate(u * 1.15)));
+      radius = c.podFlyRadius + (ring - c.podFlyRadius) * lock;
+      size = c.podFlySize + (1 - c.podFlySize) * Easing.outCubic(saturate(u * 1.3));
+      const flying = c.handHeight + (c.podDrop - c.handHeight) * fly + c.podFlyHeight * Math.sin(Math.PI * fly);
+      y = u < lockAt ? flying : c.podDrop * (1 - Easing.inQuad(lock));
+      pitch = c.barrelStow * (1 - lock);
+      power = 0.45 + 0.55 * lock;
+      this._walk += c.podWalk * (1 - 0.8 * lock) * dt * anim;
+      open = lock;
+      charge = lock;
+    } else {
+      const since = this._since(fadeT);
+      _centre.copy(_hub);
+      radius = ring;
+      size = 1;
+      y = 0.16 * Math.abs(Math.sin((since / 0.2) * Math.PI)) * Math.exp(-since * 9);
+      const shots = Math.max(1, Math.min(MAX_VOLLEYS, Math.round(c.volleyCount)));
+      const gap = Math.max(0.05, c.volleyGap);
+      for (let k = this._fired; k < shots; k++) {
+        if (since + 1e-6 < k * gap) break;
+        this._fired = k + 1;
+        this._volley(k);
+      }
+      for (let k = 0; k < this._fired; k++) {
+        const d = since - k * gap;
+        if (d >= 0) recoil = Math.max(recoil, Math.exp(-d * 11) * saturate(d / 0.025 + 0.6));
+      }
+      const firing = 1 - saturate((since - (shots - 1) * gap - 0.25) / 0.4);
+      track = c.podTrack * Math.sin(since * c.podTrackRate) * firing;
+      const down = saturate((fadeT - c.podSinkAt) / 0.15);
+      pitch = -c.barrelDroop * down;
+      power = 1 - 0.95 * down;
+      sink = c.podSink * Easing.inQuad(saturate((fadeT - c.podSinkAt) / Math.max(0.05, 2 - c.podSinkAt)));
+      this._walk += c.podWalk * 0.04 * dt * anim;
+      open = 1;
+      charge = Math.max(0, 1 - since * 4);
+      scorch = this._fired > 0 ? saturate(since / 0.12) : 0;
+      gone = 1 - Easing.inQuad(saturate((fadeT - 1.8) / 0.2));
+    }
+    this._heat = Math.max(0, this._heat - c.barrelCool * dt);
+    const S = Math.max(0.1, c.podSize) * size;
+    const show = c.podOpacity > 0.01 && y - sink > -1.4 * S;
+    this.pods.visible = show;
+    this.barrels.visible = show;
+    this.pods.count = n;
+    this.barrels.count = n;
+    this.pods.castShadow = c.podShadow > 0.5;
+    this.barrels.castShadow = c.podShadow > 0.5;
+    _qPitch.setFromAxisAngle(_axisX, -pitch);
+    for (let i = 0; i < n; i++) {
+      const ang = this._walk + (i / n) * Math.PI * 2;
+      const ox = Math.cos(ang);
+      const oz = Math.sin(ang);
+      _podPos.set(_centre.x + ox * radius, y - sink, _centre.z + oz * radius);
+      _qPod.setFromAxisAngle(_axisY, Math.atan2(ox, oz) + track);
+      _scale.setScalar(S);
+      _mat.compose(_podPos, _qPod, _scale);
+      this.pods.setMatrixAt(i, _mat);
+      _barrelPos.set(0, TRUNNION_Y * S, TRUNNION_Z * S).applyQuaternion(_qPod).add(_podPos);
+      _qBarrel.copy(_qPod).multiply(_qPitch);
+      _fwd.set(0, 0, -c.barrelRecoil * recoil * size).applyQuaternion(_qBarrel);
+      _barrelPos.add(_fwd);
+      _mat.compose(_barrelPos, _qBarrel, _scale);
+      this.barrels.setMatrixAt(i, _mat);
+    }
+    this.pods.instanceMatrix.needsUpdate = true;
+    this.barrels.instanceMatrix.needsUpdate = true;
+    this.podMaterial.userData.sync(power, 0);
+    this.barrelMaterial.userData.sync(power, this._heat);
+
+    // The deck under them.
+    const plate = Math.max(0.5, (ring + 0.75 * c.podSize) * c.deckReach);
+    const extent = Math.max(plate, ring + c.deckScorchLen) + 0.2;
+    const landed = committed ? 1 : open;
+    this.deck.visible = c.deckOpacity > 0.01 && landed > 0.01 && gone > 0.01;
+    if (this.deck.visible) {
+      this.deck.position.set(_hub.x, 0.03, _hub.z);
+      this.deck.scale.setScalar(extent);
+      const deckOpen = committed ? 1 : Easing.outCubic(open);
+      this.deckMaterial.userData.sync(extent, plate, ring, c.deckScorchLen, n, -this._walk, deckOpen, power, charge, scorch, this._heat, gone, this._seed);
+    }
+  }
+
+  /** Volley `k`: every turret fires outward at once — flash, tracers, casings, a kick. */
+  _volley(k) {
+    const c = settings[ID];
+    const g = settings.global;
+    const power = g.explosionIntensity;
+    this._heat = 1;
+    if (k > 0) {
+      this.ctx.shake.add(c.impactShake * 0.35 * power * g.cameraShake, 6, 20);
+      this.lightBoost += c.impactLight * 0.4 * power;
+    }
+    const n = this.pods.count;
+    const S = Math.max(0.1, c.podSize);
+    const tracers = Math.round(c.tracerCount * g.particleCount);
+    const flashes = Math.round(c.muzzleFlash * g.particleCount);
+    for (let i = 0; i < n; i++) {
+      this.barrels.getMatrixAt(i, _mat);
+      _mat.decompose(_barrelPos, _qBarrel, _scale);
+      _fwd.set(0, 0, 1).applyQuaternion(_qBarrel);
+      _muzzle.copy(_barrelPos).addScaledVector(_fwd, MUZZLE * S);
+      if (flashes > 0) {
+        this._fillEmit(_muzzle, 0.08 * S, _fwd, 2.5, 0.6, c.muzzleSize, 0.09, 0);
+        this.flashes.emit(flashes, _emit);
+      }
+      if (tracers > 0) {
+        this._fillEmit(_muzzle, 0.06 * S, _fwd, c.tracerSpeed, 0.06, c.tracerSize, c.tracerLife, 0);
+        this.tracers.emit(tracers, _emit);
+      }
+      // Spent casings, thrown up and to the side.
+      _dir.crossVectors(_fwd, _up).normalize().setY(1.2);
+      this._fillEmit(_podPos.copy(_barrelPos).setY(_barrelPos.y + 0.1), 0.05, _dir, c.chipSpeed * 0.6, 0.4, c.chipSize * 0.8, c.chipLife, 10);
+      this.chips.emit(2, _emit);
+    }
   }
 
   _mesh(geometry, material, layer, order) {
@@ -196,6 +441,19 @@ export class HardpointHaloAbility extends Ability {
     this.streakEmitter = new RateEmitter();
     this.chipEmitter = new RateEmitter();
     this.moteEmitter = new RateEmitter();
+    this.tracers = particles.get('hardpoint.tracer', {
+      capacity: 900,
+      shape: ParticleShape.STREAK,
+      additive: true,
+      stretch: true,
+      softFade: 0.1
+    });
+    this.flashes = particles.get('hardpoint.flash', {
+      capacity: 400,
+      shape: ParticleShape.SOFT,
+      additive: true,
+      softFade: 0.1
+    });
   }
 
   get impactDuration() {
@@ -225,6 +483,7 @@ export class HardpointHaloAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this._resetPods();
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -387,6 +646,9 @@ export class HardpointHaloAbility extends Ability {
     sync(this.motes, c.colorMoteA, c.colorMoteB, c.colorMoteC, c.colorMoteD, c.moteSize, 1.6 * g.glow, 0.5);
     this.motes.uniforms.uOpacity.value = 0.9 * g.opacity;
     sync(this.chips, c.colorChipA, c.colorChipB, c.colorChipC, c.colorChipD, c.chipSize, 1, -9);
+    sync(this.tracers, c.colorTracerA, c.colorTracerB, c.colorTracerC, c.colorTracerD, c.tracerSize, 2.4 * g.glow, -1.5);
+    this.tracers.uniforms.uStretch.value = c.tracerStretch;
+    sync(this.flashes, c.colorTracerA, c.colorTracerB, c.colorTracerC, c.colorTracerD, c.muzzleSize, 2 * g.glow, 0);
   }
 
   _fillEmit(position, radius, direction, speed, spread, size, life, spin) {
@@ -688,15 +950,17 @@ export class HardpointHaloAbility extends Ability {
       colorB: getColor(c.colorGroundA),
       height: 0.025
     });
-    this.ctx.decals.spawn(DecalType.ARC, _end, {
-      radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
-      life: c.shockLife,
-      width: 0.08,
-      intensity: 1,
-      colorA: getColor(c.colorShockA),
-      colorB: getColor(c.colorShockB),
-      height: 0.03
-    });
+    if (c.deckArc > 0.01) {
+      this.ctx.decals.spawn(DecalType.ARC, _end, {
+        radius: c.shockRadius * (ZONE ? 1 : 0.65) * power,
+        life: c.shockLife,
+        width: 0.08,
+        intensity: c.deckArc,
+        colorA: getColor(c.colorShockA),
+        colorB: getColor(c.colorShockB),
+        height: 0.03
+      });
+    }
     if (c.shockRing > 0.01) {
       this.ctx.decals.spawn(DecalType.SHOCKWAVE, _end, {
         radius: c.shockRadius * 0.8,
@@ -754,6 +1018,7 @@ export class HardpointHaloAbility extends Ability {
     const g = settings.global;
     this._spin += dt * c.spinSpeed * g.animationSpeed;
     this._pose(false, 0);
+    this._updatePods(dt, false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
@@ -772,6 +1037,7 @@ export class HardpointHaloAbility extends Ability {
     const fade = t < 1 ? 1 : 1 - (t - 1);
     this._spin += dt * c.spinSpeed * g.animationSpeed * 0.40;
     this._pose(true, t);
+    this._updatePods(dt, true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
     if (WHEN === 'return') this._strike(false);
@@ -797,9 +1063,20 @@ export class HardpointHaloAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.pods.visible = false;
+    this.barrels.visible = false;
+    this.deck.visible = false;
   }
 
   dispose() {
+    this.pods.dispose();
+    this.barrels.dispose();
+    this.podGeometry.dispose();
+    this.barrelGeometry.dispose();
+    this.podMaterial.dispose();
+    this.barrelMaterial.dispose();
+    this.deckGeometry.dispose();
+    this.deckMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -986,6 +1263,61 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const pods = folder.addFolder('14 · Hardpoints');
+  R(pods, c, 'podCount', 1, 12, 1, 'count');
+  R(pods, c, 'podSize', 0.2, 3, 0.01, 'size ×');
+  R(pods, c, 'podRing', 0.2, 1.4, 0.01, 'ring × circle');
+  R(pods, c, 'podFlyRadius', 0, 4, 0.01, 'formation radius (m)');
+  R(pods, c, 'podFlyHeight', 0, 6, 0.05, 'flight arc (m)');
+  R(pods, c, 'podFlySize', 0.05, 1, 0.01, 'size at the hand');
+  R(pods, c, 'podWalk', -12, 12, 0.05, 'formation turn (rad/s)');
+  R(pods, c, 'podLockAt', 0.05, 0.95, 0.01, 'spreads to lock at');
+  R(pods, c, 'podDrop', 0, 5, 0.05, 'drops from (m)');
+  R(pods, c, 'podTrack', 0, 1, 0.01, 'tracking sweep (rad)');
+  R(pods, c, 'podTrackRate', 0, 20, 0.1, 'tracking rate');
+  R(pods, c, 'podSink', 0, 3, 0.01, 'sinks (m)');
+  R(pods, c, 'podSinkAt', 0, 2, 0.01, 'powers down at');
+  R(pods, c, 'podEyeGlow', 0, 8, 0.05, 'sensor glow');
+  R(pods, c, 'podSeamGlow', 0, 4, 0.05, 'seam glow');
+  R(pods, c, 'podRimGlow', 0, 3, 0.05, 'limb glow');
+  R(pods, c, 'podRough', 0, 1, 0.01, 'roughness');
+  R(pods, c, 'podMetal', 0, 1, 0.01, 'metalness');
+  R(pods, c, 'podOpacity', 0, 1, 1, 'show');
+  R(pods, c, 'podShadow', 0, 1, 1, 'cast shadow');
+  pods.addColor(c, 'colorPodDeep').name('gunmetal, deep');
+  pods.addColor(c, 'colorPodBody').name('gunmetal, lit');
+  pods.addColor(c, 'colorPodHot').name('power');
+  pods.addColor(c, 'colorPodCore').name('muzzle, white');
+
+  const volley = folder.addFolder('15 · Volleys');
+  R(volley, c, 'volleyCount', 1, 6, 1, 'volleys');
+  R(volley, c, 'volleyGap', 0.05, 1.5, 0.01, 'gap (s)');
+  R(volley, c, 'barrelRecoil', 0, 1, 0.01, 'recoil (m)');
+  R(volley, c, 'barrelStow', 0, 1.6, 0.01, 'stowed (rad)');
+  R(volley, c, 'barrelDroop', 0, 1, 0.01, 'droop (rad)');
+  R(volley, c, 'barrelHeat', 0, 6, 0.05, 'muzzle heat');
+  R(volley, c, 'barrelCool', 0, 8, 0.05, 'cools / s');
+  R(volley, c, 'tracerCount', 0, 30, 1, 'tracers / muzzle');
+  R(volley, c, 'tracerSpeed', 0, 80, 0.5, 'tracer speed');
+  R(volley, c, 'tracerSize', 0.01, 0.4, 0.005, 'tracer size');
+  R(volley, c, 'tracerLife', 0.05, 2, 0.01, 'tracer life');
+  R(volley, c, 'tracerStretch', 0, 6, 0.05, 'tracer stretch');
+  R(volley, c, 'muzzleFlash', 0, 30, 1, 'flash puffs');
+  R(volley, c, 'muzzleSize', 0.02, 1, 0.01, 'flash size');
+  Editor.gradient(volley, c, 'colorTracer', 'tracer colour');
+
+  const deck = folder.addFolder('16 · Deck');
+  R(deck, c, 'deckReach', 0.3, 2, 0.01, 'plate ×');
+  R(deck, c, 'deckOpacity', 0, 1.5, 0.01, 'opacity');
+  R(deck, c, 'deckGlow', 0, 6, 0.05, 'seam glow');
+  R(deck, c, 'deckHex', 0.1, 3, 0.01, 'panel (m)');
+  R(deck, c, 'deckLand', 0.02, 2, 0.01, 'opens (s)');
+  R(deck, c, 'deckScorchLen', 0, 8, 0.05, 'muzzle scorch (m)');
+  R(deck, c, 'deckArc', 0, 1.5, 0.01, 'arc ring decal');
+  deck.addColor(c, 'colorDeckDeep').name('plate, deep');
+  deck.addColor(c, 'colorDeckBody').name('plate, lit');
+  deck.addColor(c, 'colorDeckBurn').name('scorch');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

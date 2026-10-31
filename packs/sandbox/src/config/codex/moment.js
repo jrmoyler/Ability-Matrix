@@ -53,7 +53,7 @@ export default {
     height: 3.05, // how tall the body stands, metres
     sweep: 1.45, // lateral reach, metres
     lean: 0.65, // how far the body opens on the beat
-    bodyOpacity: 0.5,
+    bodyOpacity: 0, // the template's hinge body; off — the maul is the body now
     edgeGlow: 1.85,
     softFade: 0.4, // soft intersection with the floor and bodies, metres
     bodyGlow: 0.32,
@@ -62,10 +62,10 @@ export default {
     colorA: '#f46b25',
     colorB: '#ffffff',
     colorC: '#471c06',
-    lensWarp: 1.02, // strength of the distortion it writes
+    lensWarp: 0, // strength of the distortion it writes
 
     /* --- 2 · the voice --- */
-    voiceOpacity: 0.5, // strength of the second placement
+    voiceOpacity: 0, // strength of the second placement (off: it drew a frame-wide arc line)
     colorVoiceA: '#f46b25',
     colorVoiceB: '#ffffff',
 
@@ -73,7 +73,7 @@ export default {
     groundWidth: 2.4, // footprint width, metres
     groundGlow: 1.4,
     groundLife: 4.5, // seconds the residue decal stays on the floor after the beat, × global lifetime
-    groundOpacity: 1, // strength of the field
+    groundOpacity: 0, // strength of the field
     groundHeat: 1.1, // how hot the fresh field and its landing lip glow, cooling through the fade
     groundCoat: 0.08, // 0 dark stain/scorch .. 1 pale coat (rime, glare, scoured sand)
     groundStain: 0.9, // strength of the residue decal left at the beat
@@ -83,7 +83,7 @@ export default {
     colorGroundStain: '#2a1410', // the dark tone the floor is stained toward
 
     /* --- 4 · detail pieces --- */
-    detailCount: 14, // pieces thrown (max 48)
+    detailCount: 0, // pieces thrown (max 48); off — the crater throws real chips
     detailSize: 0.6, // mean piece size, metres
     detailSizeJitter: 0.35, // ± fraction of that
     detailSpread: 0.8, // reach of the pieces, × the cast reach
@@ -109,7 +109,7 @@ export default {
     heroSwing: 1, // how far the rig folds its parts, × authored swing
     heroGlow: 1.1, // rim light on the rig
     heroEdge: 1.2, // light along the rig arrises
-    heroOpacity: 1, // how solid the rig is
+    heroOpacity: 0, // how solid the rig is (off: the maul replaces the template hammer)
     heroDeep: 0.75, // 0..1 how far the rig falls from body to deep tone across its form (colour depth)
     heroMaxHeight: 5, // the rig is scaled and lowered to keep its top under this, metres
     heroMinSpan: 1.5, // line rigs grow to at least this cross-section, metres (heroSize is the floor)
@@ -160,19 +160,19 @@ export default {
 
     /* --- 8 · the beat --- */
     impactShake: 0.72, // camera punch on the beat
-    impactFlash: 0.14, // screen flash on the beat
+    impactFlash: 0.05, // screen flash on the beat (kept low: the light punch carries it)
     colorFlash: '#ffe4cc',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.12, // strength of the burst shell; matter keeps it low and hits with debris instead
-    impactChips: 34, // fragments thrown up and out on the beat
-    impactDust: 23, // dust puffs rolled out along the floor on the beat
+    burstOpacity: 0, // strength of the burst shell; matter keeps it low and hits with debris instead
+    impactChips: 70, // fragments thrown up and out on the beat
+    impactDust: 30, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
     colorBurstB: '#f46b25',
     colorBurstC: '#471c06',
     shockRadius: 3.2, // decal size, metres
     shockLife: 0.85,
-    shockRing: 0.3, // strength of the thin shock ring on the beat (0 = none)
+    shockRing: 0.12, // strength of the thin shock ring on the beat (0 = none)
     colorShockA: '#f46b25',
     colorShockB: '#ffffff',
 
@@ -204,19 +204,50 @@ export default {
     /* --- 12 · the trail --- */
     trailWidth: 0.3, // ribbon width at the head, metres
     trailLife: 0.9, // seconds a point of ribbon lasts after the head crosses it
-    trailOpacity: 0.55, // strength of the ribbon
+    trailOpacity: 0, // strength of the ribbon
     trailGlow: 1.1, // brightness of the ribbon
     trailCore: 0.4, // 0..1 how white the fresh middle of the ribbon runs
     trailBreakup: 1.25, // how hard the ribbon breaks up as it ages
     scarWidth: 0.6, // width of the scar on the floor, metres
     scarLife: 2.6, // seconds the scar takes to cool and go
-    scarOpacity: 0.85, // strength of the scar
+    scarOpacity: 0, // strength of the scar
     scarGlow: 1.6, // brightness of its hot seam
     colorScarA: '#f46b25',
     colorScarB: '#471c06',
-    wakeSpacing: 1.8, // metres between wake decals along the path (0 = none)
+    wakeSpacing: 0, // metres between wake decals along the path (0 = none)
     wakeRadius: 0.7, // size of each wake decal, metres
     wakeLife: 1.6, // seconds each wake decal lingers
-    wakeChips: 4 // fragments thrown at each wake
+    wakeChips: 4, // fragments thrown at each wake
+
+    /* --- 13 · the maul (the cast's own hero) --- */
+    maulScale: 1.35, // × the authored maul (3.5 m long, 1.8 m head); 0 hides it
+    flightHeight: 1.3, // height of its centre of mass leaving the hand, metres
+    flightArc: 0.5, // extra height at the top of the lob, metres
+    flightTurns: 1.25, // end-over-end turns down the line; the last quarter always lands head-down
+    plantTilt: 0.2, // lean of the planted haft back toward the caster, radians
+    plantSink: 0.32, // how deep the head buries, metres
+    rockAmp: 0.5, // swing of the planted maul right after the slam, radians
+    rockRate: 7.5, // rocking frequency, radians/second
+    rockDamp: 1.5, // how fast the rocking dies, 1/seconds
+    rockDust: 90, // dust puffs per second off the buried head at full swing speed
+    sinkFrom: 1.4, // fade clock (1 = fade start, 2 = end) the maul starts sinking at
+    sinkOut: 2.2, // how far it sinks by the end, metres
+    maulGlow: 2, // brightness of the hot seams
+    maulRim: 0.45, // fresnel rim in the body hue
+    maulRough: 0.42,
+    maulMetal: 0.75,
+    maulHeatFlight: 0.3, // how hot the seams run in flight
+    maulHeatSlam: 1.3, // how hot the faces flash on the slam (>1 white-hot)
+    maulCool: 0.9, // seconds for the faces to cool by ~63 %, × global lifetime
+    colorMaulIron: '#2b1e18', // the iron albedo (deep)
+    colorMaulHot: '#ff8a35', // the hot seam / fissure tone
+
+    /* --- 14 · the crater --- */
+    craterRadius: 2.6, // metres (× √explosionIntensity)
+    craterOpen: 0.22, // seconds for the fissures to run out
+    craterOpacity: 0.95,
+    craterGlow: 2.4, // fissure brightness
+    craterCracks: 9, // radial fissures
+    colorCraterDeep: '#100503' // the dark of the bowl
   }
 };

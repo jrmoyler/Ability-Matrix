@@ -20,7 +20,9 @@ import {
   createWarpQuad
 } from './FulminantRelayGeometry.js';
 import {
+  createBlastMaterial,
   createBoltMaterial,
+  createBoltUnderMaterial,
   createCoronaMaterial,
   createOrbitMaterial,
   createRelayWarpMaterial,
@@ -81,7 +83,7 @@ export const CONFIG = Object.freeze({
     seedSpikeSpeed: 1.6, // spike noise speed
     seedGlow: 1.3, // core brightness
     seedFresnel: 2, // rim power
-    seedFilament: 1, // 0..1 strength of the filaments crawling through the core
+    seedFilament: 0.8, // 0..1 strength of the filaments crawling through the core
     seedFilamentScale: 2.4, // filament noise frequency
     seedCrawl: 1.2, // filament crawl speed
     seedFlicker: 14, // discharge re-rolls per second
@@ -89,9 +91,21 @@ export const CONFIG = Object.freeze({
     shellScale: 1.45, // crackle shell radius (× seed)
     shellGlow: 0.8,
     shellOpacity: 0.7,
-    colorSeedCore: '#f4f9ff',
-    colorSeedBody: '#3b7dff',
-    colorSeedRim: '#8fc4ff',
+    colorSeedCore: '#ffffff', // white-hot filaments
+    colorSeedBody: '#5b3cff', // saturated electric violet
+    colorSeedRim: '#b7a6ff', // pale charge tint at the rim
+    colorSeedDeep: '#0a0724', // the dark node the charge lives in
+    seedDeep: 0.85, // 0..1 how much of the node's body is the deep stop
+    shellHaze: 0.05, // the shell's even glassy film (the crackle lines are separate)
+
+    /* crackle — short bolts snapping off the seed and re-striking */
+    crackleCount: 6, // live crackle bolts round the seed (max 10)
+    crackleReach: 1.1, // how far past the surface they reach (× seed radius)
+    crackleRate: 9, // re-strikes per second
+    crackleWidth: 0.1, // ribbon half-width, metres
+    crackleJag: 0.35, // lateral jag (× seed radius)
+    crackleGlow: 3.0,
+    crackleOn: 0.7, // 0..1 share of crackles alight at any re-strike
 
     /* orbits — three broken gyroscope rings */
     orbitScale: 1.1, // ring radius (× seed)
@@ -122,20 +136,28 @@ export const CONFIG = Object.freeze({
     /* 3 · THE ARCS                                                      */
     /* ================================================================ */
     arcLifetime: 0.55, // seconds one arc lingers after its strike
-    branchLength: 0.8, // metres, the side branch off the middle of each arc
-    arcWidth: 0.08, // ribbon half-width, metres (branches are half)
-    haloWidth: 0.07, // the vertical cross-ribbon's half-width, metres
-    arcJag: 0.16, // metres of lateral jag
+    arcSustain: 0.8, // 0..1 the standing channel each struck link keeps until the cast ends
+    arcRestrike: 7, // re-strikes per second along the standing chain
+    branchLength: 1.1, // metres, the side branch off the middle of each arc
+    arcWidth: 0.26, // ribbon half-width, metres (branches are half)
+    haloWidth: 0.24, // the vertical cross-ribbon's half-width, metres
+    arcJag: 0.28, // metres of lateral jag
+    arcJagFine: 0.12, // metres of fine kinks re-rolled each flicker
+    channelArch: 0.7, // metres the first standing channel bows up mid-span
+    channelArchStep: 0.32, // each later link bows this much higher, so they stack and read apart
+    channelLift: 0.15, // metres each later link rides higher at its ends
+    underWidth: 2.4, // dark under-stroke width (× channel width)
+    underOpacity: 0.8, // how dark that bed is
     arcArch: 0.5, // metres the arc bows upward mid-span
     arcHeight: 1.05, // metres off the floor the arc runs at
     arcFlicker: 14, // re-shapes per second
-    arcCore: 0.3, // white core width (× ribbon)
-    arcGlow: 1.6,
+    arcCore: 0.16, // white core width (× ribbon)
+    arcGlow: 2.6,
     arcCrawl: 30, // speed brightness beads crawl down the bolt
     strikeTime: 0.08, // seconds of white return-stroke flare
     colorArcCore: '#ffffff',
-    colorArcBody: '#8db8ff',
-    colorArcHalo: '#5a48ff',
+    colorArcBody: '#a99cff',
+    colorArcHalo: '#4a22d8',
 
     /* ================================================================ */
     /* 4 · SPARKS — streaks shed by the seed and sprayed at each hop     */
@@ -200,9 +222,22 @@ export const CONFIG = Object.freeze({
     /* ================================================================ */
     /* 8 · BEATS — bursts, shake and flash                               */
     /* ================================================================ */
-    burstRadius: 2.2, // metres, the detonation's ionised shell
+    burstRadius: 1.6, // metres, the detonation's ionised filament shell
     burstIntensity: 1.4,
-    hopBurst: 1.1, // metres, the shell round each struck target
+    burstOpacity: 0.05, // that shell's film: kept faint — the blast below carries the mass
+    hopBurst: 0.9, // metres, the filament shell round each struck target
+    hopBurstOpacity: 0.08,
+    blastRadius: 2.2, // metres, the dark charge blast at the detonation
+    hopBlast: 0.85, // metres, the smaller blast round each struck target
+    blastLife: 0.6, // seconds a blast takes to swell and tear apart
+    blastBillow: 0.28, // billow (× radius)
+    blastOpacity: 0.9,
+    blastFilament: 1, // white filaments over it
+    blastGlow: 1.6,
+    colorBlastBody: '#4a2ad8', // the blast's lit violet; its deep is colorSeedDeep
+    hopScorchRadius: 1.1, // metres, the dark scorch left under each struck body
+    colorHopScorchA: '#07050e',
+    colorHopScorchB: '#5b3cff',
     shockRadius: 3.2, // metres, the detonation shockwave
     colorBurstA: '#ffffff',
     colorBurstB: '#8fb6ff',
@@ -226,8 +261,14 @@ export const CONFIG = Object.freeze({
 
 /** Quads per bolt — the branch anchors on the middle quad of its parent. */
 const SECTIONS = ARC_SECTIONS;
+/** Quads per crackle bolt. */
+const CRACKLE_SECTIONS = 10;
 /** Hard capacity: one arc, branch and halo mesh per possible hop. */
 const MAX_JUMPS = 8;
+/** Crackle bolts round the seed. */
+const MAX_CRACKLE = 10;
+/** Blasts: the detonation plus one per hop. */
+const MAX_BLASTS = MAX_JUMPS + 1;
 const TAU = Math.PI * 2;
 const NO_TARGETS = Object.freeze([]);
 
@@ -235,6 +276,17 @@ const _emit = {};
 const _pos = new Vector3();
 const _dir = new Vector3();
 const _target = new Vector3();
+const _a = new Vector3();
+const _b = new Vector3();
+const _s1 = new Vector3();
+const _s2 = new Vector3();
+const _pt = new Vector3();
+
+/** Deterministic 0..1 hash: crackle and fine-jag dice re-rolled per tick. */
+function hash(x) {
+  const h = Math.sin(x * 127.1 + 311.7) * 43758.5453;
+  return h - Math.floor(h);
+}
 
 /**
  * FULMINANT RELAY — a charged seed that relays itself between targets.
@@ -253,10 +305,18 @@ const _target = new Vector3();
  *      broken orbit rings with dashes crawling round them, and a corona of
  *      breathing points. It swells out of the hand (anticipation), spins as it
  *      flies, punches on every hop, and dissolves with a burning lip (exit).
+ *      The node itself is drawn opaque on a four-stop charge ramp (white-hot
+ *      filaments → pale violet rim → electric-violet body → near-black deep),
+ *      so it has dark mass and reads as stored charge rather than ice in glass;
+ *      **crackle** bolts snap off its surface and re-strike several times a
+ *      second (`_drawCrackle`).
  *   2. **the arcs** — one bolt per hop, each a flat ribbon plus a vertical
  *      cross-ribbon so it reads at full width from above and from the side,
  *      and one side branch off its middle. Each owns its material, so every
  *      arc fades from its *own* strike time with a white return-stroke flare.
+ *      A struck link then stays as a standing channel (`arcSustain`) that
+ *      re-strikes (`arcRestrike`) until the cast ends, so the whole relay
+ *      stands as one visible circuit through the bodies it has hit.
  *   3. **sparks** — STREAKs shed behind the seed in flight and sprayed off
  *      each struck target along the arc that reached it.
  *   4. **motes** — soft ionised motes drifting up off the seed.
@@ -364,6 +424,72 @@ export class FulminantRelayAbility extends Ability {
       this.arcs.push(arc);
       this.branches.push(branch);
       this.halos.push(halo);
+    }
+
+    /* ---- layer 2b: standing channels on every struck link ---- */
+    this.channelMaterial = createBoltMaterial(9.1);
+    this.channels = [];
+    this.channelHalos = [];
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      const channel = new Mesh(createArcRibbon(SECTIONS), this.channelMaterial);
+      const halo = new Mesh(createArcRibbon(SECTIONS), this.channelMaterial);
+      for (const mesh of [channel, halo]) {
+        mesh.layers.set(LAYER.VFX);
+        mesh.frustumCulled = false;
+        mesh.visible = false;
+        this.group.add(mesh);
+      }
+      this.channels.push(channel);
+      this.channelHalos.push(halo);
+    }
+
+    /* ---- dark under-strokes beneath the standing channels ---- */
+    this.underMaterial = createBoltUnderMaterial();
+    this.unders = [];
+    this.underHalos = [];
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      const under = new Mesh(createArcRibbon(SECTIONS), this.underMaterial);
+      const halo = new Mesh(createArcRibbon(SECTIONS), this.underMaterial);
+      for (const mesh of [under, halo]) {
+        mesh.layers.set(LAYER.VFX);
+        mesh.frustumCulled = false;
+        mesh.visible = false;
+        mesh.renderOrder = -1;
+        this.group.add(mesh);
+      }
+      this.unders.push(under);
+      this.underHalos.push(halo);
+    }
+
+    /* ---- charge blasts: a dark violet mass per detonation and hop ---- */
+    this.blastGeometry = new IcosahedronGeometry(1, 4);
+    this.blasts = [];
+    for (let i = 0; i < MAX_BLASTS; i++) {
+      const mesh = new Mesh(this.blastGeometry, createBlastMaterial(i * 2.3 + 0.7));
+      mesh.layers.set(LAYER.VFX);
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      this.group.add(mesh);
+      this.blasts.push({ mesh, time: -1, radius: 1, at: new Vector3() });
+    }
+
+    /* ---- layer 1b: crackle bolts snapping off the seed ---- */
+    // One shared bolt material: they flare together on every re-strike.
+    this.crackleMaterial = createBoltMaterial(4.2);
+    this.crackles = [];
+    this.crackleHalos = [];
+    for (let i = 0; i < MAX_CRACKLE; i++) {
+      const bolt = new Mesh(createArcRibbon(CRACKLE_SECTIONS), this.crackleMaterial);
+      const halo = new Mesh(createArcRibbon(CRACKLE_SECTIONS), this.crackleMaterial);
+      for (const mesh of [bolt, halo]) {
+        mesh.layers.set(LAYER.VFX);
+        mesh.frustumCulled = false;
+        mesh.visible = false;
+        mesh.renderOrder = 3;
+        this.group.add(mesh);
+      }
+      this.crackles.push(bolt);
+      this.crackleHalos.push(halo);
     }
 
     /* ---- layer 6: the furrow ---- */
@@ -516,6 +642,20 @@ export class FulminantRelayAbility extends Ability {
       this.arcs[i].material.uniforms.uStrike.value = 0;
     }
     for (let i = 0; i < this._seedParts.length; i++) this._seedParts[i].visible = true;
+    for (let i = 0; i < MAX_CRACKLE; i++) {
+      this.crackles[i].visible = false;
+      this.crackleHalos[i].visible = false;
+    }
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      this.channels[i].visible = false;
+      this.channelHalos[i].visible = false;
+      this.unders[i].visible = false;
+      this.underHalos[i].visible = false;
+    }
+    for (let i = 0; i < MAX_BLASTS; i++) {
+      this.blasts[i].mesh.visible = false;
+      this.blasts[i].time = -1;
+    }
     // Points are sized in device pixels; read the ratio once per cast.
     this._fadeState.pixelRatio = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
 
@@ -554,11 +694,12 @@ export class FulminantRelayAbility extends Ability {
       endRadius: c.burstRadius * g.explosionIntensity,
       life: 0.5,
       intensity: c.burstIntensity,
-      opacity: 0.7,
+      opacity: c.burstOpacity,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
     });
+    this._blast(0, _pos.copy(this.anchor).setY(c.seedHeight * 0.7), c.blastRadius);
     _pos.copy(this.anchor).setY(0);
     this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
       radius: c.scorchRadius,
@@ -571,9 +712,9 @@ export class FulminantRelayAbility extends Ability {
       radius: c.shockRadius * g.explosionIntensity,
       life: 0.5,
       width: 0.06,
-      intensity: 1,
-      colorA: getColor(c.colorBurstB),
-      colorB: getColor(c.colorBurstA)
+      intensity: 0.7,
+      colorA: getColor(c.colorBlastBody),
+      colorB: getColor(c.colorBurstC)
     });
     this._cinders(_pos, Math.round(c.cinderBurst * 2), 1.3);
     this._sparks(this.seedPosition, null, c.sparkBurst, 1.2);
@@ -667,12 +808,21 @@ export class FulminantRelayAbility extends Ability {
       endRadius: c.hopBurst * g.explosionIntensity,
       life: 0.35,
       intensity: c.burstIntensity * 0.8,
-      opacity: 0.6,
+      opacity: c.hopBurstOpacity,
       colorA: getColor(c.colorBurstA),
       colorB: getColor(c.colorBurstB),
       colorC: getColor(c.colorBurstC)
     });
+    this._blast(this.hops.length, _target, c.hopBlast);
     _pos.copy(hop.to).setY(0);
+    // A dark scorch under the body it struck, then the branching burn over it.
+    this.ctx.decals?.spawn?.(DecalType.SCORCH, _pos, {
+      radius: c.hopScorchRadius,
+      life: c.scorchLife,
+      intensity: 1,
+      colorA: getColor(c.colorHopScorchA),
+      colorB: getColor(c.colorHopScorchB)
+    });
     this.ctx.decals?.spawn?.(DecalType.ARC, _pos, {
       radius: c.markRadius,
       life: c.markLife,
@@ -756,6 +906,18 @@ export class FulminantRelayAbility extends Ability {
 
     /* --- the arcs, each on its own clock --- */
     const life = Math.max(0.1, c.arcLifetime);
+    const restrikeRate = this._reduced ? Math.min(2, c.arcRestrike) : c.arcRestrike;
+    const restrikeClock = this.age * restrikeRate;
+    const restrikeTick = Math.floor(restrikeClock);
+    const sustain = saturate(c.arcSustain) * fade;
+    this.underMaterial.userData.sync(c, sustain);
+    this._drawBlasts();
+    {
+      const u = this.channelMaterial.uniforms;
+      this.channelMaterial.userData.sync(c);
+      u.uFade.value = sustain;
+      u.uStrike.value = (1 - (restrikeClock - restrikeTick)) * 0.6;
+    }
     for (let i = 0; i < this.hops.length; i++) {
       const hop = this.hops[i];
       const arc = this.arcs[i];
@@ -766,6 +928,28 @@ export class FulminantRelayAbility extends Ability {
       // Eased so an arc holds bright, then drains — but still strictly falling.
       u.uFade.value = opacity * (0.5 + 0.5 * opacity);
       u.uStrike.value = Math.max(0, 1 - since / Math.max(0.01, c.strikeTime));
+
+      // The struck link does not simply go out: a standing channel (its own
+      // mesh, so the strike above still drains on its own clock) stays on the
+      // link until the cast ends and re-strikes on its own dice, so the relay
+      // reads as one circuit run through the bodies.
+      const channel = this.channels[i];
+      const channelHalo = this.channelHalos[i];
+      const lit = sustain > 0.003 && since > 0 && hash(restrikeTick * 1.7 + i * 9.3) > 0.15;
+      channel.visible = lit;
+      channelHalo.visible = lit && c.haloWidth > 0;
+      // Every standing link bows a step higher than the one before it, so the
+      // circuit fans out in height and each link reads from a low camera.
+      const arch = c.channelArch + c.channelArchStep * i;
+      const lift = c.channelLift * i;
+      const under = this.unders[i];
+      const underHalo = this.underHalos[i];
+      const bed = sustain > 0.003 && since > 0 && c.underOpacity > 0;
+      under.visible = bed;
+      underHalo.visible = bed && c.haloWidth > 0;
+      if (lit) this._writeArc(channel, hop.from, hop.to, i * 5 + 31, c.arcWidth * 0.75, channelHalo, arch, lift);
+      // The dark bed under it: same centreline (same index and flicker), wider.
+      if (bed) this._writeArc(under, hop.from, hop.to, i * 5 + 31, c.arcWidth * 0.75 * c.underWidth, underHalo, arch, lift, c.haloWidth * c.underWidth);
       arc.material.userData.sync(c);
       const branch = this.branches[i];
       const halo = this.halos[i];
@@ -776,6 +960,8 @@ export class FulminantRelayAbility extends Ability {
         if (branch.visible) this._writeBranch(i, hop, arc, branch);
       }
     }
+
+    this._drawCrackle(seed, scale, fade * saturate(charge));
 
     /* --- the furrow --- */
     const ts = this._trackState;
@@ -839,8 +1025,9 @@ export class FulminantRelayAbility extends Ability {
    * @param {Mesh} [halo] optional cross-ribbon written on the same centreline,
    *   offset vertically instead of sideways
    */
-  _writeArc(mesh, from, to, index, width = 0.08, halo = null) {
+  _writeArc(mesh, from, to, index, width = 0.08, halo = null, archOverride = null, lift = 0, haloOverride = null) {
     const c = this.config;
+    const arcArch = archOverride ?? c.arcArch;
     const p = mesh.geometry.attributes.position;
     const h = halo ? halo.geometry.attributes.position : null;
     const dx = to.x - from.x;
@@ -851,15 +1038,19 @@ export class FulminantRelayAbility extends Ability {
     const rate = this._reduced ? Math.min(3, c.arcFlicker) : c.arcFlicker;
     const flicker = Math.floor(this.age * rate);
     const jagAmp = c.arcJag * settings.global.noiseStrength;
-    const haloWidth = c.haloWidth;
+    const fineAmp = (c.arcJagFine ?? 0) * settings.global.noiseStrength;
+    const haloWidth = haloOverride ?? c.haloWidth;
     for (let i = 0; i <= SECTIONS; i++) {
       const t = i / SECTIONS;
       const wave = Math.sin(Math.PI * t);
-      const jag = (Math.sin(i * 7.13 + index * 3.7 + flicker) + Math.sin(i * 3.31 + index - flicker * 1.7)) * wave * jagAmp;
+      // Two broad sines for the channel's wander, plus fine kinks re-rolled
+      // per flicker so it reads as a bolt and not a bent wire.
+      const kink = i > 0 && i < SECTIONS ? (hash(i * 3.1 + index * 17.7 + flicker * 0.61) - 0.5) * 2 * fineAmp : 0;
+      const jag = (Math.sin(i * 7.13 + index * 3.7 + flicker) + Math.sin(i * 3.31 + index - flicker * 1.7)) * wave * jagAmp + kink;
       const x = from.x + dx * t + sx * jag;
       const z = from.z + dz * t + sz * jag;
       const y =
-        c.arcHeight + from.y * (1 - t) + to.y * t + Math.sin(t * Math.PI) * c.arcArch + Math.sin(i * 4.2 + index) * wave * jagAmp * 0.75;
+        c.arcHeight + lift + from.y * (1 - t) + to.y * t + Math.sin(t * Math.PI) * arcArch + Math.sin(i * 4.2 + index) * wave * jagAmp * 0.75 + kink * 0.6;
       p.setXYZ(i * 2, x - sx * width, y, z - sz * width);
       p.setXYZ(i * 2 + 1, x + sx * width, y, z + sz * width);
       if (h) {
@@ -869,6 +1060,97 @@ export class FulminantRelayAbility extends Ability {
     }
     p.needsUpdate = true;
     if (h) h.needsUpdate = true;
+  }
+
+  /** Start blast `slot` at `at`, swelling to `radius` metres. */
+  _blast(slot, at, radius) {
+    const b = this.blasts[Math.min(MAX_BLASTS - 1, slot)];
+    b.time = this.age;
+    b.radius = radius * settings.global.explosionIntensity;
+    b.at.copy(at);
+  }
+
+  /** The charge blasts: swell fast (outCubic), billow, tear apart. */
+  _drawBlasts() {
+    const c = this.config;
+    const life = Math.max(0.05, c.blastLife);
+    for (let i = 0; i < MAX_BLASTS; i++) {
+      const b = this.blasts[i];
+      const t = b.time < 0 ? 1 : (this.age - b.time) / life;
+      const on = b.time >= 0 && t < 1;
+      b.mesh.visible = on;
+      if (!on) continue;
+      const grow = Easing.outCubic(saturate(t));
+      b.mesh.position.copy(b.at);
+      b.mesh.scale.setScalar(Math.max(0.01, b.radius * (0.25 + 0.75 * grow)));
+      b.mesh.rotation.y = this._seed + t * 0.6;
+      b.mesh.material.userData.sync(c, saturate(t));
+    }
+  }
+
+  /**
+   * Crackle: short jagged bolts snapping off the seed's surface into the air
+   * round it. Each re-strike rolls a new root bearing and a new tip; only a
+   * share of them are alight on any strike, so the node visibly *discharges*
+   * instead of wearing a fixed halo. Dice are hashed from the strike tick, so
+   * nothing is stored and nothing is allocated.
+   */
+  _drawCrackle(seed, scale, strength) {
+    const c = this.config;
+    const count = Math.min(MAX_CRACKLE, Math.max(0, Math.round(c.crackleCount)));
+    const rate = this._reduced ? Math.min(3, c.crackleRate) : c.crackleRate;
+    const clock = this.age * rate;
+    const tick = Math.floor(clock);
+    const flare = 1 - (clock - tick);
+    const mu = this.crackleMaterial.uniforms;
+    mu.uFade.value = strength;
+    mu.uStrike.value = flare;
+    this.crackleMaterial.userData.sync(c);
+    mu.uGlow.value = c.crackleGlow * settings.global.glow;
+    const width = c.crackleWidth;
+    const jag = c.crackleJag * scale * settings.global.noiseStrength;
+    for (let k = 0; k < MAX_CRACKLE; k++) {
+      const bolt = this.crackles[k];
+      const halo = this.crackleHalos[k];
+      const roll = tick * 13.37 + k * 7.91 + this._seed;
+      const lit = k < count && strength > 0.01 && hash(roll + 0.5) < c.crackleOn;
+      bolt.visible = lit;
+      halo.visible = lit;
+      if (!lit) continue;
+      // Root on the surface, tip out past it on a bent bearing.
+      const th = hash(roll) * TAU;
+      const ph = Math.acos(2 * hash(roll + 1.3) - 1);
+      _a.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+      _b.set(_a.x + (hash(roll + 2.1) - 0.5), _a.y + (hash(roll + 3.7) - 0.5) * 0.6, _a.z + (hash(roll + 4.9) - 0.5)).normalize();
+      const reach = scale * (1 + c.crackleReach * (0.6 + 0.4 * hash(roll + 5.5)));
+      _a.multiplyScalar(scale * 0.75).add(seed);
+      _b.multiplyScalar(reach).add(seed);
+      // Two sides across the bolt, for the flat ribbon and its cross-ribbon.
+      _dir.subVectors(_b, _a);
+      const len = Math.max(1e-4, _dir.length());
+      _dir.multiplyScalar(1 / len);
+      _s1.set(-_dir.z, 0, _dir.x);
+      if (_s1.lengthSq() < 1e-6) _s1.set(1, 0, 0);
+      _s1.normalize();
+      _s2.crossVectors(_dir, _s1).normalize();
+      const p = bolt.geometry.attributes.position;
+      const h = halo.geometry.attributes.position;
+      for (let i = 0; i <= CRACKLE_SECTIONS; i++) {
+        const t = i / CRACKLE_SECTIONS;
+        const env = Math.sin(Math.PI * t) * (i === CRACKLE_SECTIONS ? 0 : 1);
+        const j1 = (hash(roll + i * 1.91) - 0.5) * 2 * jag * env;
+        const j2 = (hash(roll + i * 2.73 + 9.1) - 0.5) * 2 * jag * env;
+        _pt.copy(_a).lerp(_b, t).addScaledVector(_s1, j1).addScaledVector(_s2, j2);
+        // Tapers to a point at the tip.
+        const w = width * (1 - t * 0.85);
+        p.setXYZ(i * 2, _pt.x - _s1.x * w, _pt.y - _s1.y * w, _pt.z - _s1.z * w);
+        p.setXYZ(i * 2 + 1, _pt.x + _s1.x * w, _pt.y + _s1.y * w, _pt.z + _s1.z * w);
+        h.setXYZ(i * 2, _pt.x - _s2.x * w, _pt.y - _s2.y * w, _pt.z - _s2.z * w);
+        h.setXYZ(i * 2 + 1, _pt.x + _s2.x * w, _pt.y + _s2.y * w, _pt.z + _s2.z * w);
+      }
+      p.needsUpdate = true;
+      h.needsUpdate = true;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -999,6 +1281,20 @@ export class FulminantRelayAbility extends Ability {
       this.halos[i].visible = false;
     }
     for (let i = 0; i < this._seedParts.length; i++) this._seedParts[i].visible = false;
+    for (let i = 0; i < MAX_CRACKLE; i++) {
+      this.crackles[i].visible = false;
+      this.crackleHalos[i].visible = false;
+    }
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      this.channels[i].visible = false;
+      this.channelHalos[i].visible = false;
+      this.unders[i].visible = false;
+      this.underHalos[i].visible = false;
+    }
+    for (let i = 0; i < MAX_BLASTS; i++) {
+      this.blasts[i].mesh.visible = false;
+      this.blasts[i].time = -1;
+    }
   }
 
   dispose() {
@@ -1009,6 +1305,23 @@ export class FulminantRelayAbility extends Ability {
       this.halos[i].geometry.dispose();
     }
     for (const geometry of this.ringGeometries) geometry.dispose();
+    for (let i = 0; i < MAX_CRACKLE; i++) {
+      this.crackles[i].geometry.dispose();
+      this.crackleHalos[i].geometry.dispose();
+    }
+    this.crackleMaterial.dispose();
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      this.channels[i].geometry.dispose();
+      this.channelHalos[i].geometry.dispose();
+    }
+    this.channelMaterial.dispose();
+    for (let i = 0; i < MAX_JUMPS; i++) {
+      this.unders[i].geometry.dispose();
+      this.underHalos[i].geometry.dispose();
+    }
+    this.underMaterial.dispose();
+    for (let i = 0; i < MAX_BLASTS; i++) this.blasts[i].mesh.material.dispose();
+    this.blastGeometry.dispose();
     for (const resource of [
       this.coreGeometry,
       this.coreMaterial,
@@ -1086,6 +1399,17 @@ export function buildEditor(gui, c, Editor) {
   seed.addColor(c, 'colorSeedCore').name('core');
   seed.addColor(c, 'colorSeedBody').name('body');
   seed.addColor(c, 'colorSeedRim').name('rim');
+  seed.addColor(c, 'colorSeedDeep').name('deep');
+  R(seed, c, 'seedDeep', 0, 1, 0.01, 'dark body');
+  R(seed, c, 'shellHaze', 0, 0.6, 0.01, 'shell film');
+  const crackle = section(seed, 'Crackle');
+  R(crackle, c, 'crackleCount', 0, MAX_CRACKLE, 1, 'bolts');
+  R(crackle, c, 'crackleReach', 0, 3, 0.01, 'reach (× seed)');
+  R(crackle, c, 'crackleRate', 0, 30, 0.5, 're-strikes/s');
+  R(crackle, c, 'crackleWidth', 0.005, 0.3, 0.005, 'width (m)');
+  R(crackle, c, 'crackleJag', 0, 1, 0.01, 'jag (× seed)');
+  R(crackle, c, 'crackleGlow', 0, 8, 0.01, 'glow');
+  R(crackle, c, 'crackleOn', 0, 1, 0.01, 'share alight');
   const orbits = section(seed, 'Orbits');
   R(orbits, c, 'orbitScale', 0.5, 3, 0.01, 'radius (× seed)');
   R(orbits, c, 'orbitSpeed', -4, 4, 0.01, 'turns/s');
@@ -1110,6 +1434,14 @@ export function buildEditor(gui, c, Editor) {
 
   const arcs = section(folder, '3 · Arcs');
   R(arcs, c, 'arcLifetime', 0.1, 2, 0.05, 'arc lifetime');
+  R(arcs, c, 'arcSustain', 0, 1, 0.01, 'standing channel');
+  R(arcs, c, 'arcRestrike', 0, 30, 0.5, 're-strikes/s');
+  R(arcs, c, 'arcJagFine', 0, 0.5, 0.005, 'fine kinks (m)');
+  R(arcs, c, 'channelArch', 0, 3, 0.01, 'standing arch (m)');
+  R(arcs, c, 'channelArchStep', 0, 1.5, 0.01, 'arch step per link (m)');
+  R(arcs, c, 'channelLift', 0, 1, 0.01, 'lift per link (m)');
+  R(arcs, c, 'underWidth', 1, 6, 0.05, 'dark bed width (×)');
+  R(arcs, c, 'underOpacity', 0, 1, 0.01, 'dark bed opacity');
   R(arcs, c, 'branchLength', 0, 3, 0.05, 'branch length');
   R(arcs, c, 'arcWidth', 0.01, 0.4, 0.005, 'ribbon width (m)');
   R(arcs, c, 'haloWidth', 0, 0.4, 0.005, 'cross-ribbon width (m)');
@@ -1164,6 +1496,9 @@ export function buildEditor(gui, c, Editor) {
   R(ground, c, 'scorchRadius', 0, 6, 0.05, 'detonation scorch (m)');
   R(ground, c, 'scorchLife', 0.1, 8, 0.05, 'scorch life');
   R(ground, c, 'markRadius', 0, 5, 0.05, 'hop burn (m)');
+  R(ground, c, 'hopScorchRadius', 0, 4, 0.05, 'hop scorch (m)');
+  ground.addColor(c, 'colorHopScorchA').name('hop scorch dark');
+  ground.addColor(c, 'colorHopScorchB').name('hop scorch embers');
   R(ground, c, 'markLife', 0.1, 6, 0.05, 'hop burn life');
   ground.addColor(c, 'colorScorchA').name('burn dark');
   ground.addColor(c, 'colorScorchB').name('burn hot');
@@ -1171,7 +1506,17 @@ export function buildEditor(gui, c, Editor) {
   const beats = section(folder, '8 · Beats');
   R(beats, c, 'burstRadius', 0, 8, 0.05, 'detonation shell (m)');
   R(beats, c, 'burstIntensity', 0, 4, 0.01, 'shell brightness');
+  R(beats, c, 'burstOpacity', 0, 1, 0.01, 'shell film');
   R(beats, c, 'hopBurst', 0, 4, 0.05, 'hop shell (m)');
+  R(beats, c, 'hopBurstOpacity', 0, 1, 0.01, 'hop shell film');
+  R(beats, c, 'blastRadius', 0, 6, 0.05, 'charge blast (m)');
+  R(beats, c, 'hopBlast', 0, 3, 0.05, 'hop blast (m)');
+  R(beats, c, 'blastLife', 0.1, 2, 0.01, 'blast life (s)');
+  R(beats, c, 'blastBillow', 0, 1, 0.01, 'blast billow');
+  R(beats, c, 'blastOpacity', 0, 1, 0.01, 'blast opacity');
+  R(beats, c, 'blastFilament', 0, 2, 0.01, 'blast filaments');
+  R(beats, c, 'blastGlow', 0, 6, 0.01, 'blast filament glow');
+  beats.addColor(c, 'colorBlastBody').name('blast body');
   R(beats, c, 'shockRadius', 0, 10, 0.05, 'shockwave (m)');
   beats.addColor(c, 'colorBurstA').name('shell inner');
   beats.addColor(c, 'colorBurstB').name('shell mid');

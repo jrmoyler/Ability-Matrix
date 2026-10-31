@@ -763,3 +763,275 @@ export function createServoPylonDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* ======================================================================== */
+/* The machine (cast-local hero, sections 14–16 of the editor)              */
+/* ======================================================================== */
+
+/**
+ * Machined gunmetal for the pylons, rams, hammer heads and the servo hub.
+ * Opaque and sun-lit: a four-stop ramp — white-hot core → pale cyan tint →
+ * saturated cyan body → near-black blue-steel deep — where the steel is the
+ * deep/albedo mass and cyan only lives in the panel seams, the vents and the
+ * striking faces when a ram fires (`aServo.y`). Brushed grain from noise,
+ * a hard specular, a cool fresnel. Instanced (`aServo` per instance:
+ * seed, firing heat, power-up, unused). `LAYER.WORLD`, casts shadows.
+ */
+const MACHINE_VERTEX = /* glsl */ `
+  attribute vec4 aServo;
+  attribute float aPart;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying vec4  vServo;
+  varying float vPart;
+  void main() {
+    mat4 model = modelMatrix;
+    #ifdef USE_INSTANCING
+      model = modelMatrix * instanceMatrix;
+    #endif
+    vec4 w = model * vec4(position, 1.0);
+    vWorld = w.xyz;
+    vLocal = position;
+    vServo = aServo;
+    vPart = aPart;
+    vNormalW = normalize(mat3(model) * normal);
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }
+`;
+
+const MACHINE_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uSpecular;
+  uniform float uFresnel;
+  uniform float uAmbient;
+  uniform float uSeamGlow;
+  uniform float uHeatGlow;
+  uniform float uSeams;
+  uniform float uLamp;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorTint;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorSteel;
+  varying vec3  vNormalW;
+  varying vec3  vWorld;
+  varying vec3  vLocal;
+  varying vec4  vServo;
+  varying float vPart;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec3 N = normalize(vNormalW);
+    vec3 V = normalize(cameraPosition - vWorld);
+    if (dot(N, V) < 0.0) N = -N;
+    // Hammered/brushed micro-relief: a flat face must not mirror the sun as one sheet.
+    N = normalize(N + 0.18 * vec3(snoise(vLocal * 7.0), snoise(vLocal * 7.0 + 3.1), snoise(vLocal * 7.0 + 7.3)));
+    vec3 L = normalize(uLightDir);
+    float ndl = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 56.0) * uSpecular;
+    float fres = pow(1.0 - abs(dot(N, V)), 3.0) * uFresnel;
+
+    // Brushed steel: streaks along the part, a little mottling.
+    float grain = snoise(vec3(vLocal.x * 2.0, vLocal.y * 40.0, vLocal.z * 2.0 + vServo.x)) * 0.5 + 0.5;
+    float mott = snoise01(vLocal * 3.0 + vServo.x);
+    vec3 albedo = mix(uColorDeep, uColorSteel, 0.6 + 0.4 * grain * mott);
+    vec3 col = albedo * (uAmbient + ndl * 1.1);
+    col += mix(uColorSteel * 2.0, uColorTint, 0.15) * spec;
+    col += uColorBody * fres * 0.35;
+
+    // Panel seams: thin cyan lines across the part (local height bands), lit
+    // on power-up and burning hot while the ram fires.
+    float band = fract(vLocal.y * uSeams + 0.5);
+    float seam = 1.0 - smoothstep(0.0, 0.035, min(band, 1.0 - band));
+    float power = vServo.z;
+    float heat = vServo.y;
+    vec3 seamCol = mix(uColorBody, uColorCore, heat * 0.4);
+    col += seamCol * seam * uSeamGlow * (0.25 + 0.75 * power) * (0.6 + 0.8 * heat) * uShaderIntensity;
+    // The striking face / vents (aPart > 0.5): glow with the firing heat.
+    // Vents are louvres (thin horizontal slots) across the housing band; the
+    // striking face is a cap, so its slots read across the whole face.
+    float lv = fract(vLocal.y * 24.0);
+    float louvre = 1.0 - smoothstep(0.0, 0.08, min(lv, 1.0 - lv));
+    float lamp = step(1.5, vPart);
+    float face = step(0.5, vPart) * (1.0 - lamp) * louvre;
+    col += mix(uColorBody, uColorCore, heat * 0.3) * face * heat * uHeatGlow * uShaderIntensity;
+    col += uColorBody * face * 0.03 * power;
+    // The status lamp: one bright light per pylon, so each position reads at distance.
+    col += mix(uColorBody, uColorCore, 0.45 + 0.4 * heat) * lamp * uLamp * power * uShaderIntensity;
+    gl_FragColor = vec4(col * uGlobalGlow, 1.0);
+  }
+`;
+
+export function createServoPylonMachineMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uSpecular: { value: 1 },
+      uFresnel: { value: 0.5 },
+      uAmbient: { value: 0.3 },
+      uSeamGlow: { value: 1 },
+      uHeatGlow: { value: 1 },
+      uSeams: { value: 6 },
+      uLamp: { value: 2 },
+      uColorCore: { value: new Color() },
+      uColorTint: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uColorSteel: { value: new Color() }
+    }),
+    vertexShader: MACHINE_VERTEX,
+    fragmentShader: MACHINE_FRAGMENT
+  });
+  material.userData.sync = (seams = null) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uSpecular.value = c.machineSpecular;
+    u.uFresnel.value = c.machineFresnel * g.fresnel;
+    u.uAmbient.value = c.machineAmbient;
+    u.uSeamGlow.value = c.machineSeamGlow * g.glow;
+    u.uHeatGlow.value = c.machineHeatGlow * g.glow;
+    u.uSeams.value = seams ?? c.machineSeams;
+    u.uLamp.value = c.machineLamp * g.glow;
+    u.uColorCore.value.copy(getColor(c.colorMachineCore));
+    u.uColorTint.value.copy(getColor(c.colorMachineTint));
+    u.uColorBody.value.copy(getColor(c.colorMachineBody));
+    u.uColorDeep.value.copy(getColor(c.colorMachineDeep));
+    u.uColorSteel.value.copy(getColor(c.colorMachineSteel));
+  };
+  return material;
+}
+
+/**
+ * The deck: a filled machined floor plate under the machine. Dark blue-steel
+ * plating with faint plate joints, a conduit trace from the hub to every
+ * pylon, and cyan pulses that run out along each trace whenever its ram
+ * fires (`uPulse[i]` 0..1 is the age of that pylon's last stroke). The rim
+ * is scorched and soft. Normal blending, it covers the floor rather than
+ * glowing on it.
+ */
+const DECK_VERTEX = /* glsl */ `
+  varying vec2 vXZ;
+  void main() {
+    vXZ = position.xy;
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+  }
+`;
+
+const DECK_FRAGMENT = /* glsl */ `
+  uniform float uTime;
+  uniform float uGlobalGlow;
+  uniform float uShaderIntensity;
+  uniform float uRadius;     // deck radius, metres (the quad spans ±uRadius)
+  uniform float uRing;       // pylon ring radius, metres
+  uniform float uCount;
+  uniform float uSpin;       // angle of pylon 0
+  uniform float uPulse[12];
+  uniform float uPower;      // 0..1 powered
+  uniform float uCool;       // 0..1 cooled at the exit
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uColorCore;
+  uniform vec3  uColorBody;
+  uniform vec3  uColorDeep;
+  uniform vec3  uColorSteel;
+  varying vec2 vXZ;
+
+  ${noiseGLSL}
+
+  void main() {
+    vec2 p = vXZ * uRadius;
+    float r = length(p);
+    if (r > uRadius) discard;
+    float a = atan(-p.y, p.x) - uSpin;
+    float n = max(3.0, uCount);
+    float sector = 6.28318 / n;
+    float k = floor(mod(a + sector * 0.5 + 62.8318, 6.28318) / sector);
+    float local = mod(a + sector * 0.5 + 62.8318, sector) - sector * 0.5;
+    // Plating: radial and ring joints between plates, dark grooves.
+    float ringJ = abs(fract(r / max(0.3, uRing * 0.5)) - 0.5);
+    float plateJ = abs(local) * r;
+    float groove = (1.0 - smoothstep(0.0, 0.03, abs(ringJ - 0.5) * uRing * 0.5)) + (1.0 - smoothstep(0.015, 0.04, abs(plateJ - sector * 0.5 * r)));
+    float tone = snoise01(vec3(p * 1.3, uSeed)) * 0.35 + snoise01(vec3(p * 6.0, uSeed + 2.0)) * 0.15;
+    vec3 col = mix(uColorDeep, uColorSteel * 0.55, 0.35 + tone);
+    col *= 1.0 - 0.55 * clamp(groove, 0.0, 1.0);
+    // Conduit along the middle of each sector, hub to pylon and on past it.
+    float lane = abs(local) * r;
+    float conduit = 1.0 - smoothstep(0.03, 0.07, lane);
+    col = mix(col, uColorDeep * 0.6, conduit * 0.7);
+    // The pulse running out along this pylon's conduit.
+    float age = 0.0;
+    for (int i = 0; i < 12; i++) if (float(i) == k) age = uPulse[i];
+    float front = age * uRadius * 1.25;
+    float pulse = (age > 0.0 && age < 1.0) ? exp(-pow((r - front) / 0.35, 2.0)) * (1.0 - age) : 0.0;
+    float live = conduit * (0.25 * uPower * (1.0 - uCool) + pulse * 2.2);
+    col += mix(uColorBody, uColorCore, pulse) * live * uGlow * uShaderIntensity;
+    // Hub socket glow and a scorched soft rim.
+    col += uColorBody * (1.0 - smoothstep(0.2, 0.75, r)) * 0.35 * uPower * (1.0 - uCool) * uGlow;
+    float edge = smoothstep(uRadius * 0.8, uRadius, r + snoise(vec3(p * 2.0, uSeed)) * 0.25);
+    float alpha = (1.0 - edge) * uOpacity;
+    gl_FragColor = vec4(col * uGlobalGlow, alpha);
+  }
+`;
+
+export function createServoPylonDeckMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    uniforms: sharedUniforms({
+      uRadius: { value: 3 },
+      uRing: { value: 2 },
+      uCount: { value: 8 },
+      uSpin: { value: 0 },
+      uPulse: { value: new Array(12).fill(0) },
+      uPower: { value: 0 },
+      uCool: { value: 0 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uColorCore: { value: new Color() },
+      uColorBody: { value: new Color() },
+      uColorDeep: { value: new Color() },
+      uColorSteel: { value: new Color() }
+    }),
+    vertexShader: DECK_VERTEX,
+    fragmentShader: DECK_FRAGMENT
+  });
+  material.userData.sync = (radius, ring, count, spin, power, cool, opacity, seed) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uRadius.value = radius;
+    u.uRing.value = ring;
+    u.uCount.value = count;
+    u.uSpin.value = spin;
+    u.uPower.value = power;
+    u.uCool.value = cool;
+    u.uGlow.value = c.deckGlow * g.glow;
+    u.uOpacity.value = opacity * g.opacity;
+    u.uSeed.value = seed;
+    u.uColorCore.value.copy(getColor(c.colorMachineCore));
+    u.uColorBody.value.copy(getColor(c.colorMachineBody));
+    u.uColorDeep.value.copy(getColor(c.colorMachineDeep));
+    u.uColorSteel.value.copy(getColor(c.colorMachineSteel));
+  };
+  return material;
+}

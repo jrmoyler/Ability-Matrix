@@ -1,4 +1,4 @@
-import { Mesh, PlaneGeometry, Vector3 } from 'three';
+import { DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, PlaneGeometry, Quaternion, Shape, Vector3 } from 'three';
 import { Ability } from '../Ability.js';
 import { DetailLayer } from './DetailLayer.js';
 import { RigHero } from './RigHero.js';
@@ -9,7 +9,9 @@ import {
   createMirrorHaloLensMaterial,
   createMirrorHaloGroundMaterial,
   createMirrorHaloVoiceMaterial,
-  createMirrorHaloDetailMaterial
+  createMirrorHaloDetailMaterial,
+  createMirrorGlassMaterial,
+  createMirrorPoolMaterial
 } from '../../materials/codex/MirrorHaloMaterials.js';
 import { ParticleShape } from '../../particles/ParticleSystem.js';
 import { RateEmitter } from '../../particles/ParticleEngine.js';
@@ -19,7 +21,7 @@ import { LAYER } from '../../core/Layers.js';
 import { frame } from '../../core/FrameUniforms.js';
 import { settings } from '../../config/settings.js';
 import { getColor } from '../../utils/color.js';
-import { saturate, Easing } from '../../utils/math.js';
+import { saturate, lerp, Easing } from '../../utils/math.js';
 
 export const ID = 'mirrorhalo';
 
@@ -43,6 +45,64 @@ const _end = new Vector3();
 const _focus = new Vector3();
 const _body = new Vector3();
 const _up = new Vector3(0, 1, 0);
+const _m = new Matrix4();
+const _q = new Quaternion();
+const _q2 = new Quaternion();
+const _sc = new Vector3();
+const _out = new Vector3();
+const _tan = new Vector3();
+const _yAxis = new Vector3(0, 1, 0);
+const TAU = Math.PI * 2;
+/** Panels per ring, at most; three rings plus the central shard. */
+const MAX_PANELS = 16;
+const MAX_GLASS = 1 + 3 * MAX_PANELS;
+/** Each ring's radius as a share of the circle before they agree: inside, true, outside (× ringSpread). */
+const RING_SIDE = [-1.05, 0, 1];
+const RING_HEIGHT = [0.8, 1, 0.9];
+const RING_WALK = [1, -0.75, 1.3];
+
+/* ------------------------------------------------------------------ */
+/* Upgrade pass: the mirror panel                                      */
+/* ------------------------------------------------------------------ */
+
+/** The panel's outline, x across (−0.5..0.5), y up (0..1): a pointed, cusped mirror. */
+const PANEL_OUTLINE = [
+  [-0.42, 0], [0.42, 0], [0.46, 0.08], [0.5, 0.58], [0.44, 0.7], [0.47, 0.76], [0.3, 0.9], [0, 1], [-0.3, 0.9], [-0.47, 0.76], [-0.44, 0.7], [-0.5, 0.58], [-0.46, 0.08]
+];
+
+/**
+ * One mirror panel: the cusped outline extruded 0.07 thick with a bevelled
+ * arris all round, so the frame catches the sun and the faces read as glass.
+ * One unit tall and one wide (stretched per instance), standing on y = 0,
+ * its mirror face toward +Z. Carries `aEdge` (1 on the bevelled frame, 0 in
+ * the glass) and `aPane` (the face's own x, y in 0..1 for the crack field).
+ */
+function createMirrorPanelGeometry() {
+  const shape = new Shape();
+  PANEL_OUTLINE.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+  shape.closePath();
+  const g = new ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 1, curveSegments: 1 });
+  g.translate(0, 0, -0.02);
+  const flat = g.toNonIndexed();
+  g.dispose();
+  const pos = flat.getAttribute('position');
+  const edge = new Float32Array(pos.count);
+  const pane = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    // The bevel walls are the frame; the faces get their inner frame in the shader.
+    edge[i] = Math.abs(pos.getZ(i)) < 0.035 ? 1 : 0;
+    pane[i * 2] = x + 0.5;
+    pane[i * 2 + 1] = y;
+  }
+  flat.setAttribute('aEdge', new Float32BufferAttribute(edge, 1));
+  flat.setAttribute('aPane', new Float32BufferAttribute(pane, 2));
+  flat.deleteAttribute('uv');
+  flat.computeVertexNormals();
+  flat.computeBoundingSphere();
+  return flat;
+}
 
 /** Felled bodies one cast can keep marked at once. */
 const MAX_MARKS = 12;
@@ -72,6 +132,34 @@ const MAX_MARKS = 12;
  *      element's look over `markTime` and it sheds motes for `markLife`.
  *
  * The cast leaves the fist in a flare of sparks (`handFlare`, `handSparks`).
+ *
+ * ## The mirrors (upgrade pass — the cast's own silhouette)
+ *
+ * The template rig, body, voice, pieces and field are off by default; the
+ * spell's noun is now glass:
+ *
+ *  - **travel** — one mirror shard (instance 0 of the glass, the cusped
+ *    panel of `createMirrorPanelGeometry`) leaves the hand and flies to the
+ *    centre on a shallow lob, spinning on its long axis so it flashes.
+ *  - **impact** — it plants upright as a `centreHeight` mirror, the mirror
+ *    pool lands under the circle (`createMirrorPoolMaterial`), and three
+ *    rings of `ringPanels` tall mirrors rise out of the floor, staggered —
+ *    one inside the rim, one on it, one outside it (`ringSpread`).
+ *  - **walk** — the rings turn against each other and breathe in and out
+ *    (`ringWalk`, `ringWobble`): three answers to where the rim is. From
+ *    `convergeFrom` to `convergeTo` they *agree* — every ring walks onto the
+ *    true radius (`zoneRadius`, where the blow landed) and the panels
+ *    interleave into one closed wall, which pulses as it locks.
+ *  - **linger** — the wall turns slowly (`lockSpin`); cracks run through
+ *    the glass (`crackFrom`) and the pool cracks out from the centre.
+ *  - **exit** — panel by panel, in a scattered order (`fallStagger`), the
+ *    mirrors tip outward, shed lit glass chips and sink into the pool, which
+ *    breaks up from the rim.
+ *
+ * The glass (`createMirrorGlassMaterial`) is sun-lit near-black plum metal
+ * glass on `LAYER.WORLD`, casting shadows; its read as a mirror comes from a
+ * fresnel rim, a fake reflection, a sweeping streak and a glowing frame.
+ * Hits are the template's, unchanged (`commit`, on the beat).
  *
  * Every metre, rate and colour is read from `settings.mirrorhalo` each frame.
  * A cast only captures a seed and an integrated spin.
@@ -151,6 +239,192 @@ export class MirrorHaloAbility extends Ability {
     this._marks = Array.from({ length: MAX_MARKS }, () => ({ dummy: null, time: 0, emitter: new RateEmitter() }));
     this._markCount = 0;
     this._look = { color: '#000000', rimColor: '#000000', rimEmissive: 0, edgeColor: '#000000', edgeEmissive: 0, edgeWidth: 0 };
+
+    // The glass: instance 0 is the travelling / central shard, then three rings.
+    this.panelGeometry = createMirrorPanelGeometry();
+    this._inst = new InstancedBufferAttribute(new Float32Array(MAX_GLASS * 2), 2);
+    this._inst.setUsage(DynamicDrawUsage);
+    this.panelGeometry.setAttribute('aInst', this._inst);
+    this.glassMaterial = createMirrorGlassMaterial();
+    this.glass = new InstancedMesh(this.panelGeometry, this.glassMaterial, MAX_GLASS);
+    this.glass.layers.set(LAYER.WORLD);
+    this.glass.castShadow = true;
+    this.glass.receiveShadow = true;
+    this.glass.frustumCulled = false;
+    this.glass.visible = false;
+    this.group.add(this.glass);
+    this.poolGeometry = new PlaneGeometry(2, 2, 1, 1);
+    this.poolMaterial = createMirrorPoolMaterial();
+    this.pool = this._mesh(this.poolGeometry, this.poolMaterial, LAYER.VFX, 2);
+    this.pool.rotation.x = -Math.PI / 2;
+    this._ringAngle = [0, 0, 0];
+    this._lockAngle = 0;
+    this._beatAge = -1;
+    this._locked = false;
+    this._lockPulse = 0;
+    this._fell = new Uint8Array(MAX_GLASS);
+    this._panelSeed = new Float32Array(MAX_GLASS);
+  }
+
+  /**
+   * The glass this frame: the shard in flight, then the centre mirror and the
+   * three rings — rise, walk, agree, crack, fall — on the beat's own clock.
+   * Presentation only; the blow was dealt on the beat.
+   *
+   * @param {number} dt
+   * @param {number} fadeT 0 in flight; the onFade clock (0..2) after the beat
+   */
+  _mirrors(dt, fadeT) {
+    const c = settings[ID];
+    const g = settings.global;
+    const mesh = this.glass;
+    const inst = this._inst.array;
+    const R = Math.max(0.5, c.zoneRadius);
+    this.pointAt(1, _focus);
+    let k = 0;
+    // Instance 0: the shard.
+    if (this._beatAge < 0) {
+      const u = this.u;
+      _pos.copy(this.origin).addScaledVector(this.direction, c.handForward).addScaledVector(this.side, c.handSide).setY(c.handHeight);
+      _pos.lerp(_focus, Easing.inOutQuad(u));
+      _pos.y = lerp(c.handHeight, 0.1, Easing.inQuad(u)) + c.shardArc * 4 * u * (1 - u);
+      _q.setFromAxisAngle(_yAxis, this.age * c.shardSpin * g.animationSpeed);
+      const grow = Easing.outCubic(saturate(this.age / 0.12));
+      _sc.set(c.shardHeight * 0.55 * grow, c.shardHeight * grow, grow);
+      _m.compose(_pos, _q, _sc);
+      mesh.setMatrixAt(0, _m);
+      inst[0] = this._seed;
+      inst[1] = 0;
+      mesh.count = 1;
+      mesh.visible = c.shardHeight > 0.01;
+      this._inst.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
+      this.glassMaterial.userData.sync(0);
+      this.pool.visible = false;
+      return;
+    }
+    this._beatAge += dt;
+    const age = this._beatAge;
+    const ti = Math.min(1, fadeT);
+    const conv = Easing.inOutCubic(saturate((ti - c.convergeFrom) / Math.max(0.02, c.convergeTo - c.convergeFrom)));
+    if (!this._locked && conv >= 1) this._lock();
+    this._lockPulse = Math.max(0, this._lockPulse - dt * 3);
+    const life = this.impactDuration;
+    // The central mirror: plants, grows to full height, turns slowly, cracks and falls first.
+    {
+      const grow = Easing.outBack(saturate(age / 0.14));
+      const fall = this._fall(0, fadeT, 0);
+      this._lockAngle += dt * c.lockSpin * g.animationSpeed;
+      _q.setFromAxisAngle(_yAxis, this._lockAngle * 1.6 + this._seed);
+      this._place(0, _focus, _q, c.centreWidth, c.centreHeight * grow, fall, null);
+      inst[0] = this._seed;
+      inst[1] = this._crack(0, fadeT);
+      k = 1;
+    }
+    const n = Math.max(1, Math.min(MAX_PANELS, Math.round(c.ringPanels)));
+    const step = TAU / n;
+    for (let ring = 0; ring < 3; ring++) {
+      // Rise, staggered by ring.
+      const rise = Easing.outBack(saturate((age - ring * c.riseStagger * g.lifetime) / Math.max(0.02, c.riseTime * g.lifetime)));
+      // Walk: each ring turns its own way until it agrees, then they turn as one.
+      this._ringAngle[ring] += dt * c.ringWalk * RING_WALK[ring] * (1 - conv) * g.animationSpeed;
+      const own = ((this._ringAngle[ring] % step) + step) % step;
+      const target = (ring * step) / 3;
+      let delta = target - own;
+      delta -= Math.round(delta / step) * step;
+      const angle = own + delta * conv * conv + this._lockAngle;
+      const wobble = c.ringWobble * Math.sin(age * 2.6 + ring * 2.1) * (1 - conv);
+      const r = R * (1 + (RING_SIDE[ring] * c.ringSpread + wobble) * (1 - conv));
+      const width = lerp((TAU * r / n) * c.panelFill, (TAU * R / (3 * n)) * c.lockFill, conv);
+      const height = c.panelHeight * lerp(RING_HEIGHT[ring], 1, conv) * rise;
+      for (let i = 0; i < n; i++, k++) {
+        const fall = this._fall(k, fadeT, this._panelSeed[k]);
+        const a = angle + i * step;
+        _out.set(Math.cos(a), 0, Math.sin(a));
+        _pos.copy(_focus).addScaledVector(_out, r);
+        // Face the centre, leaning the top in a little.
+        _q.setFromAxisAngle(_yAxis, Math.atan2(-_out.x, -_out.z));
+        _tan.set(-_out.z, 0, _out.x);
+        _q2.setFromAxisAngle(_tan, -c.leanIn);
+        _q.premultiply(_q2);
+        this._place(k, _pos, _q, width, height, fall, _out);
+        inst[k * 2] = this._panelSeed[k];
+        inst[k * 2 + 1] = this._crack(k, fadeT);
+      }
+    }
+    mesh.count = k;
+    mesh.visible = true;
+    mesh.instanceMatrix.needsUpdate = true;
+    this._inst.needsUpdate = true;
+    this.glassMaterial.userData.sync(this._lockPulse * c.lockPulse);
+    // The pool.
+    const pr = R * c.poolReach;
+    this.pool.position.copy(_focus).setY(0.033);
+    this.pool.scale.set(pr, pr, 1);
+    const land = Easing.outCubic(saturate(age / 0.25)) * 1.02;
+    const open = saturate((ti - 0.15) / 0.7) * 0.6 + saturate(fadeT - 1) * 0.4;
+    const heat = fadeT < 1 ? 0.6 + 0.4 * conv : 1 - 0.6 * saturate(fadeT - 1);
+    const erode = fadeT > 1.55 ? saturate((fadeT - 1.55) / 0.45) : 0;
+    this.poolMaterial.userData.sync(this._seed, land, open, heat, erode, 1 / Math.max(0.5, c.poolReach));
+    this.pool.visible = c.poolOpacity > 0.01 && erode < 0.99;
+  }
+
+  /** 0..1 how far the glass of instance k has cracked. */
+  _crack(k, fadeT) {
+    const c = settings[ID];
+    return saturate((fadeT - c.crackFrom - this._panelSeed[k] * 0.3) / 0.35);
+  }
+
+  /** 0..1 how far instance k has fallen; the first frame it starts, it sheds its chips. */
+  _fall(k, fadeT, seed) {
+    const c = settings[ID];
+    const f = saturate((fadeT - c.fallFrom - seed * c.fallStagger) / Math.max(0.02, c.fallTime));
+    if (f > 0 && !this._fell[k]) {
+      this._fell[k] = 1;
+      this._shatter(k);
+    }
+    return f;
+  }
+
+  /** Stand instance k: tipped outward by `fall` about its foot, sinking and shrinking as it goes. */
+  _place(k, at, q, width, height, fall, out) {
+    const tip = Easing.inQuad(fall);
+    if (tip > 0) {
+      if (out) _tan.set(-out.z, 0, out.x);
+      else _tan.copy(this.side);
+      _q2.setFromAxisAngle(_tan, -tip * 1.35);
+      q.premultiply(_q2);
+    }
+    _pos.copy(at);
+    _pos.y = -tip * tip * height * 0.7;
+    const shrink = 1 - 0.55 * tip;
+    _sc.set(Math.max(0.01, width) * shrink, Math.max(0.01, height) * shrink, shrink);
+    _m.compose(_pos, q, _sc);
+    this.glass.setMatrixAt(k, _m);
+  }
+
+  /** A panel breaks: lit glass chips burst off it. */
+  _shatter(k) {
+    const c = settings[ID];
+    const g = settings.global;
+    const count = Math.round(c.fallChips * g.particleCount);
+    if (count <= 0) return;
+    this.glass.getMatrixAt(k, _m);
+    _pos.setFromMatrixPosition(_m);
+    _pos.y = Math.max(0.4, c.panelHeight * 0.5);
+    _dir.copy(_pos).sub(this.pointAt(1, _end)).setY(0.6);
+    this._fillEmit(_pos, c.panelHeight * 0.3, _dir.normalize(), c.chipSpeed, 0.8, c.chipSize * 1.6, c.chipLife * 1.4, 8);
+    this.chips.emit(count, _emit);
+  }
+
+  /** The rings agree: the wall locks with a pulse, a soft thud and a light punch (presentation only). */
+  _lock() {
+    const c = settings[ID];
+    const g = settings.global;
+    this._locked = true;
+    this._lockPulse = 1;
+    this.lightBoost += c.lockLight * g.explosionIntensity;
+    this.ctx.shake.add(c.lockShake * g.cameraShake, 5, 14);
   }
 
   _mesh(geometry, material, layer, order) {
@@ -225,6 +499,15 @@ export class MirrorHaloAbility extends Ability {
     this.chipEmitter.reset();
     this.moteEmitter.reset();
     this.detail.reseed(this._seed);
+    this._beatAge = -1;
+    this._locked = false;
+    this._lockPulse = 0;
+    this._lockAngle = 0;
+    for (let r = 0; r < 3; r++) this._ringAngle[r] = Math.random() * TAU;
+    this._fell.fill(0);
+    for (let i = 0; i < MAX_GLASS; i++) this._panelSeed[i] = i === 0 ? 0 : Math.random();
+    this.glass.visible = false;
+    this.pool.visible = false;
     this.detail.hide();
     this.rig.hide();
     this.body.visible = false;
@@ -360,10 +643,10 @@ export class MirrorHaloAbility extends Ability {
     this.detail.update(TWIST, ZONE, st, c, this.age);
     this.rig.update(st, c, this.age);
     const show = fade > 0.02 && (grow > 0.02 || open > 0.02);
-    this.body.visible = show;
-    this.voice.visible = show;
+    this.body.visible = show && c.bodyOpacity > 0.01;
+    this.voice.visible = show && c.voiceOpacity > 0.01;
     this.lens.visible = show && c.lensWarp > 0.01;
-    this.ground.visible = st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
+    this.ground.visible = c.groundOpacity > 0.01 && st.erode < 0.99 && (st.land > 0.001 || st.pre > 0.01);
     this.position.copy(_focus);
     this.position.y = c.height * 0.45;
   }
@@ -747,6 +1030,7 @@ export class MirrorHaloAbility extends Ability {
     this._pose(false, 0);
     this._palette();
     this._shed(dt, 0.35 + 0.65 * this._state.grow);
+    this._mirrors(dt, 0);
     if (WHEN === 'travel' || WHEN === 'part' || WHEN === 'late') this._strike(false);
     this._updateMarks(dt);
     this.ctx.shake.rumble(0.035 * c.impactShake * g.cameraShake, dt);
@@ -754,6 +1038,7 @@ export class MirrorHaloAbility extends Ability {
 
   onImpact() {
     this._beat();
+    this._beatAge = 0;
     if (WHEN === 'commit' || WHEN === 'part') this._strike(true);
   }
 
@@ -765,6 +1050,7 @@ export class MirrorHaloAbility extends Ability {
     this._pose(true, t);
     this._palette();
     this._shed(dt, fade * 0.7);
+    this._mirrors(dt, t);
     if (WHEN === 'return') this._strike(false);
     if (!this._settled && t > c.aftershockAt) {
       this._settled = true;
@@ -788,9 +1074,16 @@ export class MirrorHaloAbility extends Ability {
     this.ground.visible = false;
     this.detail.hide();
     this.rig.hide();
+    this.glass.visible = false;
+    this.pool.visible = false;
   }
 
   dispose() {
+    this.panelGeometry.dispose();
+    this.glassMaterial.dispose();
+    this.glass.dispose();
+    this.poolGeometry.dispose();
+    this.poolMaterial.dispose();
     this.detail.dispose();
     this.rig.dispose();
     this.detailMaterial.dispose();
@@ -971,6 +1264,54 @@ export function buildEditor(gui, c, Editor) {
   mark.addColor(c, 'colorMarkEdge').name('edge');
   R(mark, c, 'markEdgeGlow', 0, 8, 0.05, 'edge glow');
   R(mark, c, 'markEdgeWidth', 0, 0.3, 0.005, 'edge width');
+
+  const glass = folder.addFolder('14 · The mirrors');
+  R(glass, c, 'shardHeight', 0, 4, 0.05, 'shard in flight (m)');
+  R(glass, c, 'shardSpin', 0, 40, 0.5, 'shard spin (rad/s)');
+  R(glass, c, 'shardArc', 0, 5, 0.05, 'shard lob (m)');
+  R(glass, c, 'centreHeight', 0, 6, 0.05, 'centre mirror (m)');
+  R(glass, c, 'centreWidth', 0.2, 3, 0.05, 'centre width (m)');
+  R(glass, c, 'ringPanels', 1, 16, 1, 'panels per ring');
+  R(glass, c, 'panelHeight', 0.3, 6, 0.05, 'panel height (m)');
+  R(glass, c, 'panelFill', 0.1, 1.2, 0.01, 'panel width (share of its arc)');
+  R(glass, c, 'lockFill', 0.3, 1.6, 0.01, 'locked width (share)');
+  R(glass, c, 'ringSpread', 0, 0.8, 0.01, 'disagreement (× circle)');
+  R(glass, c, 'ringWobble', 0, 0.4, 0.01, 'breathing (× circle)');
+  R(glass, c, 'ringWalk', 0, 6, 0.05, 'walk (rad/s)');
+  R(glass, c, 'riseTime', 0.02, 1, 0.01, 'rise (s)');
+  R(glass, c, 'riseStagger', 0, 0.4, 0.01, 'ring stagger (s)');
+  R(glass, c, 'convergeFrom', 0, 1, 0.01, 'agree from');
+  R(glass, c, 'convergeTo', 0.05, 1, 0.01, 'agreed by');
+  R(glass, c, 'leanIn', -0.5, 0.5, 0.01, 'lean in (rad)');
+  R(glass, c, 'lockSpin', -2, 2, 0.01, 'wall turn (rad/s)');
+  R(glass, c, 'lockPulse', 0, 4, 0.05, 'lock pulse');
+  R(glass, c, 'lockShake', 0, 1, 0.01, 'lock thud');
+  R(glass, c, 'lockLight', 0, 40, 0.5, 'lock light');
+  R(glass, c, 'crackFrom', 0.3, 1.9, 0.01, 'cracks from');
+  R(glass, c, 'fallFrom', 0.5, 1.95, 0.01, 'falls from');
+  R(glass, c, 'fallStagger', 0, 0.9, 0.01, 'fall scatter');
+  R(glass, c, 'fallTime', 0.05, 0.9, 0.01, 'fall time');
+  R(glass, c, 'fallChips', 0, 40, 1, 'chips per panel');
+  R(glass, c, 'mirrorRough', 0, 1, 0.01, 'roughness');
+  R(glass, c, 'mirrorMetal', 0, 1, 0.01, 'metalness');
+  R(glass, c, 'mirrorRim', 0, 4, 0.05, 'fresnel rim');
+  R(glass, c, 'mirrorReflect', 0, 2, 0.01, 'reflection');
+  R(glass, c, 'mirrorSweep', 0, 2, 0.01, 'streak speed');
+  R(glass, c, 'mirrorStreak', 0, 4, 0.05, 'streak');
+  R(glass, c, 'mirrorFrame', 0, 6, 0.05, 'frame glow');
+  R(glass, c, 'crackGlow', 0, 8, 0.05, 'crack glow');
+  glass.addColor(c, 'colorMirror').name('glass');
+  glass.addColor(c, 'colorMirrorSky').name('reflection, sky');
+  glass.addColor(c, 'colorMirrorFloor').name('reflection, floor');
+  glass.addColor(c, 'colorMirrorRim').name('fresnel rim');
+  glass.addColor(c, 'colorCrack').name('crack');
+
+  const pool = folder.addFolder('15 · Mirror pool');
+  R(pool, c, 'poolReach', 0.5, 2.5, 0.01, 'radius (× circle)');
+  R(pool, c, 'poolOpacity', 0, 1.5, 0.01, 'opacity');
+  R(pool, c, 'poolGlow', 0, 6, 0.05, 'crack glow');
+  R(pool, c, 'poolCracks', 3, 32, 1, 'cracks');
+  pool.addColor(c, 'colorPoolDeep').name('deep');
 
   const light = folder.addFolder('Light');
   light.addColor(c, 'lightColor').name('colour');

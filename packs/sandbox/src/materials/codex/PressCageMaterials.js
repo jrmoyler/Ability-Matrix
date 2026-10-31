@@ -764,3 +764,268 @@ export function createPressCageDetailMaterial(rig = false) {
   };
   return material;
 }
+
+/* -------------------------------------------------------------------- */
+/* The press itself — cast-local hero shaders                            */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The press bars (and the billet they spit): lit, oxidised forged steel. A
+ * near-black red body, sun-lit (key + sky fill + a hard specular), a red rim,
+ * the inward platen face glowing red-hot with the pressure (`aBar.z`), friction
+ * heat at the foot while it skids (`aBar.y`), and an exit dissolve with a hot
+ * edge (`aBar.w`). Per instance: `aBar` = (seed, skid heat, press heat, dissolve).
+ * Opaque, on LAYER.SHAPED, casting the sun's shadow.
+ */
+const RAM_VERTEX = /* glsl */ `
+  attribute vec4 aBar;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec3 vNormalL;
+  varying vec4 vBar;
+  void main() {
+    mat4 m = modelMatrix * instanceMatrix;
+    vec4 world = m * vec4(position, 1.0);
+    vWorld = world.xyz;
+    vNormalW = normalize(mat3(m) * normal);
+    vNormalL = normal;
+    vLocal = position;
+    vBar = aBar;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const RAM_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uDeep;
+  uniform vec3  uBody;
+  uniform vec3  uRim;
+  uniform vec3  uHot;
+  uniform float uRimGlow;
+  uniform float uSpecular;
+  uniform float uPressGlow;
+  uniform float uSkidGlow;
+  varying vec3 vWorld;
+  varying vec3 vNormalW;
+  varying vec3 vLocal;
+  varying vec3 vNormalL;
+  varying vec4 vBar;
+
+  ${noiseGLSL}
+
+  void main() {
+    float h = clamp(vLocal.y, 0.0, 1.0);
+    float n = snoise(vec3(vLocal.x * 2.0, h * 3.0, vLocal.z * 2.0 + vBar.x * 13.0));
+    float cut = vBar.w * 1.15;
+    float d = (1.0 - h) * 0.55 + (n * 0.5 + 0.5) * 0.45;
+    if (d < cut) discard;
+    float edge = (1.0 - smoothstep(0.0, 0.03, d - cut)) * step(0.001, vBar.w);
+
+    vec3 V = normalize(cameraPosition - vWorld);
+    vec3 N = normalize(vNormalW);
+    if (dot(N, V) < 0.0) N = -N;
+    vec3 L = normalize(uLightDir);
+    vec3 H = normalize(L + V);
+    float ndl = max(dot(N, L), 0.0);
+    float ndv = clamp(dot(N, V), 0.0, 1.0);
+
+    // Forged steel, oxidised: dark, with hammered patches of body colour.
+    float hammer = snoise01(vec3(vLocal.x * 9.0, h * 14.0, vLocal.z * 9.0 + vBar.x));
+    vec3 albedo = mix(uDeep, uBody, 0.2 + 0.55 * hammer);
+    vec3 color = albedo * (0.25 + 1.2 * ndl);
+    color += albedo * 0.25 * (0.5 + 0.5 * N.y);
+    color += mix(uBody, vec3(1.0), 0.55) * pow(max(dot(N, H), 0.0), 60.0) * uSpecular;
+    color += uRim * pow(1.0 - ndv, 3.0) * uRimGlow * uGlobalGlow;
+
+    // The platen (local +z face) glows with the pressure, hottest at its middle.
+    float platen = smoothstep(0.6, 0.95, vNormalL.z) * smoothstep(0.05, 0.25, h) * (1.0 - smoothstep(0.75, 0.9, h));
+    float press = platen * vBar.z * (0.75 + 0.5 * snoise01(vec3(vLocal.x * 4.0, h * 6.0 - uTime * 2.0, vBar.x)));
+    color = mix(color, mix(uRim, uHot, smoothstep(0.5, 1.2, press)) * 1.8 * uPressGlow * uGlobalGlow, clamp(press, 0.0, 0.9));
+
+    // Friction heat at the foot while it skids.
+    float foot = 1.0 - smoothstep(0.0, 0.22, h);
+    color += mix(uRim, uHot, foot * foot) * vBar.y * foot * uSkidGlow * uGlobalGlow;
+
+    color = mix(color, uRim * 1.4 * uGlobalGlow, edge);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function createPressCageRamMaterial() {
+  const material = new ShaderMaterial({
+    transparent: false,
+    depthWrite: true,
+    depthTest: true,
+    side: DoubleSide,
+    toneMapped: false,
+    uniforms: sharedUniforms({
+      uDeep: { value: new Color() },
+      uBody: { value: new Color() },
+      uRim: { value: new Color() },
+      uHot: { value: new Color() },
+      uRimGlow: { value: 0.4 },
+      uSpecular: { value: 0.8 },
+      uPressGlow: { value: 1 },
+      uSkidGlow: { value: 1 }
+    }),
+    vertexShader: RAM_VERTEX,
+    fragmentShader: RAM_FRAGMENT
+  });
+  material.userData.sync = () => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uDeep.value.copy(getColor(c.colorRamDeep));
+    u.uBody.value.copy(getColor(c.colorRamBody));
+    u.uRim.value.copy(getColor(c.colorRamRim));
+    u.uHot.value.copy(getColor(c.colorRamHot));
+    u.uRimGlow.value = c.ramRimGlow * g.fresnel;
+    u.uSpecular.value = c.ramSpecular;
+    u.uPressGlow.value = c.ramPressGlow * g.shaderIntensity;
+    u.uSkidGlow.value = c.ramSkidGlow * g.shaderIntensity;
+  };
+  return material;
+}
+
+/**
+ * The press floor: the circle filled with a dark, scoured stain; the gouge
+ * each bar ploughs as it skids in (hot just behind the bar, cooling toward
+ * where it started); and, once the press has spat, a crushed dent at the
+ * centre with hot cracks running out of it.
+ */
+const SKID_VERTEX = /* glsl */ `
+  varying vec3 vWorld;
+  void main() {
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const SKID_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform float uTime;
+  uniform vec3  uLightDir;
+  uniform float uGlobalGlow;
+  uniform vec3  uCentre;
+  uniform float uOuter;   // metres: the stain's reach
+  uniform float uStart;   // metres: where the bars started (the ring)
+  uniform float uNow;     // metres: how far in the bars have come (deepest point)
+  uniform float uCount;
+  uniform float uSpin;
+  uniform float uWidth;   // gouge width, metres
+  uniform float uHeat;    // 0..1 how hot the fresh gouges are
+  uniform float uCrush;   // 0..1 the centre dent
+  uniform float uCrushR;  // metres
+  uniform float uGlow;
+  uniform float uOpacity;
+  uniform float uSeed;
+  uniform vec3  uDeepC;
+  uniform vec3  uBodyC;
+  uniform vec3  uRimC;
+  uniform vec3  uHotC;
+  varying vec3 vWorld;
+  ${noiseGLSL}
+  void main() {
+    vec2 q = vWorld.xz - uCentre.xz;
+    float r = length(q);
+    float x = r / max(uOuter, 0.1);
+    if (x > 1.0) discard;
+    float a = atan(q.y, q.x);
+    float sector = 6.2831853 / max(uCount, 1.0);
+    float k = floor((a - uSpin) / sector + 0.5);
+    float da = (a - uSpin) - k * sector;
+    float lateral = abs(r * sin(da));
+    float grain = snoise01(vec3(vWorld.xz * 3.0, uSeed));
+    float scuff = snoise01(vec3(vWorld.xz * 0.9, uSeed + 4.0));
+
+    // The scoured stain over the whole circle.
+    vec3 color = mix(uDeepC, uBodyC, 0.25 + 0.5 * scuff) * (0.6 + 0.5 * grain);
+    float alpha = (1.0 - smoothstep(0.8, 1.0, x)) * (0.55 + 0.3 * scuff);
+
+    // The gouges: a groove from the ring in to where the bar is now.
+    float inLane = (1.0 - smoothstep(uWidth * 0.35, uWidth * 0.55, lateral)) * step(0.0, cos(da));
+    float along = smoothstep(uNow - 0.15, uNow + 0.05, r) * (1.0 - smoothstep(uStart, uStart + 0.25, r));
+    float gouge = inLane * along;
+    // The groove floor is dark, its lips catch the light, the fresh end is hot.
+    float lip = (1.0 - smoothstep(0.0, 0.08, abs(lateral - uWidth * 0.45))) * along;
+    float fresh = exp(-max(r - uNow, 0.0) / 0.9) * uHeat;
+    color = mix(color, uDeepC * 0.25, gouge * 0.85);
+    color += uBodyC * lip * 0.7 * (0.5 + max(dot(normalize(vec3(q.x, 1.5, q.y)), normalize(uLightDir)), 0.0));
+    color += mix(uRimC, uHotC, fresh * fresh) * gouge * fresh * 1.6 * uGlow * uGlobalGlow * (0.7 + 0.5 * grain);
+    alpha = max(alpha, gouge * 0.95);
+
+    // The crushed centre: a dark dent with hot cracks running out of it.
+    float cr = r / max(uCrushR, 0.05);
+    float dent = (1.0 - smoothstep(0.7, 1.0, cr)) * uCrush;
+    float crack = 1.0 - smoothstep(0.0, 0.07, abs(snoise(vec3(a * 2.2, r * 0.6, uSeed)) ));
+    crack *= (1.0 - smoothstep(0.6, 2.2, cr)) * uCrush;
+    color = mix(color, uDeepC * 0.2, dent);
+    color += mix(uRimC, uHotC, dent * 0.6) * crack * 1.4 * uHeat * uGlow * uGlobalGlow;
+    alpha = max(alpha, dent * 0.95 + crack * 0.6);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0) * uOpacity);
+  }
+`;
+
+export function createPressCageSkidMaterial() {
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: NormalBlending,
+    side: DoubleSide,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    uniforms: sharedUniforms({
+      uCentre: { value: new Vector3() },
+      uOuter: { value: 1 },
+      uStart: { value: 1 },
+      uNow: { value: 1 },
+      uCount: { value: 8 },
+      uSpin: { value: 0 },
+      uWidth: { value: 0.5 },
+      uHeat: { value: 0 },
+      uCrush: { value: 0 },
+      uCrushR: { value: 1 },
+      uGlow: { value: 1 },
+      uOpacity: { value: 1 },
+      uSeed: { value: 0 },
+      uDeepC: { value: new Color() },
+      uBodyC: { value: new Color() },
+      uRimC: { value: new Color() },
+      uHotC: { value: new Color() }
+    }),
+    vertexShader: SKID_VERTEX,
+    fragmentShader: SKID_FRAGMENT
+  });
+  /** @param {object} p  centre, outer, start, now, count, spin, heat, crush, alpha, seed */
+  material.userData.sync = (p) => {
+    const c = settings[ID];
+    const g = settings.global;
+    const u = material.uniforms;
+    u.uCentre.value.copy(p.centre);
+    u.uOuter.value = p.outer;
+    u.uStart.value = p.start;
+    u.uNow.value = p.now;
+    u.uCount.value = p.count;
+    u.uSpin.value = p.spin;
+    u.uWidth.value = c.ramWidth * c.skidWidth;
+    u.uHeat.value = p.heat;
+    u.uCrush.value = p.crush;
+    u.uCrushR.value = c.crushRadius;
+    u.uGlow.value = c.skidGlow * g.glow;
+    u.uOpacity.value = c.skidOpacity * g.opacity * p.alpha;
+    u.uSeed.value = p.seed;
+    u.uDeepC.value.copy(getColor(c.colorSkidDeep));
+    u.uBodyC.value.copy(getColor(c.colorSkidBody));
+    u.uRimC.value.copy(getColor(c.colorRamRim));
+    u.uHotC.value.copy(getColor(c.colorRamHot));
+  };
+  return material;
+}
