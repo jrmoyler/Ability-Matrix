@@ -158,7 +158,7 @@ export default {
     colorFlash: '#e7fff8',
     burstRadius: 2.3, // burst size, metres
     burstLife: 0.7,
-    burstOpacity: 0.1, // strength of the burst shell; matter keeps it low and hits with debris instead
+    burstOpacity: 0.04, // strength of the burst shell; matter keeps it low and hits with debris instead
     impactChips: 4, // fragments thrown up and out on the beat
     impactDust: 8, // dust puffs rolled out along the floor on the beat
     colorBurstA: '#ffffff',
@@ -213,61 +213,89 @@ export default {
     wakeLife: 1.6, // seconds each wake decal lingers
     wakeChips: 1.6, // fragments thrown at each wake
 
-    /* --- 15 · the gust front (upgrade) --- */
-    frontWidth: 4.2, // width across the line, metres
-    frontHeight: 2.8, // height of the wave of air, metres
-    frontDepth: 0.45, // how far the curl reaches forward, × height
-    frontSkew: 0.6, // radians its face is turned off square; it crosses from − to + as it runs
-    frontGrow: 0.12, // seconds it takes to rise off the fist
-    frontOpacity: 0.7, // strength of its body (the deep teal mass)
-    frontFlow: 3.2, // speed of the streaks racing up and over the curl
-    frontFlutter: 0.04, // how much the sheet flutters
-    crashTime: 0.3, // seconds the front takes to break over the group
-    crashPitch: 1.1, // radians it falls forward as it breaks
-    crashLunge: 1.2, // metres it lunges on as it breaks
+    /* --- 15 · the shear blades (upgrade) --- */
+    frontWidth: 4.6, // span of each scythe blade, horn to horn, metres
+    frontHeight: 1.25, // how far its crescent arcs up (the sagitta), metres
+    frontDepth: 0.3, // how far its horns trail back, × span
+    frontSkew: 0.3, // radians each blade's face swings across as it runs
+    frontGrow: 0.12, // seconds a blade takes to open off the fist
+    frontOpacity: 0.95, // strength of the dark body of the blades
+    frontFlow: 6, // speed of the streaks racing along the blades
+    frontFlutter: 0.03, // how much the blades shiver
+    crashTime: 0.28, // seconds the blades take to run on past the crossing
+    crashPitch: 0.5, // radians the blades pitch forward as they tear apart
+    crashLunge: 5.5, // metres the blades run on past the crossing (the X's far arms)
 
-    /* --- 16 · the rotor (upgrade) --- */
-    rotorLength: 5.2, // length of the roll of wind across the line, metres
-    rotorRadius: 1.35, // radius of the roll, metres
-    rotorGrow: 0.32, // seconds it takes to roll up
+    /* --- 16 · the debris spiral (upgrade) --- */
+    rotorLength: 4.6, // length of the spiral of debris rolling over the group, metres
+    rotorRadius: 1, // radius of the spiral, metres
+    rotorGrow: 0.32, // seconds it takes to wind up
     rotorSpin: 9, // radians/second it rolls
     rotorSpinDown: 1.4, // seconds its roll slows over, × global lifetime
     rotorDrift: 1.6, // metres it drifts on past the group
-    rotorSway: 0.55, // metres it sways side to side
+    rotorSway: 0.45, // metres it sways side to side
     rotorSwayRate: 2.2, // sway rate (radians/second)
     rotorLift: 0.9, // metres it lifts as it unwinds
     rotorExitAt: 1.4, // fade progress it starts to unwind at
-    rotorOpacity: 0.6, // strength of its body
-    rotorFlow: 4.5, // speed of the streaks round the roll
-    rotorFlutter: 0.05, // how much the ribbons flutter
-    coreOpacity: 0.78, // strength of the dark translucent body filling the roll
+    rotorOpacity: 1, // strength of the debris ribbons
+    rotorFlow: 4.5, // speed of the debris running round the spiral
+    rotorFlutter: 0.04, // how much the ribbons flutter
+    coreOpacity: 0, // strength of the old translucent body inside the roll (0 = none: the wind is read by what it carries)
     coreSize: 0.85, // its radius, × the roll's
 
     /* --- 17 · the wind's look (upgrade) --- */
-    windStreaks: 1.4, // brightness of the flow streaks
-    windFresnel: 0.9, // rim brightening at grazing angles
-    colorWindCore: '#f2fffb', // white lip
+    windStreaks: 1.2, // brightness of the flow streaks
+    windFresnel: 0.7, // rim brightening at grazing angles
+    colorWindCore: '#f2fffb', // white cutting edge
     colorWindTint: '#9ff5dc', // pale mint
     colorWindBody: '#1f9e80', // saturated teal
     colorWindDeep: '#04211b', // deep teal, carries the mass
-    leafRate: 150, // leaves per second shed off the curl / flung round the roll
-    leafSize: 0.24, // leaf size
+    leafRate: 150, // leaves per second torn up along the blades / flung round the spiral
+    leafSize: 0.17, // leaf size
     leafSpeed: 5.5, // metres/second they are flung at
     leafLife: 0.9, // seconds a leaf lives
     leafFall: 2.5, // how hard they fall (gravity)
-    colorLeafA: '#5c6b3a',
-    colorLeafB: '#2f3d22',
-    colorLeafC: '#1c2614',
+    colorLeafA: '#3e4a28',
+    colorLeafB: '#26301a',
+    colorLeafC: '#151c0e',
     colorLeafD: '#0b0f08',
 
-    /* --- 18 · the scoured floor (upgrade) --- */
-    scourWidth: 3.6, // width of the combed strip, metres
-    scourCross: 0.55, // half-angle the two streak families cross at, radians
-    scourOpacity: 0.85, // strength of the strip and the eddy
-    scourGlow: 0.9, // fresh dust right behind the front
-    scourErodeAt: 1.5, // fade progress the floor starts to break up at
-    eddyRadius: 2.3, // radius of the spiral eddy where the gust broke, metres
-    eddySpin: 3.5 // how fast the eddy's arms turn (radians/second, slowing with the rotor)
+    /* --- 18 · the gash (upgrade) --- */
+    scourWidth: 1.5, // width of each gash at the crossing, metres
+    scourCross: 0.65, // half-angle the two sweeps cross at over the group, radians (sets how wide they swing out)
+    scourOpacity: 0.95, // strength of the gashes
+    scourGlow: 1, // fresh dust right behind the blades
+    scourErodeAt: 1.6, // fade progress the gashes start to break up at
+    eddyRadius: 1.3, // radius of the torn patch where the blades cross, metres
+    eddySpin: 2, // how fast its combed arms turn (radians/second, slowing with the spiral)
+
+    /* --- 19 · blades & debris (upgrade) --- */
+    bladeReach: 3.2, // most the two sweeps swing out from the line, metres
+    bladeRoll: 0.6, // radians each blade is tilted, opposite ways, so the pair crosses as an X
+    bladeSweep: 0.5, // radians the tilt swings through over the run (the scythe stroke)
+    bladeThickness: 0.16, // thickness at the spine, metres
+    bladeEdge: 2.4, // brightness of the cutting edge
+    bladeLift: 1.15, // height of the blade's middle, metres
+    bladeFade: 0.45, // seconds a blade takes to tear apart after the crossing
+    bladeWisp: 0.6, // how far the trailing horn frays into wisps
+    debrisCount: 220, // turf clods, grit and stones the blades tear up (max 240)
+    debrisSize: 0.34, // mean clod size, metres
+    debrisSizeJitter: 0.35, // ± fraction of that
+    debrisBand: 1.9, // width of the band of debris each blade drags, metres
+    debrisLift: 4.2, // metres/second the clods are thrown up
+    debrisCarry: 5, // metres the clods are dragged on after the blade
+    debrisGravity: 13, // how hard they fall
+    debrisSpin: 9, // radians/second they tumble
+    debrisGlow: 0.15, // teal rim light on the clods
+    debrisShadow: 1, // 1 = the clods cast shadows
+    debrisCaught: 0.3, // share of the clods near the group the spiral catches and rolls round before flinging them down
+    colorDebrisA: '#36421f', // turf
+    colorDebrisB: '#3f2c1b', // soil
+    colorDebrisC: '#33373a', // grit and stone
+    gashReach: 6.5, // metres before the crossing the blades bite into the floor (the X's near arms)
+    gashTaper: 0.35, // gash width where the bite starts, × its width at the crossing
+    gashDepth: 0.9, // how dark the gouged middle of a gash is
+    gashLip: 1 // brightness of the torn turf lips
 
   }
 };

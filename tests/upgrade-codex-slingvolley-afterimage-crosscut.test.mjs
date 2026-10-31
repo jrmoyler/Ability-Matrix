@@ -200,6 +200,8 @@ test('crosscut: a gust front runs the line and crosses, breaks into a rolling ro
   let frontTravel = 0;
   let rotorFrames = 0;
   let scourFrames = 0;
+  let pairFrames = 0;
+  let clodFrames = 0;
   const yaws = [];
   const turns = [];
   let maxEmit = 0;
@@ -217,6 +219,8 @@ test('crosscut: a gust front runs the line and crosses, breaks into a rolling ro
       turns.push(a._rotorTurn);
     }
     if (a.scour.visible) scourFrames++;
+    if (a.gustFront.visible && a.gustFront2.visible) pairFrames++;
+    if (a.clods.visible && a.clods.count > 0) clodFrames++;
   }
   const seconds = frames / 30;
   assert.ok(seconds > 1.5 && seconds < 4.5, `screen time ${seconds}`);
@@ -225,12 +229,14 @@ test('crosscut: a gust front runs the line and crosses, breaks into a rolling ro
   assert.ok(rotorFrames / 30 > 1.2, `rotor rolls ${rotorFrames / 30}s`);
   assert.ok(turns.at(-1) - turns[0] > 2, 'the rotor keeps rolling through the linger');
   assert.ok(scourFrames / 30 > 1.5);
+  assert.ok(pairFrames >= 3, 'two shear blades run together');
+  assert.ok(clodFrames / 30 > 1.2, `debris stays ${clodFrames / 30}s`);
   assert.ok(typeof a.front === 'number', 'the base front is not clobbered');
   assert.equal(bodies.slice(0, 3).reduce((n, b) => n + b.kills, 0), 3);
   assert.equal(bodies[3].kills, 0);
   assert.ok(maxEmit < 2000);
   a.destroy();
-  assert.ok(!a.gustFront.visible && !a.rotor.visible && !a.scour.visible);
+  assert.ok(!a.gustFront.visible && !a.gustFront2.visible && !a.clods.visible && !a.rotor.visible && !a.scour.visible);
 });
 
 test('crosscut: reuse resets, editor exposes every key, dispose frees', () => {

@@ -2,31 +2,32 @@
 Wind · line · range 2–18 m · no zone · ≈ 2.8 s on screen (≈0.36 s travel at 36.5 m/s for a 13 m cast + 1.15 impact + 1.25 fade)
 
 ## Read in one line
-A 4 m wide, 2.8 m tall breaking wave of teal air curls up off the hand and runs down the line, its face raking across it as it goes over a floor combed into crossing streaks; at the group it breaks and rolls up into a 5 m roll of wind that keeps turning over a spiral eddy, flinging leaves, then unwinds and lifts away.
+Two dark-teal scythe blades of air with white cutting edges leave the hand together, swing out either side of the line and back in, tearing up a band of turf, soil and grit as they come down to bite the floor, and cross over the group as an X; they run on, pitch over and tear apart, the debris they carried rolls on over the group as a thin dark spiral and is flung down, and an X gouged into the floor stays.
 
 ## Beats
 | t (s) | Beat | On screen |
 |---|---|---|
-| 0.00–0.12 | Anticipation | The front rises off the hand with an overshoot (outBack, 0.12 s); sparks and motes leave the fist. |
-| 0.00–0.36 | Travel | The gust front rides the hit front: a translucent sheet rising, leaning over and curling into a white lip, crest peaking off-centre, bowed forward; deep teal low (#04211b), saturated teal (#1f9e80), mint at the crest; streaks rake diagonally up and across it; it flutters; its face turns from −0.6 to +0.6 rad as it runs (the cross-cut; bodies it reaches are thrown on the same swinging heading). Leaves shed off the curl. Behind it a 3.6 m strip of floor is combed by two families of streaks crossing at ±0.55 rad, fresh mint dust right behind the front. |
-| ≈0.36 | Impact | The front breaks over the group: pitches forward 1.1 rad, lunges 1.2 m, squashes and tears apart over 0.3 s, while the rotor rolls up (outBack, 0.32 s); template beat: shake, flash, light, dust shell, residue decal. |
-| 0.4–1.9 | Linger | The rotor — a filled, translucent teal body (deep core, lighter limb, swirling) under three quieter helical ribbons, 5.2 m long, 1.35 m radius, axis across the line — rolls forward at 9 rad/s slowing over 1.4 s, drifts 1.6 m on, sways ±0.55 m; dark leaf debris (#5c6b3a → #0b0f08, 0.24 size) is flung tangentially round it; under it a spiral eddy (r 2.3 m, three arms) is scoured into the floor and keeps turning. |
-| 1.9–2.8 | Exit | From 40 % into the fade the rotor swells 60 %, lifts 0.9 m and tears apart on noise; the strip and eddy erode from 50 %. |
+| 0.00–0.12 | Anticipation | Both blades open off the fist (outBack, 0.12 s); sparks and motes leave the hand. |
+| 0.00–0.36 | Travel | Two crescents 4.6 m horn to horn, 1.25 m arc, 0.16 m thick at the spine, tilted ±0.6 rad opposite ways, ride the hit front on sine paths that swing out up to 3.2 m either side (never wider than the 0.65 rad crossing angle allows for the cast length) and back in; their faces turn with the path and the tilt sweeps 0.5 rad over the run. Deep teal bodies (#04211b) with saturated teal streaks racing to the trailing horn, which frays into wisps; a white-hot outer edge (#f2fffb), a mint spine. From ~6.5 m short of the group they bite the floor: lit clods (0.22–0.46 m, turf #36421f, soil #3f2c1b, grit #33373a; shadows) are thrown up and dragged on behind each blade in a 1.9 m band, with dark leaves and grit. |
+| ≈0.36 | Impact | The blades meet over the group as it is struck and cross as an X; shake, flash, light punch, scorch residue, dust ring (burst shell almost off). |
+| 0.36–1.0 | Run-on | The blades run on 5.5 m past the group (the X's far arms), pitch 0.5 rad forward and tear apart on noise with a burning mint rim (0.45 s). |
+| 0.4–1.9 | Linger | Clods fall and settle half-buried along the X; 30 % of those near the group are caught by the spiral — three thin dark broken ribbons (4.6 m long, r 1 m) rolling at 9 rad/s, slowing, drifting 1.6 m, swaying — and roll round it with dark leaves flung off it. The X gash (1.5 m wide at the crossing, narrowing along its arms, dark gouge, teal-lit combed grooves, pale torn lips, a torn patch combed round at the crossing that keeps turning) holds. |
+| 1.9–2.8 | Exit | The spiral swells, lifts 0.9 m and tears apart, flinging the caught clods down; clods sink into the floor; the gash erodes from 60 % into the fade. |
 
 ## Layers
-1. Gust front — `createCrosscutFrontGeometry` (curl-profile sheet, in the ability file), `createCrosscutWindMaterial('front')` (normal-blended torn translucent body, flutter in the vertex stage, raking streaks, white lip).
-2. Rotor — `createCrosscutRotorGeometry` (three helical ribbons, in the ability file), `createCrosscutWindMaterial('rotor')`, over the roll's body `createCrosscutCoreGeometry` + `createCrosscutCoreMaterial` (dark-teal translucent churn).
-3. Scoured floor — `createCrosscutScourMaterial`: combed crosscut strip + turning spiral eddy; erodes.
-4. Particles — lit LEAF system `crosscut.leaf` (dark debris), SMOKE dust, STREAK sparks, motes.
-5. Engine — SCORCH residue, DUSTRING, aftershock.
-6. World — shake, flash, light, lens distortion (0.5).
-Template ribbon sweep at the caster, voice, floor grid, rig, pieces and trail are off by default.
+1. Shear blades ×2 — `createCrosscutBladeGeometry` (`assets/codex/CrosscutGustSignatureGeometry.js`, lens-section crescent), `createCrosscutBladeMaterial` (sized in the vertex stage from settings; streaks, cutting edge, frayed horn, burn-out dissolve).
+2. Debris clods — `createCrosscutClodGeometry` (faceted turf clod, vertex-coloured), `createCrosscutDebrisMaterial` (MeshStandardMaterial), InstancedMesh of up to 240, `LAYER.WORLD`, shadows; dice-only records plus a release timestamp.
+3. Debris spiral — `createCrosscutRotorGeometry` (thin ribbons), `createCrosscutWindMaterial('rotor')` drawn as broken dark debris; old translucent core off (`coreOpacity` 0).
+4. Gash — `createCrosscutScourMaterial`: two sweeps written behind the blades from `gashReach` short of the crossing, an X over the group; erodes.
+5. Particles — lit LEAF `crosscut.leaf`, lit CHIP grit, SMOKE dust, STREAK sparks, motes.
+6. Engine — SCORCH residue, DUSTRING, aftershock; world — shake, flash, light, lens distortion.
+Template ribbon sweep, voice, floor grid, rig, pieces and trail are off by default.
 
 ## Signature
-The gust's face crosses the line as it runs, and the floor keeps the cross: two sets of combed streaks, written diagonally both ways.
+Two scythe sweeps that cross over the group as an X — in the air, then in the floor — and the wind is read through what it tears up and carries.
 
 ## Palette
-core #f2fffb, tint #9ff5dc, body #1f9e80 (wind) / #47e1bc (light), deep #04211b
+core #f2fffb, tint #9ff5dc, body #1f9e80, deep #04211b · debris turf #36421f, soil #3f2c1b, grit #33373a
 
 ## Gameplay
-Unchanged: `handlesOwnHits`, `WHEN = 'travel'` — the hit front cuts what is within `hitRadius` as it passes (`kill(…, slice)`), the blow's heading swinging from −`sweep` to +`sweep` across the line.
+Unchanged: `handlesOwnHits`, `WHEN = 'travel'` — the hit front cuts what is within `hitRadius` as it passes (`kill(…, slice)`), the blow's heading swinging from −`sweep` to +`sweep` across the line. The blades, debris and gash are presentation only.
